@@ -5,7 +5,7 @@ namespace System.Windows.Documents;
 /// Microsoft WPF source reference:
 /// System/Windows/Documents/TextElement.cs (captured in docs/PROVENANCE.md).
 /// </summary>
-public abstract partial class TextElement : System.Windows.DependencyObject, System.Windows.Input.IInputElement
+public abstract partial class TextElement : System.Windows.FrameworkContentElement, System.Windows.Input.IInputElement
 {
     protected static readonly DependencyPropertyShim DefaultStyleKeyProperty = new();
     protected static readonly DependencyPropertyShim FocusableProperty = new();
@@ -32,15 +32,24 @@ public abstract partial class TextElement : System.Windows.DependencyObject, Sys
     public bool IsEnabled => IsEnabledCore;
     internal TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
     internal TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
-    public object? Parent { get; internal set; }
+    public new System.Windows.DependencyObject? Parent { get; internal set; }
     internal TextContainer TextContainer => _textContainer;
-    internal IReadOnlyList<object> LogicalChildren => _children;
+    internal IReadOnlyList<object> ChildObjects => _children;
+    protected internal virtual System.Collections.IEnumerator LogicalChildren => _children.GetEnumerator();
     internal TextElement? NextElement => GetSibling(1);
     internal TextElement? PreviousElement => GetSibling(-1);
     internal ITextLayoutHost? LayoutHost => _textContainer.LayoutHost;
 
     internal void Reposition(TextPointer start, TextPointer end)
     {
+    }
+
+    internal virtual void RepositionWithContent(TextPointer textPosition)
+    {
+        if (textPosition.Parent is TextElement parent)
+        {
+            parent.InsertLogicalChild(parent.GetInsertionIndex(textPosition), this);
+        }
     }
 
     internal void AddLogicalChild(object child)
@@ -89,6 +98,28 @@ public abstract partial class TextElement : System.Windows.DependencyObject, Sys
 
     internal int IndexOfLogicalChild(object child) => _children.IndexOf(child);
 
+    private int GetInsertionIndex(TextPointer textPosition)
+    {
+        if (textPosition.Parent is not TextElement owner || !ReferenceEquals(owner, this))
+        {
+            return _children.Count;
+        }
+
+        var anchor = textPosition.Owner;
+        if (anchor is null)
+        {
+            return _children.Count;
+        }
+
+        var index = _children.IndexOf(anchor);
+        if (index < 0)
+        {
+            return _children.Count;
+        }
+
+        return textPosition.Edge == ElementEdge.BeforeStart ? index : index + 1;
+    }
+
     internal void SetLayoutHostRecursive(ITextLayoutHost? host)
     {
         _textContainer.LayoutHost = host;
@@ -133,6 +164,11 @@ public abstract partial class TextElement : System.Windows.DependencyObject, Sys
     {
     }
 
+    internal virtual void OnNewParent(System.Windows.DependencyObject newParent)
+    {
+        Parent = newParent;
+    }
+
     internal virtual int EffectiveValuesInitialSize => 0;
 
     internal virtual bool IsIMEStructuralElement => false;
@@ -154,6 +190,11 @@ public abstract partial class TextElement : System.Windows.DependencyObject, Sys
     protected virtual System.Windows.Automation.Peers.AutomationPeer? OnCreateAutomationPeer()
     {
         return null;
+    }
+
+    internal void NotifyTypographicPropertyChanged(bool affectsMeasureOrArrange, bool localValueChanged, System.Windows.DependencyProperty? property)
+    {
+        LayoutHost?.InvalidateLayout();
     }
 
     internal virtual System.Windows.DependencyObjectType? DTypeThemeStyleKey => null;

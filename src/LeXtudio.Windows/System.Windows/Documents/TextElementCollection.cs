@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 
 namespace System.Windows.Documents;
@@ -21,7 +22,7 @@ public class TextElementCollection<T> : ObservableCollection<T>
             _syncingFromOwner = true;
             try
             {
-                foreach (var child in textElement.LogicalChildren.OfType<T>())
+                foreach (var child in ((IEnumerable)textElement.LogicalChildren).OfType<T>())
                 {
                     Add(child);
                 }

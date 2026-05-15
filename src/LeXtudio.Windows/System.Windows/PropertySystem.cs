@@ -49,6 +49,11 @@ public sealed class DependencyProperty
 
         return this;
     }
+
+    public void OverrideMetadata(System.Type forType, FrameworkPropertyMetadata typeMetadata)
+    {
+        Metadata = typeMetadata;
+    }
 }
 
 public delegate void PropertyChangedCallback(DependencyObject d, DependencyPropertyChangedEventArgs e);

@@ -41,14 +41,14 @@ namespace System.Windows.Media
                     byte r = Convert.ToByte(new string(hex[0], 2), 16);
                     byte g = Convert.ToByte(new string(hex[1], 2), 16);
                     byte b = Convert.ToByte(new string(hex[2], 2), 16);
-                    return Color.FromRgb(r, g, b);
+                    return Color.FromArgb(255, r, g, b);
                 }
                 if (hex.Length == 6)
                 {
                     byte r = Convert.ToByte(hex.Substring(0, 2), 16);
                     byte g = Convert.ToByte(hex.Substring(2, 2), 16);
                     byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-                    return Color.FromRgb(r, g, b);
+                    return Color.FromArgb(255, r, g, b);
                 }
                 if (hex.Length == 8)
                 {

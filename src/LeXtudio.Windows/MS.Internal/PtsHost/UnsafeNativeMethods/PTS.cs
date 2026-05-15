@@ -8,5 +8,6 @@ public static class PTS
     public static class Restrictions
     {
         public const int tscLineInParaRestriction = 1_000_000;
+        public const int tscTableColumnsRestriction = 1_000;
     }
 }

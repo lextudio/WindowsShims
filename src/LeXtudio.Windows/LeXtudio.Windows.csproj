@@ -37,6 +37,8 @@
        These files are intentionally linked for audit/diff workflows while
        Uno-compilable behavior lives in local *.uno.cs partials. -->
   <ItemGroup>
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\TextPanelProperties.cs"
+             Link="System.Windows\TextPanelProperties.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Inline.cs"
              Link="System.Windows.Documents\Inline.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Run.cs"
@@ -71,8 +73,9 @@
           Link="UpstreamWpf\Documents\AdornerHitTestResult.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AdornerLayer.cs"
           Link="UpstreamWpf\Documents\AdornerLayer.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AnchoredBlock.cs"
-          Link="UpstreamWpf\Documents\AnchoredBlock.cs" />
+    <Compile Remove="System.Windows\Documents\AnchoredBlock.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AnchoredBlock.cs"
+             Link="System.Windows.Documents\AnchoredBlock.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\BlockUIContainer.cs"
              Link="System.Windows.Documents\BlockUIContainer.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CaretElement.cs"
@@ -111,8 +114,8 @@
           Link="UpstreamWpf\Documents\EditingCommands.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ElementEdge.cs"
           Link="UpstreamWpf\Documents\ElementEdge.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Figure.cs"
-          Link="UpstreamWpf\Documents\Figure.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Figure.cs"
+             Link="System.Windows.Documents\Figure.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FixedDocument.cs"
           Link="UpstreamWpf\Documents\FixedDocument.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FixedDSBuilder.cs"
@@ -177,8 +180,8 @@
           Link="UpstreamWpf\Documents\FixedTextPointer.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FixedTextView.cs"
           Link="UpstreamWpf\Documents\FixedTextView.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Floater.cs"
-          Link="UpstreamWpf\Documents\Floater.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Floater.cs"
+             Link="System.Windows.Documents\Floater.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs"
           Link="UpstreamWpf\Documents\FlowDocument.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs"
@@ -223,16 +226,30 @@
           Link="UpstreamWpf\Documents\IXamlContentHandler.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\IXamlErrorHandler.cs"
           Link="UpstreamWpf\Documents\IXamlErrorHandler.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LinkTarget.cs"
-          Link="UpstreamWpf\Documents\LinkTarget.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LinkTarget.cs"
+             Link="System.Windows.Documents\LinkTarget.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\List.cs"
              Link="System.Windows.Documents\List.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ListItem.cs"
              Link="System.Windows.Documents\ListItem.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ListItemCollection.cs"
              Link="System.Windows.Documents\ListItemCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LogicalDirection.cs"
-          Link="UpstreamWpf\Documents\LogicalDirection.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IAcceptInsertion.cs"
+          Link="UpstreamWpf\MS.Internal.Documents\IAcceptInsertion.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IIndexedChild.cs"
+          Link="UpstreamWpf\MS.Internal.Documents\IIndexedChild.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\ContentElementCollection.cs"
+          Link="UpstreamWpf\MS.Internal.Documents\ContentElementCollection.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableTextElementCollectionInternal.cs"
+          Link="UpstreamWpf\MS.Internal.Documents\TableTextElementCollectionInternal.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableColumnCollectionInternal.cs"
+          Link="UpstreamWpf\MS.Internal.Documents\TableColumnCollectionInternal.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs"
+          Link="UpstreamWpf\MS.Internal.PtsTable\RowSpanVector.cs" />
+    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Markup\IAddChild.cs"
+          Link="UpstreamWpf\System.Windows.Markup\IAddChild.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LogicalDirection.cs"
+             Link="System.Windows.Documents\LogicalDirection.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\MoveSizeWinEventHandler.cs"
           Link="UpstreamWpf\Documents\MoveSizeWinEventHandler.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NaturalLanguageHyphenator.cs"
@@ -249,8 +266,8 @@
           Link="UpstreamWpf\Documents\PageContentAsyncResult.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContentCollection.cs"
           Link="UpstreamWpf\Documents\PageContentCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PrecursorTextChangeType.cs"
-          Link="UpstreamWpf\Documents\PrecursorTextChangeType.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PrecursorTextChangeType.cs"
+             Link="System.Windows.Documents\PrecursorTextChangeType.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PropertyRecord.cs"
           Link="UpstreamWpf\Documents\PropertyRecord.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PropertyValueAction.cs"
@@ -323,8 +340,8 @@
           Link="UpstreamWpf\Documents\TableRowGroup.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs"
           Link="UpstreamWpf\Documents\TableRowGroupCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextChangeType.cs"
-          Link="UpstreamWpf\Documents\TextChangeType.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextChangeType.cs"
+             Link="System.Windows.Documents\TextChangeType.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextContainer.cs"
           Link="UpstreamWpf\Documents\TextContainer.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextContainerChangedEventArgs.cs"
@@ -385,8 +402,8 @@
           Link="UpstreamWpf\Documents\TextPointer.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerBase.cs"
           Link="UpstreamWpf\Documents\TextPointerBase.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerContext.cs"
-          Link="UpstreamWpf\Documents\TextPointerContext.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerContext.cs"
+             Link="System.Windows.Documents\TextPointerContext.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRange.cs"
           Link="UpstreamWpf\Documents\TextRange.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeBase.cs"

@@ -24,6 +24,8 @@ public sealed class TextPointer : ITextPointer
     public object? Parent { get; set; }
     public System.Type? ParentType { get; set; }
     public Paragraph? Paragraph { get; set; }
+    internal TextElement? Owner => _owner;
+    internal ElementEdge Edge => _edge;
 
     public void InsertInline(Inline inline)
     {
@@ -57,12 +59,12 @@ public sealed class TextPointer : ITextPointer
 
         if (_edge is ElementEdge.BeforeStart && direction is LogicalDirection.Forward)
         {
-            return _owner.LogicalChildren.FirstOrDefault();
+            return _owner.ChildObjects.FirstOrDefault();
         }
 
         if (_edge is ElementEdge.AfterEnd && direction is LogicalDirection.Backward)
         {
-            return _owner.LogicalChildren.LastOrDefault();
+            return _owner.ChildObjects.LastOrDefault();
         }
 
         if (_owner.Parent is TextElement parent)
@@ -71,9 +73,9 @@ public sealed class TextPointer : ITextPointer
             if (index >= 0)
             {
                 var siblingIndex = direction is LogicalDirection.Forward ? index + 1 : index - 1;
-                if (siblingIndex >= 0 && siblingIndex < parent.LogicalChildren.Count)
+                if (siblingIndex >= 0 && siblingIndex < parent.ChildObjects.Count)
                 {
-                    return parent.LogicalChildren[siblingIndex];
+                    return parent.ChildObjects[siblingIndex];
                 }
             }
         }
@@ -141,19 +143,4 @@ public sealed class TextEditorShim
 {
     public bool IsReadOnly { get; set; }
     public object? _cursor { get; set; }
-}
-
-public enum LogicalDirection
-{
-    Backward,
-    Forward
-}
-
-public enum TextPointerContext
-{
-    None,
-    Text,
-    EmbeddedElement,
-    ElementStart,
-    ElementEnd
 }

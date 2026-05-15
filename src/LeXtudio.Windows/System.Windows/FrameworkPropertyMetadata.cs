@@ -24,6 +24,14 @@ public sealed class FrameworkPropertyMetadata
         CoerceValueCallback = null;
     }
 
+    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, PropertyChangedCallback? changed)
+    {
+        DefaultValue = defaultValue;
+        Options = options;
+        PropertyChangedCallback = changed;
+        CoerceValueCallback = null;
+    }
+
     public FrameworkPropertyMetadata(object? defaultValue, PropertyChangedCallback? changed)
     {
         DefaultValue = defaultValue;
