@@ -3,6 +3,7 @@ namespace System.Windows.Media
     public class TextDecorationCollection : Collections.Generic.IList<TextDecoration>
     {
         readonly Collections.Generic.List<TextDecoration> _items;
+        public static readonly TextDecorationCollection Empty = new();
 
         public TextDecorationCollection() { _items = new Collections.Generic.List<TextDecoration>(); }
 

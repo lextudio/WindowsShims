@@ -21,7 +21,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <NoWarn>$(NoWarn);1591;8632</NoWarn>
+    <NoWarn>$(NoWarn);1591;8632;0104</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

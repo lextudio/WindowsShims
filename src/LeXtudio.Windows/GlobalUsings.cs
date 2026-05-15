@@ -14,6 +14,7 @@ global using SolidColorBrush           = Microsoft.UI.Xaml.Media.SolidColorBrush
 global using LinearGradientBrush       = Microsoft.UI.Xaml.Media.LinearGradientBrush;
 global using RadialGradientBrush       = Microsoft.UI.Xaml.Media.RadialGradientBrush;
 global using ImageBrush                = Microsoft.UI.Xaml.Media.ImageBrush;
+global using Brush                     = Microsoft.UI.Xaml.Media.Brush;
 
 // ============ Geometry Types ============
 global using Rect                      = Windows.Foundation.Rect;
@@ -37,3 +38,6 @@ global using DependencyProperty        = System.Windows.DependencyPropertyShim;
 // - TextDecoration, TextDecorationCollection (WPF-specific)
 // - TextEffect, TextEffectCollection (WPF-specific)
 // - Typeface (WPF-specific typography type)
+
+// ============ WPF Document Types ============
+global using TextDecorationCollection = System.Windows.Media.TextDecorationCollection;
