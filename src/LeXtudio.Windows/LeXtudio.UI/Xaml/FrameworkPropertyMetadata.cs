@@ -4,12 +4,14 @@
 // Uno's PropertyMetadata doesn't support. This subclass adds the missing constructors.
 //
 // Note: This is separate from the System.Windows.FrameworkPropertyMetadata data holder class.
-// Uno/WinUI consuming projects use a global using alias to route to this class:
-//   global using FrameworkPropertyMetadata = Microsoft.UI.Xaml.FrameworkPropertyMetadata;
+// On Uno (net9.0-desktop): FrameworkPropertyMetadataOptions is available from System.Windows.
+// On WinUI (net9.0-windows10.0.19041.0): FrameworkPropertyMetadataOptions doesn't exist, so those overloads are excluded.
 
+#if !WINDOWS_APP_SDK
 using System.Windows;
+#endif
 
-namespace Microsoft.UI.Xaml;
+namespace LeXtudio.UI.Xaml;
 
 public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
 {
@@ -22,19 +24,21 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
 	public FrameworkPropertyMetadata(object defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback)
 		: base(defaultValue, propertyChangedCallback) { }
 
-	public FrameworkPropertyMetadata(object defaultValue, FrameworkPropertyMetadataOptions options)
+#if !WINDOWS_APP_SDK
+	public FrameworkPropertyMetadata(object defaultValue, System.Windows.FrameworkPropertyMetadataOptions options)
 		: base(defaultValue) { }
 
-	public FrameworkPropertyMetadata(object defaultValue, FrameworkPropertyMetadataOptions options,
+	public FrameworkPropertyMetadata(object defaultValue, System.Windows.FrameworkPropertyMetadataOptions options,
 										  Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback)
 		: base(defaultValue, propertyChangedCallback) { }
 
 	public FrameworkPropertyMetadata(object defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback,
-										  CoerceValueCallback coerceValueCallback)
+										  System.Windows.CoerceValueCallback coerceValueCallback)
 		: base(defaultValue, propertyChangedCallback) { }
 
-	public FrameworkPropertyMetadata(object defaultValue, FrameworkPropertyMetadataOptions options,
+	public FrameworkPropertyMetadata(object defaultValue, System.Windows.FrameworkPropertyMetadataOptions options,
 										  Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback,
-										  CoerceValueCallback coerceValueCallback)
+										  System.Windows.CoerceValueCallback coerceValueCallback)
 		: base(defaultValue, propertyChangedCallback) { }
+#endif
 }
