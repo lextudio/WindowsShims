@@ -5,74 +5,26 @@ namespace System.Windows
         bool ReceiveWeakEvent(Type managerType, object sender, EventArgs e);
     }
 
-    /// <summary>Portable shim for System.Windows.FontFamily.</summary>
-    public sealed class FontFamily
-    {
-        readonly string _name;
-        public FontFamily(string name) { _name = name ?? ""; }
-        public Collections.Generic.IReadOnlyList<string> FamilyNames => new[] { _name };
-        public override string ToString() => _name;
-    }
-
-    /// <summary>Portable shim for System.Windows.FontWeight.</summary>
-    public readonly struct FontWeight : IEquatable<FontWeight>
-    {
-        readonly int _weight;
-        FontWeight(int weight) { _weight = weight; }
-        public static FontWeight FromOpenTypeWeight(int weight) => new FontWeight(weight);
-        public int ToOpenTypeWeight() => _weight;
-        public bool Equals(FontWeight other) => _weight == other._weight;
-        public override bool Equals(object? obj) => obj is FontWeight fw && Equals(fw);
-        public override int GetHashCode() => _weight;
-        public static bool operator ==(FontWeight a, FontWeight b) => a._weight == b._weight;
-        public static bool operator !=(FontWeight a, FontWeight b) => a._weight != b._weight;
-        public override string ToString() => _weight switch {
-            100 => "Thin", 200 => "ExtraLight", 300 => "Light",
-            400 => "Normal", 500 => "Medium", 600 => "SemiBold",
-            700 => "Bold", 800 => "ExtraBold", 900 => "Black", _ => _weight.ToString()
-        };
-
-        public static readonly FontWeight Normal = new FontWeight(400);
-        public static readonly FontWeight Bold = new FontWeight(700);
-    }
-
-    /// <summary>Portable shim for System.Windows.FontStyle.</summary>
-    public readonly struct FontStyle : IEquatable<FontStyle>
-    {
-        readonly string _name;
-        FontStyle(string name) { _name = name; }
-        public bool Equals(FontStyle other) => string.Equals(_name, other._name, StringComparison.OrdinalIgnoreCase);
-        public override bool Equals(object? obj) => obj is FontStyle fs && Equals(fs);
-        public override int GetHashCode() => (_name ?? "").GetHashCode(StringComparison.OrdinalIgnoreCase);
-        public static bool operator ==(FontStyle a, FontStyle b) => a.Equals(b);
-        public static bool operator !=(FontStyle a, FontStyle b) => !a.Equals(b);
-        public override string ToString() => _name ?? "Normal";
-
-        public static readonly FontStyle Normal = new FontStyle("Normal");
-        public static readonly FontStyle Italic = new FontStyle("Italic");
-        public static readonly FontStyle Oblique = new FontStyle("Oblique");
-    }
-
     /// <summary>Portable shim for System.Windows.FontStyles.</summary>
     public static class FontStyles
     {
-        public static FontStyle Normal => FontStyle.Normal;
-        public static FontStyle Italic => FontStyle.Italic;
-        public static FontStyle Oblique => FontStyle.Oblique;
+        public static FontStyle Normal => global::Windows.UI.Text.FontStyle.Normal;
+        public static FontStyle Italic => global::Windows.UI.Text.FontStyle.Italic;
+        public static FontStyle Oblique => global::Windows.UI.Text.FontStyle.Oblique;
     }
 
     /// <summary>Portable shim for System.Windows.FontWeights (WPF static class).</summary>
     public static class FontWeights
     {
-        public static FontWeight Thin       => FontWeight.FromOpenTypeWeight(100);
-        public static FontWeight ExtraLight => FontWeight.FromOpenTypeWeight(200);
-        public static FontWeight Light      => FontWeight.FromOpenTypeWeight(300);
-        public static FontWeight Normal     => FontWeight.FromOpenTypeWeight(400);
-        public static FontWeight Medium     => FontWeight.FromOpenTypeWeight(500);
-        public static FontWeight SemiBold   => FontWeight.FromOpenTypeWeight(600);
-        public static FontWeight Bold       => FontWeight.FromOpenTypeWeight(700);
-        public static FontWeight ExtraBold  => FontWeight.FromOpenTypeWeight(800);
-        public static FontWeight Black      => FontWeight.FromOpenTypeWeight(900);
+        public static FontWeight Thin       => new() { Weight = 100 };
+        public static FontWeight ExtraLight => new() { Weight = 200 };
+        public static FontWeight Light      => new() { Weight = 300 };
+        public static FontWeight Normal     => new() { Weight = 400 };
+        public static FontWeight Medium     => new() { Weight = 500 };
+        public static FontWeight SemiBold   => new() { Weight = 600 };
+        public static FontWeight Bold       => new() { Weight = 700 };
+        public static FontWeight ExtraBold  => new() { Weight = 800 };
+        public static FontWeight Black      => new() { Weight = 900 };
     }
 
     public enum BaselineAlignment

@@ -5,23 +5,23 @@ namespace System.Windows.Media
     {
         public Typeface(string familyName)
         {
-            FontFamily = new Windows.FontFamily(familyName ?? string.Empty);
-            Style = Windows.FontStyle.Normal;
-            Weight = Windows.FontWeight.Normal;
+            FontFamily = new FontFamily(familyName ?? string.Empty);
+            Style = FontStyle.Normal;
+            Weight = System.Windows.FontWeights.Normal;
             Stretch = Windows.FontStretch.Normal;
         }
 
-        public Typeface(Windows.FontFamily fontFamily, Windows.FontStyle style, Windows.FontWeight weight, Windows.FontStretch stretch)
+        public Typeface(FontFamily fontFamily, FontStyle style, FontWeight weight, Windows.FontStretch stretch)
         {
-            FontFamily = fontFamily ?? new Windows.FontFamily(string.Empty);
+            FontFamily = fontFamily ?? new FontFamily(string.Empty);
             Style = style;
             Weight = weight;
             Stretch = stretch;
         }
 
-        public Windows.FontFamily FontFamily { get; }
-        public Windows.FontStyle Style { get; }
-        public Windows.FontWeight Weight { get; }
+        public FontFamily FontFamily { get; }
+        public FontStyle Style { get; }
+        public FontWeight Weight { get; }
         public Windows.FontStretch Stretch { get; }
 
         public override string ToString() => FontFamily.ToString();

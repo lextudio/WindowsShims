@@ -37,8 +37,8 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
     internal TextElementNode TextElementNode => _textElementNode ??= new TextElementNode(this);
     private TextElementNode? _textElementNode;
     public bool IsEnabled => IsEnabledCore;
-    internal TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
-    internal TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
+    public TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
+    public TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
     public new Microsoft.UI.Xaml.DependencyObject? Parent { get; internal set; }
     internal TextContainer TextContainer => _textContainer;
     internal IReadOnlyList<object> ChildObjects => _children;

@@ -22,6 +22,21 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
     public static DependencyProperty FontStretchProperty { get; } =
         DependencyProperty.Register(nameof(FontStretch), typeof(System.Windows.FontStretch), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(System.Windows.FontStretches.Normal));
 
+    public static DependencyProperty FontFamilyProperty { get; } =
+        DependencyProperty.Register(nameof(FontFamily), typeof(Microsoft.UI.Xaml.Media.FontFamily), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(new Microsoft.UI.Xaml.Media.FontFamily("Segoe UI")));
+
+    public static DependencyProperty FontSizeProperty { get; } =
+        DependencyProperty.Register(nameof(FontSize), typeof(double), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(14d));
+
+    public static DependencyProperty FontStyleProperty { get; } =
+        DependencyProperty.Register(nameof(FontStyle), typeof(FontStyle), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(System.Windows.FontStyles.Normal));
+
+    public static DependencyProperty FontWeightProperty { get; } =
+        DependencyProperty.Register(nameof(FontWeight), typeof(FontWeight), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(System.Windows.FontWeights.Normal));
+
+    public static DependencyProperty ForegroundProperty { get; } =
+        DependencyProperty.Register(nameof(Foreground), typeof(Microsoft.UI.Xaml.Media.Brush), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(255, 0, 0, 0))));
+
     public static DependencyProperty HorizontalTextAlignmentProperty { get; } =
         DependencyProperty.Register(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(TextAlignment.Left));
 
@@ -73,10 +88,40 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
         set => SetValue(ExitDisplayModeOnAccessKeyInvokedProperty, value);
     }
 
+    public Microsoft.UI.Xaml.Media.FontFamily FontFamily
+    {
+        get => (Microsoft.UI.Xaml.Media.FontFamily)GetValue(FontFamilyProperty);
+        set => SetValue(FontFamilyProperty, value);
+    }
+
+    public double FontSize
+    {
+        get => (double)GetValue(FontSizeProperty);
+        set => SetValue(FontSizeProperty, value);
+    }
+
+    public FontStyle FontStyle
+    {
+        get => (FontStyle)GetValue(FontStyleProperty);
+        set => SetValue(FontStyleProperty, value);
+    }
+
     public System.Windows.FontStretch FontStretch
     {
         get => (System.Windows.FontStretch)GetValue(FontStretchProperty);
         set => SetValue(FontStretchProperty, value);
+    }
+
+    public FontWeight FontWeight
+    {
+        get => (FontWeight)GetValue(FontWeightProperty);
+        set => SetValue(FontWeightProperty, value);
+    }
+
+    public Microsoft.UI.Xaml.Media.Brush Foreground
+    {
+        get => (Microsoft.UI.Xaml.Media.Brush)GetValue(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
     }
 
     public TextAlignment HorizontalTextAlignment

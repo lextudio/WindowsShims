@@ -16,6 +16,9 @@ global using LinearGradientBrush       = Microsoft.UI.Xaml.Media.LinearGradientB
 global using RadialGradientBrush       = Microsoft.UI.Xaml.Media.RadialGradientBrush;
 global using ImageBrush                = Microsoft.UI.Xaml.Media.ImageBrush;
 global using Brush                     = Microsoft.UI.Xaml.Media.Brush;
+global using FontFamily                = Microsoft.UI.Xaml.Media.FontFamily;
+global using FontWeight                = Windows.UI.Text.FontWeight;
+global using FontStyle                 = Windows.UI.Text.FontStyle;
 
 // ============ Geometry Types ============
 global using Rect                      = Windows.Foundation.Rect;
@@ -46,8 +49,7 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
 // These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:
 // - Brush (base class - defined in System.Windows.Media.Brush.cs)
-// - FontFamily (partial - forward but with additional properties)
-// - FontWeight, FontStyle (enums - local definitions)
+// - FontStretch (no clean direct parity yet in our bridge)
 // - TextDecoration, TextDecorationCollection (WPF-specific)
 // - TextEffect, TextEffectCollection (WPF-specific)
 // - Typeface (WPF-specific typography type)
