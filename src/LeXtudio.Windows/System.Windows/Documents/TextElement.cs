@@ -11,7 +11,7 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
         Microsoft.UI.Xaml.DependencyProperty.Register("DefaultStyleKey", typeof(object), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(null));
     protected static readonly Microsoft.UI.Xaml.DependencyProperty FocusableProperty =
         Microsoft.UI.Xaml.DependencyProperty.Register("Focusable", typeof(bool), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(false));
-    protected static readonly Microsoft.UI.Xaml.DependencyProperty IsEnabledProperty =
+    public static readonly Microsoft.UI.Xaml.DependencyProperty IsEnabledProperty =
         Microsoft.UI.Xaml.DependencyProperty.Register(
             "IsEnabled",
             typeof(bool),
@@ -39,7 +39,7 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
     public bool IsEnabled => IsEnabledCore;
     internal TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
     internal TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
-    public new System.Windows.DependencyObject? Parent { get; internal set; }
+    public new Microsoft.UI.Xaml.DependencyObject? Parent { get; internal set; }
     internal TextContainer TextContainer => _textContainer;
     internal IReadOnlyList<object> ChildObjects => _children;
     protected internal virtual System.Collections.IEnumerator LogicalChildren => _children.GetEnumerator();
@@ -171,7 +171,7 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
     {
     }
 
-    internal virtual void OnNewParent(System.Windows.DependencyObject newParent)
+    internal virtual void OnNewParent(Microsoft.UI.Xaml.DependencyObject newParent)
     {
         Parent = newParent;
     }

@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <DefineConstants>$(DefineConstants);HAS_UNO</DefineConstants>
+    <DefineConstants>$(DefineConstants);HAS_UNO;WINUI_BRIDGE</DefineConstants>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Authors>LeXtudio</Authors>
     <Company>LeXtudio</Company>

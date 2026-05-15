@@ -21,36 +21,21 @@ global using TextDecorationCollection = Microsoft.UI.Xaml.Media.TextDecorationCo
 - Full compatibility with WinUI capabilities
 - Automatic access to all WinUI brush types (LinearGradient, Radial, Image, etc.)
 
-### 2. **Delegate Adaptation**
+### 2. **Metadata Bridging**
 
-WPF and WinUI delegate signatures differ slightly. The `PropertyCallbackAdapter` class seamlessly converts between:
-- `System.Windows.PropertyChangedCallback` ↔ `Microsoft.UI.Xaml.PropertyChangedCallback`
-- `System.Windows.DependencyPropertyChangedEventArgs` ↔ `Microsoft.UI.Xaml.DependencyPropertyChangedEventArgs`
+`FrameworkPropertyMetadata` inherits from `Microsoft.UI.Xaml.PropertyMetadata` and can be passed directly to `Microsoft.UI.Xaml.DependencyProperty.Register(...)`. It accepts both WPF-style and WinUI-style changed callbacks:
 
 ```csharp
-// Internal use only—handled automatically by FrameworkPropertyMetadata
-var winuiCallback = PropertyCallbackAdapter.ToWinUI(systemWindowsCallback);
-```
-
-**Why?** The two frameworks have the same semantic intent but different namespace origins. The adapter handles the bridge transparently.
-
-### 3. **Metadata Bridging**
-
-`FrameworkPropertyMetadata` stores WPF-style metadata but converts to WinUI equivalents when needed via `ToWinUIMetadata()`:
-
-```csharp
-// WPF code
 var metadata = new FrameworkPropertyMetadata(
     defaultValue: 12,
-    options: FrameworkPropertyMetadataOptions.AffectsRender,
-    changed: myCallback
+    changed: (d, e) => { /* WPF PropertyChangedCallback */ }
 );
-
-// Internally converts to WinUI when registering properties
-var winuiMetadata = metadata.ToWinUIMetadata();
+DependencyProperty.Register("MyProp", typeof(double), typeof(MyClass), metadata);
 ```
 
-### 4. **Extension Members for Missing Members**
+Note: WPF `PropertyChangedCallback` is stored locally but **not dispatched** through WinUI's property system, because `System.Windows.DependencyObject` does not inherit from `Microsoft.UI.Xaml.DependencyObject`.
+
+### 3. **Extension Members for Missing Members**
 
 WPF `TextElement` doesn't natively have `FontWeight` and `FontStyle` in Uno. Extensions provide them, so use that C# language feature:
 
@@ -111,32 +96,78 @@ Both targets get the same WPF API surface but powered by modern WinUI underneath
 - `TextElement.FontStyle` (attached property)
 - `Microsoft.UI.Xaml.DependencyProperty.AddOwner(...)` (WPF API not in WinUI)
 
-### Compiled from Upstream WPF (no WinUI equivalent)
-These types have no WinUI counterpart and are compiled directly from upstream WPF source via `<Compile Link=...>`. They form the **FlowDocument table model**:
+### Do Not Port: WPF Types with No WinUI Rendering Path
 
-**Public types** (`System.Windows.Documents`):
-- `Table`, `TableRow`, `TableCell`, `TableColumn`, `TableRowGroup`
-- `TableCellCollection`, `TableColumnCollection`, `TableRowCollection`, `TableRowGroupCollection`
+> **Policy**: Do not compile WPF types into this shim library unless a WinUI rendering or layout equivalent exists. Compiling a type just to make it *instantiable* is not sufficient — without a host that can render it, the type is inert and its porting cost is wasted.
 
-**Foundation types** required by the above (linked from WPF source):
-- `System.Windows.Markup.IAddChild` — parser/content-model interface
-- `MS.Internal.Documents.IAcceptInsertion` — positional insertion contract
-- `MS.Internal.Documents.IIndexedChild<TParent>` — parent-tracking contract
-- `MS.Internal.Documents.ContentElementCollection<TParent, TElementType>` — base collection
-- `MS.Internal.Documents.TableTextElementCollectionInternal<TParent, TElementType>` — table-specific collection
-- `MS.Internal.Documents.TableColumnCollectionInternal`
-- `MS.Internal.PtsTable.RowSpanVector` — row-span tracking
+**Counter-example — FlowDocument table model** (`Table`, `TableRow`, `TableCell`, etc.)
 
-**Local supporting shims** (in `System.Windows/`):
-- `TextElementNode` — text-tree node wrapper (minimal)
-- `RangeContentEnumerator` — no-op IEnumerator stub
-- `LogicalTreeHelper` — `AddLogicalChild` / `RemoveLogicalChild` / `GetParent` no-ops
-- `TableCellAutomationPeer.OnColumnSpanChanged` / `OnRowSpanChanged` — no-op
-- `DependencyProperty.AddOwner(...)` — returns the same property (no multi-owner semantics)
+These were briefly compiled from upstream WPF source. The attempt was abandoned because:
 
-**Implicit conversion**: `Microsoft.UI.Xaml.DependencyProperty` → `System.Windows.DependencyProperty` so WPF source like `Panel.BackgroundProperty.AddOwner(...)` can be assigned to fields declared as `DependencyProperty` (which in `System.Windows.Documents` scope resolves to the local shim).
+- WinUI has no `FlowDocument` pipeline; there is no `TableCell`-to-visual translation layer.
+- The WPF source pulled in ~10 foundation types (`IAcceptInsertion`, `IIndexedChild`, `ContentElementCollection`, `TableTextElementCollectionInternal`, `RowSpanVector`, …) and several local no-op stubs.
+- Despite compiling cleanly, the objects could never be rendered by any WinUI-side consumer.
+- Net result: dead API surface, maintenance burden, and misleading confidence.
 
-**Behavior simplifications**: Table types compile but rendering/layout is *not* wired to WinUI. They form the API surface for content authoring; consumers like UnoRichText render tables via separate visual mappings.
+**What to do instead**: If a consuming project needs table layout, implement it as a native WinUI control (`Grid`, custom `Panel`, etc.) and expose a WPF-compatible façade *only if* a real rendering path exists end-to-end.
+
+## Pre-Porting Checklist — Avoiding Wasted Work
+
+Before adding any WPF type to this shim, answer these questions in order. Stop at the first **No**.
+
+| # | Question | If No → action |
+|---|----------|----------------|
+| 1 | Does a direct WinUI equivalent exist (`Microsoft.UI.Xaml.*` or `Windows.Foundation.*`)? | Alias it in `GlobalUsings.cs` — no shim needed. |
+| 2 | Does WinUI have a *close* equivalent that can be extended? | Extend via C# extension members (`WinUIDependencyPropertyExtensions.cs` pattern). |
+| 3 | Is there a WinUI-side consumer (control, panel, layout pass) that will actually *render* this type? | Do not port. Document the gap here instead (see below). |
+| 4 | Is the porting cost proportionate to the value delivered to active consumers? | Defer or skip. |
+
+### How to Check for WinUI Equivalents
+
+**Option A — API catalog search (recommended)**
+
+The WinUI API surface is documented at:
+- `https://learn.microsoft.com/en-us/windows/windows-app-sdk/api/winrt/` (Windows App SDK / WinUI 3)
+- `https://learn.microsoft.com/en-us/uwp/api/` (UWP/WinUI 2 — still relevant for Uno)
+
+Search for the WPF type name or concept. If no result, the gap is real.
+
+**Option B — `dotnet-api-diff` / `ApiCompat`**
+
+```powershell
+# Compare WPF and WinUI assembly API surfaces
+dotnet tool install -g Microsoft.DotNet.ApiCompat.Tool
+# Then diff Microsoft.UI.Xaml.dll against PresentationFramework.dll
+```
+
+**Option C — Grep the WinUI metadata**
+
+```powershell
+# Download the WinUI NuGet and inspect exported types
+dotnet new classlib -o gap-check
+cd gap-check
+dotnet add package Microsoft.WindowsAppSDK
+# Then use ILSpy or dnSpy to inspect Microsoft.UI.Xaml.dll
+```
+
+**Option D — Ask before implementing**
+
+When unsure, open a search query like:
+> `site:learn.microsoft.com winui TableCell` or `site:github.com/microsoft/microsoft-ui-xaml TableCell`
+
+If there are zero results, assume the type has no WinUI home.
+
+### Known WPF→WinUI Gaps (do not port)
+
+| WPF namespace | Types | Reason |
+|---|---|---|
+| `System.Windows.Documents` | `Table`, `TableRow`, `TableCell`, `TableColumn`, `TableRowGroup`, `*Collection` | No FlowDocument pipeline in WinUI; no rendering consumer. |
+| `System.Windows.Documents` | `FlowDocument`, `FixedDocument`, `FixedPage` | WinUI uses `RichEditBox` / custom controls instead. |
+| `System.Windows.Documents` | `TextPointer`, `TextRange`, `TextSelection` | WinUI text model is `ITextRange` / `CoreTextEditContext`; different contract. |
+| `System.Windows.Controls` | `RichTextBox` (WPF full) | WinUI has `RichEditBox` — different model; write a façade over `RichEditBox` rather than porting. |
+| `System.Windows` | `FrameworkElement.ContextMenu` (WPF-style) | WinUI uses `MenuFlyout`; expose through extension if needed. |
+
+Add to this table whenever a porting attempt is abandoned.
 
 ## Usage Example
 
@@ -180,12 +211,13 @@ To add a new type forwarding:
 
 ## Limitations
 
-- **PropertyChangedCallback**: Must use `PropertyCallbackAdapter.ToWinUI()` when passing WPF callbacks to WinUI APIs
-- **Complex Document Semantics**: Some WPF-specific document behaviors (layout, selection, undo) are simplified in the shim
-- **Performance**: Extension methods for properties add indirection vs. native WPF implementation
+- **PropertyChangedCallback not dispatched**: WPF-style `PropertyChangedCallback` stored in `FrameworkPropertyMetadata` is never called from WinUI's property change notification path, because `System.Windows.DependencyObject` does not inherit from `Microsoft.UI.Xaml.DependencyObject`.
+- **Document semantics are thin shims**: `TextElement`, `Block`, `Inline` etc. expose the WPF content model for authoring but have no WPF layout engine behind them. Rendering is the consumer's responsibility.
+- **No FlowDocument pipeline**: WinUI has no equivalent of WPF's `FlowDocumentScrollViewer` / `DocumentPaginator`. Types that rely on it (table model, fixed document, text pointers) cannot be meaningfully ported — see the Pre-Porting Checklist above.
+- **Extension method indirection**: C# extension members for `DependencyProperty` and `TextElement` properties add a small call overhead vs. native properties.
 
 ## See Also
 
-- `System.Windows\PropertyCallbackAdapter.cs` — Delegate conversion logic
 - `System.Windows\FrameworkPropertyMetadata.cs` — Metadata bridging
-- `GlobalUsings.cs` — Central type-forwarding declarations
+- `System.Windows\WinUIDependencyPropertyExtensions.cs` — 5-arg Register overloads, AddOwner, OverrideMetadata
+- `GlobalUsings.cs` — Central type-forwarding aliases

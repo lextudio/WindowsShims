@@ -5,11 +5,11 @@ namespace System.Windows.Documents;
 
 public class TextElementCollection<T> : ObservableCollection<T>
 {
-    private readonly System.Windows.DependencyObject _owner;
+    private readonly Microsoft.UI.Xaml.DependencyObject _owner;
     private readonly bool _isOwnerParent;
     private bool _syncingFromOwner;
 
-    internal TextElementCollection(System.Windows.DependencyObject owner, bool isOwnerParent)
+    internal TextElementCollection(Microsoft.UI.Xaml.DependencyObject owner, bool isOwnerParent)
     {
         _owner = owner;
         _isOwnerParent = isOwnerParent;
@@ -39,7 +39,7 @@ public class TextElementCollection<T> : ObservableCollection<T>
         }
     }
 
-    protected System.Windows.DependencyObject Owner => _owner;
+    protected Microsoft.UI.Xaml.DependencyObject Owner => _owner;
 
     protected bool IsOwnerParent => _isOwnerParent;
 

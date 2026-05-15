@@ -34,9 +34,14 @@ global using TextBlock                 = Microsoft.UI.Xaml.Controls.TextBlock;
 // Extension methods in System.Windows/WinUIDependencyPropertyExtensions.cs provide the
 // WPF-specific API (AddOwner, OverrideMetadata, etc.).
 global using DependencyProperty        = Microsoft.UI.Xaml.DependencyProperty;
-// DependencyObject: unqualified usage in WPF source files resolves to the local shim
-// (which integrates with the System.Windows.DependencyProperty system via Parent links etc.)
-global using DependencyObject          = System.Windows.DependencyObject;
+// DependencyObject: alias to the real WinUI type so document objects participate in WinUI's
+// property system. WPF-specific APIs (AddHandler, Dispatcher, etc.) are provided via
+// C# 14 extension members in System.Windows/WinUIDependencyObjectExtensions.cs.
+global using DependencyObject          = Microsoft.UI.Xaml.DependencyObject;
+// FrameworkElement: alias to the real WinUI type. WPF-only APIs are provided via
+// C# 14 extension members in System.Windows/WinUIFrameworkElementExtensions.cs.
+// FrameworkContentElement has no WinUI equivalent — it stays as a local shim.
+global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
 // These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:

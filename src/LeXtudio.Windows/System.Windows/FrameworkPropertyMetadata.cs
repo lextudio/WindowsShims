@@ -55,31 +55,33 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
 
     // WinUI callback overloads — AvalonEdit and other Uno/WinUI consumers pass
     // Microsoft.UI.Xaml.PropertyChangedCallback directly (matches the base PropertyMetadata).
-    public FrameworkPropertyMetadata(Microsoft.UI.Xaml.PropertyChangedCallback winuiChanged)
-        : base(null, winuiChanged) { }
+    // Parameter is named 'propertyChangedCallback' to match the named argument emitted by
+    // Uno's DependencyObjectGenerator source generator.
+    public FrameworkPropertyMetadata(Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
+        : base(null, propertyChangedCallback) { }
 
-    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback winuiChanged)
-        : base(defaultValue, winuiChanged)
+    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
+        : base(defaultValue, propertyChangedCallback)
     {
         DefaultValue = defaultValue;
     }
 
-    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback winuiChanged)
-        : base(defaultValue, winuiChanged)
+    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
+        : base(defaultValue, propertyChangedCallback)
     {
         DefaultValue = defaultValue;
         Options = options;
     }
 
-    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback winuiChanged, CoerceValueCallback? coerce)
-        : base(defaultValue, winuiChanged)
+    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback, CoerceValueCallback? coerce)
+        : base(defaultValue, propertyChangedCallback)
     {
         DefaultValue = defaultValue;
         CoerceValueCallback = coerce;
     }
 
-    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback winuiChanged, CoerceValueCallback? coerce)
-        : base(defaultValue, winuiChanged)
+    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback, CoerceValueCallback? coerce)
+        : base(defaultValue, propertyChangedCallback)
     {
         DefaultValue = defaultValue;
         Options = options;
@@ -91,11 +93,12 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
     public PropertyChangedCallback? PropertyChangedCallback { get; }
     public CoerceValueCallback? CoerceValueCallback { get; }
 
-    // Bridge WPF callback to WinUI's: WPF uses System.Windows.DependencyObject and WinUI uses
-    // Microsoft.UI.Xaml.DependencyObject. These types don't share a base, so we can't directly
-    // dispatch WPF callbacks from WinUI sender. The shim stores the WPF callback for inspection
-    // but doesn't invoke it from WinUI's notification path. Shim consumers that need the WPF
-    // callback semantics should rely on the local System.Windows.DependencyObject path.
+    // WPF PropertyChangedCallback signature uses (DependencyObject d, DependencyPropertyChangedEventArgs e)
+    // where DependencyObject is now Microsoft.UI.Xaml.DependencyObject. WinUI fires its own
+    // PropertyChangedCallback with the same sender/args types, but the delegate types differ
+    // (System.Windows.PropertyChangedCallback vs Microsoft.UI.Xaml.PropertyChangedCallback).
+    // A proper bridge would adapt the delegate; for now it is not wired so WPF callbacks stored
+    // here are not invoked from WinUI's property change path.
     private static Microsoft.UI.Xaml.PropertyChangedCallback? Bridge(PropertyChangedCallback? wpf)
         => null;
 }

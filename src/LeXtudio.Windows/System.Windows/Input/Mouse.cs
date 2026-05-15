@@ -8,7 +8,7 @@ namespace System.Windows.Input
 
         public static void Capture(IInputElement element)
         {
-            if (element is System.Windows.DependencyObject dependencyObject)
+            if (element is Microsoft.UI.Xaml.DependencyObject dependencyObject)
             {
                 dependencyObject.CaptureMouse();
             }

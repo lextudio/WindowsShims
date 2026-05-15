@@ -1,6 +1,6 @@
 namespace System.Windows.Documents
 {
-    public sealed class FixedPage : System.Windows.DependencyObject
+    public sealed partial class FixedPage : Microsoft.UI.Xaml.DependencyObject
     {
         public static readonly Microsoft.UI.Xaml.DependencyProperty NavigateUriProperty =
             Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
