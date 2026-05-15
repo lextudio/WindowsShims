@@ -22,9 +22,14 @@ public class TextElementCollection<T> : ObservableCollection<T>
             _syncingFromOwner = true;
             try
             {
-                foreach (var child in ((IEnumerable)textElement.LogicalChildren).OfType<T>())
+                // LogicalChildren is IEnumerator (WPF contract), not IEnumerable.
+                var enumerator = textElement.LogicalChildren;
+                while (enumerator.MoveNext())
                 {
-                    Add(child);
+                    if (enumerator.Current is T typed)
+                    {
+                        Add(typed);
+                    }
                 }
             }
             finally
