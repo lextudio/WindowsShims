@@ -1,0 +1,10 @@
+namespace System.Windows.Media;
+
+public class Brush
+{
+}
+
+public class FontFamily
+{
+    public double LineSpacing => 1.0;
+}
