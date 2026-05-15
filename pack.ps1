@@ -8,13 +8,13 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = $PSScriptRoot
-$ProjectPath = Join-Path $RepoRoot $Project
+$ProjectPath = if ([System.IO.Path]::IsPathRooted($Project)) { $Project } else { Join-Path $RepoRoot $Project }
 
 if (-not (Test-Path $ProjectPath)) {
     throw "Project file not found: $ProjectPath"
 }
 
-$OutputPath = Join-Path $RepoRoot $OutDir
+$OutputPath = if ([System.IO.Path]::IsPathRooted($OutDir)) { $OutDir } else { Join-Path $RepoRoot $OutDir }
 if (Test-Path $OutputPath) {
     Remove-Item -Path $OutputPath -Recurse -Force
 }
