@@ -1,15 +1,39 @@
-// Type aliases that map WPF names to their Uno/WinUI counterparts.
-// These mirror the aliases in UnoEdit's WpfTypeAliases.cs so that types in
-// System.Windows.Media.Pen etc. can refer to Brush without qualification.
+// Type aliases that bridge WPF API to Microsoft.UI.Xaml.
+// These enable WPF code to seamlessly use modern Uno/WinUI types without modifications.
+// Key insight: Only forward types that have 1:1 equivalents in Microsoft.UI.Xaml.
+// For types without equivalents (TextDecoration, Typeface, etc.), keep shim implementations.
 
 global using System;
-global using SolidColorBrush   = Microsoft.UI.Xaml.Media.SolidColorBrush;
-global using Rect              = Windows.Foundation.Rect;
-global using Size              = Windows.Foundation.Size;
-global using Point             = Windows.Foundation.Point;
-// WPF → Uno enum aliases used in TextParagraphProperties and related shims
-global using FlowDirection     = Microsoft.UI.Xaml.FlowDirection;
-global using TextAlignment     = Microsoft.UI.Xaml.TextAlignment;
-global using TextWrapping      = Microsoft.UI.Xaml.TextWrapping;
-global using TextBlock = System.Windows.Controls.TextBlock;
-global using DependencyProperty = System.Windows.DependencyPropertyShim;
+
+// ============ Media Types - Direct Microsoft.UI.Xaml Forwards ============
+// Note: DO NOT include 'Brush' here - WPF source files define their own 'using Brush' statements
+// and global alias conflicts with them. Brush forwarding happens in individual namespaces instead.
+
+// Brush subclasses that map directly to WinUI
+global using SolidColorBrush           = Microsoft.UI.Xaml.Media.SolidColorBrush;
+global using LinearGradientBrush       = Microsoft.UI.Xaml.Media.LinearGradientBrush;
+global using RadialGradientBrush       = Microsoft.UI.Xaml.Media.RadialGradientBrush;
+global using ImageBrush                = Microsoft.UI.Xaml.Media.ImageBrush;
+
+// ============ Geometry Types ============
+global using Rect                      = Windows.Foundation.Rect;
+global using Size                      = Windows.Foundation.Size;
+global using Point                     = Windows.Foundation.Point;
+
+// ============ Xaml Framework Types ============
+global using FlowDirection             = Microsoft.UI.Xaml.FlowDirection;
+global using TextAlignment             = Microsoft.UI.Xaml.TextAlignment;
+global using TextWrapping              = Microsoft.UI.Xaml.TextWrapping;
+global using TextBlock                 = System.Windows.Controls.TextBlock;
+
+// ============ Dependency Property System ============
+global using DependencyProperty        = System.Windows.DependencyPropertyShim;
+
+// ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
+// These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:
+// - Brush (base class - defined in System.Windows.Media.Brush.cs)
+// - FontFamily (partial - forward but with additional properties)
+// - FontWeight, FontStyle (enums - local definitions)
+// - TextDecoration, TextDecorationCollection (WPF-specific)
+// - TextEffect, TextEffectCollection (WPF-specific)
+// - Typeface (WPF-specific typography type)
