@@ -4,6 +4,7 @@
 // For types without equivalents (TextDecoration, Typeface, etc.), keep shim implementations.
 
 global using System;
+global using System.Diagnostics;
 
 // ============ Media Types - Direct Microsoft.UI.Xaml Forwards ============
 // Note: DO NOT include 'Brush' here - WPF source files define their own 'using Brush' statements
@@ -30,6 +31,9 @@ global using TextBlock                 = Microsoft.UI.Xaml.Controls.TextBlock;
 
 // ============ Dependency Property System ============
 global using DependencyProperty        = System.Windows.DependencyPropertyShim;
+// DependencyObject: unqualified usage in WPF source files resolves to the local shim
+// (which integrates with the System.Windows.DependencyProperty system via Parent links etc.)
+global using DependencyObject          = System.Windows.DependencyObject;
 
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
 // These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:

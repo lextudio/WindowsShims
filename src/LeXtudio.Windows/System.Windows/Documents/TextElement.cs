@@ -29,6 +29,11 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
 
     public TextPointer ContentStart => _contentStart;
     public TextPointer ContentEnd => _contentEnd;
+    // IsEmpty: shim returns true when there are no logical children.
+    internal bool IsEmpty => _children.Count == 0;
+    // TextElementNode: WPF-internal node representing this element in the text tree.
+    internal TextElementNode TextElementNode => _textElementNode ??= new TextElementNode(this);
+    private TextElementNode? _textElementNode;
     public bool IsEnabled => IsEnabledCore;
     internal TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
     internal TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);

@@ -20,6 +20,28 @@ public sealed class TextPointer : ITextPointer
         Paragraph = owner as Paragraph ?? owner.Parent as Paragraph;
     }
 
+    // Used by WPF Table collection internals when positioning insertion points.
+    internal TextPointer(TextContainer container, TextElementNode? node, ElementEdge edge, LogicalDirection direction)
+    {
+        _owner = node?.Element;
+        _edge = edge;
+        TextContainer = container;
+        Parent = _owner;
+        ParentType = _owner?.GetType();
+        Paragraph = _owner as Paragraph ?? _owner?.Parent as Paragraph;
+    }
+
+    // Used when constructing a pointer relative to another by offset.
+    internal TextPointer(TextPointer other, int offset)
+    {
+        _owner = other._owner;
+        _edge = other._edge;
+        TextContainer = other.TextContainer;
+        Parent = other.Parent;
+        ParentType = other.ParentType;
+        Paragraph = other.Paragraph;
+    }
+
     public TextContainer TextContainer { get; }
     public object? Parent { get; set; }
     public System.Type? ParentType { get; set; }

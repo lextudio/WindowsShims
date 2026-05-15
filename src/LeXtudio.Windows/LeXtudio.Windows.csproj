@@ -21,7 +21,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <NoWarn>$(NoWarn);1591;8632;0104</NoWarn>
+    <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
@@ -234,20 +234,20 @@
              Link="System.Windows.Documents\ListItem.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ListItemCollection.cs"
              Link="System.Windows.Documents\ListItemCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IAcceptInsertion.cs"
-          Link="UpstreamWpf\MS.Internal.Documents\IAcceptInsertion.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IIndexedChild.cs"
-          Link="UpstreamWpf\MS.Internal.Documents\IIndexedChild.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\ContentElementCollection.cs"
-          Link="UpstreamWpf\MS.Internal.Documents\ContentElementCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableTextElementCollectionInternal.cs"
-          Link="UpstreamWpf\MS.Internal.Documents\TableTextElementCollectionInternal.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableColumnCollectionInternal.cs"
-          Link="UpstreamWpf\MS.Internal.Documents\TableColumnCollectionInternal.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs"
-          Link="UpstreamWpf\MS.Internal.PtsTable\RowSpanVector.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Markup\IAddChild.cs"
-          Link="UpstreamWpf\System.Windows.Markup\IAddChild.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IAcceptInsertion.cs"
+             Link="MS.Internal.Documents\IAcceptInsertion.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\IIndexedChild.cs"
+             Link="MS.Internal.Documents\IIndexedChild.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\ContentElementCollection.cs"
+             Link="MS.Internal.Documents\ContentElementCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableTextElementCollectionInternal.cs"
+             Link="MS.Internal.Documents\TableTextElementCollectionInternal.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableColumnCollectionInternal.cs"
+             Link="MS.Internal.Documents\TableColumnCollectionInternal.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs"
+             Link="MS.Internal.PtsTable\RowSpanVector.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Markup\IAddChild.cs"
+             Link="System.Windows.Markup\IAddChild.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LogicalDirection.cs"
              Link="System.Windows.Documents\LogicalDirection.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\MoveSizeWinEventHandler.cs"
@@ -270,8 +270,8 @@
              Link="System.Windows.Documents\PrecursorTextChangeType.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PropertyRecord.cs"
           Link="UpstreamWpf\Documents\PropertyRecord.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PropertyValueAction.cs"
-          Link="UpstreamWpf\Documents\PropertyValueAction.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PropertyValueAction.cs"
+             Link="System.Windows.Documents\PropertyValueAction.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RangeContentEnumerator.cs"
           Link="UpstreamWpf\Documents\RangeContentEnumerator.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RtfControls.cs"
@@ -322,24 +322,6 @@
           Link="UpstreamWpf\Documents\SplayTreeNodeRole.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\StaticTextPointer.cs"
           Link="UpstreamWpf\Documents\StaticTextPointer.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Table.cs"
-          Link="UpstreamWpf\Documents\Table.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCell.cs"
-          Link="UpstreamWpf\Documents\TableCell.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCellCollection.cs"
-          Link="UpstreamWpf\Documents\TableCellCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableColumn.cs"
-          Link="UpstreamWpf\Documents\TableColumn.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableColumnCollection.cs"
-          Link="UpstreamWpf\Documents\TableColumnCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRow.cs"
-          Link="UpstreamWpf\Documents\TableRow.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowCollection.cs"
-          Link="UpstreamWpf\Documents\TableRowCollection.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroup.cs"
-          Link="UpstreamWpf\Documents\TableRowGroup.cs" />
-    <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs"
-          Link="UpstreamWpf\Documents\TableRowGroupCollection.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextChangeType.cs"
              Link="System.Windows.Documents\TextChangeType.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextContainer.cs"
@@ -372,6 +354,24 @@
           Link="UpstreamWpf\Documents\TextEditorSelection.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs"
           Link="UpstreamWpf\Documents\TextEditorSpelling.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Table.cs"
+             Link="System.Windows.Documents\Table.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCell.cs"
+             Link="System.Windows.Documents\TableCell.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCellCollection.cs"
+             Link="System.Windows.Documents\TableCellCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableColumn.cs"
+             Link="System.Windows.Documents\TableColumn.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableColumnCollection.cs"
+             Link="System.Windows.Documents\TableColumnCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRow.cs"
+             Link="System.Windows.Documents\TableRow.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowCollection.cs"
+             Link="System.Windows.Documents\TableRowCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroup.cs"
+             Link="System.Windows.Documents\TableRowGroup.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs"
+             Link="System.Windows.Documents\TableRowGroupCollection.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorTables.cs"
           Link="UpstreamWpf\Documents\TextEditorTables.cs" />
     <None Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorThreadLocalStore.cs"

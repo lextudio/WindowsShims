@@ -14,6 +14,15 @@ internal static class SR
     internal const string EnumeratorVersionChanged = "EnumeratorVersionChanged";
     internal const string EnumeratorNotStarted = "EnumeratorNotStarted";
     internal const string EnumeratorReachedEnd = "EnumeratorReachedEnd";
+    internal const string TableCollectionOutOfRange = "TableCollectionOutOfRange";
+    internal const string TableCollectionWrongProxyParent = "TableCollectionWrongProxyParent";
+    internal const string TableCollectionInOtherCollection = "TableCollectionInOtherCollection";
+    internal const string TableCollectionRankMultiDimNotSupported = "TableCollectionRankMultiDimNotSupported";
+    internal const string TableCollectionOutOfRangeNeedNonNegNum = "TableCollectionOutOfRangeNeedNonNegNum";
+    internal const string TableCollectionInvalidOffLen = "TableCollectionInvalidOffLen";
+    internal const string TableCollectionCountNeedNonNegNum = "TableCollectionCountNeedNonNegNum";
+    internal const string TableCollectionRangeOutOfRange = "TableCollectionRangeOutOfRange";
+    internal const string TableCollectionNotEnoughCapacity = "TableCollectionNotEnoughCapacity";
 
     internal static string Format(string format, params object[] args)
     {

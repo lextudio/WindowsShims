@@ -13,6 +13,23 @@ public sealed class DependencyProperty
         Metadata = metadata;
     }
 
+    // Wrapper constructor for WinUI DependencyProperty inherited via Panel.BackgroundProperty.AddOwner etc.
+    internal DependencyProperty(Microsoft.UI.Xaml.DependencyProperty winuiProperty)
+    {
+        Name = winuiProperty.ToString() ?? "Unknown";
+        PropertyType = typeof(object);
+        OwnerType = typeof(object);
+        Metadata = new FrameworkPropertyMetadata(null);
+        WinUIProperty = winuiProperty;
+    }
+
+    internal Microsoft.UI.Xaml.DependencyProperty? WinUIProperty { get; }
+
+    // Implicit conversion: WPF source uses Panel.BackgroundProperty.AddOwner(...) which yields a
+    // Microsoft.UI.Xaml.DependencyProperty; wrap it so it can be assigned to fields typed as DependencyProperty.
+    public static implicit operator DependencyProperty(Microsoft.UI.Xaml.DependencyProperty winuiProperty)
+        => new(winuiProperty);
+
     public int GlobalIndex { get; } = System.Threading.Interlocked.Increment(ref _nextGlobalIndex);
     public string Name { get; }
     public System.Type PropertyType { get; }

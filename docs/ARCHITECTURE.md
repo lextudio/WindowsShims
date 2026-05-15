@@ -50,9 +50,9 @@ var metadata = new FrameworkPropertyMetadata(
 var winuiMetadata = metadata.ToWinUIMetadata();
 ```
 
-### 4. **Extension Methods for Missing Members**
+### 4. **Extension Members for Missing Members**
 
-WPF `TextElement` doesn't natively have `FontWeight` and `FontStyle` in Uno. Extensions provide them:
+WPF `TextElement` doesn't natively have `FontWeight` and `FontStyle` in Uno. Extensions provide them, so use that C# language feature:
 
 ```csharp
 textElement.SetFontWeight(FontWeights.Bold);
@@ -103,6 +103,34 @@ Both targets get the same WPF API surface but powered by modern WinUI underneath
 ### Extended (via Extension Methods)
 - `TextElement.FontWeight` (attached property)
 - `TextElement.FontStyle` (attached property)
+- `Microsoft.UI.Xaml.DependencyProperty.AddOwner(...)` (WPF API not in WinUI)
+
+### Compiled from Upstream WPF (no WinUI equivalent)
+These types have no WinUI counterpart and are compiled directly from upstream WPF source via `<Compile Link=...>`. They form the **FlowDocument table model**:
+
+**Public types** (`System.Windows.Documents`):
+- `Table`, `TableRow`, `TableCell`, `TableColumn`, `TableRowGroup`
+- `TableCellCollection`, `TableColumnCollection`, `TableRowCollection`, `TableRowGroupCollection`
+
+**Foundation types** required by the above (linked from WPF source):
+- `System.Windows.Markup.IAddChild` — parser/content-model interface
+- `MS.Internal.Documents.IAcceptInsertion` — positional insertion contract
+- `MS.Internal.Documents.IIndexedChild<TParent>` — parent-tracking contract
+- `MS.Internal.Documents.ContentElementCollection<TParent, TElementType>` — base collection
+- `MS.Internal.Documents.TableTextElementCollectionInternal<TParent, TElementType>` — table-specific collection
+- `MS.Internal.Documents.TableColumnCollectionInternal`
+- `MS.Internal.PtsTable.RowSpanVector` — row-span tracking
+
+**Local supporting shims** (in `System.Windows/`):
+- `TextElementNode` — text-tree node wrapper (minimal)
+- `RangeContentEnumerator` — no-op IEnumerator stub
+- `LogicalTreeHelper` — `AddLogicalChild` / `RemoveLogicalChild` / `GetParent` no-ops
+- `TableCellAutomationPeer.OnColumnSpanChanged` / `OnRowSpanChanged` — no-op
+- `DependencyProperty.AddOwner(...)` — returns the same property (no multi-owner semantics)
+
+**Implicit conversion**: `Microsoft.UI.Xaml.DependencyProperty` → `System.Windows.DependencyProperty` so WPF source like `Panel.BackgroundProperty.AddOwner(...)` can be assigned to fields declared as `DependencyProperty` (which in `System.Windows.Documents` scope resolves to the local shim).
+
+**Behavior simplifications**: Table types compile but rendering/layout is *not* wired to WinUI. They form the API surface for content authoring; consumers like UnoRichText render tables via separate visual mappings.
 
 ## Usage Example
 
