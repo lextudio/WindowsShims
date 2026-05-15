@@ -1,0 +1,3 @@
+[submodule "ext/wpf"]
+	path = ext/wpf
+	url = https://github.com/lextudio/wpf.git
