@@ -97,8 +97,14 @@ Both targets get the same WPF API surface but powered by modern WinUI underneath
 - All standard enums (FlowDirection, TextAlignment, TextWrapping)
 
 ### Adapted (via Custom Code)
-- `System.Windows.FrameworkPropertyMetadata` ↔ `Microsoft.UI.Xaml.FrameworkPropertyMetadata`
-- `System.Windows.PropertyChangedCallback` ↔ `Microsoft.UI.Xaml.PropertyChangedCallback`
+- `System.Windows.FrameworkPropertyMetadata` **inherits from** `Microsoft.UI.Xaml.PropertyMetadata` — can be passed directly to `Microsoft.UI.Xaml.DependencyProperty.Register(...)`. **Single unified class**: constructors accept both `System.Windows.PropertyChangedCallback` (WPF style) and `Microsoft.UI.Xaml.PropertyChangedCallback` (WinUI style); the previous `LeXtudio.UI.Xaml.FrameworkPropertyMetadata` has been removed.
+- `System.Windows.PropertyChangedCallback` (WPF delegate signature kept for source compatibility with linked WPF code; not dispatched from WinUI's notification path because `System.Windows.DependencyObject` doesn't inherit from `Microsoft.UI.Xaml.DependencyObject`)
+
+### Unified Types (single source of truth)
+- **`DependencyProperty`** = `Microsoft.UI.Xaml.DependencyProperty` (no separate WPF class). Extended via:
+  - Instance extension methods: `AddOwner(Type)`, `AddOwner(Type, FrameworkPropertyMetadata)`, `OverrideMetadata(Type, FrameworkPropertyMetadata)`, `GlobalIndex`
+  - Static extension methods (C# 14): `Register(...)` and `RegisterAttached(...)` 5-arg overloads accepting `ValidateValueCallback`
+  - All defined in `System.Windows/WinUIDependencyPropertyExtensions.cs`
 
 ### Extended (via Extension Methods)
 - `TextElement.FontWeight` (attached property)

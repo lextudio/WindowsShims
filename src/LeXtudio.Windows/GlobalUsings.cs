@@ -30,7 +30,10 @@ global using TextWrapping              = Microsoft.UI.Xaml.TextWrapping;
 global using TextBlock                 = Microsoft.UI.Xaml.Controls.TextBlock;
 
 // ============ Dependency Property System ============
-global using DependencyProperty        = System.Windows.DependencyPropertyShim;
+// DependencyProperty: unqualified usage routes to WinUI's native type.
+// Extension methods in System.Windows/WinUIDependencyPropertyExtensions.cs provide the
+// WPF-specific API (AddOwner, OverrideMetadata, etc.).
+global using DependencyProperty        = Microsoft.UI.Xaml.DependencyProperty;
 // DependencyObject: unqualified usage in WPF source files resolves to the local shim
 // (which integrates with the System.Windows.DependencyProperty system via Parent links etc.)
 global using DependencyObject          = System.Windows.DependencyObject;

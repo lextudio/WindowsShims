@@ -8,15 +8,15 @@ using Media;
 /// </summary>
 public static class TextElementFontExtensions
 {
-    private static readonly System.Windows.DependencyProperty FontWeightProperty =
-        System.Windows.DependencyProperty.RegisterAttached(
+    private static readonly Microsoft.UI.Xaml.DependencyProperty FontWeightProperty =
+        Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
             "FontWeight",
             typeof(FontWeight),
             typeof(TextElement),
             new System.Windows.FrameworkPropertyMetadata(FontWeights.Normal));
 
-    private static readonly System.Windows.DependencyProperty FontStyleProperty =
-        System.Windows.DependencyProperty.RegisterAttached(
+    private static readonly Microsoft.UI.Xaml.DependencyProperty FontStyleProperty =
+        Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
             "FontStyle",
             typeof(FontStyle),
             typeof(TextElement),

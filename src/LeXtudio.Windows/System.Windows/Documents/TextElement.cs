@@ -7,10 +7,12 @@ namespace System.Windows.Documents;
 /// </summary>
 public abstract partial class TextElement : System.Windows.FrameworkContentElement, System.Windows.Input.IInputElement
 {
-    protected static readonly DependencyPropertyShim DefaultStyleKeyProperty = new();
-    protected static readonly DependencyPropertyShim FocusableProperty = new();
-    protected static readonly System.Windows.DependencyProperty IsEnabledProperty =
-        System.Windows.DependencyProperty.Register(
+    protected static readonly Microsoft.UI.Xaml.DependencyProperty DefaultStyleKeyProperty =
+        Microsoft.UI.Xaml.DependencyProperty.Register("DefaultStyleKey", typeof(object), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(null));
+    protected static readonly Microsoft.UI.Xaml.DependencyProperty FocusableProperty =
+        Microsoft.UI.Xaml.DependencyProperty.Register("Focusable", typeof(bool), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(false));
+    protected static readonly Microsoft.UI.Xaml.DependencyProperty IsEnabledProperty =
+        Microsoft.UI.Xaml.DependencyProperty.Register(
             "IsEnabled",
             typeof(bool),
             typeof(TextElement),
@@ -197,7 +199,7 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
         return null;
     }
 
-    internal void NotifyTypographicPropertyChanged(bool affectsMeasureOrArrange, bool localValueChanged, System.Windows.DependencyProperty? property)
+    internal void NotifyTypographicPropertyChanged(bool affectsMeasureOrArrange, bool localValueChanged, Microsoft.UI.Xaml.DependencyProperty? property)
     {
         LayoutHost?.InvalidateLayout();
     }

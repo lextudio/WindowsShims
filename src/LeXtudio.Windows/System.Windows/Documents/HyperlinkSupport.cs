@@ -2,8 +2,8 @@ namespace System.Windows.Documents
 {
     public sealed class FixedPage : System.Windows.DependencyObject
     {
-        public static readonly System.Windows.DependencyProperty NavigateUriProperty =
-            System.Windows.DependencyProperty.RegisterAttached(
+        public static readonly Microsoft.UI.Xaml.DependencyProperty NavigateUriProperty =
+            Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
                 "NavigateUri",
                 typeof(System.Uri),
                 typeof(FixedPage),
@@ -14,8 +14,8 @@ namespace System.Windows.Documents
 
     public static class BaseUriHelper
     {
-        public static readonly System.Windows.DependencyProperty BaseUriProperty =
-            System.Windows.DependencyProperty.Register(
+        public static readonly Microsoft.UI.Xaml.DependencyProperty BaseUriProperty =
+            Microsoft.UI.Xaml.DependencyProperty.Register(
                 "BaseUri",
                 typeof(System.Uri),
                 typeof(BaseUriHelper),

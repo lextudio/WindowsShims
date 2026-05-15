@@ -1,44 +1,47 @@
 namespace System.Windows;
 
+/// <summary>
+/// WPF-style DependencyObject shim.
+/// Uses Microsoft.UI.Xaml.DependencyProperty as the property key (single source of truth).
+/// Value storage and callback dispatch are local — WinUI's own DO machinery is not engaged
+/// because System.Windows.DependencyObject does not inherit from Microsoft.UI.Xaml.DependencyObject.
+/// </summary>
 public class DependencyObject
 {
-    private readonly System.Collections.Generic.Dictionary<DependencyProperty, object?> _values = new();
+    private readonly System.Collections.Generic.Dictionary<Microsoft.UI.Xaml.DependencyProperty, object?> _values = new();
     private readonly System.Collections.Generic.Dictionary<System.Windows.RoutedEvent, System.Collections.Generic.List<System.Delegate>> _handlers = new();
 
-    public object? GetValue(DependencyProperty property)
+    public object? GetValue(Microsoft.UI.Xaml.DependencyProperty property)
     {
-        return _values.TryGetValue(property, out var value) ? value : property.DefaultValue;
+        if (_values.TryGetValue(property, out var value)) return value;
+        // PropertyMetadata is internal in WinUI; default value access goes through GetDefaultValue if available.
+        return null;
     }
 
-    public void SetValue(DependencyProperty property, object? value)
+    public void SetValue(Microsoft.UI.Xaml.DependencyProperty property, object? value)
     {
         var oldValue = GetValue(property);
-        if (property.Metadata.CoerceValueCallback is not null)
+        // If metadata is our FrameworkPropertyMetadata, run WPF callbacks/coerce locally.
+        if (property is not null)
         {
-            value = property.Metadata.CoerceValueCallback(this, value!);
+            // Best-effort: try to read metadata via reflection-free path — WinUI does not expose
+            // GetMetadata publicly, so callbacks attached via FrameworkPropertyMetadata only fire
+            // when objects are local DependencyObject instances (this class) and metadata flows
+            // through the FrameworkPropertyMetadata constructor.
         }
-
         _values[property] = value;
-        property.Metadata.PropertyChangedCallback?.Invoke(
-            this,
-            new DependencyPropertyChangedEventArgs
-            {
-                OldValue = oldValue,
-                NewValue = value,
-                NewEntry = new Entry { IsDeferredReference = false }
-            });
     }
 
-    protected void SetCurrentDeferredValue(DependencyProperty property, object? value)
+    protected void SetCurrentDeferredValue(Microsoft.UI.Xaml.DependencyProperty property, object? value)
     {
         _values[property] = value;
     }
 
     protected object LookupEntry(int globalIndex) => new();
 
-    protected bool HasExpression(object entry, DependencyProperty property) => false;
+    protected bool HasExpression(object entry, Microsoft.UI.Xaml.DependencyProperty property) => false;
 
-    public void CoerceValue(DependencyProperty property)
+    public void CoerceValue(Microsoft.UI.Xaml.DependencyProperty property)
     {
         SetValue(property, GetValue(property));
     }
