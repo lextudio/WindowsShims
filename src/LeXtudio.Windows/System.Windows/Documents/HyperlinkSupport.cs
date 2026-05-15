@@ -12,9 +12,9 @@ namespace System.Windows.Documents
         public static System.Uri GetLinkUri(System.Windows.Input.IInputElement sourceElement, System.Uri targetUri) => targetUri;
     }
 
-    internal static class BaseUriHelper
+    public static class BaseUriHelper
     {
-        internal static readonly System.Windows.DependencyProperty BaseUriProperty =
+        public static readonly System.Windows.DependencyProperty BaseUriProperty =
             System.Windows.DependencyProperty.Register(
                 "BaseUri",
                 typeof(System.Uri),
@@ -22,19 +22,19 @@ namespace System.Windows.Documents
                 new System.Windows.FrameworkPropertyMetadata(null));
     }
 
-    internal static class TextRangeBase
+    public static class TextRangeBase
     {
-        internal static string GetTextInternal(TextPointer start, TextPointer end) => string.Empty;
+        public static string GetTextInternal(object start, object end) => string.Empty;
     }
 
-    internal sealed class RequestSetStatusBarEventArgs : System.Windows.RoutedEventArgs
+    public sealed class RequestSetStatusBarEventArgs : System.Windows.RoutedEventArgs
     {
-        internal RequestSetStatusBarEventArgs(System.Uri? uri)
+        public RequestSetStatusBarEventArgs(System.Uri? uri)
         {
             Uri = uri;
         }
 
-        internal static RequestSetStatusBarEventArgs Clear { get; } = new(null);
-        internal System.Uri? Uri { get; }
+        public static RequestSetStatusBarEventArgs Clear { get; } = new(null);
+        public System.Uri? Uri { get; }
     }
 }

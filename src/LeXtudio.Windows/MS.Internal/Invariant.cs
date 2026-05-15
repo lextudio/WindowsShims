@@ -1,8 +1,8 @@
 namespace MS.Internal;
 
-internal static class Invariant
+public static class Invariant
 {
-    internal static void Assert(bool condition)
+    public static void Assert(bool condition)
     {
     }
 }

@@ -174,12 +174,12 @@ namespace System.Windows
 {
     public static class SystemColors
     {
-        public static System.Windows.Media.Brush ControlTextBrush => System.Windows.Media.Brushes.Black;
-        public static System.Windows.Media.Brush WindowTextBrush => System.Windows.Media.Brushes.Black;
-        public static System.Windows.Media.Brush HighlightTextBrush => System.Windows.Media.Brushes.White;
-        public static System.Windows.Media.Brush GrayTextBrush => System.Windows.Media.Brushes.Gray;
-        public static System.Windows.Media.Brush ControlBrush => System.Windows.Media.Brushes.LightGray;
-        public static System.Windows.Media.Brush WindowBrush => System.Windows.Media.Brushes.White;
-        public static System.Windows.Media.Brush HighlightBrush => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Blue);
+        public static Brush ControlTextBrush => System.Windows.Media.Brushes.Black;
+        public static Brush WindowTextBrush => System.Windows.Media.Brushes.Black;
+        public static Brush HighlightTextBrush => System.Windows.Media.Brushes.White;
+        public static Brush GrayTextBrush => System.Windows.Media.Brushes.Gray;
+        public static Brush ControlBrush => System.Windows.Media.Brushes.LightGray;
+        public static Brush WindowBrush => System.Windows.Media.Brushes.White;
+        public static Brush HighlightBrush => new SolidColorBrush(System.Windows.Media.Colors.Blue);
     }
 }
