@@ -8,10 +8,10 @@ namespace System.Windows.Media
             FontFamily = new FontFamily(familyName ?? string.Empty);
             Style = FontStyle.Normal;
             Weight = System.Windows.FontWeights.Normal;
-            Stretch = Windows.FontStretch.Normal;
+            Stretch = System.Windows.FontStretches.Normal;
         }
 
-        public Typeface(FontFamily fontFamily, FontStyle style, FontWeight weight, Windows.FontStretch stretch)
+        public Typeface(FontFamily fontFamily, FontStyle style, FontWeight weight, FontStretch stretch)
         {
             FontFamily = fontFamily ?? new FontFamily(string.Empty);
             Style = style;
@@ -22,7 +22,7 @@ namespace System.Windows.Media
         public FontFamily FontFamily { get; }
         public FontStyle Style { get; }
         public FontWeight Weight { get; }
-        public Windows.FontStretch Stretch { get; }
+        public FontStretch Stretch { get; }
 
         public override string ToString() => FontFamily.ToString();
     }

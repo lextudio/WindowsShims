@@ -20,7 +20,7 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
         DependencyProperty.Register(nameof(ExitDisplayModeOnAccessKeyInvoked), typeof(bool), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(true));
 
     public static DependencyProperty FontStretchProperty { get; } =
-        DependencyProperty.Register(nameof(FontStretch), typeof(System.Windows.FontStretch), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(System.Windows.FontStretches.Normal));
+        DependencyProperty.Register(nameof(FontStretch), typeof(FontStretch), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(System.Windows.FontStretches.Normal));
 
     public static DependencyProperty FontFamilyProperty { get; } =
         DependencyProperty.Register(nameof(FontFamily), typeof(Microsoft.UI.Xaml.Media.FontFamily), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(new Microsoft.UI.Xaml.Media.FontFamily("Segoe UI")));
@@ -106,9 +106,9 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
         set => SetValue(FontStyleProperty, value);
     }
 
-    public System.Windows.FontStretch FontStretch
+    public FontStretch FontStretch
     {
-        get => (System.Windows.FontStretch)GetValue(FontStretchProperty);
+        get => (FontStretch)GetValue(FontStretchProperty);
         set => SetValue(FontStretchProperty, value);
     }
 

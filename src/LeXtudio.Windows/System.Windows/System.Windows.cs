@@ -85,40 +85,19 @@ namespace System.Windows
         }
     }
 
-    /// <summary>Portable shim for System.Windows.FontStretch.</summary>
-    public readonly struct FontStretch : IEquatable<FontStretch>
-    {
-        readonly int _stretch; // 1=UltraCondensed … 9=Normal … 9=UltraExpanded (OpenType scale)
-        FontStretch(int stretch) { _stretch = stretch; }
-        public static FontStretch FromOpenTypeStretch(int stretch) => new FontStretch(stretch);
-        public int ToOpenTypeStretch() => _stretch;
-        public bool Equals(FontStretch other) => _stretch == other._stretch;
-        public override bool Equals(object? obj) => obj is FontStretch fs && Equals(fs);
-        public override int GetHashCode() => _stretch;
-        public static bool operator ==(FontStretch a, FontStretch b) => a._stretch == b._stretch;
-        public static bool operator !=(FontStretch a, FontStretch b) => a._stretch != b._stretch;
-        public override string ToString() => _stretch switch {
-            1 => "UltraCondensed", 2 => "ExtraCondensed", 3 => "Condensed",
-            4 => "SemiCondensed",  5 => "Normal",          6 => "SemiExpanded",
-            7 => "Expanded",       8 => "ExtraExpanded",   9 => "UltraExpanded",
-            _ => _stretch.ToString()
-        };
-        public static readonly FontStretch Normal = new FontStretch(5);
-    }
-
     /// <summary>Portable shim for System.Windows.FontStretches.</summary>
     public static class FontStretches
     {
-        public static FontStretch UltraCondensed => FontStretch.FromOpenTypeStretch(1);
-        public static FontStretch ExtraCondensed => FontStretch.FromOpenTypeStretch(2);
-        public static FontStretch Condensed      => FontStretch.FromOpenTypeStretch(3);
-        public static FontStretch SemiCondensed  => FontStretch.FromOpenTypeStretch(4);
-        public static FontStretch Normal         => FontStretch.FromOpenTypeStretch(5);
-        public static FontStretch Medium         => FontStretch.FromOpenTypeStretch(5);
-        public static FontStretch SemiExpanded   => FontStretch.FromOpenTypeStretch(6);
-        public static FontStretch Expanded       => FontStretch.FromOpenTypeStretch(7);
-        public static FontStretch ExtraExpanded  => FontStretch.FromOpenTypeStretch(8);
-        public static FontStretch UltraExpanded  => FontStretch.FromOpenTypeStretch(9);
+        public static FontStretch UltraCondensed => global::Windows.UI.Text.FontStretch.UltraCondensed;
+        public static FontStretch ExtraCondensed => global::Windows.UI.Text.FontStretch.ExtraCondensed;
+        public static FontStretch Condensed      => global::Windows.UI.Text.FontStretch.Condensed;
+        public static FontStretch SemiCondensed  => global::Windows.UI.Text.FontStretch.SemiCondensed;
+        public static FontStretch Normal         => global::Windows.UI.Text.FontStretch.Normal;
+        public static FontStretch Medium         => global::Windows.UI.Text.FontStretch.Normal;
+        public static FontStretch SemiExpanded   => global::Windows.UI.Text.FontStretch.SemiExpanded;
+        public static FontStretch Expanded       => global::Windows.UI.Text.FontStretch.Expanded;
+        public static FontStretch ExtraExpanded  => global::Windows.UI.Text.FontStretch.ExtraExpanded;
+        public static FontStretch UltraExpanded  => global::Windows.UI.Text.FontStretch.UltraExpanded;
     }
 }
 

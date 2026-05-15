@@ -19,6 +19,7 @@ global using Brush                     = Microsoft.UI.Xaml.Media.Brush;
 global using FontFamily                = Microsoft.UI.Xaml.Media.FontFamily;
 global using FontWeight                = Windows.UI.Text.FontWeight;
 global using FontStyle                 = Windows.UI.Text.FontStyle;
+global using FontStretch               = Windows.UI.Text.FontStretch;
 
 // ============ Geometry Types ============
 global using Rect                      = Windows.Foundation.Rect;
@@ -49,7 +50,6 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
 // These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:
 // - Brush (base class - defined in System.Windows.Media.Brush.cs)
-// - FontStretch (no clean direct parity yet in our bridge)
 // - TextDecoration, TextDecorationCollection (WPF-specific)
 // - TextEffect, TextEffectCollection (WPF-specific)
 // - Typeface (WPF-specific typography type)
