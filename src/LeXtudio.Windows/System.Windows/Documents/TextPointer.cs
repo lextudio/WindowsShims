@@ -48,13 +48,40 @@ public sealed class TextPointer : ITextPointer
     public Paragraph? Paragraph { get; set; }
     internal TextElement? Owner => _owner;
     internal ElementEdge Edge => _edge;
+    internal TextElement? DocumentRoot => GetDocumentRoot();
 
     public void InsertInline(Inline inline)
     {
         _owner?.AddLogicalChild(inline);
     }
 
-    public int CompareTo(TextPointer other) => ReferenceEquals(_owner, other._owner) && _edge == other._edge ? 0 : -1;
+    public int CompareTo(TextPointer other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+
+        if (ReferenceEquals(this, other))
+        {
+            return 0;
+        }
+
+        if (!IsInSameDocument(other))
+        {
+            throw new ArgumentException(SR.InDifferentTextContainers, nameof(other));
+        }
+
+        if (ReferenceEquals(_owner, other._owner))
+        {
+            if (_edge == other._edge)
+            {
+                return 0;
+            }
+
+            return _edge == ElementEdge.BeforeStart ? -1 : 1;
+        }
+
+        return CompareDistinctOwners(other);
+    }
+
     public int CompareTo(ITextPointer position) => position is TextPointer pointer ? CompareTo(pointer) : 0;
 
     public TextPointerContext GetPointerContext(LogicalDirection direction)
@@ -124,6 +151,80 @@ public sealed class TextPointer : ITextPointer
         {
             run.Text = text;
         }
+    }
+
+    internal bool IsInSameDocument(TextPointer? other)
+        => other is not null && ReferenceEquals(DocumentRoot, other.DocumentRoot);
+
+    private int CompareDistinctOwners(TextPointer other)
+    {
+        var commonAncestor = GetCommonAncestor(_owner, other._owner);
+        if (commonAncestor is null)
+        {
+            throw new ArgumentException(SR.InDifferentTextContainers, nameof(other));
+        }
+
+        var firstChild = GetImmediateChild(commonAncestor, _owner);
+        var secondChild = GetImmediateChild(commonAncestor, other._owner);
+        if (firstChild is null || secondChild is null)
+        {
+            throw new ArgumentException(SR.BadTextPositionOrder, nameof(other));
+        }
+
+        var firstIndex = commonAncestor.IndexOfLogicalChild(firstChild);
+        var secondIndex = commonAncestor.IndexOfLogicalChild(secondChild);
+        return firstIndex.CompareTo(secondIndex);
+    }
+
+    private TextElement? GetDocumentRoot()
+    {
+        var current = _owner;
+        while (current?.Parent is TextElement parent)
+        {
+            current = parent;
+        }
+
+        return current;
+    }
+
+    private static TextElement? GetCommonAncestor(TextElement? first, TextElement? second)
+    {
+        if (first is null || second is null)
+        {
+            return null;
+        }
+
+        HashSet<TextElement> ancestors = [];
+        for (var current = first; current is not null; current = current.Parent as TextElement)
+        {
+            ancestors.Add(current);
+        }
+
+        for (var current = second; current is not null; current = current.Parent as TextElement)
+        {
+            if (ancestors.Contains(current))
+            {
+                return current;
+            }
+        }
+
+        return null;
+    }
+
+    private static TextElement? GetImmediateChild(TextElement ancestor, TextElement? descendant)
+    {
+        var current = descendant;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current.Parent, ancestor))
+            {
+                return current;
+            }
+
+            current = current.Parent as TextElement;
+        }
+
+        return null;
     }
 }
 

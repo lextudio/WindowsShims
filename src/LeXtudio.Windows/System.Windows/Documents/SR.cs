@@ -23,6 +23,9 @@ internal static class SR
     internal const string TableCollectionCountNeedNonNegNum = "TableCollectionCountNeedNonNegNum";
     internal const string TableCollectionRangeOutOfRange = "TableCollectionRangeOutOfRange";
     internal const string TableCollectionNotEnoughCapacity = "TableCollectionNotEnoughCapacity";
+    internal const string CanOnlyHaveOneChild = "CanOnlyHaveOneChild";
+    internal const string RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready = "RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready";
+    internal const string RichTextBox_CantSetDocumentInsideChangeBlock = "RichTextBox_CantSetDocumentInsideChangeBlock";
 
     internal static string Format(string format, params object[] args)
     {
