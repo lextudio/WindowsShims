@@ -63,6 +63,13 @@
              Link="System.Windows.Documents\Paragraph.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\BlockCollection.cs"
              Link="System.Windows.Documents\BlockCollection.cs" />
+    <!-- Shared helpers required by the XAML↔RTF conversion subsystem -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\MS\Internal\Text\InternalEncoding.cs"
+             Link="MS.Internal.Text\InternalEncoding.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\Globalization\BamlConst.cs"
+             Link="MS.Internal.Globalization\BamlConst.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\Globalization\BamlResourceContent.cs"
+             Link="MS.Internal.Globalization\BamlResourceContent.cs" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner.cs"
@@ -527,12 +534,6 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Fixed*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentSequence*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContent*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Rtf*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XamlAttribute.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XamlRtfConverter.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XamlToRtfParser.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XamlToRtfWriter.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XamlTokenType.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WpfPayload.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XPSS0ValidatingLoader.cs" />
 

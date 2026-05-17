@@ -25,5 +25,9 @@ namespace System.Windows.Media
         public FontStretch Stretch { get; }
 
         public override string ToString() => FontFamily.ToString();
+
+        // GlyphTypeface metadata is not modeled in this shim. The RTF↔XAML round-trip
+        // calls this to detect symbol fonts; returning null causes that detection to be skipped.
+        public GlyphTypeface? TryGetGlyphTypeface() => null;
     }
 }

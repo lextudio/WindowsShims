@@ -29,6 +29,8 @@ namespace System.Windows.Media
             ["SlateGray"]    = Colors.SlateGray,
         };
 
+        public static object? ConvertFromString(string value) => new ColorConverter().ConvertFromInvariantString(value);
+
         public object? ConvertFromInvariantString(string value)
         {
             if (string.IsNullOrWhiteSpace(value)) return null;
