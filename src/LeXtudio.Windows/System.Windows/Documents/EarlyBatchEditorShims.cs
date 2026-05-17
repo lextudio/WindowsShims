@@ -116,31 +116,6 @@ namespace System.Windows.Media
 
 namespace System.Windows.Documents
 {
-    public struct TextSegment
-    {
-        public TextSegment(ITextPointer start, ITextPointer end)
-        {
-            Start = start;
-            End = end;
-        }
-
-        public ITextPointer Start { get; }
-
-        public ITextPointer End { get; }
-
-        public bool IsNull => Start is null || End is null;
-
-        public bool Contains(ITextPointer position)
-        {
-            if (IsNull || position is null)
-            {
-                return false;
-            }
-
-            return Start.CompareTo(position) <= 0 && End.CompareTo(position) >= 0;
-        }
-    }
-
     internal class TextEditor
     {
         internal static readonly TextEditorThreadLocalStore _ThreadLocalStore = new();

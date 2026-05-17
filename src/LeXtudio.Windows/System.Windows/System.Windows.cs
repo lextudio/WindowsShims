@@ -113,6 +113,7 @@ namespace System.Windows
         public static Brush WindowBrush => System.Windows.Media.Brushes.White;
         public static Brush HighlightBrush => new SolidColorBrush(System.Windows.Media.Colors.Blue);
         public static Color WindowColor => System.Windows.Media.Colors.White;
+        public static Color HighlightColor => System.Windows.Media.Colors.Blue;
     }
 
     public static class FocusManager
