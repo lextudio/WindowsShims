@@ -22,6 +22,8 @@ public static class WinUIDependencyObjectExtensions
         // ── Coerce (no property-engine coercion in this bridge) ───────
         public void CoerceValue(Microsoft.UI.Xaml.DependencyProperty property) { }
 
+        public LocalValueEnumerator GetLocalValueEnumerator() => new();
+
         // ── WPF-style routed event dispatch ───────────────────────────
         public void AddHandler(RoutedEvent routedEvent, Delegate handler)
         {

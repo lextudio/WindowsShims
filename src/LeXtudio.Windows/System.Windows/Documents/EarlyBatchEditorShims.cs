@@ -24,6 +24,16 @@ namespace System.Windows
 
     public sealed class LocalValueEnumerator
     {
+        public bool MoveNext() => false;
+
+        public LocalValueEntry Current => default;
+    }
+
+    public readonly struct LocalValueEntry
+    {
+        public DependencyProperty Property { get; init; }
+
+        public object? Value { get; init; }
     }
 
     public class QueryContinueDragEventArgs : RoutedEventArgs
@@ -77,6 +87,23 @@ namespace MS.Win32
 {
     internal static class NativeMethods
     {
+        internal const int LOCALE_FONTSIGNATURE = 0x0058;
+    }
+
+    internal static class SafeNativeMethods
+    {
+        internal static int GetKeyboardLayoutList(int nBuff, IntPtr[]? lpList)
+        {
+            return 0;
+        }
+    }
+
+    internal static class UnsafeNativeMethods
+    {
+        internal static int GetLocaleInfoW(int locale, int lcType, string lpLCData, int cchData)
+        {
+            return 0;
+        }
     }
 }
 
@@ -102,15 +129,41 @@ namespace System.Windows.Documents
         public ITextPointer End { get; }
 
         public bool IsNull => Start is null || End is null;
+
+        public bool Contains(ITextPointer position)
+        {
+            if (IsNull || position is null)
+            {
+                return false;
+            }
+
+            return Start.CompareTo(position) <= 0 && End.CompareTo(position) >= 0;
+        }
     }
 
     internal class TextEditor
     {
+        internal static readonly TextEditorThreadLocalStore _ThreadLocalStore = new();
+
         internal TextEditor()
         {
         }
 
         internal ITextSelection Selection => null;
+        internal TextContainer TextContainer { get; } = new();
+        internal FrameworkElement? UiScope { get; set; }
+        internal bool AcceptsRichContent { get; set; } = true;
+        internal bool IsContextMenuOpen { get; set; }
+        internal bool AutoWordSelection { get; set; }
+        internal bool IsReadOnly { get; set; }
+        internal bool IsReadOnlyCaretVisible { get; set; }
+        internal ITextView? TextView { get; set; }
+        internal TextStore? TextStore { get; set; }
+        internal ImmComposition? ImmComposition { get; set; }
+    }
+
+    internal sealed partial class FormattingDependencyObject : DependencyObject
+    {
     }
 
     public class TextContainerChangeEventArgs : EventArgs
@@ -119,39 +172,6 @@ namespace System.Windows.Documents
 
     internal sealed class ChangeBlockUndoRecord
     {
-    }
-
-    public class TextRange
-    {
-        public TextRange(TextPointer start, TextPointer end)
-        {
-            Start = start;
-            End = end;
-        }
-
-        public virtual TextPointer Start { get; }
-
-        public virtual TextPointer End { get; }
-
-        public virtual void ApplyPropertyValue(DependencyProperty formattingProperty, object value)
-        {
-        }
-    }
-
-    public class TextSelection : TextRange
-    {
-        public TextSelection(TextPointer start, TextPointer end)
-            : base(start, end)
-        {
-        }
-
-        public virtual void Select(TextPointer start, TextPointer end)
-        {
-        }
-
-        public virtual void ApplySpringloadFormatting()
-        {
-        }
     }
 
     internal enum CaretScrollMethod
@@ -281,6 +301,9 @@ namespace System.Windows.Documents
 
     internal sealed class TextEditorThreadLocalStore
     {
+        internal object? Bidi { get; set; }
+
+        internal ITextSelection? FocusedTextSelection { get; set; }
     }
 
     public sealed class UndoManager
@@ -369,6 +392,150 @@ namespace System.Windows.Documents
         internal static TextPointer EnsureInsertionPosition(ITextPointer position)
         {
             return position as TextPointer;
+        }
+
+        internal static bool GetColumnRange(ITextRange range, Table table, out int firstColumnIndex, out int lastColumnIndex)
+        {
+            firstColumnIndex = 0;
+            lastColumnIndex = 0;
+            return false;
+        }
+
+        internal static Table GetTableFromPosition(TextPointer position)
+        {
+            return null;
+        }
+
+        internal static TableCell GetTableCellFromPosition(TextPointer position)
+        {
+            return null;
+        }
+
+        internal static bool IsTableStructureCrossed(ITextPointer anchorPosition, ITextPointer movingPosition)
+        {
+            return false;
+        }
+
+        internal static bool IsTableCellRange(TextPointer anchorPosition, TextPointer movingPosition, bool includeCellAtMovingPosition, out TableCell anchorCell, out TableCell movingCell)
+        {
+            anchorCell = null;
+            movingCell = null;
+            return false;
+        }
+
+        internal static List<TextSegment> BuildTableRange(TextPointer start, TextPointer end)
+        {
+            return [new TextSegment(start, end)];
+        }
+
+        internal static void IdentifyValidBoundaries(ITextRange range, out ITextPointer start, out ITextPointer end)
+        {
+            start = range.Start;
+            end = range.End;
+        }
+
+        internal static TextPointer GetNextTableCellRangeInsertionPosition(TextSelection selection, LogicalDirection direction)
+        {
+            return ((ITextSelection)selection).MovingPosition as TextPointer;
+        }
+
+        internal static TextPointer GetNextRowEndMovingPosition(TextSelection selection, LogicalDirection direction)
+        {
+            return ((ITextSelection)selection).MovingPosition as TextPointer;
+        }
+
+        internal static bool MovingPositionCrossesCellBoundary(TextSelection selection)
+        {
+            return false;
+        }
+
+        internal static TextPointer GetNextRowStartMovingPosition(TextSelection selection, LogicalDirection direction)
+        {
+            return ((ITextSelection)selection).MovingPosition as TextPointer;
+        }
+
+        internal static Table InsertTable(TextPointer insertionPosition, int rowCount, int columnCount)
+        {
+            var table = new Table();
+            var rowGroup = table.RowGroups[0];
+            rowCount = Math.Max(1, rowCount);
+            columnCount = Math.Max(1, columnCount);
+
+            for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+            {
+                var row = new TableRow
+                {
+                    RowGroup = rowGroup,
+                    Index = rowIndex,
+                };
+
+                for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
+                {
+                    var cell = new TableCell
+                    {
+                        Row = row,
+                        ColumnIndex = columnIndex,
+                    };
+                    row.Cells.Add(cell);
+                }
+
+                rowGroup.Rows.Add(row);
+            }
+
+            return table;
+        }
+
+        internal static TextPointer GetAdjustedRowEndPosition(Table currentTable, TextPointer rowEndPosition)
+        {
+            return rowEndPosition;
+        }
+
+        internal static void DeleteContent(TextPointer start, TextPointer end)
+        {
+        }
+
+        internal static TextRange InsertRows(TextRange textRange, int rowCount)
+        {
+            return textRange;
+        }
+
+        internal static bool DeleteRows(TextRange textRange)
+        {
+            return false;
+        }
+
+        internal static TextRange InsertColumns(TextRange textRange, int columnCount)
+        {
+            return textRange;
+        }
+
+        internal static bool DeleteColumns(TextRange textRange)
+        {
+            return false;
+        }
+
+        internal static TextRange MergeCells(TextRange textRange)
+        {
+            return textRange;
+        }
+
+        internal static TextRange SplitCell(TextRange textRange, int splitCountHorizontal, int splitCountVertical)
+        {
+            return textRange;
+        }
+
+        internal static bool TableBorderHitTest(ITextView textView, Point pt)
+        {
+            return false;
+        }
+
+        internal static TableColumnResizeInfo StartColumnResize(ITextView textView, Point pt)
+        {
+            return null;
+        }
+
+        internal static void EnsureTableColumnsAreFixedSize(Table table, double[] columnWidths)
+        {
         }
 
         internal sealed class TableColumnResizeInfo

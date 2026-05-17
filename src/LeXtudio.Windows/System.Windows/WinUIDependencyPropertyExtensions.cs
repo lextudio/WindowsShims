@@ -27,6 +27,17 @@ public static class WinUIDependencyPropertyExtensions
     extension(Microsoft.UI.Xaml.DependencyProperty property)
     {
         public int GlobalIndex => property.GetHashCode();
+
+        public string Name => property.ToString();
+
+        public Type PropertyType => typeof(object);
+
+        public bool IsValidValue(object? value) => true;
+    }
+
+    extension(object value)
+    {
+        public bool IsValid(DependencyProperty property) => true;
     }
 
     public static Microsoft.UI.Xaml.DependencyProperty AddOwner(

@@ -26,6 +26,10 @@ internal static class SR
     internal const string CanOnlyHaveOneChild = "CanOnlyHaveOneChild";
     internal const string RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready = "RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready";
     internal const string RichTextBox_CantSetDocumentInsideChangeBlock = "RichTextBox_CantSetDocumentInsideChangeBlock";
+    internal const string TextEditorPropertyIsNotApplicableForTextFormatting = "TextEditorPropertyIsNotApplicableForTextFormatting";
+    internal const string TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty = "TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty";
+    internal const string TextRange_InvalidParameterValue = "TextRange_InvalidParameterValue";
+    internal const string TextRange_PropertyCannotBeIncrementedOrDecremented = "TextRange_PropertyCannotBeIncrementedOrDecremented";
 
     internal static string Format(string format, params object[] args)
     {

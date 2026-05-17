@@ -17,6 +17,18 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
             typeof(bool),
             typeof(TextElement),
             new System.Windows.FrameworkPropertyMetadata(true));
+    public static readonly Microsoft.UI.Xaml.DependencyProperty BackgroundProperty =
+        Microsoft.UI.Xaml.DependencyProperty.Register(
+            "Background",
+            typeof(Brush),
+            typeof(TextElement),
+            new System.Windows.FrameworkPropertyMetadata(null));
+    public static readonly Microsoft.UI.Xaml.DependencyProperty TextEffectsProperty =
+        Microsoft.UI.Xaml.DependencyProperty.Register(
+            "TextEffects",
+            typeof(System.Windows.Media.TextEffectCollection),
+            typeof(TextElement),
+            new System.Windows.FrameworkPropertyMetadata(null));
     private readonly List<object> _children = [];
     private readonly TextPointer _contentStart;
     private readonly TextPointer _contentEnd;

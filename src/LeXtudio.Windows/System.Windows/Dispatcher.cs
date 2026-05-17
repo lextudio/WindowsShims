@@ -40,6 +40,7 @@ public sealed class Dispatcher
 public enum DispatcherPriority
 {
     Background,
+    Loaded,
     Normal,
     Send
 }

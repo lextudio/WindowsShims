@@ -4,6 +4,7 @@ public sealed class TextPointer : ITextPointer
 {
     private readonly TextElement? _owner;
     private readonly ElementEdge _edge;
+    private LogicalDirection _logicalDirection = LogicalDirection.Forward;
 
     public TextPointer()
     {
@@ -43,7 +44,10 @@ public sealed class TextPointer : ITextPointer
     }
 
     public TextContainer TextContainer { get; }
-    public object? Parent { get; set; }
+    public LogicalDirection LogicalDirection => _logicalDirection;
+    public bool IsFrozen => false;
+    public bool HasValidLayout => true;
+    public DependencyObject? Parent { get; set; }
     public System.Type? ParentType { get; set; }
     public Paragraph? Paragraph { get; set; }
     internal TextElement? Owner => _owner;
@@ -97,6 +101,8 @@ public sealed class TextPointer : ITextPointer
 
     public TextPointer GetNextContextPosition(LogicalDirection direction) => this;
 
+    ITextPointer? ITextPointer.GetNextContextPosition(LogicalDirection direction) => GetNextContextPosition(direction);
+
     public Inline? GetNonMergeableInlineAncestor() => null;
 
     public object? GetAdjacentElement(LogicalDirection direction)
@@ -136,7 +142,76 @@ public sealed class TextPointer : ITextPointer
 
     public TextPointer CreatePointer() => this;
 
+    ITextPointer ITextPointer.CreatePointer() => CreatePointer();
+
+    public ITextPointer CreatePointer(int distance) => new TextPointer(this, distance);
+
+    public ITextPointer CreatePointer(LogicalDirection gravity)
+    {
+        var pointer = new TextPointer(this, 0);
+        pointer._logicalDirection = gravity;
+        return pointer;
+    }
+
+    public ITextPointer GetFrozenPointer(LogicalDirection logicalDirection) => CreatePointer(logicalDirection);
+
+    public ITextPointer? GetNextInsertionPosition(LogicalDirection direction) => this;
+
+    public ITextPointer GetInsertionPosition(LogicalDirection direction) => this;
+
+    public bool MoveToInsertionPosition(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+        return true;
+    }
+
+    public bool MoveToNextInsertionPosition(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+        return true;
+    }
+
     public void MoveToNextContextPosition(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+    }
+
+    public void SetLogicalDirection(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+    }
+
+    public string GetTextInRun(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+        return _owner is Run run ? run.Text : string.Empty;
+    }
+
+    public int GetTextInRun(LogicalDirection direction, char[] textBuffer, int startIndex, int count)
+    {
+        var text = GetTextInRun(direction);
+        if (string.IsNullOrEmpty(text) || count <= 0)
+        {
+            return 0;
+        }
+
+        var copied = Math.Min(count, text.Length);
+        text.CopyTo(0, textBuffer, startIndex, copied);
+        return copied;
+    }
+
+    public Type? GetElementType(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+        return ParentType;
+    }
+
+    public bool ValidateLayout()
+    {
+        return true;
+    }
+
+    public void Freeze()
     {
     }
 
@@ -151,6 +226,15 @@ public sealed class TextPointer : ITextPointer
         {
             run.Text = text;
         }
+    }
+
+    internal FrameworkElement? ContainingFrameworkElement => null;
+
+    internal Block? ParagraphOrBlockUIContainer => Paragraph;
+
+    internal void InsertTextElement(TextElement element)
+    {
+        _owner?.AddLogicalChild(element);
     }
 
     internal bool IsInSameDocument(TextPointer? other)
@@ -241,6 +325,9 @@ public class TextContainer
     public object? Parent { get; set; }
     public ITextLayoutHost? LayoutHost { get; set; }
     public TextSelectionShim? TextSelection { get; set; }
+    internal HighlightsCollection Highlights { get; } = new();
+    public TextPointer Start => new(this, null, ElementEdge.BeforeStart, LogicalDirection.Forward);
+    public TextPointer End => new(this, null, ElementEdge.AfterEnd, LogicalDirection.Backward);
 
     public void BeginChange()
     {
@@ -255,6 +342,27 @@ public class TextContainer
         _owner?.ClearLogicalChildren();
         LayoutHost?.InvalidateLayout();
     }
+}
+
+internal static class TextPointerBase
+{
+    internal static bool IsAtLineWrappingPosition(ITextPointer position, object? textView) => false;
+
+    internal static bool IsNextToPlainLineBreak(ITextPointer position, LogicalDirection direction) => false;
+
+    internal static bool IsAtRowEnd(ITextPointer position) => false;
+
+    internal static TextSegment GetWordRange(ITextPointer position) => new(position, position);
+
+    internal static TextSegment GetWordRange(ITextPointer position, LogicalDirection direction) => new(position, position);
+
+    internal static bool IsAtWordBoundary(ITextPointer position, LogicalDirection insideWordDirection) => false;
+
+    internal static bool IsAfterLastParagraph(ITextPointer position) => false;
+
+    internal static bool IsNextToAnyBreak(ITextPointer position, LogicalDirection direction) => false;
+
+    internal static ITextPointer GetFollowingNonMergeableInlineContentStart(ITextPointer position) => position;
 }
 
 public sealed class TextSelectionShim

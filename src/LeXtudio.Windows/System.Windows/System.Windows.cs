@@ -112,5 +112,19 @@ namespace System.Windows
         public static Brush ControlBrush => System.Windows.Media.Brushes.LightGray;
         public static Brush WindowBrush => System.Windows.Media.Brushes.White;
         public static Brush HighlightBrush => new SolidColorBrush(System.Windows.Media.Colors.Blue);
+        public static Color WindowColor => System.Windows.Media.Colors.White;
+    }
+
+    public static class FocusManager
+    {
+        public static DependencyObject GetFocusScope(DependencyObject element) => element;
+    }
+
+    public sealed class InputLanguageManager
+    {
+        public static InputLanguageManager Current { get; } = new();
+
+        public global::System.Globalization.CultureInfo CurrentInputLanguage { get; set; }
+            = global::System.Globalization.CultureInfo.CurrentCulture;
     }
 }

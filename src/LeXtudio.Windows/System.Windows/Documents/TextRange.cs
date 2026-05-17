@@ -39,6 +39,10 @@ public partial class TextRange
 
 	public virtual bool IsEmpty => string.IsNullOrEmpty(Text);
 
+	public virtual void ApplyPropertyValue(DependencyProperty formattingProperty, object value)
+	{
+	}
+
 	public virtual void Select(TextPointer startPosition, TextPointer endPosition)
 		=> _selectAction(startPosition, endPosition);
 

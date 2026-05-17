@@ -47,7 +47,8 @@ public readonly struct ValueSource
 
 public enum BaseValueSource
 {
-    Local = 0
+    Local = 0,
+    Inherited = 1,
 }
 
 public static class DependencyPropertyHelper

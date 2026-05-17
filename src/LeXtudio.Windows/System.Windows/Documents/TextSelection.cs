@@ -1,9 +1,16 @@
 namespace System.Windows.Documents;
 
-public sealed partial class TextSelection : TextRange
+public partial class TextSelection : TextRange
 {
 	private TextPointer _anchorPosition;
 	private TextPointer _movingPosition;
+
+	public TextSelection(TextPointer startPosition, TextPointer endPosition)
+		: base(startPosition, endPosition)
+	{
+		_anchorPosition = startPosition;
+		_movingPosition = endPosition;
+	}
 
 	internal TextSelection(System.Windows.Controls.Primitives.TextBoxBase owner, TextPointer position)
 		: base(position, position)
@@ -43,5 +50,9 @@ public sealed partial class TextSelection : TextRange
 		_movingPosition = endPosition;
 		SetTextCore(_anchorPosition.CompareTo(_movingPosition) == 0 ? string.Empty : Text);
 		Owner?.NotifySelectionChanged();
+	}
+
+	public virtual void ApplySpringloadFormatting()
+	{
 	}
 }

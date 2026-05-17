@@ -10,6 +10,8 @@ public class RichTextBox : TextBoxBase, IAddChild
 {
     private FlowDocument _document;
     private bool _implicitDocument;
+    private FontWeight _typingFontWeight = FontWeights.Normal;
+    private FontStyle _typingFontStyle = FontStyles.Normal;
 
     public RichTextBox()
         : this(null)
@@ -20,7 +22,6 @@ public class RichTextBox : TextBoxBase, IAddChild
     {
         _implicitDocument = document is null;
         Document = document ?? CreateImplicitDocument();
-        Selection = new TextSelection(Document.ContentStart, Document.ContentStart);
     }
 
     public FlowDocument Document
@@ -90,6 +91,24 @@ public class RichTextBox : TextBoxBase, IAddChild
 
     public override void AppendText(string textData)
     {
+        if (string.IsNullOrEmpty(textData))
+        {
+            return;
+        }
+
+        var paragraph = EnsureLastParagraph();
+        var run = new Run(textData)
+        {
+            FontWeight = _typingFontWeight,
+            FontStyle = _typingFontStyle,
+        };
+
+        paragraph.Inlines.Add(run);
+
+        if (Selection is not null)
+        {
+            Selection.Select(run.ContentEnd, run.ContentEnd);
+        }
     }
 
     public override void SelectAll()
@@ -133,6 +152,73 @@ public class RichTextBox : TextBoxBase, IAddChild
         var document = new FlowDocument();
         document.Blocks.Add(new Paragraph());
         return document;
+    }
+
+    private Paragraph EnsureLastParagraph()
+    {
+        if (Document.Blocks.LastBlock is Paragraph paragraph)
+        {
+            return paragraph;
+        }
+
+        var appended = new Paragraph();
+        Document.Blocks.Add(appended);
+        return appended;
+    }
+
+    internal void ApplyTypingProperty(DependencyProperty property, object? value)
+    {
+        if (property == TextElement.FontWeightProperty && TryGetFontWeight(value, out var fontWeight))
+        {
+            _typingFontWeight = fontWeight;
+            return;
+        }
+
+        if (property == TextElement.FontStyleProperty && TryGetFontStyle(value, out var fontStyle))
+        {
+            _typingFontStyle = fontStyle;
+        }
+    }
+
+    private static bool TryGetFontWeight(object? value, out FontWeight fontWeight)
+    {
+        switch (value)
+        {
+            case FontWeight direct:
+                fontWeight = direct;
+                return true;
+            case string text when string.Equals(text, nameof(FontWeights.Bold), StringComparison.OrdinalIgnoreCase):
+                fontWeight = FontWeights.Bold;
+                return true;
+            case string text when string.Equals(text, nameof(FontWeights.Normal), StringComparison.OrdinalIgnoreCase):
+                fontWeight = FontWeights.Normal;
+                return true;
+            default:
+                fontWeight = FontWeights.Normal;
+                return false;
+        }
+    }
+
+    private static bool TryGetFontStyle(object? value, out FontStyle fontStyle)
+    {
+        switch (value)
+        {
+            case FontStyle direct:
+                fontStyle = direct;
+                return true;
+            case string text when string.Equals(text, nameof(FontStyles.Italic), StringComparison.OrdinalIgnoreCase):
+                fontStyle = FontStyles.Italic;
+                return true;
+            case string text when string.Equals(text, nameof(FontStyles.Oblique), StringComparison.OrdinalIgnoreCase):
+                fontStyle = FontStyles.Oblique;
+                return true;
+            case string text when string.Equals(text, nameof(FontStyles.Normal), StringComparison.OrdinalIgnoreCase):
+                fontStyle = FontStyles.Normal;
+                return true;
+            default:
+                fontStyle = FontStyles.Normal;
+                return false;
+        }
     }
 }
 

@@ -1,5 +1,7 @@
 namespace System.Windows.Threading;
 
+public delegate object? DispatcherOperationCallback(object? arg);
+
 public enum DispatcherPriority
 {
     Invalid = -1,

@@ -414,7 +414,6 @@
              Link="System.Windows.Documents\TextPointerBase.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerContext.cs"
              Link="System.Windows.Documents\TextPointerContext.cs" />
-      <Compile Remove="System.Windows\Documents\TextRange.cs" />
       <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRange.cs"
                    Link="System.Windows.Documents\TextRange.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeBase.cs"
@@ -431,7 +430,6 @@
              Link="System.Windows.Documents\TextSchema.cs" />
       <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSegment.cs"
                    Link="System.Windows.Documents\TextSegment.cs" />
-      <Compile Remove="System.Windows\Documents\TextSelection.cs" />
       <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelection.cs"
                    Link="System.Windows.Documents\TextSelection.cs" />
       <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelectionHighlightLayer.cs"
@@ -575,8 +573,6 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFlow.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Typography.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEditTables.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRange.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelection.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReferenceCollection.cs" />
@@ -638,6 +634,8 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs" />
 
     <!-- Prefer upstream core implementations; remove local duplicates that currently collide. -->
+    <Compile Remove="System.Windows\Documents\TextRange.cs" />
+    <Compile Remove="System.Windows\Documents\TextSelection.cs" />
     <Compile Remove="System.Windows\Documents\TextRangeEditTables.cs" />
   </ItemGroup>
 </Project>
