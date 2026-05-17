@@ -1,5 +1,5 @@
-namespace System.Windows.Documents;
-
+// SR is intentionally NOT in any namespace so it is accessible from all namespaces
+// in this assembly (System.Windows.Documents, MS.Internal.Documents, etc.).
 internal static class SR
 {
     internal const string TextSchema_ChildTypeIsInvalid = "TextSchema_ChildTypeIsInvalid";
@@ -32,6 +32,14 @@ internal static class SR
     internal const string TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty = "TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty";
     internal const string TextRange_InvalidParameterValue = "TextRange_InvalidParameterValue";
     internal const string TextRange_PropertyCannotBeIncrementedOrDecremented = "TextRange_PropertyCannotBeIncrementedOrDecremented";
+    // Undo-related keys used by ParentUndoUnit
+    internal const string UndoUnitCantBeOpenedTwice = nameof(UndoUnitCantBeOpenedTwice);
+    internal const string UndoNoOpenUnit            = nameof(UndoNoOpenUnit);
+    internal const string UndoUnitNotFound          = nameof(UndoUnitNotFound);
+    internal const string UndoUnitCantBeAddedTwice  = nameof(UndoUnitCantBeAddedTwice);
+    internal const string UndoUnitLocked            = nameof(UndoUnitLocked);
+    internal const string UndoContainerTypeMismatch = nameof(UndoContainerTypeMismatch);
+    internal const string InputScopeAttribute_E_OUTOFMEMORY = "Insufficient memory to complete the operation.";
 
     internal static string Format(string format, params object[] args)
     {

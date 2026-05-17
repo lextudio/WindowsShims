@@ -57,6 +57,10 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 // ============ WPF Document Types ============
 global using TextDecorationCollection = System.Windows.Media.TextDecorationCollection;
 
+// TextDecorations static class (System.Windows.Media) — bring to global scope so
+// upstream files in System.Windows.Documents can reference it without an explicit using.
+global using TextDecorations                = System.Windows.Media.TextDecorations;
+
 // ============ Typography Enums - Aliased to Microsoft.UI.Xaml Equivalents ============
 // WinUI defines the same OpenType feature enums with identical members/values.
 global using FontVariants              = Microsoft.UI.Xaml.FontVariants;

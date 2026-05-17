@@ -71,6 +71,84 @@ namespace System.Windows.Input
     public class Cursor
     {
     }
+
+    public enum InputScopeNameValue
+    {
+        Default = 0,
+        Url = 1,
+        FullFilePath = 2,
+        FileName = 3,
+        EmailUserName = 4,
+        EmailSmtpAddress = 5,
+        LogOnName = 6,
+        PersonalFullName = 7,
+        PersonalNamePrefix = 8,
+        PersonalGivenName = 9,
+        PersonalMiddleName = 10,
+        PersonalSurname = 11,
+        PersonalNameSuffix = 12,
+        PostalAddress = 13,
+        PostalCode = 14,
+        AddressStreet = 15,
+        AddressStateOrProvince = 16,
+        AddressCity = 17,
+        AddressCountryName = 18,
+        AddressCountryShortName = 19,
+        CurrencyAmountAndSymbol = 20,
+        CurrencyAmount = 21,
+        Date = 22,
+        DateMonth = 23,
+        DateDay = 24,
+        DateYear = 25,
+        DateMonthName = 26,
+        DateDayName = 27,
+        Digits = 28,
+        Number = 29,
+        OneChar = 30,
+        Password = 31,
+        TelephoneNumber = 32,
+        TelephoneCountryCode = 33,
+        TelephoneAreaCode = 34,
+        TelephoneLocalNumber = 35,
+        Time = 36,
+        TimeHour = 37,
+        TimeMinorSec = 38,
+        NumberFullWidth = 39,
+        AlphanumericHalfWidth = 40,
+        AlphanumericFullWidth = 41,
+        CurrencyChinese = 42,
+        Bopomofo = 43,
+        Hiragana = 44,
+        KatakanaHalfWidth = 45,
+        KatakanaFullWidth = 46,
+        Hanja = 47,
+        PhraseList = -1,
+        RegularExpression = -2,
+        Srgs = -3,
+        Xml = -4,
+    }
+
+    public class InputScopeName
+    {
+        public InputScopeName() { }
+        public InputScopeName(InputScopeNameValue nameValue) { NameValue = nameValue; }
+        public InputScopeNameValue NameValue { get; set; }
+    }
+
+    public class InputScopePhrase
+    {
+        public InputScopePhrase() { }
+        public InputScopePhrase(string name) { Name = name; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class InputScope
+    {
+        public System.Collections.Generic.IList<InputScopeName> Names { get; } = new System.Collections.Generic.List<InputScopeName>();
+        public System.Collections.Generic.IList<InputScopePhrase> PhraseList { get; } = new System.Collections.Generic.List<InputScopePhrase>();
+        public string? RegularExpression { get; set; }
+        public string? SrgsMarkup { get; set; }
+    }
 }
 
 namespace System.Windows.Threading
@@ -88,6 +166,9 @@ namespace MS.Win32
     internal static class NativeMethods
     {
         internal const int LOCALE_FONTSIGNATURE = 0x0058;
+        internal const int S_OK    = 0x00000000;
+        internal const int S_FALSE = 0x00000001;
+        internal const int E_OUTOFMEMORY = unchecked((int)0x8007000E);
     }
 
     internal static class SafeNativeMethods
@@ -121,6 +202,22 @@ namespace MS.Win32
             foundLength = 0;
             return -1;
         }
+
+        [System.Runtime.InteropServices.ComImport]
+        [System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+        [System.Runtime.InteropServices.Guid("fde1eaee-6924-4cdf-91e7-da38cff5559d")]
+        public interface ITfInputScope
+        {
+            void GetInputScopes(out IntPtr ppinputscopes, out int count);
+            [System.Runtime.InteropServices.PreserveSig]
+            int GetPhrase(out IntPtr ppbstrPhrases, out int count);
+            [System.Runtime.InteropServices.PreserveSig]
+            int GetRegularExpression([System.Runtime.InteropServices.Out, System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.BStr)] out string desc);
+            [System.Runtime.InteropServices.PreserveSig]
+            int GetSRGC([System.Runtime.InteropServices.Out, System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.BStr)] out string desc);
+            [System.Runtime.InteropServices.PreserveSig]
+            int GetXML([System.Runtime.InteropServices.Out, System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.BStr)] out string desc);
+        }
     }
 }
 
@@ -143,7 +240,7 @@ namespace System.Windows.Documents
 {
     internal static class TextTreeUndo
     {
-        internal static UndoManager? GetOrClearUndoManager(ITextContainer container) => null;
+        internal static MS.Internal.Documents.UndoManager? GetOrClearUndoManager(ITextContainer container) => null;
     }
 
     internal class TextEditor
@@ -301,31 +398,6 @@ namespace System.Windows.Documents
         internal object? Bidi { get; set; }
 
         internal ITextSelection? FocusedTextSelection { get; set; }
-    }
-
-    public sealed class UndoManager
-    {
-        internal bool IsEnabled => false;
-        internal int UndoCount => 0;
-        internal int RedoCount => 0;
-        internal int MinUndoStackCount => 0;
-        internal MS.Internal.Documents.IParentUndoUnit OpenedUnit => null;
-
-        internal void Clear()
-        {
-        }
-
-        internal void Add(object undoUnit)
-        {
-        }
-
-        internal void Open(MS.Internal.Documents.IParentUndoUnit parentUndoUnit)
-        {
-        }
-
-        internal void Close(MS.Internal.Documents.IParentUndoUnit parentUndoUnit, MS.Internal.Documents.UndoCloseAction closeAction)
-        {
-        }
     }
 
     internal enum UndoState
@@ -576,69 +648,6 @@ namespace System.Windows.Documents
         internal override int LeftCharCount { get; set; }
         internal override uint Generation { get; set; }
         internal override int SymbolOffsetCache { get; set; }
-    }
-}
-
-namespace MS.Internal.Documents
-{
-    internal class ParentUndoUnit : IParentUndoUnit
-    {
-        internal ParentUndoUnit(string description)
-        {
-            Description = description;
-        }
-
-        public IUndoUnit LastUnit => null;
-
-        public IParentUndoUnit OpenedUnit => null;
-
-        public string Description { get; set; }
-
-        public bool Locked => false;
-
-        public object Container { get; set; }
-
-        public virtual void Do()
-        {
-        }
-
-        public virtual bool Merge(IUndoUnit unit)
-        {
-            return false;
-        }
-
-        public void Clear()
-        {
-        }
-
-        public void Open(IParentUndoUnit newUnit)
-        {
-        }
-
-        public void Close(UndoCloseAction closeAction)
-        {
-        }
-
-        public void Close(IParentUndoUnit closingUnit, UndoCloseAction closeAction)
-        {
-        }
-
-        public void Add(IUndoUnit newUnit)
-        {
-        }
-
-        public void OnNextAdd()
-        {
-        }
-
-        public void OnNextDiscard()
-        {
-        }
-
-        protected virtual IParentUndoUnit CreateParentUndoUnitForSelf()
-        {
-            return null;
-        }
     }
 }
 #endif

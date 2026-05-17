@@ -20,4 +20,18 @@ public static class WinUIFrameworkElementExtensions
     {
         public bool IsKeyboardFocusWithin => false;
     }
+
+    // BitmapEffectProperty is obsolete in WinUI; backing field + static extension so
+    // upstream code can reference UIElement.BitmapEffectProperty.
+    private static readonly DependencyProperty s_bitmapEffectProperty =
+        DependencyProperty.Register(
+            "BitmapEffect",
+            typeof(object),
+            typeof(Microsoft.UI.Xaml.UIElement),
+            new Microsoft.UI.Xaml.PropertyMetadata(null));
+
+    extension(Microsoft.UI.Xaml.UIElement)
+    {
+        public static DependencyProperty BitmapEffectProperty => s_bitmapEffectProperty;
+    }
 }

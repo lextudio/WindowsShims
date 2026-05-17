@@ -338,7 +338,7 @@ public class TextContainer : ITextContainer
 {
     private readonly TextElement? _owner;
     private readonly Highlights _highlights;
-    private readonly UndoManager _undoManager = new();
+    private readonly MS.Internal.Documents.UndoManager _undoManager = new();
     private ITextSelection? _iTextSelection;
     private ITextView? _iTextView;
 
@@ -435,7 +435,7 @@ public class TextContainer : ITextContainer
         set => _iTextSelection = value;
     }
 
-    UndoManager ITextContainer.UndoManager => _undoManager;
+    MS.Internal.Documents.UndoManager ITextContainer.UndoManager => _undoManager;
 
     ITextView ITextContainer.TextView
     {

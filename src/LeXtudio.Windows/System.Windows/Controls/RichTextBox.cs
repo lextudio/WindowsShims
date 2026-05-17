@@ -224,5 +224,5 @@ public class RichTextBox : TextBoxBase, IAddChild
 
 public sealed class TextEditorShim
 {
-    internal System.Windows.Documents.UndoManager? _GetUndoManager() => null;
+    internal MS.Internal.Documents.UndoManager? _GetUndoManager() => null;
 }

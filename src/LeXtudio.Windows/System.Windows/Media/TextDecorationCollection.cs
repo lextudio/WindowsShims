@@ -28,5 +28,16 @@ namespace System.Windows.Media
         public void Insert(int index, TextDecoration item) => _items.Insert(index, item);
         public bool Remove(TextDecoration item) => _items.Remove(item);
         public void RemoveAt(int index) => _items.RemoveAt(index);
+
+        public bool ValueEquals(TextDecorationCollection? other)
+        {
+            if (other is null) return Count == 0;
+            if (Count != other.Count) return false;
+            for (int i = 0; i < Count; i++)
+            {
+                if (_items[i].Location != other._items[i].Location) return false;
+            }
+            return true;
+        }
     }
 }

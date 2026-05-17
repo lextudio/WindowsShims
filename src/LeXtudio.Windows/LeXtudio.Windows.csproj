@@ -539,7 +539,6 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WinRTSpellerInterop.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WinRTSpellerInteropExtensions.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServices*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\InputScopeAttribute.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CaretElement.cs" />
@@ -616,7 +615,7 @@
     <!-- TextParentUndoUnit migrated to upstream -->
     <!-- TextElementEnumerator migrated to upstream -->
     <!-- TextContainerChangeEventArgs migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DPTypeDescriptorContext.cs" />
+    <!-- DPTypeDescriptorContext migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEffectResolver.cs" />
     <!-- SplayTreeNode migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCharacters.cs" />
@@ -624,10 +623,10 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTree*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeUndo*.cs" />
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\ParentUndoUnit.cs" />
+    <!-- ParentUndoUnit migrated to upstream -->
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableColumnCollectionInternal.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs" />
+    <!-- RowSpanVector migrated to upstream -->
 
     <!-- Prefer upstream core implementations; remove local duplicates that currently collide. -->
     <Compile Remove="System.Windows\Documents\TextRange.cs" />

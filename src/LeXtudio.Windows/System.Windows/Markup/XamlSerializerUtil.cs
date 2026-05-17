@@ -13,7 +13,7 @@ internal static class XamlSerializerUtil
         {
             if (!char.IsWhiteSpace(s[i]))
             {
-                throw new ArgumentException(System.Windows.Documents.SR.Format(System.Windows.Documents.SR.NonWhiteSpaceInAddText, s));
+                throw new ArgumentException(SR.Format(SR.NonWhiteSpaceInAddText, s));
             }
         }
     }

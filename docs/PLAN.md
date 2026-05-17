@@ -333,3 +333,38 @@ Patterns reinforced:
 - The `TextTree*.cs` and `TextTreeUndo*.cs` wildcard `<Compile Remove>` patterns override explicit includes that appear earlier in the csproj. Files needing those base types require shims or re-ordering.
 - The P/Invoke shim pattern (always return failure/zero) works well for Win32 NLS APIs — functionality degrades gracefully (no word-break, no find) since these are optional enhancements.
 
+## Session 3 Log
+
+### RowSpanVector → upstream (done)
+
+**Project change:** removed `<Compile Remove>` for `MS/Internal/PtsTable/RowSpanVector.cs`.
+
+**Bridge additions:** none — only uses `TableCell` from `System.Windows.Documents` which was already available.
+
+**Build outcome:** 0 errors.
+
+### ParentUndoUnit → upstream (done)
+
+**Project change:** removed `<Compile Remove>` for `MS/Internal/documents/ParentUndoUnit.cs`. Deleted local stub from `EarlyBatchEditorShims.cs`.
+
+**Bridge additions:**
+- Created `MS.Internal.Documents/ParentUndoUnitBridge.cs` with `UndoManager` class moved to `MS.Internal.Documents` namespace (its correct WPF home — was previously wrong in `System.Windows.Documents`). `IsEnabled` changed from get-only to `{ get; set; }` per upstream setter assignment.
+- Moved `SR` class from `namespace System.Windows.Documents` to no namespace (assembly-level) so all files in any namespace can find it without qualification. Added undo-related keys (`UndoUnitCantBeOpenedTwice`, `UndoNoOpenUnit`, etc.).
+- Updated `XamlSerializerUtil.cs` to use unqualified `SR` (was `System.Windows.Documents.SR`).
+- Updated `TextPointer.cs` / `TextContainer` to use `MS.Internal.Documents.UndoManager` (qualified).
+- Updated `RichTextBox.cs` `_GetUndoManager()` return type to `MS.Internal.Documents.UndoManager`.
+- Updated `TextTreeUndo.GetOrClearUndoManager` shim return type to `MS.Internal.Documents.UndoManager`.
+
+**Build outcome:** 0 errors.
+
+## Session 3 Summary
+
+Two new migrations:
+
+1. **RowSpanVector** — zero-bridge migration.
+2. **ParentUndoUnit** — required UndoManager namespace correction (WPF uses `MS.Internal.Documents`, our shim had it in `System.Windows.Documents`), SR class moved to assembly-global scope.
+
+Patterns reinforced:
+- When a local shim places a type in the wrong namespace (relative to WPF), enabling the upstream file that uses `using WrongNamespace` may not find it. Always verify the namespace of key infrastructure types against upstream before migration.
+- Moving SR to no namespace (assembly-global) is safer than maintaining per-namespace copies — avoids future ambiguity issues as more upstream MS.Internal files are enabled.
+
