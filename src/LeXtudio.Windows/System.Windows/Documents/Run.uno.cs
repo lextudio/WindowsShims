@@ -1,5 +1,6 @@
 namespace System.Windows.Documents;
 
+[Microsoft.UI.Xaml.Markup.ContentProperty(Name = nameof(Text))]
 public partial class Run
 {
     internal bool IsEmpty => string.IsNullOrEmpty(Text);
