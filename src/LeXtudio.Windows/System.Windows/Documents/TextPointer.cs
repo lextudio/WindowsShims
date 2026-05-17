@@ -43,6 +43,9 @@ public sealed class TextPointer : ITextPointer
         Paragraph = other.Paragraph;
     }
 
+    // Copy ctor used by upstream RangeContentEnumerator (`new TextPointer(_start)`).
+    internal TextPointer(TextPointer other) : this(other, 0) { }
+
     public TextContainer TextContainer { get; }
     public LogicalDirection LogicalDirection => _logicalDirection;
     public bool IsFrozen => false;
@@ -200,6 +203,24 @@ public sealed class TextPointer : ITextPointer
         return copied;
     }
 
+    // Length of the contiguous text run in the given direction. Without a real
+    // text-element walk we expose the single Run's text length when applicable.
+    public int GetTextRunLength(LogicalDirection direction)
+    {
+        _logicalDirection = direction;
+        return _owner is Run run ? run.Text?.Length ?? 0 : 0;
+    }
+
+    // No-op pointer movements: the shim doesn't move through the tree, but
+    // upstream callers depend on these existing on the type.
+    internal void MoveToElementEdge(ElementEdge edge)
+    {
+    }
+
+    public void MoveToPosition(ITextPointer position)
+    {
+    }
+
     public Type? GetElementType(LogicalDirection direction)
     {
         _logicalDirection = direction;
@@ -329,6 +350,11 @@ public class TextContainer : ITextContainer
 
     public object? Parent { get; set; }
     public ITextLayoutHost? LayoutHost { get; set; }
+
+    // Public mirror of ITextContainer.Generation; always 0 — we don't track edits
+    // by generation. Stale-tree guards in upstream code compare against this and
+    // see "unchanged", which is the right behavior for the shim baseline.
+    public uint Generation => 0;
     public TextSelectionShim? TextSelection { get; set; }
     internal Highlights Highlights => _highlights;
     public TextPointer Start => new(this, null, ElementEdge.BeforeStart, LogicalDirection.Forward);

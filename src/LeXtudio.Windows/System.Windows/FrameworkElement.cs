@@ -13,6 +13,9 @@ public partial class FrameworkContentElement : DependencyObject
 {
     public DependencyObject? Parent { get; internal set; }
 
+    // See WinUIFrameworkElementExtensions for the FrameworkElement counterpart.
+    public bool IsLogicalChildrenIterationInProgress => false;
+
     public virtual void BeginInit() { }
 
     public virtual void EndInit() { }
