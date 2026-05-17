@@ -312,20 +312,25 @@ public sealed class TextPointer : ITextPointer
     }
 }
 
-public class TextContainer
+public class TextContainer : ITextContainer
 {
     private readonly TextElement? _owner;
+    private readonly Highlights _highlights;
+    private readonly UndoManager _undoManager = new();
+    private ITextSelection? _iTextSelection;
+    private ITextView? _iTextView;
 
     public TextContainer(TextElement? owner = null)
     {
         _owner = owner;
+        _highlights = new Highlights(this);
         Parent = owner;
     }
 
     public object? Parent { get; set; }
     public ITextLayoutHost? LayoutHost { get; set; }
     public TextSelectionShim? TextSelection { get; set; }
-    internal HighlightsCollection Highlights { get; } = new();
+    internal Highlights Highlights => _highlights;
     public TextPointer Start => new(this, null, ElementEdge.BeforeStart, LogicalDirection.Forward);
     public TextPointer End => new(this, null, ElementEdge.AfterEnd, LogicalDirection.Backward);
 
@@ -335,6 +340,104 @@ public class TextContainer
 
     public void EndChange()
     {
+    }
+
+    void ITextContainer.BeginChangeNoUndo()
+    {
+    }
+
+    void ITextContainer.EndChange(bool skipEvents)
+    {
+    }
+
+    ITextPointer ITextContainer.CreatePointerAtOffset(int offset, LogicalDirection direction)
+        => Start.CreatePointer(offset);
+
+    ITextPointer ITextContainer.CreatePointerAtCharOffset(int charOffset, LogicalDirection direction)
+        => Start.CreatePointer(charOffset);
+
+    ITextPointer ITextContainer.CreateDynamicTextPointer(StaticTextPointer position, LogicalDirection direction)
+        => Start.CreatePointer(direction);
+
+    StaticTextPointer ITextContainer.CreateStaticPointerAtOffset(int offset)
+        => new(this, null, offset);
+
+    TextPointerContext ITextContainer.GetPointerContext(StaticTextPointer pointer, LogicalDirection direction)
+        => TextPointerContext.None;
+
+    int ITextContainer.GetOffsetToPosition(StaticTextPointer position1, StaticTextPointer position2)
+        => 0;
+
+    int ITextContainer.GetTextInRun(StaticTextPointer position, LogicalDirection direction, char[] textBuffer, int startIndex, int count)
+        => 0;
+
+    object ITextContainer.GetAdjacentElement(StaticTextPointer position, LogicalDirection direction)
+        => DependencyProperty.UnsetValue;
+
+    DependencyObject ITextContainer.GetParent(StaticTextPointer position)
+        => (Parent as DependencyObject) ?? new FormattingDependencyObject();
+
+    StaticTextPointer ITextContainer.CreatePointer(StaticTextPointer position, int offset)
+        => position;
+
+    StaticTextPointer ITextContainer.GetNextContextPosition(StaticTextPointer position, LogicalDirection direction)
+        => position;
+
+    int ITextContainer.CompareTo(StaticTextPointer position1, StaticTextPointer position2)
+        => 0;
+
+    int ITextContainer.CompareTo(StaticTextPointer position1, ITextPointer position2)
+        => 0;
+
+    object ITextContainer.GetValue(StaticTextPointer position, DependencyProperty formattingProperty)
+        => DependencyProperty.UnsetValue;
+
+    bool ITextContainer.IsReadOnly => false;
+
+    ITextPointer ITextContainer.Start => Start;
+
+    ITextPointer ITextContainer.End => End;
+
+    DependencyObject ITextContainer.Parent => (Parent as DependencyObject) ?? new FormattingDependencyObject();
+
+    Highlights ITextContainer.Highlights => _highlights;
+
+    ITextSelection ITextContainer.TextSelection
+    {
+        get => _iTextSelection!;
+        set => _iTextSelection = value;
+    }
+
+    UndoManager ITextContainer.UndoManager => _undoManager;
+
+    ITextView ITextContainer.TextView
+    {
+        get => _iTextView!;
+        set => _iTextView = value;
+    }
+
+    int ITextContainer.SymbolCount => 0;
+
+    int ITextContainer.IMECharCount => 0;
+
+    uint ITextContainer.Generation => 0;
+
+    event EventHandler ITextContainer.Changing
+    {
+        add { }
+        remove { }
+    }
+
+    event TextContainerChangeEventHandler ITextContainer.Change
+    {
+        add { }
+        remove { }
+    }
+
+    event TextContainerChangedEventHandler ITextContainer.Changed
+    {
+        add { }
+        remove { }
     }
 
     public void DeleteContentInternal(TextPointer start, TextPointer end)
