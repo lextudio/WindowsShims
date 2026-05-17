@@ -171,3 +171,95 @@ When finishing each migration unit, append:
 - Any blockers and why they are architectural vs temporary
 - Recommended next candidate
 
+## Session Log
+
+### RangeContentEnumerator → upstream (done)
+
+**Project change:**
+
+- Removed `<Compile Remove>` for `ext/wpf/.../RangeContentEnumerator.cs` so the upstream source compiles.
+- Deleted local stub `src/LeXtudio.Windows/System.Windows/Documents/RangeContentEnumerator.cs` (previously returned empty enumeration).
+
+**Local bridge additions to satisfy upstream API surface (all minimal, no behavioral change vs. old empty enumerator):**
+
+- `System.Windows.Documents.TextContainer.Generation` → public `uint`, returns `0` (mirrors the existing explicit `ITextContainer.Generation`). Upstream uses this for stale-tree guards; the initial `_generation` captured by the enumerator stays equal to the live value, so the guard never trips.
+- `System.Windows.Documents.TextPointer(TextPointer)` copy constructor — forwards to the existing `(other, 0)` overload.
+- `System.Windows.Documents.TextPointer.GetTextRunLength(LogicalDirection)` → returns the underlying `Run.Text` length when the pointer's owner is a `Run`, else `0`.
+- `System.Windows.Documents.TextPointer.MoveToElementEdge(ElementEdge)` — no-op (`internal` because `ElementEdge` is internal).
+- `System.Windows.Documents.TextPointer.MoveToPosition(ITextPointer)` — no-op.
+- `System.Windows.FrameworkContentElement.IsLogicalChildrenIterationInProgress` → `false`.
+- `System.Windows.WinUIFrameworkElementExtensions.IsLogicalChildrenIterationInProgress` (C# 14 extension property on `Microsoft.UI.Xaml.FrameworkElement`) → `false`. Only reachable through the dead branch behind the never-tripped generation check, but the symbol has to exist for the upstream file to compile.
+
+**Build outcome:** `dotnet build LeXtudio.Windows.csproj -f net9.0-desktop` → **0 errors**, warnings only (baseline preserved).
+
+**Blockers:** None.
+
+**Behavioral parity vs. old shim:** The previous stub always returned an empty enumeration. The upstream class now walks via `TextPointer` movements, but those movements are no-ops in our shim (`MoveToNextContextPosition`, `MoveToElementEdge`, `MoveToPosition`, `CompareTo` against immobile pointers). End result: `MoveNext()` still returns `false` immediately — same observable behavior, but with the upstream surface in place for future enabling once `TextPointer` itself gains real movement.
+
+**Recommended next candidate:** TextElementEditingBehaviorAttribute (next `Compile Remove` in the queue at csproj line ~600). Should be small — likely just a SR-key or accessibility issue.
+
+### TextElementEditingBehaviorAttribute → upstream (done)
+
+**Project change:** removed `<Compile Remove>`, deleted local file at `src/LeXtudio.Windows/System.Windows/Documents/TextElementEditingBehaviorAttribute.cs`.
+
+**Bridge additions:** none — upstream class has no external dependencies.
+
+**Notable divergence resolved:** local stub defaulted `IsMergeable = true, IsTypographicOnly = true`; upstream defaults to `false, false`. All callers (`Inline`, `InlineUIContainer`) set the named properties explicitly, so default values are unobservable. `Inherited` flag on AttributeUsage was `true` in local — same as upstream default.
+
+**Build outcome:** 0 errors, baseline preserved.
+
+**Recommended next candidate:** ElementEdge.
+
+### ElementEdge → upstream (done)
+
+**Project change:** removed `<Compile Remove>`, deleted local `ElementEdge.cs`.
+
+**Bridge additions:** none.
+
+**Notable divergence resolved:** local was `0,1,2,3` (sequential), upstream is `[Flags]` with `1,2,4,8` and `byte` storage. No code path uses integer arithmetic on values — only `is`/`==` against named members (verified via grep). Safe swap.
+
+**Build outcome:** 0 errors.
+
+**Recommended next candidate:** SelectionHighlightInfo (small, no fan-out).
+
+### SelectionHighlightInfo → upstream (done)
+
+**Project change:** removed `<Compile Remove>`. No local file to delete (none existed).
+
+**Bridge additions:**
+
+- `System.Windows.SystemColors.HighlightColor` → returns `Colors.Blue`. The other brush properties (`HighlightTextBrush`, `HighlightBrush`) already existed in the shim.
+
+**Build outcome:** 0 errors. `Brush.Freeze()` already provided by `FreezableExtensions`.
+
+**Recommended next candidate:** TextSegment (small struct, follow the same pattern).
+
+### TextSegment → upstream (done)
+
+**Project change:** removed `<Compile Remove>`. Removed local definition from `src/LeXtudio.Windows/System.Windows/Documents/EarlyBatchEditorShims.cs` (struct was inline there).
+
+**Notable divergence resolved:**
+
+- Local was `public struct`; upstream is `internal struct`. All callers in WindowsShims use `TextSegment` only from `internal` members, so accessibility reduction is safe.
+- Upstream adds a 3-arg ctor (`bool preserveLogicalDirection`) and a `static readonly TextSegment Null` — neither was present locally but neither breaks existing callers (they all use the 2-arg form).
+- Upstream depends on `ValidationHelper.VerifyPositionPair` (already migrated) and `ITextPointer.GetFrozenPointer` (already present on the shim).
+
+**Build outcome:** 0 errors.
+
+**Recommended next candidate:** TextContainerChangeEventArgs (136 lines, likely a small event args POCO).
+
+## Session Summary (this pass)
+
+Five migrations completed, all green on net9.0-desktop:
+
+1. **RangeContentEnumerator** — biggest pass. Required minimal bridge additions on `TextContainer`, `TextPointer`, `FrameworkElement`, `FrameworkContentElement` (all returning safe-default values).
+2. **TextElementEditingBehaviorAttribute** — zero-bridge swap; the only divergence was default values that no caller relied on.
+3. **ElementEdge** — zero-bridge swap; verified no integer arithmetic on enum values.
+4. **SelectionHighlightInfo** — one added member (`SystemColors.HighlightColor`).
+5. **TextSegment** — zero-bridge swap after dropping a local public-vs-upstream-internal duplicate.
+
+Patterns reinforced:
+- The "compile frontier" loop in this plan works as designed; each candidate took 1–2 minimal local additions.
+- When upstream uses an `internal` type and local provided a `public` duplicate, accessibility reduction has been safe so far (consumers in this repo only reach those types from `internal` code).
+- Extension-member properties (C# 14) are essential for adding "WPF surface" to WinUI-aliased types like `FrameworkElement` — already established pattern in `WinUIFrameworkElementExtensions.cs`.
+

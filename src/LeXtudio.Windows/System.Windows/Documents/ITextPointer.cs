@@ -25,4 +25,5 @@ public interface ITextPointer
     void Freeze();
     bool ValidateLayout();
     System.Type? ParentType { get; }
+    int Offset { get; }
 }

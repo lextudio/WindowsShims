@@ -141,14 +141,6 @@ namespace System.Windows.Documents
     {
     }
 
-    public class TextContainerChangeEventArgs : EventArgs
-    {
-    }
-
-    internal sealed class ChangeBlockUndoRecord
-    {
-    }
-
     internal enum CaretScrollMethod
     {
         Unset,
@@ -287,13 +279,21 @@ namespace System.Windows.Documents
         internal int UndoCount => 0;
         internal int RedoCount => 0;
         internal int MinUndoStackCount => 0;
-        internal object OpenedUnit => null;
+        internal MS.Internal.Documents.IParentUndoUnit OpenedUnit => null;
 
         internal void Clear()
         {
         }
 
         internal void Add(object undoUnit)
+        {
+        }
+
+        internal void Open(MS.Internal.Documents.IParentUndoUnit parentUndoUnit)
+        {
+        }
+
+        internal void Close(MS.Internal.Documents.IParentUndoUnit parentUndoUnit, MS.Internal.Documents.UndoCloseAction closeAction)
         {
         }
     }

@@ -7,13 +7,9 @@ namespace System.Windows.Media.TextFormatting
     public enum InvertAxes { None, Horizontal, Vertical, Both }
     public enum TextLineValidity { Unknown, Valid, Overfull, Underfull }
     public enum TextFormattingMode { Ideal, Display }
-    public enum FontVariants { Normal, Superscript, Subscript, Ordinal, Inferior, Ruby }
-    public enum FontNumeralStyle { Normal, Lining, OldStyle }
-    public enum FontNumeralAlignment { Normal, Proportional, Tabular }
-    public enum FontFraction { Normal, Slashed, Stacked }
-    public enum FontEastAsianWidths { Normal, Proportional, Full, Half, Third, Quarter }
-    public enum FontEastAsianLanguage { Normal, HojoKanji, Jis04, Jis78, Jis83, Jis90, NlcKanji, Simplified, Traditional, TraditionalNames }
-    public enum FontCapitals { Normal, AllSmallCaps, SmallCaps, AllPetiteCaps, PetiteCaps, Unicase, Titling }
+    // Typography enums aliased to Microsoft.UI.Xaml equivalents in GlobalUsings.cs:
+    // FontVariants, FontNumeralStyle, FontNumeralAlignment, FontFraction,
+    // FontEastAsianWidths, FontEastAsianLanguage, FontCapitals
     public enum TextCollapsingStyle { TrailingWord, TrailingCharacter }
 
     public readonly struct CharacterBufferReference : IEquatable<CharacterBufferReference>
@@ -215,6 +211,8 @@ namespace System.Windows.Media.TextFormatting
         public abstract bool StylisticSet18 { get; }
         public abstract bool StylisticSet19 { get; }
         public abstract bool StylisticSet20 { get; }
+
+        protected void OnPropertiesChanged() { }
     }
 
     public abstract class TextParagraphProperties

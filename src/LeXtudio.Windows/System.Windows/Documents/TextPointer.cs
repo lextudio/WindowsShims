@@ -50,6 +50,7 @@ public sealed class TextPointer : ITextPointer
     public LogicalDirection LogicalDirection => _logicalDirection;
     public bool IsFrozen => false;
     public bool HasValidLayout => true;
+    public int Offset => 0;
     public DependencyObject? Parent { get; set; }
     public System.Type? ParentType { get; set; }
     public Paragraph? Paragraph { get; set; }

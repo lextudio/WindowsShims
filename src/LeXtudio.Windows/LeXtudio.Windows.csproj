@@ -182,6 +182,8 @@
              Link="System.Windows.Documents\FixedTextView.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Floater.cs"
              Link="System.Windows.Documents\Floater.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\Text\TypographyProperties.cs"
+             Link="MS.Internal.Text\TypographyProperties.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs"
              Link="System.Windows.Documents\FlowDocument.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs"
@@ -571,7 +573,7 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEditLists.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFlow.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Typography.cs" />
+    <!-- Typography + TypographyProperties migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEditTables.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
@@ -608,12 +610,12 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeDeleteContentUndoUnit.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeExtractElementUndoUnit.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\UIElementPropertyUndoUnit.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChangeBlockUndoRecord.cs" />
+    <!-- ChangeBlockUndoRecord migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerBase.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelectionHighlightLayer.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextParentUndoUnit.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElementEnumerator.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextContainerChangeEventArgs.cs" />
+    <!-- TextParentUndoUnit migrated to upstream -->
+    <!-- TextElementEnumerator migrated to upstream -->
+    <!-- TextContainerChangeEventArgs migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DPTypeDescriptorContext.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEffectResolver.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\SplayTreeNode.cs" />

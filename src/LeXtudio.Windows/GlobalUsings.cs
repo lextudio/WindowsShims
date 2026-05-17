@@ -56,3 +56,13 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 
 // ============ WPF Document Types ============
 global using TextDecorationCollection = System.Windows.Media.TextDecorationCollection;
+
+// ============ Typography Enums - Aliased to Microsoft.UI.Xaml Equivalents ============
+// WinUI defines the same OpenType feature enums with identical members/values.
+global using FontVariants              = Microsoft.UI.Xaml.FontVariants;
+global using FontNumeralStyle          = Microsoft.UI.Xaml.FontNumeralStyle;
+global using FontNumeralAlignment      = Microsoft.UI.Xaml.FontNumeralAlignment;
+global using FontFraction              = Microsoft.UI.Xaml.FontFraction;
+global using FontEastAsianWidths       = Microsoft.UI.Xaml.FontEastAsianWidths;
+global using FontEastAsianLanguage     = Microsoft.UI.Xaml.FontEastAsianLanguage;
+global using FontCapitals              = Microsoft.UI.Xaml.FontCapitals;
