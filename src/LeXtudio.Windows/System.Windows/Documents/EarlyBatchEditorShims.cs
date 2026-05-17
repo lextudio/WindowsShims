@@ -92,17 +92,34 @@ namespace MS.Win32
 
     internal static class SafeNativeMethods
     {
-        internal static int GetKeyboardLayoutList(int nBuff, IntPtr[]? lpList)
-        {
-            return 0;
-        }
+        internal const ushort C1_SPACE = 0x0008;
+        internal const ushort C1_BLANK = 0x0040;
+        internal const uint   CT_CTYPE1 = 0x00000001;
+        internal const uint   CT_CTYPE3 = 0x00000004;
+        internal const ushort C1_PUNCT      = 0x0010;
+        internal const ushort C3_KATAKANA   = 0x0020;
+        internal const ushort C3_HIRAGANA   = 0x0040;
+        internal const ushort C3_IDEOGRAPH  = 0x0100;
+        internal const ushort C3_HALFWIDTH  = 0x0400;
+        internal const ushort C3_FULLWIDTH  = 0x0800;
+        internal const ushort C3_DIACRITIC  = 0x0002;
+        internal const ushort C3_NONSPACING = 0x0001;
+        internal const ushort C3_VOWELMARK  = 0x0004;
+        internal const ushort C3_KASHIDA    = 0x0040;
+
+        internal static int GetKeyboardLayoutList(int nBuff, IntPtr[]? lpList) => 0;
+
+        internal static bool GetStringTypeEx(uint locale, uint dwInfoType, ReadOnlySpan<char> lpSrcStr, Span<ushort> lpCharType) => false;
     }
 
     internal static class UnsafeNativeMethods
     {
-        internal static int GetLocaleInfoW(int locale, int lcType, string lpLCData, int cchData)
+        internal static int GetLocaleInfoW(int locale, int lcType, string lpLCData, int cchData) => 0;
+
+        internal static int FindNLSString(int locale, uint dwFindNLSStringFlags, ReadOnlySpan<char> lpStringSource, ReadOnlySpan<char> lpStringValue, out int foundLength)
         {
-            return 0;
+            foundLength = 0;
+            return -1;
         }
     }
 }
@@ -114,8 +131,21 @@ namespace System.Windows.Media
     }
 }
 
+namespace System.Windows
+{
+    // Stub for WPF binding expression type used in undo guards
+    internal abstract class Expression
+    {
+    }
+}
+
 namespace System.Windows.Documents
 {
+    internal static class TextTreeUndo
+    {
+        internal static UndoManager? GetOrClearUndoManager(ITextContainer container) => null;
+    }
+
     internal class TextEditor
     {
         internal static readonly TextEditorThreadLocalStore _ThreadLocalStore = new();
@@ -532,9 +562,20 @@ namespace System.Windows.Documents
         }
     }
 
-    internal class TextTreeTextElementNode
+    internal class TextTreeTextElementNode : SplayTreeNode
     {
         internal int IMELeftEdgeCharCount { get; set; }
+
+        internal override SplayTreeNode ParentNode { get; set; }
+        internal override SplayTreeNode ContainedNode { get; set; }
+        internal override SplayTreeNode LeftChildNode { get; set; }
+        internal override SplayTreeNode RightChildNode { get; set; }
+        internal override int SymbolCount { get; set; }
+        internal override int IMECharCount { get; set; }
+        internal override int LeftSymbolCount { get; set; }
+        internal override int LeftCharCount { get; set; }
+        internal override uint Generation { get; set; }
+        internal override int SymbolOffsetCache { get; set; }
     }
 }
 

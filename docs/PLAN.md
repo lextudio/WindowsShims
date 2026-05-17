@@ -263,3 +263,73 @@ Patterns reinforced:
 - When upstream uses an `internal` type and local provided a `public` duplicate, accessibility reduction has been safe so far (consumers in this repo only reach those types from `internal` code).
 - Extension-member properties (C# 14) are essential for adding "WPF surface" to WinUI-aliased types like `FrameworkElement` — already established pattern in `WinUIFrameworkElementExtensions.cs`.
 
+## Session 2 Log
+
+### TextContainerChangeEventArgs + TextElementEnumerator + TextParentUndoUnit + ChangeBlockUndoRecord → upstream (done)
+
+**Project change:** removed four `<Compile Remove>` entries; removed local stubs from `EarlyBatchEditorShims.cs`.
+
+**Bridge additions:**
+- `UndoManager.OpenedUnit` return type changed from `object` to `MS.Internal.Documents.IParentUndoUnit` (required by `ChangeBlockUndoRecord`).
+- `UndoManager.Open(IParentUndoUnit)` and `Close(IParentUndoUnit, UndoCloseAction)` added as no-ops.
+- `ITextPointer.Offset` property added to local interface; `TextPointer.Offset` returns `0`.
+
+**Build outcome:** 0 errors.
+
+### Typography + TypographyProperties → upstream (done)
+
+**Project change:** removed `<Compile Remove>` for `Typography.cs`; added `<Compile Include>` for `MS\Internal\Text\TypographyProperties.cs`.
+
+**Bridge additions:**
+- Removed 7 local WPF typography enum definitions (`FontVariants`, `FontFraction`, `FontCapitals`, `FontNumeralStyle`, `FontNumeralAlignment`, `FontEastAsianWidths`, `FontEastAsianLanguage`) from `System.Windows.Media.TextFormatting.cs`.
+- Added `global using` aliases to `GlobalUsings.cs` mapping them to `Microsoft.UI.Xaml` equivalents (same OpenType values).
+- Added `protected void OnPropertiesChanged() {}` to local `TextRunTypographyProperties` base class (upstream `TypographyProperties` calls it but it lives in PresentationCore which we don't compile).
+
+**Build outcome:** 0 errors.
+
+### SplayTreeNode → upstream (done)
+
+**Project change:** removed `<Compile Remove>`.
+
+**Bridge additions:**
+- Local `TextTreeTextElementNode` stub (in `EarlyBatchEditorShims.cs`) now inherits `SplayTreeNode` and implements all 10 abstract members with auto-properties (no-ops).
+
+**Build outcome:** 0 errors.
+
+### UIElementPropertyUndoUnit → upstream (done)
+
+**Project change:** removed `<Compile Remove>`.
+
+**Bridge additions (all in `EarlyBatchEditorShims.cs`):**
+- `System.Windows.Expression` abstract class stub (used as `is Expression` type-check guard in undo logic).
+- `System.Windows.Documents.TextTreeUndo.GetOrClearUndoManager(ITextContainer)` static shim returning `null` (UndoManager is always disabled so the undo path never runs).
+- `SafeNativeMethods.GetStringTypeEx` signature stub.
+- `UnsafeNativeMethods.FindNLSString` signature stub with `foundLength = 0` and return `-1`.
+
+**Build outcome:** 0 errors.
+
+### SelectionWordBreaker → upstream (done)
+
+**Project change:** removed `<Compile Remove>`.
+
+**Bridge additions (all new constants in `SafeNativeMethods` shim):**
+- `C1_PUNCT`, `CT_CTYPE3`, `C3_KATAKANA`, `C3_HIRAGANA`, `C3_IDEOGRAPH`, `C3_HALFWIDTH`, `C3_FULLWIDTH`, `C3_DIACRITIC`, `C3_NONSPACING`, `C3_VOWELMARK`, `C3_KASHIDA` — Win32 character-type bit flags used for CJK/RTL word-break logic (all return false from stubs so word-break always falls through to default).
+
+**Build outcome:** 0 errors.
+
+## Session 2 Summary
+
+Five new migrations completed, all green on net9.0-desktop:
+
+1. **TextContainerChangeEventArgs + TextElementEnumerator + TextParentUndoUnit + ChangeBlockUndoRecord** — UndoManager API surface extension.
+2. **Typography + TypographyProperties** — WinUI typography enum aliasing via `GlobalUsings.cs`.
+3. **SplayTreeNode** — abstract base class; stub TextTreeTextElementNode updated to inherit.
+4. **UIElementPropertyUndoUnit** — new `Expression`, `TextTreeUndo`, and P/Invoke stubs needed.
+5. **SelectionWordBreaker** — Win32 character-type constants added to SafeNativeMethods shim.
+
+Patterns reinforced:
+- WinUI implicit global usings (from Uno SDK) can cause CS0104 ambiguous type references. Resolution: remove local enum definitions and add `global using` aliases to `GlobalUsings.cs` pointing to the WinUI equivalents.
+- Abstract base classes from PresentationCore (e.g. `TextRunTypographyProperties`) need bridge methods like `OnPropertiesChanged()` added locally when upstream subclasses call them.
+- The `TextTree*.cs` and `TextTreeUndo*.cs` wildcard `<Compile Remove>` patterns override explicit includes that appear earlier in the csproj. Files needing those base types require shims or re-ordering.
+- The P/Invoke shim pattern (always return failure/zero) works well for Win32 NLS APIs — functionality degrades gracefully (no word-break, no find) since these are optional enhancements.
+
