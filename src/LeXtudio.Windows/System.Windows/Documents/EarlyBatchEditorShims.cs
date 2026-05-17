@@ -268,12 +268,9 @@ namespace System.Windows.Documents
     {
     }
 
-    internal enum CaretScrollMethod
+    // Stub: TSF host registration is not modeled in the shim layer.
+    internal sealed class TextServicesHost
     {
-        Unset,
-        None,
-        Simple,
-        Navigation,
     }
 
     internal sealed class CaretElement
@@ -391,13 +388,6 @@ namespace System.Windows.Documents
     {
         DomainUnload = 1,
         DispatcherShutdown = 2,
-    }
-
-    internal sealed class TextEditorThreadLocalStore
-    {
-        internal object? Bidi { get; set; }
-
-        internal ITextSelection? FocusedTextSelection { get; set; }
     }
 
     internal enum UndoState
