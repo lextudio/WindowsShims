@@ -2,7 +2,7 @@ namespace System.Windows.Documents;
 
 public partial class Run
 {
-    internal bool IsEmpty => string.IsNullOrEmpty(Text);
+    internal new bool IsEmpty => string.IsNullOrEmpty(Text);
 
     internal static Run CreateImplicitRun(object parent)
     {

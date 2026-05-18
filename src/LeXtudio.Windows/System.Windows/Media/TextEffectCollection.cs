@@ -4,6 +4,7 @@ namespace System.Windows.Media
     {
         readonly Collections.Generic.List<TextEffect> _items = new Collections.Generic.List<TextEffect>();
 
+        public static readonly TextEffectCollection Empty = new TextEffectCollection();
         public bool IsFrozen => true;
         public TextEffectCollection Clone() => new TextEffectCollection();
 

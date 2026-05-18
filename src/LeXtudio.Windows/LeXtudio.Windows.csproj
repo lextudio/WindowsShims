@@ -593,7 +593,8 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs" />
 
     <!-- ITextPointer.cs: WPF internal interface — enabled; shim ITextPointer.cs replaced with stub -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElement.cs" />
+    <!-- TextElement.cs: WPF enabled; local shim deleted; TextElement.uno.cs has Uno-specific additions -->
+    <!-- TextElementCollection.cs: local shim active; WPF ext version blocked (different type param name) -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElementCollection.cs" />
     <!-- TextPointer.cs: WPF enabled -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEdit.cs" />

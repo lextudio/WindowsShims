@@ -63,6 +63,12 @@ internal static class SR
     internal const string TextSchema_CannotInsertContentInThisPosition = "TextSchema_CannotInsertContentInThisPosition";
     internal const string TextPositionIsFrozen = "TextPositionIsFrozen";
 
+    internal const string TextElement_UnmatchedEndPointer = "TextElement_UnmatchedEndPointer";
+    internal const string TextSchema_ThisInlineUIContainerHasAChildUIElementAlready = "TextSchema_ThisInlineUIContainerHasAChildUIElementAlready";
+    internal const string TextSchema_ThisBlockUIContainerHasAChildUIElementAlready = "TextSchema_ThisBlockUIContainerHasAChildUIElementAlready";
+    internal const string TextSchema_TextIsNotAllowed = "TextSchema_TextIsNotAllowed";
+    internal const string TextElement_ChildTypeIsInvalid = "TextElement_ChildTypeIsInvalid";
+
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);

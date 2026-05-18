@@ -44,4 +44,14 @@ public partial class FrameworkContentElement : DependencyObject
     protected object LookupEntry(int globalIndex) => new();
 
     protected bool HasExpression(object entry, DependencyProperty property) => false;
+
+    internal virtual int EffectiveValuesInitialSize => 2;
+    internal virtual DependencyObjectType? DTypeThemeStyleKey => null;
+
+    public bool IsInitialized => true;
+
+    protected internal virtual System.Collections.IEnumerator LogicalChildren =>
+        System.Linq.Enumerable.Empty<object>().GetEnumerator();
+
+    protected void VerifyAccess() { }
 }
