@@ -332,6 +332,11 @@ public sealed class TextPointer : ITextPointer
 
         return null;
     }
+
+    public FlowDirection GetValue(DependencyProperty flowDirectionProperty)
+    {
+        throw new NotImplementedException();
+    }
 }
 
 public class TextContainer : ITextContainer

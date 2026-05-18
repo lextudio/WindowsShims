@@ -14,6 +14,13 @@ public static class WinUIFrameworkElementExtensions
         // We don't model the walk, so it's always false; callers gate stale-tree
         // guards behind this and the false return reads as "not in a walk".
         public bool IsLogicalChildrenIterationInProgress => false;
+
+        // WPF's FrameworkElement.TemplatedParent is public; WinUI/Uno keeps it
+        // internal. Upstream WPF source files (e.g. TextSelection.GetParentElement)
+        // read it as a parent-walk shortcut and already fall back to
+        // VisualTreeHelper.GetParent when null, so returning null here keeps
+        // the walk semantics intact without reflecting into Uno internals.
+        public DependencyObject? TemplatedParent => null;
     }
 
     extension(Microsoft.UI.Xaml.UIElement self)

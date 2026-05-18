@@ -1,17 +1,40 @@
-namespace System.Windows.Media.Imaging;
+using System.Runtime.Serialization;
 
-public class BitmapSource : Microsoft.UI.Xaml.Media.ImageSource
+#if !WINDOWS_APP_SDK
+
+namespace WinRT
 {
-	public int PixelWidth { get; set; }
-
-	public int PixelHeight { get; set; }
-
-	// WPF exposes Width/Height (DIP) alongside PixelWidth/PixelHeight; the RTF writer reads them.
-	public double Width { get; set; }
-	public double Height { get; set; }
+	public interface IObjectReference
+	{
+    }
 }
 
-public static class BitmapFrame
+#endif
+
+namespace System.Windows.Media.Imaging
 {
-	public static BitmapSource Create(System.IO.Stream stream) => new BitmapSource();
+
+	public class BitmapSource : Microsoft.UI.Xaml.Media.ImageSource
+	{
+		public BitmapSource()
+#if WINDOWS_APP_SDK
+			: base((WinRT.IObjectReference)null)
+#else
+			: base("")
+#endif
+		{ }
+
+		public int PixelWidth { get; set; }
+
+		public int PixelHeight { get; set; }
+
+		// WPF exposes Width/Height (DIP) alongside PixelWidth/PixelHeight; the RTF writer reads them.
+		public double Width { get; set; }
+		public double Height { get; set; }
+	}
+
+	public static class BitmapFrame
+	{
+		public static BitmapSource Create(System.IO.Stream stream) => new BitmapSource();
+	}
 }
