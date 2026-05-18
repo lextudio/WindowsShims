@@ -24,7 +24,9 @@ public interface ITextPointer
     Type? GetElementType(LogicalDirection direction);
     void Freeze();
     bool ValidateLayout();
-    FlowDirection GetValue(DependencyProperty flowDirectionProperty);
+    object? GetValue(DependencyProperty property);
+
+    void SetValue(DependencyProperty property, object? value);
 
     System.Type? ParentType { get; }
     int Offset { get; }

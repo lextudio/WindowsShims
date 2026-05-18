@@ -333,9 +333,23 @@ public sealed class TextPointer : ITextPointer
         return null;
     }
 
-    public FlowDirection GetValue(DependencyProperty flowDirectionProperty)
+    // Per-pointer property bag. WPF's ITextPointer.GetValue/SetValue lets
+    // consumers attach arbitrary DependencyProperty values to a pointer
+    // (e.g. RichTextBlock stamps a "PointerOffset" int on each pointer it
+    // hands out). Map storage keeps the round-trip independent of the
+    // backing TextElement so the pointer can carry its own metadata.
+    private readonly System.Collections.Generic.Dictionary<DependencyProperty, object?> _propertyBag = new();
+
+    public object? GetValue(DependencyProperty property)
     {
-        throw new NotImplementedException();
+        if (property is null) return null;
+        return _propertyBag.TryGetValue(property, out var value) ? value : null;
+    }
+
+    public void SetValue(DependencyProperty property, object? value)
+    {
+        if (property is null) return;
+        _propertyBag[property] = value;
     }
 }
 
