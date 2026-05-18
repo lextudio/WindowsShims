@@ -1,5 +1,13 @@
 namespace System.Windows;
 
+public enum BaseValueSourceInternal
+{
+    Unknown = 0,
+    Default = 1,
+    Inherited = 2,
+    Local = 3,
+}
+
 // System.Windows.DependencyProperty class removed — use Microsoft.UI.Xaml.DependencyProperty
 // (the global using alias 'DependencyProperty' resolves to it). WPF-specific extensions
 // (AddOwner, OverrideMetadata) are provided as extension methods in WinUIDependencyPropertyExtensions.cs.
@@ -11,13 +19,21 @@ public delegate bool ValidateValueCallback(object value);
 
 public readonly struct DependencyPropertyChangedEventArgs
 {
+    public DependencyProperty? Property { get; init; }
     public object? OldValue { get; init; }
     public object? NewValue { get; init; }
     public Entry NewEntry { get; init; }
+    public BaseValueSourceInternal OldValueSource { get; init; }
 
     public static implicit operator DependencyPropertyChangedEventArgs(
         Microsoft.UI.Xaml.DependencyPropertyChangedEventArgs e)
-        => new DependencyPropertyChangedEventArgs { OldValue = e.OldValue, NewValue = e.NewValue };
+        => new DependencyPropertyChangedEventArgs
+        {
+            Property = e.Property,
+            OldValue = e.OldValue,
+            NewValue = e.NewValue,
+            OldValueSource = BaseValueSourceInternal.Local,
+        };
 }
 
 public readonly struct Entry

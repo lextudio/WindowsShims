@@ -7,6 +7,9 @@ namespace System.Windows;
 /// </summary>
 public static class CoreDispatcherExtensions
 {
+    public static DispatcherProcessingDisabled DisableProcessing(
+        this global::Windows.UI.Core.CoreDispatcher dispatcher) => default;
+
     public static void BeginInvoke(
         this global::Windows.UI.Core.CoreDispatcher dispatcher,
         DispatcherPriority priority,
@@ -27,6 +30,11 @@ public sealed class Dispatcher
 {
     public static Dispatcher CurrentDispatcher { get; } = new Dispatcher();
 
+    public static implicit operator Dispatcher(global::Windows.UI.Core.CoreDispatcher? _)
+        => CurrentDispatcher;
+
+    public DispatcherProcessingDisabled DisableProcessing() => default;
+
     public void BeginInvoke(DispatcherPriority priority, Delegate method) =>
         method.DynamicInvoke();
 
@@ -35,6 +43,11 @@ public sealed class Dispatcher
 
     public void BeginInvoke(DispatcherPriority priority, System.Threading.SendOrPostCallback callback, object? arg) =>
         callback(arg);
+}
+
+public struct DispatcherProcessingDisabled : IDisposable
+{
+    public void Dispose() { }
 }
 
 public enum DispatcherPriority

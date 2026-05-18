@@ -15,7 +15,7 @@ public class TextElementCollection<T> : ObservableCollection<T>
         _isOwnerParent = isOwnerParent;
         TextContainer = owner is TextElement textElementOwner
             ? textElementOwner.TextContainer
-            : new TextContainer();
+            : new TextContainer(null, false);
 
         if (_owner is TextElement textElement)
         {

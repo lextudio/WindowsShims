@@ -25,9 +25,16 @@ namespace System.Windows
     public sealed class LocalValueEnumerator
     {
         public bool MoveNext() => false;
-
         public LocalValueEntry Current => default;
+        public void Reset() { }
+        public int Count => 0;
     }
+
+    public class BindingExpressionBase
+    {
+        public object? Value => null;
+    }
+
 
     public readonly struct LocalValueEntry
     {
@@ -36,12 +43,25 @@ namespace System.Windows
         public object? Value { get; init; }
     }
 
+    public class ResourceDictionary : System.Collections.Generic.Dictionary<object, object?>
+    {
+    }
+
     public class QueryContinueDragEventArgs : RoutedEventArgs
     {
     }
 
     public class GiveFeedbackEventArgs : RoutedEventArgs
     {
+    }
+}
+
+namespace System.Windows.Documents
+{
+    internal class FlowDocumentView : Microsoft.UI.Xaml.FrameworkElement
+    {
+        public Microsoft.UI.Xaml.DependencyObject? TemplatedParent => null;
+        public new Microsoft.UI.Xaml.DependencyObject? Parent => null;
     }
 }
 
@@ -238,11 +258,6 @@ namespace System.Windows
 
 namespace System.Windows.Documents
 {
-    internal static class TextTreeUndo
-    {
-        internal static MS.Internal.Documents.UndoManager? GetOrClearUndoManager(ITextContainer container) => null;
-    }
-
     internal class TextEditor
     {
         internal static readonly TextEditorThreadLocalStore _ThreadLocalStore = new();
@@ -252,7 +267,7 @@ namespace System.Windows.Documents
         }
 
         internal ITextSelection Selection => null;
-        internal TextContainer TextContainer { get; } = new();
+        internal TextContainer TextContainer { get; } = new(null, false);
         internal FrameworkElement? UiScope { get; set; }
         internal bool AcceptsRichContent { get; set; } = true;
         internal bool IsContextMenuOpen { get; set; }
@@ -262,6 +277,7 @@ namespace System.Windows.Documents
         internal ITextView? TextView { get; set; }
         internal TextStore? TextStore { get; set; }
         internal ImmComposition? ImmComposition { get; set; }
+        internal object? _cursor;
     }
 
     internal sealed partial class FormattingDependencyObject : DependencyObject
@@ -610,34 +626,5 @@ namespace System.Windows.Documents
         }
     }
 
-    internal sealed class TextTreeDeleteContentUndoUnit
-    {
-        internal TextTreeDeleteContentUndoUnit(params object[] args)
-        {
-        }
-    }
-
-    internal sealed class TextTreeExtractElementUndoUnit
-    {
-        internal TextTreeExtractElementUndoUnit(params object[] args)
-        {
-        }
-    }
-
-    internal class TextTreeTextElementNode : SplayTreeNode
-    {
-        internal int IMELeftEdgeCharCount { get; set; }
-
-        internal override SplayTreeNode ParentNode { get; set; }
-        internal override SplayTreeNode ContainedNode { get; set; }
-        internal override SplayTreeNode LeftChildNode { get; set; }
-        internal override SplayTreeNode RightChildNode { get; set; }
-        internal override int SymbolCount { get; set; }
-        internal override int IMECharCount { get; set; }
-        internal override int LeftSymbolCount { get; set; }
-        internal override int LeftCharCount { get; set; }
-        internal override uint Generation { get; set; }
-        internal override int SymbolOffsetCache { get; set; }
-    }
 }
 #endif

@@ -38,6 +38,10 @@ global using TextBlock                 = Microsoft.UI.Xaml.Controls.TextBlock;
 // Extension methods in System.Windows/WinUIDependencyPropertyExtensions.cs provide the
 // WPF-specific API (AddOwner, OverrideMetadata, etc.).
 global using DependencyProperty        = Microsoft.UI.Xaml.DependencyProperty;
+// FrameworkPropertyMetadata/Options: route to the shim types so WPF source files that pass
+// FrameworkPropertyMetadata to RegisterAttached/Register compile without CS0104 ambiguity.
+global using FrameworkPropertyMetadata        = System.Windows.FrameworkPropertyMetadata;
+global using FrameworkPropertyMetadataOptions = System.Windows.FrameworkPropertyMetadataOptions;
 // DependencyObject: alias to the real WinUI type so document objects participate in WinUI's
 // property system. WPF-specific APIs (AddHandler, Dispatcher, etc.) are provided via
 // C# 14 extension members in System.Windows/WinUIDependencyObjectExtensions.cs.
@@ -46,6 +50,9 @@ global using DependencyObject          = Microsoft.UI.Xaml.DependencyObject;
 // C# 14 extension members in System.Windows/WinUIFrameworkElementExtensions.cs.
 // FrameworkContentElement has no WinUI equivalent — it stays as a local shim.
 global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
+// Panel: alias to the WPF shim to resolve CS0104 between System.Windows.Controls.Panel and Microsoft.UI.Xaml.Controls.Panel.
+global using Panel                     = System.Windows.Controls.Panel;
+global using GeneralTransform          = System.Windows.Media.GeneralTransform;
 
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
 // These are kept as local implementations because they don't exist in Microsoft.UI.Xaml:

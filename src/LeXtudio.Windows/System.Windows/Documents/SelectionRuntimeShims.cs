@@ -8,7 +8,7 @@ internal static class FrameworkAppContextSwitches
 internal sealed class PasswordTextContainer : TextContainer
 {
     internal PasswordTextContainer()
-        : base(null)
+        : base(null, false)
     {
     }
 }

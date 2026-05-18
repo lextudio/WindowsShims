@@ -32,14 +32,36 @@ internal static class SR
     internal const string TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty = "TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty";
     internal const string TextRange_InvalidParameterValue = "TextRange_InvalidParameterValue";
     internal const string TextRange_PropertyCannotBeIncrementedOrDecremented = "TextRange_PropertyCannotBeIncrementedOrDecremented";
-    // Undo-related keys used by ParentUndoUnit
-    internal const string UndoUnitCantBeOpenedTwice = nameof(UndoUnitCantBeOpenedTwice);
-    internal const string UndoNoOpenUnit            = nameof(UndoNoOpenUnit);
-    internal const string UndoUnitNotFound          = nameof(UndoUnitNotFound);
-    internal const string UndoUnitCantBeAddedTwice  = nameof(UndoUnitCantBeAddedTwice);
-    internal const string UndoUnitLocked            = nameof(UndoUnitLocked);
-    internal const string UndoContainerTypeMismatch = nameof(UndoContainerTypeMismatch);
+    // Undo-related keys used by ParentUndoUnit and UndoManager
+    internal const string UndoUnitCantBeOpenedTwice      = nameof(UndoUnitCantBeOpenedTwice);
+    internal const string UndoNoOpenUnit                 = nameof(UndoNoOpenUnit);
+    internal const string UndoUnitNotFound               = nameof(UndoUnitNotFound);
+    internal const string UndoUnitCantBeAddedTwice       = nameof(UndoUnitCantBeAddedTwice);
+    internal const string UndoUnitLocked                 = nameof(UndoUnitLocked);
+    internal const string UndoContainerTypeMismatch      = nameof(UndoContainerTypeMismatch);
+    internal const string UndoManagerAlreadyAttached     = nameof(UndoManagerAlreadyAttached);
+    internal const string UndoServiceDisabled            = nameof(UndoServiceDisabled);
+    internal const string UndoUnitAlreadyOpen            = nameof(UndoUnitAlreadyOpen);
+    internal const string UndoUnitNotOnTopOfStack        = nameof(UndoUnitNotOnTopOfStack);
+    internal const string UndoNoOpenParentUnit           = nameof(UndoNoOpenParentUnit);
+    internal const string UndoNotInNormalState           = nameof(UndoNotInNormalState);
+    internal const string UndoUnitOpen                   = nameof(UndoUnitOpen);
     internal const string InputScopeAttribute_E_OUTOFMEMORY = "Insufficient memory to complete the operation.";
+
+    internal const string TextContainer_UndoManagerCreatedMoreThanOnce = "TextContainer_UndoManagerCreatedMoreThanOnce";
+    internal const string BadDistance = "BadDistance";
+    internal const string NotInThisTree = "NotInThisTree";
+    internal const string NoElement = "NoElement";
+    internal const string TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree = "TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree";
+    internal const string TextSchema_IllegalElement = "TextSchema_IllegalElement";
+    internal const string NegativeValue = "NegativeValue";
+    internal const string StartIndexExceedsBufferSize = "StartIndexExceedsBufferSize";
+    internal const string MaxLengthExceedsBufferSize = "MaxLengthExceedsBufferSize";
+    internal const string TextSchema_UIElementNotAllowedInThisPosition = "TextSchema_UIElementNotAllowedInThisPosition";
+    internal const string NoScopingElement = "NoScopingElement";
+    internal const string InDifferentScope = "InDifferentScope";
+    internal const string TextSchema_CannotInsertContentInThisPosition = "TextSchema_CannotInsertContentInThisPosition";
+    internal const string TextPositionIsFrozen = "TextPositionIsFrozen";
 
     internal static string Format(string format, params object[] args)
     {

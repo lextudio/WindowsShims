@@ -2,7 +2,7 @@ namespace System.Windows.Documents;
 
 // Early-batch placeholders for table and highlight subsystems while upstream
 // TextRange/TextSelection are being enabled incrementally.
-public class Table : Block
+public class Table : Block, MS.Internal.Documents.IAcceptInsertion
 {
     private readonly TableRowGroupCollection _rowGroups;
 
@@ -10,9 +10,16 @@ public class Table : Block
     {
         _rowGroups = new TableRowGroupCollection();
         _rowGroups.Add(new TableRowGroup());
+        Columns = new TableColumnCollection(this);
     }
 
     public TableRowGroupCollection RowGroups => _rowGroups;
+
+    public TableColumnCollection Columns { get; }
+
+    internal void InvalidateColumns() { }
+
+    int MS.Internal.Documents.IAcceptInsertion.InsertionIndex { get; set; }
 }
 
 public sealed class TableRowGroupCollection : List<TableRowGroup>

@@ -33,6 +33,8 @@ public static class WinUIDependencyPropertyExtensions
         public Type PropertyType => typeof(object);
 
         public bool IsValidValue(object? value) => true;
+
+        public bool ReadOnly => false;
     }
 
     extension(object value)

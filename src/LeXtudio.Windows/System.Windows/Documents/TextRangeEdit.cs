@@ -39,4 +39,13 @@ internal static class TextRangeEdit
     internal static void CharacterResetFormatting(TextPointer start, TextPointer end)
     {
     }
+
+    internal static TextPointer SplitFormattingElement(TextPointer position, bool keepEmptyFormatting)
+        => position;
+
+    internal static TextPointer InsertParagraphBreak(TextPointer position, bool moveIntoSecondParagraph)
+        => position;
+
+    internal static TextPointer InsertLineBreak(TextPointer position)
+        => position;
 }

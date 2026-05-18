@@ -583,22 +583,27 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Glyphs.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Table*.cs" />
+    <!-- Table*.cs glob — keep shim-replaced types blocked; TableColumn/TableColumnCollection are used by undo units so enabled separately -->
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Table.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCell.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCellCollection.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRow.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowCollection.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroup.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs" />
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ITextPointer.cs" />
+    <!-- ITextPointer.cs: WPF internal interface — enabled; shim ITextPointer.cs replaced with stub -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElement.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElementCollection.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointer.cs" />
+    <!-- TextPointer.cs: WPF enabled -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEdit.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSchema.cs" />
-
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\UndoManager.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\RichTextBox.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\TextBoxBase.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextContainer.cs" />
+    <!-- TextContainer.cs: WPF enabled -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeBase.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextNavigator.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextContainer.cs" />
@@ -609,11 +614,10 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FrameworkRichTextComposition.cs" />
     <!-- SelectionWordBreaker migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFindEngine.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeDeleteContentUndoUnit.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeExtractElementUndoUnit.cs" />
+    <!-- TextTreeDeleteContentUndoUnit, ExtractElementUndoUnit, UndoUnit: WPF enabled -->
     <!-- UIElementPropertyUndoUnit migrated to upstream -->
     <!-- ChangeBlockUndoRecord migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextPointerBase.cs" />
+    <!-- TextPointerBase.cs: WPF enabled -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelectionHighlightLayer.cs" />
     <!-- TextParentUndoUnit migrated to upstream -->
     <!-- TextElementEnumerator migrated to upstream -->
@@ -623,12 +627,16 @@
     <!-- SplayTreeNode migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCharacters.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorParagraphs.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTree*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeUndo*.cs" />
+    <!-- TextTree undo/dump files needing WPF TextContainer or TextPointer: re-blocked until steps 5+7. -->
+    <!-- Node files (TextTreeNode, ObjectNode, etc.) must compile now because SplayTreeNode.cs references them. -->
+    <!-- TextTreeText.cs: WPF enabled -->
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeDumper.cs" />
+    <!-- TextTreeUndoUnit and TextTreeUndo: enabled -->
+    <!-- TextTreeUndo.cs, InsertUndoUnit, InsertElementUndoUnit, PropertyUndoUnit: WPF enabled -->
 
     <!-- ParentUndoUnit migrated to upstream -->
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TableColumnCollectionInternal.cs" />
+    <!-- TableColumnCollectionInternal: enabled (needed by TableColumn/TableColumnCollection) -->
     <!-- RowSpanVector migrated to upstream -->
 
     <!-- Prefer upstream core implementations; remove local duplicates that currently collide. -->

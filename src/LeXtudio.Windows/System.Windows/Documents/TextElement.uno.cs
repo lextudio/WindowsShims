@@ -168,6 +168,10 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
 
     public string Name => string.Empty;
 
+    // WPF internal: character count of an IME structural element's left edge.
+    // Outside a text tree this has no meaning; return -1 (WPF convention for "not in tree").
+    internal int IMELeftEdgeCharCount => -1;
+
     public Microsoft.UI.Xaml.XamlRoot XamlRoot { get; set; }
 
     public event global::Windows.Foundation.TypedEventHandler<TextElement, Microsoft.UI.Xaml.Input.AccessKeyDisplayDismissedEventArgs> AccessKeyDisplayDismissed;

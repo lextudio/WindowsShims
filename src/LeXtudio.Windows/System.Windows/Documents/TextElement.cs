@@ -30,34 +30,74 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
             typeof(TextElement),
             new System.Windows.FrameworkPropertyMetadata(null));
     private readonly List<object> _children = [];
-    private readonly TextPointer _contentStart;
-    private readonly TextPointer _contentEnd;
-    private readonly TextContainer _textContainer;
+    private ITextLayoutHost? _layoutHost;
+    private TextTreeTextElementNode? _textElementNode;
+    private TextContainer? _ownedContainer;
 
     protected TextElement()
     {
-        _textContainer = new TextContainer(this);
-        _contentStart = new TextPointer(this, ElementEdge.BeforeStart);
-        _contentEnd = new TextPointer(this, ElementEdge.AfterEnd);
     }
 
-    public TextPointer ContentStart => _contentStart;
-    public TextPointer ContentEnd => _contentEnd;
+    public TextPointer ContentStart
+    {
+        get
+        {
+            var tree = EnsureContainer();
+            var ptr = new TextPointer(tree, _textElementNode!, ElementEdge.AfterStart, LogicalDirection.Backward);
+            ptr.Freeze();
+            return ptr;
+        }
+    }
+
+    public TextPointer ContentEnd
+    {
+        get
+        {
+            var tree = EnsureContainer();
+            var ptr = new TextPointer(tree, _textElementNode!, ElementEdge.BeforeEnd, LogicalDirection.Forward);
+            ptr.Freeze();
+            return ptr;
+        }
+    }
+
     // IsEmpty: shim returns true when there are no logical children.
     internal bool IsEmpty => _children.Count == 0;
-    // TextElementNode: WPF-internal node representing this element in the text tree.
-    internal TextElementNode TextElementNode => _textElementNode ??= new TextElementNode(this);
-    private TextElementNode? _textElementNode;
+
+    internal TextTreeTextElementNode? TextElementNode
+    {
+        get => _textElementNode;
+        set => _textElementNode = value;
+    }
+
+    internal virtual bool IsFirstIMEVisibleSibling
+        => _textElementNode == null || _textElementNode.IsFirstSibling;
+
     public bool IsEnabled => IsEnabledCore;
-    public TextPointer ElementStart => new(this, ElementEdge.BeforeStart);
-    public TextPointer ElementEnd => new(this, ElementEdge.AfterEnd);
+    public TextPointer ElementStart
+    {
+        get
+        {
+            var tree = EnsureContainer();
+            return new TextPointer(tree, _textElementNode!, ElementEdge.BeforeStart, LogicalDirection.Backward);
+        }
+    }
+
+    public TextPointer ElementEnd
+    {
+        get
+        {
+            var tree = EnsureContainer();
+            return new TextPointer(tree, _textElementNode!, ElementEdge.AfterEnd, LogicalDirection.Forward);
+        }
+    }
+
     public new Microsoft.UI.Xaml.DependencyObject? Parent { get; internal set; }
-    internal TextContainer TextContainer => _textContainer;
+    internal TextContainer TextContainer => EnsureContainer();
     internal IReadOnlyList<object> ChildObjects => _children;
     protected internal virtual System.Collections.IEnumerator LogicalChildren => _children.GetEnumerator();
     internal TextElement? NextElement => GetSibling(1);
     internal TextElement? PreviousElement => GetSibling(-1);
-    internal ITextLayoutHost? LayoutHost => _textContainer.LayoutHost;
+    internal ITextLayoutHost? LayoutHost => _layoutHost;
 
     internal void Reposition(TextPointer start, TextPointer end)
     {
@@ -67,7 +107,7 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
     {
         if (textPosition.Parent is TextElement parent)
         {
-            parent.InsertLogicalChild(parent.GetInsertionIndex(textPosition), this);
+            parent.AddLogicalChild(this);
         }
     }
 
@@ -117,31 +157,9 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
 
     internal int IndexOfLogicalChild(object child) => _children.IndexOf(child);
 
-    private int GetInsertionIndex(TextPointer textPosition)
-    {
-        if (textPosition.Parent is not TextElement owner || !ReferenceEquals(owner, this))
-        {
-            return _children.Count;
-        }
-
-        var anchor = textPosition.Owner;
-        if (anchor is null)
-        {
-            return _children.Count;
-        }
-
-        var index = _children.IndexOf(anchor);
-        if (index < 0)
-        {
-            return _children.Count;
-        }
-
-        return textPosition.Edge == ElementEdge.BeforeStart ? index : index + 1;
-    }
-
     internal void SetLayoutHostRecursive(ITextLayoutHost? host)
     {
-        _textContainer.LayoutHost = host;
+        _layoutHost = host;
 
         foreach (var child in _children.OfType<TextElement>())
         {
@@ -217,4 +235,30 @@ public abstract partial class TextElement : System.Windows.FrameworkContentEleme
     }
 
     internal virtual System.Windows.DependencyObjectType? DTypeThemeStyleKey => null;
+
+    public ResourceDictionary? Resources { get; set; }
+
+    // Ensure this element has a TextContainer. If already in a tree, returns that tree's container.
+    // If not, creates an owned container and inserts this element into it.
+    private TextContainer EnsureContainer()
+    {
+        if (_textElementNode != null)
+        {
+            return _textElementNode.GetTextTree();
+        }
+        if (_ownedContainer == null)
+        {
+            _ownedContainer = new TextContainer(null, false);
+            _ownedContainer.BeginChange();
+            try
+            {
+                _ownedContainer.InsertElementInternal(_ownedContainer.Start, _ownedContainer.Start, this);
+            }
+            finally
+            {
+                _ownedContainer.EndChange();
+            }
+        }
+        return _ownedContainer;
+    }
 }
