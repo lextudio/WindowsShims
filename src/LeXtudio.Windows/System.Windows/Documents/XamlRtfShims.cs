@@ -37,14 +37,23 @@ namespace System.Windows.Documents
     // Stub: WpfPayload is the WPF rich-content package format used to embed images
     // alongside XAML when round-tripping via RTF. The converters call into it on image
     // paths only; with no payload attached, those branches are skipped or no-op.
-    internal class WpfPayload
+    internal class WpfPayload : IDisposable
     {
+        public const string ImageBmpContentType = "image/bmp";
+        internal object Package => this; // stub: IDisposable placeholder for using(wpfPayload.Package)
         internal System.IO.Stream? GetImageStream(string imageSourceString) => null;
         internal System.IO.Stream? CreateImageStream(int imageCount, string contentType, out string imagePartUriString)
         {
             imagePartUriString = string.Empty;
             return null;
         }
+        internal System.IO.Stream CreateXamlStream() => new System.IO.MemoryStream();
+        internal static WpfPayload OpenWpfPayload(System.IO.Stream stream) => new WpfPayload();
+        internal static WpfPayload CreateWpfPayload(System.IO.Stream stream) => new WpfPayload();
+        internal static System.IO.MemoryStream SaveImage(System.Windows.Media.Imaging.BitmapSource bitmapSource, string contentType) => new System.IO.MemoryStream();
+        internal static object LoadElement(System.IO.MemoryStream stream) => null;
+        internal static string SaveRange(Documents.ITextRange range, ref System.IO.Stream? wpfContainerMemory, bool useFlowDocumentAsRoot) => string.Empty;
+        public void Dispose() { }
     }
 }
 

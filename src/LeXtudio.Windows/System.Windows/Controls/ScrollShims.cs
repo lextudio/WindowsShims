@@ -10,6 +10,14 @@ namespace System.Windows.Controls
         double ViewportHeight { get; }
         double ExtentWidth { get; }
         double ExtentHeight { get; }
+        void LineUp();
+        void LineDown();
+        void LineLeft();
+        void LineRight();
+        void PageUp();
+        void PageDown();
+        void PageLeft();
+        void PageRight();
     }
 
     // ScrollBar.PageDownCommand / PageUpCommand used by TextEditorSelection page-key handling.

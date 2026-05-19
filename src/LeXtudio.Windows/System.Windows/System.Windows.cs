@@ -50,8 +50,24 @@ namespace System.Windows
         public static bool operator !=(Vector left, Vector right) => !left.Equals(right);
     }
 
+    public interface IDataObject
+    {
+        object GetData(string format);
+        object GetData(Type format);
+        object GetData(string format, bool autoConvert);
+        bool GetDataPresent(string format);
+        bool GetDataPresent(Type format);
+        bool GetDataPresent(string format, bool autoConvert);
+        string[] GetFormats();
+        string[] GetFormats(bool autoConvert);
+        void SetData(object data);
+        void SetData(string format, object data);
+        void SetData(Type format, object data);
+        void SetData(string format, object data, bool autoConvert);
+    }
+
     /// <summary>Compiler shim for DataObject clipboard transfer object.</summary>
-    public class DataObject
+    public class DataObject : IDataObject
     {
         readonly Collections.Generic.Dictionary<string, object> _data =
             new Collections.Generic.Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -60,19 +76,88 @@ namespace System.Windows
         public DataObject(string format, object data) { _data[format] = data; }
 
         public void SetData(string format, object data) => _data[format] = data;
+        public void SetData(string format, object data, bool autoConvert) => _data[format] = data;
+        public void SetData(object data) => _data[data?.GetType().FullName ?? ""] = data;
+        public void SetData(Type format, object data) => _data[format?.FullName ?? ""] = data;
+        public void SetImage(Media.Imaging.BitmapSource image) => _data[DataFormats.Bitmap] = image;
         public object GetData(string format) =>
             _data.TryGetValue(format, out object v) ? v : null;
+        public object GetData(Type format) =>
+            _data.TryGetValue(format?.FullName ?? "", out object v) ? v : null;
+        public object GetData(string format, bool autoConvert) => GetData(format);
         public bool GetDataPresent(string format) => _data.ContainsKey(format);
+        public bool GetDataPresent(Type format) => _data.ContainsKey(format?.FullName ?? "");
+        public bool GetDataPresent(string format, bool autoConvert) => _data.ContainsKey(format);
+        public bool ContainsImage() => _data.ContainsKey(DataFormats.Bitmap);
+        public string[] GetFormats() => [.. _data.Keys];
+        public string[] GetFormats(bool autoConvert) => GetFormats();
     }
 
     /// <summary>Compiler shim for DataFormats clipboard format constants.</summary>
     public static class DataFormats
     {
-        public const string Text        = "Text";
-        public const string UnicodeText = "UnicodeText";
-        public const string OemText     = "OemText";
-        public const string Rtf         = "Rtf";
-        public const string Html        = "Html";
+        public const string Text         = "Text";
+        public const string UnicodeText  = "UnicodeText";
+        public const string OemText      = "OemText";
+        public const string Rtf          = "Rtf";
+        public const string Html         = "Html";
+        public const string Xaml         = "Xaml";
+        public const string XamlPackage  = "XamlPackage";
+        public const string Bitmap       = "Bitmap";
+        public const string FileDrop     = "FileDrop";
+    }
+
+    /// <summary>Compiler shim wrapping Uno cross-platform clipboard.</summary>
+    public static class Clipboard
+    {
+        public static void SetDataObject(IDataObject data, bool copy) { }
+        public static IDataObject GetDataObject() => new DataObject();
+        public static void SetText(string text) { }
+        public static string GetText() => string.Empty;
+    }
+
+    public class DataObjectCopyingEventArgs : RoutedEventArgs
+    {
+        public DataObjectCopyingEventArgs(IDataObject dataObject, bool isDragDrop)
+        {
+            DataObject = dataObject;
+            IsDragDrop = isDragDrop;
+        }
+
+        public IDataObject DataObject { get; }
+        public bool IsDragDrop { get; }
+        public bool CommandCancelled { get; private set; }
+        public void CancelCommand() => CommandCancelled = true;
+    }
+
+    public class DataObjectPastingEventArgs : RoutedEventArgs
+    {
+        public DataObjectPastingEventArgs(IDataObject dataObject, bool isDragDrop, string formatToApply)
+        {
+            DataObject = dataObject;
+            IsDragDrop = isDragDrop;
+            FormatToApply = formatToApply;
+        }
+
+        public IDataObject DataObject { get; set; }
+        public bool IsDragDrop { get; }
+        public string FormatToApply { get; set; }
+        public bool CommandCancelled { get; private set; }
+        public void CancelCommand() => CommandCancelled = true;
+    }
+
+    public class DataObjectSettingDataEventArgs : RoutedEventArgs
+    {
+        public DataObjectSettingDataEventArgs(IDataObject dataObject, string format)
+        {
+            DataObject = dataObject;
+            Format = format;
+        }
+
+        public IDataObject DataObject { get; }
+        public string Format { get; }
+        public bool CommandCancelled { get; private set; }
+        public void CancelCommand() => CommandCancelled = true;
     }
 
     public sealed class SourceChangedEventArgs : EventArgs

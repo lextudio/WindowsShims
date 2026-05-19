@@ -564,11 +564,9 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextMapOffsetErrorLogger.cs" />
 
     <!-- TextEditorContextMenu.cs: WPF enabled (Session 17). -->
-    <!-- TextEditorCopyPaste.cs: deferred — needs TextRangeSerialization. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCopyPaste.cs" />
+    <!-- TextEditorCopyPaste.cs: WPF enabled (Session 19). -->
     <!-- TextEditor.cs: WPF enabled (Session 16). -->
-    <!-- TextEditorDragDrop.cs: deferred — drag-drop/DataObject not yet enabled. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorDragDrop.cs" />
+    <!-- TextEditorDragDrop.cs: WPF enabled (Session 19). -->
     <!-- TextEditorMouse.cs: WPF enabled (Session 17). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs" />
     <!-- TextEditorTyping.cs: WPF enabled (Session 18). -->

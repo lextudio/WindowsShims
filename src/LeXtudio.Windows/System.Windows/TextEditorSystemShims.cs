@@ -19,6 +19,8 @@ namespace System.Windows
         public static bool MouseHoverTimeEnabled => true;
         public static int MenuShowDelay => 400;
         public static bool MouseVanish => false;
+        public static double MinimumHorizontalDragDistance => 4.0;
+        public static double MinimumVerticalDragDistance => 4.0;
     }
 
     public static class SafeSystemMetrics
@@ -84,6 +86,16 @@ namespace MS.Win32
 // Stub namespace; TextEditorContextMenu.cs and TextEditorTyping.cs import these.
 namespace System.Windows.Interop
 {
+    public interface IWin32Window
+    {
+        IntPtr Handle { get; }
+    }
+
+    public class WindowInteropHelper
+    {
+        public WindowInteropHelper(Window window) { }
+        public IntPtr Handle => IntPtr.Zero;
+    }
 }
 
 namespace MS.Internal.Interop

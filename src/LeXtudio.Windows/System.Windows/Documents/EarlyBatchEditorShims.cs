@@ -47,16 +47,77 @@ namespace System.Windows
     {
     }
 
+    public delegate void DragEventHandler(object sender, DragEventArgs e);
+    public delegate void QueryContinueDragEventHandler(object sender, QueryContinueDragEventArgs e);
+    public delegate void GiveFeedbackEventHandler(object sender, GiveFeedbackEventArgs e);
+
+    public enum DragAction
+    {
+        Continue = 0,
+        Drop = 1,
+        Cancel = 2,
+    }
+
     public class QueryContinueDragEventArgs : RoutedEventArgs
     {
+        public DragAction Action { get; set; }
+        public DragDropKeyStates KeyStates { get; set; }
+        public bool EscapePressed { get; set; }
     }
 
     public class GiveFeedbackEventArgs : RoutedEventArgs
     {
+        public DragDropEffects Effects { get; set; }
+        public bool UseDefaultCursors { get; set; } = true;
     }
 
     public class DragEventArgs : RoutedEventArgs
     {
+        public IDataObject Data { get; set; }
+        public DragDropEffects AllowedEffects { get; set; }
+        public DragDropEffects Effects { get; set; }
+        public DragDropKeyStates KeyStates { get; set; }
+        public Point GetPosition(object relativeTo) => default;
+    }
+
+    [Flags]
+    public enum DragDropEffects
+    {
+        None  = 0,
+        Copy  = 1,
+        Move  = 2,
+        Link  = 4,
+        Scroll = unchecked((int)0x80000000),
+        All   = Copy | Move | Link,
+    }
+
+    [Flags]
+    public enum DragDropKeyStates
+    {
+        None        = 0,
+        LeftMouseButton  = 1,
+        RightMouseButton = 2,
+        ShiftKey    = 4,
+        ControlKey  = 8,
+        MiddleMouseButton = 16,
+        AltKey      = 32,
+    }
+
+    public static class DragDrop
+    {
+        public static readonly RoutedEvent DragEnterEvent    = new RoutedEvent("DragEnter",    typeof(DragEventHandler));
+        public static readonly RoutedEvent DragLeaveEvent    = new RoutedEvent("DragLeave",    typeof(DragEventHandler));
+        public static readonly RoutedEvent DragOverEvent     = new RoutedEvent("DragOver",     typeof(DragEventHandler));
+        public static readonly RoutedEvent DropEvent         = new RoutedEvent("Drop",         typeof(DragEventHandler));
+        public static readonly RoutedEvent QueryContinueDragEvent = new RoutedEvent("QueryContinueDrag", typeof(QueryContinueDragEventHandler));
+        public static readonly RoutedEvent GiveFeedbackEvent = new RoutedEvent("GiveFeedback", typeof(GiveFeedbackEventHandler));
+        public static readonly RoutedEvent PreviewDragEnterEvent = new RoutedEvent("PreviewDragEnter", typeof(DragEventHandler));
+        public static readonly RoutedEvent PreviewDragLeaveEvent = new RoutedEvent("PreviewDragLeave", typeof(DragEventHandler));
+        public static readonly RoutedEvent PreviewDragOverEvent  = new RoutedEvent("PreviewDragOver",  typeof(DragEventHandler));
+        public static readonly RoutedEvent PreviewDropEvent      = new RoutedEvent("PreviewDrop",      typeof(DragEventHandler));
+
+        public static DragDropEffects DoDragDrop(DependencyObject dragSource, IDataObject dataObject, DragDropEffects allowedEffects)
+            => DragDropEffects.None;
     }
 
     public delegate void DependencyPropertyChangedEventHandler(object sender, System.Windows.DependencyPropertyChangedEventArgs e);
@@ -220,11 +281,13 @@ namespace MS.Win32
 
         internal static bool GetStringTypeEx(uint locale, uint dwInfoType, ReadOnlySpan<char> lpSrcStr, Span<ushort> lpCharType) => false;
         internal static int ShowCursor(bool show) => 0;
+        internal static bool IsWindowEnabled(System.Runtime.InteropServices.HandleRef hwnd) => true;
     }
 
     internal static partial class UnsafeNativeMethods
     {
         internal static int GetLocaleInfoW(int locale, int lcType, string lpLCData, int cchData) => 0;
+        internal static bool SetForegroundWindow(System.Runtime.InteropServices.HandleRef hwnd) => false;
 
         internal static int FindNLSString(int locale, uint dwFindNLSStringFlags, ReadOnlySpan<char> lpStringSource, ReadOnlySpan<char> lpStringValue, out int foundLength)
         {
@@ -279,6 +342,13 @@ namespace System.Windows.Documents
         public static TextServicesHost? Current => null;
         public static void StartTransitoryExtension(object? textStore) { }
         public static void StopTransitoryExtension(object? textStore) { }
+    }
+
+    // Stub: AdornerLayer is excluded (Adorner*.cs are deferred); used by DragDrop caret management.
+    internal class AdornerLayer
+    {
+        internal static AdornerLayer GetAdornerLayer(object visual) => null;
+        internal void Remove(CaretElement adorner) { }
     }
 
     internal sealed class CaretElement
@@ -418,11 +488,7 @@ namespace System.Windows.Documents
     // TextEditorLists stub removed in Session 17; upstream TextEditorLists.cs is now active.
     // TextEditorParagraphs stub removed in Session 17; upstream TextEditorParagraphs.cs is now active.
 
-    internal static class TextEditorCopyPaste
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool acceptsRichContent, bool readOnly, bool registerEventListeners) { }
-    }
-
+    // TextEditorCopyPaste stub removed in Session 19; upstream TextEditorCopyPaste.cs is now active.
     // TextEditorContextMenu stub removed in Session 17; upstream TextEditorContextMenu.cs is now active.
 
     internal static class TextEditorSpelling
@@ -433,35 +499,7 @@ namespace System.Windows.Documents
         internal static ITextPointer GetNextSpellingErrorPosition(TextEditor editor, ITextPointer position, LogicalDirection direction) => null;
     }
 
-    internal sealed class TextEditorDragDrop
-    {
-        internal sealed class _DragDropProcess
-        {
-            internal _DragDropProcess(TextEditor textEditor) { }
-
-            internal bool SourceOnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e) => false;
-            internal bool SourceOnMouseLeftButtonDown(Point mouseDownPoint) => false;
-            internal bool SourceOnMouseMove(System.Windows.Input.MouseEventArgs e) => false;
-            internal bool SourceOnMouseMove(Point mouseMovePoint) => false;
-            internal void SourceOnMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
-            internal void DoMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
-            internal void SourceOnQueryContinueDrag(System.Windows.QueryContinueDragEventArgs e) { }
-            internal void SourceOnGiveFeedback(System.Windows.GiveFeedbackEventArgs e) { }
-            internal void TargetEnsureDragOverPreviewCursor(object sender, System.Windows.DragEventArgs e) { }
-            internal void TargetOnDragEnter(System.Windows.DragEventArgs e) { }
-            internal void TargetOnDragOver(System.Windows.DragEventArgs e) { }
-            internal void TargetOnDragLeave(System.Windows.DragEventArgs e) { }
-            internal void TargetOnDrop(System.Windows.DragEventArgs e) { }
-        }
-
-        internal static void _RegisterClassHandlers(Type controlType, bool readOnly, bool registerEventListeners) { }
-        internal static void OnQueryContinueDrag(object scope, System.Windows.QueryContinueDragEventArgs e) { }
-        internal static void OnGiveFeedback(object scope, System.Windows.GiveFeedbackEventArgs e) { }
-        internal static void OnDragEnter(object scope, System.Windows.DragEventArgs e) { }
-        internal static void OnDragOver(object scope, System.Windows.DragEventArgs e) { }
-        internal static void OnDragLeave(object scope, System.Windows.DragEventArgs e) { }
-        internal static void OnDrop(object scope, System.Windows.DragEventArgs e) { }
-    }
+    // TextEditorDragDrop stub removed in Session 19; upstream TextEditorDragDrop.cs is now active.
 
     // TextEditorTables stub removed in Session 17; upstream TextEditorTables.cs is now active.
 

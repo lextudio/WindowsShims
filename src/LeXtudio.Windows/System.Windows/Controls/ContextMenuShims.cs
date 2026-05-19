@@ -98,10 +98,11 @@ namespace System.Windows.Controls
     {
         private static readonly System.Windows.RoutedEvent s_scrollChangedEvent = new();
 
-        extension(Microsoft.UI.Xaml.Controls.ScrollViewer)
+        extension(Microsoft.UI.Xaml.Controls.ScrollViewer sv)
         {
             public static System.Windows.RoutedEvent ScrollChangedEvent => s_scrollChangedEvent;
             public static double _scrollLineDelta => 16.0;
+            public IScrollInfo ScrollInfo => null;
         }
     }
 }

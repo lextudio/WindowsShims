@@ -175,6 +175,16 @@ internal static class SR
     internal const string KeySelectToWindowBottomDisplayString   = nameof(KeySelectToWindowBottomDisplayString);
     internal const string KeySelectAllDisplayString              = nameof(KeySelectAllDisplayString);
 
+    // TextEditorCopyPaste display strings
+    internal const string KeyCutDisplayString         = nameof(KeyCutDisplayString);
+    internal const string KeyCopyDisplayString        = nameof(KeyCopyDisplayString);
+    internal const string KeyPasteDisplayString       = nameof(KeyPasteDisplayString);
+    internal const string KeyCopyFormatDisplayString  = nameof(KeyCopyFormatDisplayString);
+    internal const string KeyPasteFormatDisplayString = nameof(KeyPasteFormatDisplayString);
+    internal const string KeyCtrlInsertDisplayString  = nameof(KeyCtrlInsertDisplayString);
+    internal const string KeyShiftDeleteDisplayString = nameof(KeyShiftDeleteDisplayString);
+    internal const string KeyShiftInsertDisplayString = nameof(KeyShiftInsertDisplayString);
+
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);
