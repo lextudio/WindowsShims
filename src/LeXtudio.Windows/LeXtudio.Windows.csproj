@@ -610,8 +610,8 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs" />
     <!-- TextContainer.cs: WPF enabled -->
     <!-- TextRangeBase.cs: WPF enabled; stub previously in HyperlinkSupport.cs removed. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextNavigator.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextContainer.cs" />
+    <!-- NullTextNavigator.cs: WPF enabled (Session 22). -->
+    <!-- NullTextContainer.cs: WPF enabled (Session 22). -->
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowPosition.cs" />
@@ -635,7 +635,7 @@
     <!-- TextTree undo/dump files needing WPF TextContainer or TextPointer: re-blocked until steps 5+7. -->
     <!-- Node files (TextTreeNode, ObjectNode, etc.) must compile now because SplayTreeNode.cs references them. -->
     <!-- TextTreeText.cs: WPF enabled -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextTreeDumper.cs" />
+    <!-- TextTreeDumper.cs: WPF enabled (Session 22). -->
     <!-- TextTreeUndoUnit and TextTreeUndo: enabled -->
     <!-- TextTreeUndo.cs, InsertUndoUnit, InsertElementUndoUnit, PropertyUndoUnit: WPF enabled -->
 

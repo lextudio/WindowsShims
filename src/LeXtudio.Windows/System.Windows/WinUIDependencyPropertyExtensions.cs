@@ -40,6 +40,11 @@ public static class WinUIDependencyPropertyExtensions
 
         public bool ReadOnly => false;
 
+        // WPF DefaultMetadata: returns the PropertyMetadata registered for the property.
+        // WinUI has GetMetadata(Type); fall back to object-type metadata or empty metadata.
+        public Microsoft.UI.Xaml.PropertyMetadata DefaultMetadata
+            => property.GetMetadata(typeof(object)) ?? new Microsoft.UI.Xaml.PropertyMetadata(null);
+
         // WPF OwnerType: the type that originally registered the property.
         // Not tracked by WinUI; return null as shim (serialization-only path).
         public Type? OwnerType => null;
