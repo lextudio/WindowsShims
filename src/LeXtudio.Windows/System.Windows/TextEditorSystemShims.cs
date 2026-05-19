@@ -125,3 +125,41 @@ namespace System.Windows.Media.Media3D
         public bool IsDescendantOf(object ancestor) => false;
     }
 }
+
+namespace MS.Internal.Documents
+{
+    // Stub for WPF's TextDocumentView — used only for a type-check in
+    // TextRangeEditTables.TableBorderHitTest; on HAS_UNO the check always
+    // returns false so no real implementation is needed.
+    internal sealed class TextDocumentView
+    {
+        internal MS.Internal.PtsHost.CellInfo? GetCellInfoFromPoint(Windows.Foundation.Point point, System.Windows.Documents.Table? tableFilter) => null;
+    }
+}
+
+namespace MS.Internal.PtsHost
+{
+    // Stub for WPF's CellInfo — fields accessed only when TextDocumentView
+    // is the active ITextView, which never happens on HAS_UNO.
+    internal sealed class CellInfo
+    {
+        internal Windows.Foundation.Rect TableArea => default;
+        internal Windows.Foundation.Rect CellArea => default;
+        internal System.Windows.Documents.TableCell? Cell => null;
+        internal double TableAutofitWidth => 0;
+        internal double[]? TableColumnWidths => null;
+    }
+}
+
+namespace System.Windows.Documents.Internal
+{
+    // Stub for WPF's ColumnResizeAdorner — instantiated only when a real
+    // TextDocumentView is present (never on HAS_UNO).
+    internal class ColumnResizeAdorner
+    {
+        internal ColumnResizeAdorner(Microsoft.UI.Xaml.UIElement scope) { }
+        internal void Initialize(Microsoft.UI.Xaml.UIElement scope, double x, double top, double height) { }
+        internal void Uninitialize() { }
+        internal void Update(double x) { }
+    }
+}

@@ -295,6 +295,13 @@ namespace MS.Win32
             return -1;
         }
 
+        // Overload matching WPF's P/Invoke signature used by TextFindEngine.FindNLSString.
+        internal static int FindNLSString(int locale, uint dwFindNLSStringFlags, string lpStringSource, int cchSource, string lpStringValue, int cchValue, out int foundLength)
+        {
+            foundLength = 0;
+            return -1;
+        }
+
         [System.Runtime.InteropServices.ComImport]
         [System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
         [System.Runtime.InteropServices.Guid("fde1eaee-6924-4cdf-91e7-da38cff5559d")]
@@ -503,167 +510,7 @@ namespace System.Windows.Documents
 
     // TextEditorTables stub removed in Session 17; upstream TextEditorTables.cs is now active.
 
-    internal sealed class TextRangeEditTables
-    {
-        internal static TextPointer EnsureInsertionPosition(ITextPointer position)
-        {
-            return position as TextPointer;
-        }
-
-        internal static bool GetColumnRange(ITextRange range, Table table, out int firstColumnIndex, out int lastColumnIndex)
-        {
-            firstColumnIndex = 0;
-            lastColumnIndex = 0;
-            return false;
-        }
-
-        internal static Table GetTableFromPosition(TextPointer position)
-        {
-            return null;
-        }
-
-        internal static TableCell GetTableCellFromPosition(TextPointer position)
-        {
-            return null;
-        }
-
-        internal static bool IsTableStructureCrossed(ITextPointer anchorPosition, ITextPointer movingPosition)
-        {
-            return false;
-        }
-
-        internal static bool IsTableCellRange(TextPointer anchorPosition, TextPointer movingPosition, bool includeCellAtMovingPosition, out TableCell anchorCell, out TableCell movingCell)
-        {
-            anchorCell = null;
-            movingCell = null;
-            return false;
-        }
-
-        internal static List<TextSegment> BuildTableRange(TextPointer start, TextPointer end)
-        {
-            return [new TextSegment(start, end)];
-        }
-
-        internal static List<TextSegment> BuildTableRange(
-            TextPointer anchorPosition,
-            TextPointer movingPosition,
-            bool includeCellAtMovingPosition,
-            out bool isTableCellRange)
-        {
-            isTableCellRange = false;
-            return null;
-        }
-
-        internal static void IdentifyValidBoundaries(ITextRange range, out ITextPointer start, out ITextPointer end)
-        {
-            start = range.Start;
-            end = range.End;
-        }
-
-        internal static TextPointer GetNextTableCellRangeInsertionPosition(TextSelection selection, LogicalDirection direction)
-        {
-            return ((ITextSelection)selection).MovingPosition as TextPointer;
-        }
-
-        internal static TextPointer GetNextRowEndMovingPosition(TextSelection selection, LogicalDirection direction)
-        {
-            return ((ITextSelection)selection).MovingPosition as TextPointer;
-        }
-
-        internal static bool MovingPositionCrossesCellBoundary(TextSelection selection)
-        {
-            return false;
-        }
-
-        internal static TextPointer GetNextRowStartMovingPosition(TextSelection selection, LogicalDirection direction)
-        {
-            return ((ITextSelection)selection).MovingPosition as TextPointer;
-        }
-
-        internal static Table InsertTable(TextPointer insertionPosition, int rowCount, int columnCount)
-        {
-            var table = new Table();
-            var rowGroup = table.RowGroups[0];
-            rowCount = Math.Max(1, rowCount);
-            columnCount = Math.Max(1, columnCount);
-
-            for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
-            {
-                var row = new TableRow();
-
-                for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
-                {
-                    var cell = new TableCell();
-                    row.Cells.Add(cell);
-                }
-
-                rowGroup.Rows.Add(row);
-            }
-
-            return table;
-        }
-
-        internal static TextPointer GetAdjustedRowEndPosition(Table currentTable, TextPointer rowEndPosition)
-        {
-            return rowEndPosition;
-        }
-
-        internal static void DeleteContent(TextPointer start, TextPointer end)
-        {
-        }
-
-        internal static TextRange InsertRows(TextRange textRange, int rowCount)
-        {
-            return textRange;
-        }
-
-        internal static bool DeleteRows(TextRange textRange)
-        {
-            return false;
-        }
-
-        internal static TextRange InsertColumns(TextRange textRange, int columnCount)
-        {
-            return textRange;
-        }
-
-        internal static bool DeleteColumns(TextRange textRange)
-        {
-            return false;
-        }
-
-        internal static TextRange MergeCells(TextRange textRange)
-        {
-            return textRange;
-        }
-
-        internal static TextRange SplitCell(TextRange textRange, int splitCountHorizontal, int splitCountVertical)
-        {
-            return textRange;
-        }
-
-        internal static bool TableBorderHitTest(ITextView textView, Point pt)
-        {
-            return false;
-        }
-
-        internal static TableColumnResizeInfo StartColumnResize(ITextView textView, Point pt)
-        {
-            return null;
-        }
-
-        internal static void EnsureTableColumnsAreFixedSize(Table table, double[] columnWidths)
-        {
-        }
-
-        internal sealed class TableColumnResizeInfo
-        {
-            internal void DisposeAdorner() { }
-            internal void ResizeColumn(double newWidth) { }
-            internal void ResizeColumn(Point pt) { }
-            internal void UpdateAdorner(Point pt) { }
-        }
-    }
+    // TextRangeEditTables stub removed in Session 24; upstream TextRangeEditTables.cs is now active.
 
 }
 #endif

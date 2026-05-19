@@ -15,4 +15,6 @@ public partial class TextElementCollection<TextElementType> : INotifyCollectionC
     {
         CollectionChanged?.Invoke(this, args);
     }
+
+    public TextElementType this[int index] => (TextElementType)((System.Collections.IList)this)[index]!;
 }

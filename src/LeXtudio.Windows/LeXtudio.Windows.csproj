@@ -551,7 +551,10 @@
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CaretElement.cs" />
+    <!-- ColumnResize*.cs: ColumnResizeAdorner.cs shimmed; ColumnResizeUndoUnit.cs enabled (Session 24). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResize*.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResizeUndoUnit.cs"
+             Link="System.Windows.Documents\ColumnResizeUndoUnit.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CompositionAdorner.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\MoveSizeWinEventHandler.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WinEventHandler.cs" />
@@ -560,8 +563,7 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ImmComposition.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
     <!-- TextRangeSerialization.cs: WPF enabled (Session 20). -->
-    <!-- TextMapOffsetErrorLogger.cs: deferred — part of spell-check infra, kept out for now. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextMapOffsetErrorLogger.cs" />
+    <!-- TextMapOffsetErrorLogger.cs: WPF enabled (Session 24); gated #if !HAS_UNO (Speller partial). -->
 
     <!-- TextEditorContextMenu.cs: WPF enabled (Session 17). -->
     <!-- TextEditorCopyPaste.cs: WPF enabled (Session 19). -->
@@ -578,7 +580,7 @@
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFlow.cs" />
     <!-- Typography + TypographyProperties migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEditTables.cs" />
+    <!-- TextRangeEditTables.cs: WPF enabled (Session 24); column-resize section gated #if !HAS_UNO. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReferenceCollection.cs" />
@@ -618,7 +620,7 @@
     <!-- FrameworkTextComposition.cs: WPF enabled (Session 21). -->
     <!-- FrameworkRichTextComposition.cs: WPF enabled (Session 21). -->
     <!-- SelectionWordBreaker migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFindEngine.cs" />
+    <!-- TextFindEngine.cs: WPF enabled (Session 24); Fixed layout branch gated #if !HAS_UNO. -->
     <!-- TextTreeDeleteContentUndoUnit, ExtractElementUndoUnit, UndoUnit: WPF enabled -->
     <!-- UIElementPropertyUndoUnit migrated to upstream -->
     <!-- ChangeBlockUndoRecord migrated to upstream -->
@@ -647,7 +649,7 @@
     <!-- Prefer upstream core implementations; remove local duplicates that currently collide. -->
     <Compile Remove="System.Windows\Documents\TextRange.cs" />
     <Compile Remove="System.Windows\Documents\TextSelection.cs" />
-    <Compile Remove="System.Windows\Documents\TextRangeEditTables.cs" />
+    <!-- System.Windows\Documents\TextRangeEditTables.cs local stub deleted (Session 24). -->
   </ItemGroup>
 </Project>
 
