@@ -549,10 +549,15 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WinRTSpellerInteropExtensions.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServices*.cs" />
 
+    <!-- Adorner*.cs: Adorner.cs and ColumnResizeAdorner.cs enabled (Session 25); AdornerLayer.cs/AdornerDecorator.cs/AdornerHitTestResult.cs remain deferred. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner*.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner.cs"
+             Link="System.Windows.Documents\Adorner.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CaretElement.cs" />
-    <!-- ColumnResize*.cs: ColumnResizeAdorner.cs shimmed; ColumnResizeUndoUnit.cs enabled (Session 24). -->
+    <!-- ColumnResize*.cs: ColumnResizeAdorner.cs and ColumnResizeUndoUnit.cs both enabled (Session 25). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResize*.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResizeAdorner.cs"
+             Link="System.Windows.Documents\ColumnResizeAdorner.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResizeUndoUnit.cs"
              Link="System.Windows.Documents\ColumnResizeUndoUnit.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CompositionAdorner.cs" />

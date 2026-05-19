@@ -35,6 +35,7 @@ namespace System.Windows.Media
         public static Color Olive         => Color.FromArgb(255, 128, 128, 0);
         public static Color SaddleBrown   => Color.FromArgb(255, 139, 69, 19);
         public static Color Sienna        => Color.FromArgb(255, 160, 82, 45);
-        public static Color SlateGray     => Color.FromArgb(255, 112, 128, 144);
+        public static Color SlateGray      => Color.FromArgb(255, 112, 128, 144);
+        public static Color LightSlateGray => Color.FromArgb(255, 119, 136, 153);
     }
 }

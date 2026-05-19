@@ -351,11 +351,19 @@ namespace System.Windows.Documents
         public static void StopTransitoryExtension(object? textStore) { }
     }
 
-    // Stub: AdornerLayer is excluded (Adorner*.cs are deferred); used by DragDrop caret management.
-    internal class AdornerLayer
+    // AdornerLayer shim: Adorner.cs and ColumnResizeAdorner.cs enabled in Session 25;
+    // AdornerLayer.cs from upstream remains deferred (VisualCollection not available in WinUI).
+    // Extends FrameworkElement so "as AdornerLayer" casts from DependencyObject compile.
+    public class AdornerLayer : FrameworkElement
     {
-        internal static AdornerLayer GetAdornerLayer(object visual) => null;
+        private static readonly AdornerLayer _nullLayer = new();
+
+        public static AdornerLayer GetAdornerLayer(object visual) => _nullLayer;
+        public void Add(Adorner adorner) { }
+        public void Remove(Adorner adorner) { }
         internal void Remove(CaretElement adorner) { }
+        public void Update(UIElement element) { }
+        new public void InvalidateVisual() { }
     }
 
     internal sealed class CaretElement

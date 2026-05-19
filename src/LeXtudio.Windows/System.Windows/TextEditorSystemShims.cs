@@ -151,15 +151,4 @@ namespace MS.Internal.PtsHost
     }
 }
 
-namespace System.Windows.Documents.Internal
-{
-    // Stub for WPF's ColumnResizeAdorner — instantiated only when a real
-    // TextDocumentView is present (never on HAS_UNO).
-    internal class ColumnResizeAdorner
-    {
-        internal ColumnResizeAdorner(Microsoft.UI.Xaml.UIElement scope) { }
-        internal void Initialize(Microsoft.UI.Xaml.UIElement scope, double x, double top, double height) { }
-        internal void Uninitialize() { }
-        internal void Update(double x) { }
-    }
-}
+// ColumnResizeAdorner stub removed in Session 25; upstream ColumnResizeAdorner.cs is now active.
