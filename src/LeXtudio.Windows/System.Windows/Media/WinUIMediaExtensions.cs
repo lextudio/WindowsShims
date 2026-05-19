@@ -24,7 +24,26 @@ public static class WinUIMediaExtensions
 
     extension(Microsoft.UI.Xaml.UIElement uiElement)
     {
-        public GeneralTransform TransformToAncestor(Visual ancestor) => new IdentityGeneralTransform();
+        public bool IsAncestorOf(DependencyObject descendant)
+        {
+            Microsoft.UI.Xaml.DependencyObject? current = descendant;
+
+            while (current != null)
+            {
+                if (ReferenceEquals(current, uiElement))
+                {
+                    return true;
+                }
+
+                current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+            }
+
+            return false;
+        }
+
+        public bool IsDescendantOf(Microsoft.UI.Xaml.UIElement ancestor) => ancestor.IsAncestorOf(uiElement);
+
+        public GeneralTransform TransformToAncestor(Microsoft.UI.Xaml.UIElement ancestor) => new WinUIGeneralTransform(uiElement.TransformToVisual(ancestor));
     }
 }
 
@@ -38,4 +57,10 @@ internal sealed class IdentityGeneralTransform : GeneralTransform
 {
     public override Rect TransformBounds(Rect rect) => rect;
     public override Point Transform(Point point) => point;
+}
+
+internal sealed class WinUIGeneralTransform(Microsoft.UI.Xaml.Media.GeneralTransform transform) : GeneralTransform
+{
+    public override Rect TransformBounds(Rect rect) => transform.TransformBounds(rect);
+    public override Point Transform(Point point) => transform.TransformPoint(point);
 }

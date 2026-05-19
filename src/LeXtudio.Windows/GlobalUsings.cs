@@ -50,6 +50,7 @@ global using DependencyObject          = Microsoft.UI.Xaml.DependencyObject;
 // C# 14 extension members in System.Windows/WinUIFrameworkElementExtensions.cs.
 // FrameworkContentElement has no WinUI equivalent — it stays as a local shim.
 global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
+global using Visual                    = Microsoft.UI.Xaml.UIElement;
 // Panel: alias to the WPF shim to resolve CS0104 between System.Windows.Controls.Panel and Microsoft.UI.Xaml.Controls.Panel.
 global using Panel                     = System.Windows.Controls.Panel;
 global using GeneralTransform          = System.Windows.Media.GeneralTransform;

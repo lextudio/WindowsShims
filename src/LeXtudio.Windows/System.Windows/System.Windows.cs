@@ -79,10 +79,7 @@ namespace System.Windows
     {
         public Media.CompositionTarget CompositionTarget { get; set; }
 
-        public static PresentationSource FromVisual(Media.Visual visual)
-        {
-            return visual?.PresentationSource;
-        }
+        public static PresentationSource FromVisual(Visual visual) => null;
     }
 
     /// <summary>Portable shim for System.Windows.FontStretches.</summary>
