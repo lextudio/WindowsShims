@@ -275,6 +275,7 @@ namespace System.Windows.Documents
     // Stub: TSF host registration is not modeled in the shim layer.
     internal sealed class TextServicesHost
     {
+        public static TextServicesHost? Current => null;
     }
 
     internal sealed class CaretElement
@@ -430,7 +431,7 @@ namespace System.Windows.Documents
 
     internal static class TextEditorSelection
     {
-        internal const bool IsPaginated = false;
+        internal static bool IsPaginated(ITextView textView) => false;
 
         internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
         internal static void _ClearSuggestedX(TextEditor This) { }
