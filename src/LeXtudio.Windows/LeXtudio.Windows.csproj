@@ -594,8 +594,8 @@
 
     <!-- ITextPointer.cs: WPF internal interface — enabled; shim ITextPointer.cs replaced with stub -->
     <!-- TextElement.cs: WPF enabled; local shim deleted; TextElement.uno.cs has Uno-specific additions -->
-    <!-- TextElementCollection.cs: local shim active; WPF ext version blocked (different type param name) -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextElementCollection.cs" />
+    <!-- TextElementCollection.cs: WPF enabled. Uno partial in TextElementCollection.uno.cs adds INotifyCollectionChanged. -->
+    <Compile Remove="System.Windows\Documents\TextElementCollection.cs" />
     <!-- TextPointer.cs: WPF enabled -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEdit.cs" />
     <!-- TextSchema.cs: WPF enabled; local shim deleted. -->

@@ -55,6 +55,13 @@ internal static class SR
     internal const string TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree = "TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree";
     internal const string TextSchema_IllegalElement = "TextSchema_IllegalElement";
     internal const string TextSchema_IllegalHyperlinkChild = "TextSchema_IllegalHyperlinkChild: {0}";
+    internal const string TextElementCollection_CannotCopyToArrayNotSufficientMemory = "TextElementCollection_CannotCopyToArrayNotSufficientMemory: {0} {1} {2}";
+    internal const string TextElementCollection_IndexOutOfRange = "TextElementCollection_IndexOutOfRange";
+    internal const string TextElementCollection_ItemHasUnexpectedType = "TextElementCollection_ItemHasUnexpectedType: {0} {1} {2}";
+    internal const string TextElementCollection_NextSiblingDoesNotBelongToThisCollection = "TextElementCollection_NextSiblingDoesNotBelongToThisCollection: {0}";
+    internal const string TextElementCollection_NoEnumerator = "TextElementCollection_NoEnumerator";
+    internal const string TextElementCollection_PreviousSiblingDoesNotBelongToThisCollection = "TextElementCollection_PreviousSiblingDoesNotBelongToThisCollection: {0}";
+    internal const string TextElementCollection_TextElementTypeExpected = "TextElementCollection_TextElementTypeExpected: {0}";
     internal const string NegativeValue = "NegativeValue";
     internal const string StartIndexExceedsBufferSize = "StartIndexExceedsBufferSize";
     internal const string MaxLengthExceedsBufferSize = "MaxLengthExceedsBufferSize";
