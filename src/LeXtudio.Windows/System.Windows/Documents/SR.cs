@@ -54,6 +54,7 @@ internal static class SR
     internal const string NoElement = "NoElement";
     internal const string TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree = "TextPointer_CannotInsertTextElementBecauseItBelongsToAnotherTree";
     internal const string TextSchema_IllegalElement = "TextSchema_IllegalElement";
+    internal const string TextSchema_IllegalHyperlinkChild = "TextSchema_IllegalHyperlinkChild: {0}";
     internal const string NegativeValue = "NegativeValue";
     internal const string StartIndexExceedsBufferSize = "StartIndexExceedsBufferSize";
     internal const string MaxLengthExceedsBufferSize = "MaxLengthExceedsBufferSize";
