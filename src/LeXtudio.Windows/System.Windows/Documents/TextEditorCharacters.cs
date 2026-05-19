@@ -8,4 +8,8 @@ internal static class TextEditorCharacters
     internal const double MaxFontPoint = 32767.0;
 
     internal static void _RegisterClassHandlers(System.Type controlType, bool registerEventListeners) { }
+
+    internal static void _OnApplyProperty(object sender, System.Windows.Input.ExecutedRoutedEventArgs e) { }
+
+    internal static void _OnApplyProperty(Documents.TextEditor editor, DependencyProperty property, object value, bool applyToParagraphs) { }
 }

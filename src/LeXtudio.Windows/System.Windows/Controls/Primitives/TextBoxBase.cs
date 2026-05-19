@@ -45,6 +45,7 @@ public abstract class TextBoxBase : FrameworkElement
 
     public bool AcceptsTab { get; set; }
     public bool IsReadOnlyCaretVisible { get; set; }
+    public double ViewportHeight => 0.0;
 
     public bool IsReadOnly { get; set; }
 

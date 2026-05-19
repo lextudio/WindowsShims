@@ -9,6 +9,7 @@ namespace System.Windows.Input
 		public static RoutedCommand Redo      { get; } = new RoutedCommand("Redo",      typeof(ApplicationCommands));
 		public static RoutedCommand SelectAll { get; } = new RoutedCommand("SelectAll", typeof(ApplicationCommands));
 		public static RoutedCommand Delete    { get; } = new RoutedCommand("Delete",    typeof(ApplicationCommands));
-		public static RoutedCommand Find      { get; } = new RoutedCommand("Find",      typeof(ApplicationCommands));
+		public static RoutedCommand Find           { get; } = new RoutedCommand("Find",           typeof(ApplicationCommands));
+		public static RoutedCommand CorrectionList { get; } = new RoutedCommand("CorrectionList", typeof(ApplicationCommands));
 	}
 }

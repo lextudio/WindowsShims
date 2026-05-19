@@ -64,6 +64,8 @@ global using GeneralTransform          = System.Windows.Media.GeneralTransform;
 
 // ============ WPF Document Types ============
 global using TextDecorationCollection = System.Windows.Media.TextDecorationCollection;
+// ContextMenuEventArgs: WinUI also defines one in Microsoft.UI.Xaml.Controls; alias to WPF shim so upstream TextEditor* files compile.
+global using ContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
 
 // TextDecorations static class (System.Windows.Media) — bring to global scope so
 // upstream files in System.Windows.Documents can reference it without an explicit using.

@@ -84,6 +84,42 @@ internal static class SR
     internal const string TextSchema_TextIsNotAllowed = "TextSchema_TextIsNotAllowed";
     internal const string TextElement_ChildTypeIsInvalid = "TextElement_ChildTypeIsInvalid";
 
+    // TextEditorLists display strings
+    internal const string KeyRemoveListMarkersDisplayString = "KeyRemoveListMarkersDisplayString";
+    internal const string KeyToggleBulletsDisplayString = "KeyToggleBulletsDisplayString";
+    internal const string KeyToggleNumberingDisplayString = "KeyToggleNumberingDisplayString";
+    internal const string KeyIncreaseIndentationDisplayString = "KeyIncreaseIndentationDisplayString";
+    internal const string KeyDecreaseIndentationDisplayString = "KeyDecreaseIndentationDisplayString";
+
+    // TextEditorContextMenu display strings
+    internal const string TextBox_ContextMenu_Cut = "Cut";
+    internal const string TextBox_ContextMenu_Copy = "Copy";
+    internal const string TextBox_ContextMenu_Paste = "Paste";
+    internal const string TextBox_ContextMenu_NoSpellingSuggestions = "No spelling suggestions";
+    internal const string TextBox_ContextMenu_IgnoreAll = "Ignore All";
+    internal const string TextBox_ContextMenu_Description_SBCSSpace = "SBCS Space";
+    internal const string TextBox_ContextMenu_Description_DBCSSpace = "DBCS Space";
+    internal const string TextBox_ContextMenu_More = "More...";
+
+    // TextEditorTables display strings
+    internal const string KeyInsertTableDisplayString = "KeyInsertTableDisplayString";
+    internal const string KeyInsertRowsDisplayString = "KeyInsertRowsDisplayString";
+    internal const string KeyInsertColumnsDisplayString = "KeyInsertColumnsDisplayString";
+    internal const string KeyDeleteRows = "KeyDeleteRows";
+    internal const string KeyDeleteRowsDisplayString = "KeyDeleteRowsDisplayString";
+    internal const string KeyDeleteColumnsDisplayString = "KeyDeleteColumnsDisplayString";
+    internal const string KeyMergeCellsDisplayString = "KeyMergeCellsDisplayString";
+    internal const string KeySplitCellDisplayString = "KeySplitCellDisplayString";
+
+    // TextEditorParagraphs display strings
+    internal const string KeyAlignLeftDisplayString = "KeyAlignLeftDisplayString";
+    internal const string KeyAlignCenterDisplayString = "KeyAlignCenterDisplayString";
+    internal const string KeyAlignRightDisplayString = "KeyAlignRightDisplayString";
+    internal const string KeyAlignJustifyDisplayString = "KeyAlignJustifyDisplayString";
+    internal const string KeyApplySingleSpaceDisplayString = "KeyApplySingleSpaceDisplayString";
+    internal const string KeyApplyOneAndAHalfSpaceDisplayString = "KeyApplyOneAndAHalfSpaceDisplayString";
+    internal const string KeyApplyDoubleSpaceDisplayString = "KeyApplyDoubleSpaceDisplayString";
+
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);

@@ -72,5 +72,28 @@ namespace MS.Win32
         public interface ITfThreadMgr
         {
         }
+
+        // Stub for TSF candidate list used by TextEditorContextMenu reconversion.
+        public interface ITfCandidateList
+        {
+        }
+    }
+}
+
+// Stub namespace; TextEditorContextMenu.cs imports it but the shim build
+// never calls into HwndSource or any other Interop type.
+namespace System.Windows.Interop
+{
+}
+
+namespace System.Windows.Media.Media3D
+{
+    // Minimal stub; TextEditorMouse uses Visual3D in a hit-test type-check guard.
+    public abstract partial class Visual3D
+#if WINDOWS_APP_SDK
+        : Microsoft.UI.Xaml.DependencyObject
+#endif
+    {
+        public bool IsDescendantOf(object ancestor) => false;
     }
 }

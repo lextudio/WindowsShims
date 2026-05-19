@@ -563,18 +563,19 @@
     <!-- TextMapOffsetErrorLogger.cs: deferred — part of spell-check infra, kept out for now. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextMapOffsetErrorLogger.cs" />
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorContextMenu.cs" />
+    <!-- TextEditorContextMenu.cs: WPF enabled (Session 17). -->
+    <!-- TextEditorCopyPaste.cs: deferred — needs TextRangeSerialization. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCopyPaste.cs" />
-    <!-- TextEditor.cs: WPF enabled (Session 16). Sibling TextEditor*.cs helpers
-         remain excluded — local stubs provide the static-helper entry points
-         that TextEditor.cs calls. Spell-check helpers stay out per user
-         direction. -->
+    <!-- TextEditor.cs: WPF enabled (Session 16). -->
+    <!-- TextEditorDragDrop.cs: deferred — drag-drop/DataObject not yet enabled. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorDragDrop.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorMouse.cs" />
+    <!-- TextEditorMouse.cs: WPF enabled (Session 17). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs" />
+    <!-- TextEditorTyping.cs: deferred — heavy IME. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorTyping.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorTables.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorLists.cs" />
+    <!-- TextEditorTables.cs: WPF enabled (Session 17). -->
+    <!-- TextEditorLists.cs: WPF enabled (Session 17). -->
+    <!-- TextEditorSelection.cs: deferred — large, selection-rendering. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSelection.cs" />
     <!-- TextRangeEditLists.cs: WPF enabled; local stub deleted. -->
     <Compile Remove="System.Windows\Documents\TextRangeEditLists.cs" />
@@ -634,7 +635,7 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEffectResolver.cs" />
     <!-- SplayTreeNode migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCharacters.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorParagraphs.cs" />
+    <!-- TextEditorParagraphs.cs: WPF enabled (Session 17). -->
     <!-- TextTree undo/dump files needing WPF TextContainer or TextPointer: re-blocked until steps 5+7. -->
     <!-- Node files (TextTreeNode, ObjectNode, etc.) must compile now because SplayTreeNode.cs references them. -->
     <!-- TextTreeText.cs: WPF enabled -->

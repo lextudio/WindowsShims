@@ -51,6 +51,8 @@ public abstract class GeneralTransform
 {
     public abstract Rect TransformBounds(Rect rect);
     public abstract Point Transform(Point point);
+    public virtual bool TryTransform(Point inPoint, out Point result) { result = Transform(inPoint); return true; }
+    public virtual GeneralTransform Inverse => new IdentityGeneralTransform();
 }
 
 internal sealed class IdentityGeneralTransform : GeneralTransform

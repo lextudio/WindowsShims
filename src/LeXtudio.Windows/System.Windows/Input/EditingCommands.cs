@@ -22,5 +22,7 @@ namespace System.Windows.Input
 		public static RoutedCommand MoveRightByWord       { get; } = new RoutedCommand("MoveRightByWord",       typeof(EditingCommands));
 		public static RoutedCommand SelectLeftByWord      { get; } = new RoutedCommand("SelectLeftByWord",      typeof(EditingCommands));
 		public static RoutedCommand SelectRightByWord     { get; } = new RoutedCommand("SelectRightByWord",     typeof(EditingCommands));
+		public static RoutedCommand CorrectSpellingError  { get; } = new RoutedCommand("CorrectSpellingError",  typeof(EditingCommands));
+		public static RoutedCommand IgnoreSpellingError   { get; } = new RoutedCommand("IgnoreSpellingError",   typeof(EditingCommands));
 	}
 }

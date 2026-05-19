@@ -366,6 +366,9 @@ namespace System.Windows.Documents
 
     internal sealed class SpellingError
     {
+        internal ITextPointer? Start => null;
+        internal ITextPointer? End => null;
+        internal System.Collections.Generic.IEnumerable<string> Suggestions => System.Linq.Enumerable.Empty<string>();
     }
 
     internal sealed class Speller
@@ -404,14 +407,7 @@ namespace System.Windows.Documents
         Redo,
     }
 
-    internal static class TextEditorMouse
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-        internal static void OnMouseDown(object scope, MouseButtonEventArgs e) { }
-        internal static void OnMouseMove(object scope, MouseEventArgs e) { }
-        internal static void OnMouseUp(object scope, MouseButtonEventArgs e) { }
-        internal static void OnQueryCursor(object scope, QueryCursorEventArgs e) { }
-    }
+    // TextEditorMouse stub removed in Session 17; upstream TextEditorMouse.cs is now active.
 
     internal static class TextEditorTyping
     {
@@ -439,26 +435,15 @@ namespace System.Windows.Documents
         internal static void OnLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) { }
     }
 
-    internal static class TextEditorLists
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-    }
-
-    internal static class TextEditorParagraphs
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool acceptsRichContent, bool registerEventListeners) { }
-    }
+    // TextEditorLists stub removed in Session 17; upstream TextEditorLists.cs is now active.
+    // TextEditorParagraphs stub removed in Session 17; upstream TextEditorParagraphs.cs is now active.
 
     internal static class TextEditorCopyPaste
     {
         internal static void _RegisterClassHandlers(Type controlType, bool acceptsRichContent, bool readOnly, bool registerEventListeners) { }
     }
 
-    internal static class TextEditorContextMenu
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-        internal static void OnContextMenuOpening(object scope, ContextMenuEventArgs e) { }
-    }
+    // TextEditorContextMenu stub removed in Session 17; upstream TextEditorContextMenu.cs is now active.
 
     internal static class TextEditorSpelling
     {
@@ -474,8 +459,10 @@ namespace System.Windows.Documents
         {
             internal _DragDropProcess(TextEditor textEditor) { }
 
-            internal void SourceOnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e) { }
-            internal void SourceOnMouseMove(System.Windows.Input.MouseEventArgs e) { }
+            internal bool SourceOnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e) => false;
+            internal bool SourceOnMouseLeftButtonDown(Point mouseDownPoint) => false;
+            internal bool SourceOnMouseMove(System.Windows.Input.MouseEventArgs e) => false;
+            internal bool SourceOnMouseMove(Point mouseMovePoint) => false;
             internal void SourceOnMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
             internal void DoMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
             internal void SourceOnQueryContinueDrag(System.Windows.QueryContinueDragEventArgs e) { }
@@ -496,10 +483,7 @@ namespace System.Windows.Documents
         internal static void OnDrop(object scope, System.Windows.DragEventArgs e) { }
     }
 
-    internal static class TextEditorTables
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-    }
+    // TextEditorTables stub removed in Session 17; upstream TextEditorTables.cs is now active.
 
     internal sealed class TextRangeEditTables
     {
@@ -665,6 +649,9 @@ namespace System.Windows.Documents
         internal sealed class TableColumnResizeInfo
         {
             internal void DisposeAdorner() { }
+            internal void ResizeColumn(double newWidth) { }
+            internal void ResizeColumn(Point pt) { }
+            internal void UpdateAdorner(Point pt) { }
         }
     }
 

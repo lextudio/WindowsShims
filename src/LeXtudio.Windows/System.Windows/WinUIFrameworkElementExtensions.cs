@@ -44,6 +44,7 @@ public static class WinUIFrameworkElementExtensions
     extension(Microsoft.UI.Xaml.UIElement self)
     {
         public bool IsKeyboardFocusWithin => false;
+        public bool IsEnabled => true;
     }
 
     // BitmapEffectProperty is obsolete in WinUI; backing field + static extension so
@@ -61,5 +62,36 @@ public static class WinUIFrameworkElementExtensions
     {
         public static DependencyProperty BitmapEffectProperty => s_bitmapEffectProperty;
         public static System.Windows.RoutedEvent LostFocusEvent => s_lostFocusEvent;
+    }
+
+    private static readonly DependencyProperty s_contextMenuProperty =
+        DependencyProperty.Register(
+            "ContextMenu",
+            typeof(System.Windows.Controls.ContextMenu),
+            typeof(Microsoft.UI.Xaml.FrameworkElement),
+            new Microsoft.UI.Xaml.PropertyMetadata(null));
+
+    private static readonly System.Windows.RoutedEvent s_contextMenuOpeningEvent = new();
+    private static readonly System.Windows.RoutedEvent s_contextMenuClosingEvent = new();
+
+    extension(Microsoft.UI.Xaml.FrameworkElement)
+    {
+        public static DependencyProperty ContextMenuProperty => s_contextMenuProperty;
+        public static System.Windows.RoutedEvent ContextMenuOpeningEvent => s_contextMenuOpeningEvent;
+        public static System.Windows.RoutedEvent ContextMenuClosingEvent => s_contextMenuClosingEvent;
+    }
+
+    extension(Microsoft.UI.Xaml.FrameworkElement self)
+    {
+        public System.Windows.Controls.ContextMenu? ContextMenu
+        {
+            get => self.GetValue(s_contextMenuProperty) as System.Windows.Controls.ContextMenu;
+            set => self.SetValue(s_contextMenuProperty, value);
+        }
+
+        public bool Focusable => true;
+
+        public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
+            => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));
     }
 }
