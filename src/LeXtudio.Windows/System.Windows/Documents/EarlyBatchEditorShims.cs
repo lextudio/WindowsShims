@@ -589,19 +589,11 @@ namespace System.Windows.Documents
 
             for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
             {
-                var row = new TableRow
-                {
-                    RowGroup = rowGroup,
-                    Index = rowIndex,
-                };
+                var row = new TableRow();
 
                 for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
                 {
-                    var cell = new TableCell
-                    {
-                        Row = row,
-                        ColumnIndex = columnIndex,
-                    };
+                    var cell = new TableCell();
                     row.Cells.Add(cell);
                 }
 

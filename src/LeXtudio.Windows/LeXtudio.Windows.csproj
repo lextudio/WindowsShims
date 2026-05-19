@@ -586,13 +586,13 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
 
     <!-- Table*.cs glob — keep shim-replaced types blocked; TableColumn/TableColumnCollection are used by undo units so enabled separately -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Table.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCell.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableCellCollection.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRow.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowCollection.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroup.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TableRowGroupCollection.cs" />
+    <!-- Table.cs: WPF enabled (Session 23). -->
+    <!-- TableCell.cs: WPF enabled (Session 23). -->
+    <!-- TableCellCollection.cs: WPF enabled (Session 23). -->
+    <!-- TableRow.cs: WPF enabled (Session 23). -->
+    <!-- TableRowCollection.cs: WPF enabled (Session 23). -->
+    <!-- TableRowGroup.cs: WPF enabled (Session 23). -->
+    <!-- TableRowGroupCollection.cs: WPF enabled (Session 23). -->
 
     <!-- ITextPointer.cs: WPF internal interface — enabled; shim ITextPointer.cs replaced with stub -->
     <!-- TextElement.cs: WPF enabled; local shim deleted; TextElement.uno.cs has Uno-specific additions -->

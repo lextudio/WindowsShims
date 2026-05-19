@@ -50,6 +50,10 @@ public partial class FrameworkContentElement : DependencyObject
 
     public bool IsInitialized => true;
 
+    // Called by the WPF tree machinery when an element gets a new logical parent.
+    // TableRow, TableCell, and TableRowGroup override this to wire up parent references.
+    internal virtual void OnNewParent(DependencyObject newParent) { }
+
     // WPF's xml:lang / language property; used by TextRangeSerialization for special-casing xml:lang attribute.
     public static readonly DependencyProperty LanguageProperty =
         DependencyProperty.Register("Language", typeof(System.Windows.Markup.XmlLanguage), typeof(FrameworkContentElement), null);

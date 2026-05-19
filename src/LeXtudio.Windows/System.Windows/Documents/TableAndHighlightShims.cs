@@ -1,67 +1,7 @@
 namespace System.Windows.Documents;
 
-// Early-batch placeholders for table and highlight subsystems while upstream
-// TextRange/TextSelection are being enabled incrementally.
-public class Table : Block, MS.Internal.Documents.IAcceptInsertion
-{
-    private readonly TableRowGroupCollection _rowGroups;
-
-    public Table()
-    {
-        _rowGroups = new TableRowGroupCollection();
-        _rowGroups.Add(new TableRowGroup());
-        Columns = new TableColumnCollection(this);
-    }
-
-    public TableRowGroupCollection RowGroups => _rowGroups;
-
-    public TableColumnCollection Columns { get; }
-
-    internal void InvalidateColumns() { }
-
-    int MS.Internal.Documents.IAcceptInsertion.InsertionIndex { get; set; }
-}
-
-public sealed class TableRowGroupCollection : List<TableRowGroup>
-{
-}
-
-public class TableRowGroup : TextElement
-{
-    private readonly TableRowCollection _rows = new();
-
-    public TableRowCollection Rows => _rows;
-}
-
-public sealed class TableRowCollection : List<TableRow>
-{
-}
-
-public class TableRow : TextElement
-{
-    private readonly TableCellCollection _cells = new();
-
-    public TableRowGroup? RowGroup { get; set; }
-
-    public int Index { get; set; }
-
-    public TableCellCollection Cells => _cells;
-}
-
-public class TableCell : TextElement
-{
-    public TableRow? Row { get; set; }
-
-    public int RowSpan { get; set; } = 1;
-
-    public int ColumnSpan { get; set; } = 1;
-
-    public int ColumnIndex { get; set; }
-}
-
-public sealed class TableCellCollection : List<TableCell>
-{
-}
+// Table* stubs removed in Session 23 — upstream Table.cs, TableRow.cs, TableCell.cs,
+// TableRowGroup.cs, and collection files promoted from ext/wpf.
 
 internal sealed class HighlightsCollection
 {
