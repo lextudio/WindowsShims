@@ -571,12 +571,10 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorDragDrop.cs" />
     <!-- TextEditorMouse.cs: WPF enabled (Session 17). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs" />
-    <!-- TextEditorTyping.cs: deferred — heavy IME. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorTyping.cs" />
+    <!-- TextEditorTyping.cs: WPF enabled (Session 18). -->
     <!-- TextEditorTables.cs: WPF enabled (Session 17). -->
     <!-- TextEditorLists.cs: WPF enabled (Session 17). -->
-    <!-- TextEditorSelection.cs: deferred — large, selection-rendering. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSelection.cs" />
+    <!-- TextEditorSelection.cs: WPF enabled (Session 18). -->
     <!-- TextRangeEditLists.cs: WPF enabled; local stub deleted. -->
     <Compile Remove="System.Windows\Documents\TextRangeEditLists.cs" />
 

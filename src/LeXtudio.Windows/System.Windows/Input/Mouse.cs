@@ -11,6 +11,8 @@ namespace System.Windows.Input
         public static readonly System.Windows.RoutedEvent MouseDownEvent = new();
         public static readonly System.Windows.RoutedEvent MouseMoveEvent = new();
         public static readonly System.Windows.RoutedEvent MouseUpEvent = new();
+        public static readonly System.Windows.RoutedEvent MouseLeaveEvent = new();
+        public static readonly System.Windows.RoutedEvent MouseEnterEvent = new();
 
         public static void Capture(IInputElement element)
         {

@@ -18,6 +18,7 @@ namespace System.Windows
         public static bool MouseWheelTextSelectionEnabled => true;
         public static bool MouseHoverTimeEnabled => true;
         public static int MenuShowDelay => 400;
+        public static bool MouseVanish => false;
     }
 
     public static class SafeSystemMetrics
@@ -80,9 +81,12 @@ namespace MS.Win32
     }
 }
 
-// Stub namespace; TextEditorContextMenu.cs imports it but the shim build
-// never calls into HwndSource or any other Interop type.
+// Stub namespace; TextEditorContextMenu.cs and TextEditorTyping.cs import these.
 namespace System.Windows.Interop
+{
+}
+
+namespace MS.Internal.Interop
 {
 }
 

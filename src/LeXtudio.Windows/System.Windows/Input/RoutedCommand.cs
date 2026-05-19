@@ -75,6 +75,9 @@ namespace System.Windows.Input
 				}
 			}
 		}
+
+        public bool CanExecute(object parameter, object target) => CanExecute(parameter);
+        public void Execute(object parameter, object target) => Execute(parameter);
 #pragma warning disable 67
 		public event EventHandler CanExecuteChanged { add { } remove { } }
 #pragma warning restore 67

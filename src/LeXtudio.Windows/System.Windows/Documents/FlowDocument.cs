@@ -25,4 +25,7 @@ public sealed class FlowDocument : TextElement
         get => _owner;
         set => _owner = value;
     }
+
+    public static readonly DependencyProperty FlowDirectionProperty =
+        Microsoft.UI.Xaml.FrameworkElement.FlowDirectionProperty;
 }

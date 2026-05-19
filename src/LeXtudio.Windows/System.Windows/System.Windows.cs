@@ -75,11 +75,22 @@ namespace System.Windows
         public const string Html        = "Html";
     }
 
+    public sealed class SourceChangedEventArgs : EventArgs
+    {
+        public PresentationSource NewSource { get; init; }
+        public PresentationSource OldSource { get; init; }
+    }
+
+    public delegate void SourceChangedEventHandler(object sender, SourceChangedEventArgs args);
+
     public class PresentationSource
     {
         public Media.CompositionTarget CompositionTarget { get; set; }
 
         public static PresentationSource FromVisual(Visual visual) => null;
+        public static PresentationSource CriticalFromVisual(object visual) => null;
+        public static void AddSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
+        public static void RemoveSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
     }
 
     /// <summary>Portable shim for System.Windows.FontStretches.</summary>
@@ -118,11 +129,23 @@ namespace System.Windows
         public static DependencyObject GetFocusScope(DependencyObject element) => element;
     }
 
+    public sealed class InputLanguageEventArgs : EventArgs
+    {
+        public global::System.Globalization.CultureInfo NewLanguage { get; init; }
+            = global::System.Globalization.CultureInfo.CurrentCulture;
+        public global::System.Globalization.CultureInfo PreviousLanguage { get; init; }
+            = global::System.Globalization.CultureInfo.CurrentCulture;
+    }
+
+    public delegate void InputLanguageEventHandler(object sender, InputLanguageEventArgs e);
+
     public sealed class InputLanguageManager
     {
         public static InputLanguageManager Current { get; } = new();
 
         public global::System.Globalization.CultureInfo CurrentInputLanguage { get; set; }
             = global::System.Globalization.CultureInfo.CurrentCulture;
+
+        public event InputLanguageEventHandler InputLanguageChanged;
     }
 }

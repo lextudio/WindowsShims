@@ -53,6 +53,9 @@ public sealed class Dispatcher
 
     public void BeginInvoke(DispatcherPriority priority, System.Windows.Threading.DispatcherOperationCallback callback, object? arg) =>
         callback(arg);
+
+    public event EventHandler ShutdownFinished;
+    public event EventHandler ShutdownStarted;
 }
 
 public struct DispatcherProcessingDisabled : IDisposable

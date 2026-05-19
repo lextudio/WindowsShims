@@ -120,6 +120,61 @@ internal static class SR
     internal const string KeyApplyOneAndAHalfSpaceDisplayString = "KeyApplyOneAndAHalfSpaceDisplayString";
     internal const string KeyApplyDoubleSpaceDisplayString = "KeyApplyDoubleSpaceDisplayString";
 
+    // TextEditorTyping display strings
+    internal const string KeyCorrectionList               = nameof(KeyCorrectionList);
+    internal const string KeyCorrectionListDisplayString  = nameof(KeyCorrectionListDisplayString);
+    internal const string KeyToggleInsertDisplayString    = nameof(KeyToggleInsertDisplayString);
+    internal const string KeyDeleteDisplayString          = nameof(KeyDeleteDisplayString);
+    internal const string KeyDeleteNextWordDisplayString  = nameof(KeyDeleteNextWordDisplayString);
+    internal const string KeyDeletePreviousWordDisplayString = nameof(KeyDeletePreviousWordDisplayString);
+    internal const string KeyEnterParagraphBreakDisplayString = nameof(KeyEnterParagraphBreakDisplayString);
+    internal const string KeyEnterLineBreakDisplayString  = nameof(KeyEnterLineBreakDisplayString);
+    internal const string KeyTabForwardDisplayString      = nameof(KeyTabForwardDisplayString);
+    internal const string KeyTabBackwardDisplayString     = nameof(KeyTabBackwardDisplayString);
+    internal const string KeySpaceDisplayString           = nameof(KeySpaceDisplayString);
+    internal const string KeyShiftSpaceDisplayString      = nameof(KeyShiftSpaceDisplayString);
+    internal const string KeyBackspaceDisplayString       = nameof(KeyBackspaceDisplayString);
+    internal const string KeyShiftBackspaceDisplayString  = nameof(KeyShiftBackspaceDisplayString);
+
+    // TextEditorSelection display strings
+    internal const string KeyMoveLeftByCharacterDisplayString  = nameof(KeyMoveLeftByCharacterDisplayString);
+    internal const string KeyMoveRightByCharacterDisplayString = nameof(KeyMoveRightByCharacterDisplayString);
+    internal const string KeyMoveLeftByWordDisplayString       = nameof(KeyMoveLeftByWordDisplayString);
+    internal const string KeyMoveRightByWordDisplayString      = nameof(KeyMoveRightByWordDisplayString);
+    internal const string KeyMoveToLineStartDisplayString      = nameof(KeyMoveToLineStartDisplayString);
+    internal const string KeyMoveToLineEndDisplayString        = nameof(KeyMoveToLineEndDisplayString);
+    internal const string KeyMoveUpByLineDisplayString         = nameof(KeyMoveUpByLineDisplayString);
+    internal const string KeyMoveDownByLineDisplayString       = nameof(KeyMoveDownByLineDisplayString);
+    internal const string KeyMoveUpByPageDisplayString         = nameof(KeyMoveUpByPageDisplayString);
+    internal const string KeyMoveDownByPageDisplayString       = nameof(KeyMoveDownByPageDisplayString);
+    internal const string KeyMoveToDocumentStartDisplayString  = nameof(KeyMoveToDocumentStartDisplayString);
+    internal const string KeyMoveToDocumentEndDisplayString    = nameof(KeyMoveToDocumentEndDisplayString);
+    internal const string KeyMoveUpByParagraphDisplayString    = nameof(KeyMoveUpByParagraphDisplayString);
+    internal const string KeyMoveDownByParagraphDisplayString  = nameof(KeyMoveDownByParagraphDisplayString);
+    internal const string KeyMoveToColumnStartDisplayString    = nameof(KeyMoveToColumnStartDisplayString);
+    internal const string KeyMoveToColumnEndDisplayString      = nameof(KeyMoveToColumnEndDisplayString);
+    internal const string KeyMoveToWindowTopDisplayString      = nameof(KeyMoveToWindowTopDisplayString);
+    internal const string KeyMoveToWindowBottomDisplayString   = nameof(KeyMoveToWindowBottomDisplayString);
+    internal const string KeySelectLeftByCharacterDisplayString  = nameof(KeySelectLeftByCharacterDisplayString);
+    internal const string KeySelectRightByCharacterDisplayString = nameof(KeySelectRightByCharacterDisplayString);
+    internal const string KeySelectLeftByWordDisplayString       = nameof(KeySelectLeftByWordDisplayString);
+    internal const string KeySelectRightByWordDisplayString      = nameof(KeySelectRightByWordDisplayString);
+    internal const string KeySelectToLineStartDisplayString      = nameof(KeySelectToLineStartDisplayString);
+    internal const string KeySelectToLineEndDisplayString        = nameof(KeySelectToLineEndDisplayString);
+    internal const string KeySelectUpByLineDisplayString         = nameof(KeySelectUpByLineDisplayString);
+    internal const string KeySelectDownByLineDisplayString       = nameof(KeySelectDownByLineDisplayString);
+    internal const string KeySelectUpByPageDisplayString         = nameof(KeySelectUpByPageDisplayString);
+    internal const string KeySelectDownByPageDisplayString       = nameof(KeySelectDownByPageDisplayString);
+    internal const string KeySelectToDocumentStartDisplayString  = nameof(KeySelectToDocumentStartDisplayString);
+    internal const string KeySelectToDocumentEndDisplayString    = nameof(KeySelectToDocumentEndDisplayString);
+    internal const string KeySelectUpByParagraphDisplayString    = nameof(KeySelectUpByParagraphDisplayString);
+    internal const string KeySelectDownByParagraphDisplayString  = nameof(KeySelectDownByParagraphDisplayString);
+    internal const string KeySelectToColumnStartDisplayString    = nameof(KeySelectToColumnStartDisplayString);
+    internal const string KeySelectToColumnEndDisplayString      = nameof(KeySelectToColumnEndDisplayString);
+    internal const string KeySelectToWindowTopDisplayString      = nameof(KeySelectToWindowTopDisplayString);
+    internal const string KeySelectToWindowBottomDisplayString   = nameof(KeySelectToWindowBottomDisplayString);
+    internal const string KeySelectAllDisplayString              = nameof(KeySelectAllDisplayString);
+
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);

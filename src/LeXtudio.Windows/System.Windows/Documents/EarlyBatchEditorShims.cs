@@ -219,6 +219,7 @@ namespace MS.Win32
         internal static int GetKeyboardLayoutList(int nBuff, IntPtr[]? lpList) => 0;
 
         internal static bool GetStringTypeEx(uint locale, uint dwInfoType, ReadOnlySpan<char> lpSrcStr, Span<ushort> lpCharType) => false;
+        internal static int ShowCursor(bool show) => 0;
     }
 
     internal static partial class UnsafeNativeMethods
@@ -276,6 +277,8 @@ namespace System.Windows.Documents
     internal sealed class TextServicesHost
     {
         public static TextServicesHost? Current => null;
+        public static void StartTransitoryExtension(object? textStore) { }
+        public static void StopTransitoryExtension(object? textStore) { }
     }
 
     internal sealed class CaretElement
@@ -409,31 +412,8 @@ namespace System.Windows.Documents
 
     // TextEditorMouse stub removed in Session 17; upstream TextEditorMouse.cs is now active.
 
-    internal static class TextEditorTyping
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-        internal static void OnPreviewKeyDown(object scope, KeyEventArgs e) { }
-        internal static void OnKeyDown(object scope, KeyEventArgs e) { }
-        internal static void OnKeyUp(object scope, KeyEventArgs e) { }
-        internal static void OnTextInput(object scope, TextCompositionEventArgs e) { }
-
-        // Called from TextEditor lifecycle hooks; no-ops in the shim.
-        internal static void _AddInputLanguageChangedEventHandler(TextEditor This) { }
-        internal static void _RemoveInputLanguageChangedEventHandler(TextEditor This) { }
-        internal static void _BreakTypingSequence(TextEditor This) { }
-        internal static void _FlushPendingInputItems(TextEditor This) { }
-        internal static void _ShowCursor() { }
-    }
-
-    internal static class TextEditorSelection
-    {
-        internal static bool IsPaginated(ITextView textView) => false;
-
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-        internal static void _ClearSuggestedX(TextEditor This) { }
-        internal static void OnGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) { }
-        internal static void OnLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) { }
-    }
+    // TextEditorTyping stub removed in Session 18; upstream TextEditorTyping.cs is now active.
+    // TextEditorSelection stub removed in Session 18; upstream TextEditorSelection.cs is now active.
 
     // TextEditorLists stub removed in Session 17; upstream TextEditorLists.cs is now active.
     // TextEditorParagraphs stub removed in Session 17; upstream TextEditorParagraphs.cs is now active.

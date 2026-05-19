@@ -72,7 +72,7 @@ public class RichTextBox : TextBoxBase, IAddChild
         }
     }
 
-    public TextEditorShim TextEditor { get; } = new();
+    internal Documents.TextEditor TextEditor => null;
 
     public virtual TextPointer? GetPositionFromPoint(Point point, bool snapToText)
         => snapToText ? Document.ContentEnd : null;
@@ -234,4 +234,5 @@ public class RichTextBox : TextBoxBase, IAddChild
 public sealed class TextEditorShim
 {
     internal MS.Internal.Documents.UndoManager? _GetUndoManager() => null;
+
 }

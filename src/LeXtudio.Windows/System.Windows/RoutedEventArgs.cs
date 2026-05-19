@@ -14,5 +14,7 @@ namespace System.Windows
 
         public RoutedEvent? RoutedEvent { get; set; }
         public object? Source { get; set; }
+        public object? OriginalSource { get; set; }
+        public bool Handled { get; set; }
     }
 }

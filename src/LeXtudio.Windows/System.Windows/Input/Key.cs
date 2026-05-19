@@ -29,5 +29,14 @@ namespace System.Windows.Input
 		M = 77, N = 78, O = 79, P = 80, Q = 81, R = 82,
 		S = 83, T = 84, U = 85, V = 86, W = 87, X = 88,
 		Y = 89, Z = 90,
+        // Modifier keys
+        LeftShift   = 160,
+        RightShift  = 161,
+        LeftCtrl    = 162,
+        RightCtrl   = 163,
+        LeftAlt     = 164,
+        RightAlt    = 165,
+        // IME
+        ImeProcessed = 229,
 	}
 }
