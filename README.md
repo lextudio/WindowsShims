@@ -1,5 +1,7 @@
 # LeXtudio.Windows
 
+[![NuGet](https://img.shields.io/nuget/v/LeXtudio.Windows.svg?label=LeXtudio.Windows&&style=flat-square)](https://www.nuget.org/packages/LeXtudio.Windows)
+
 A compatibility library providing WPF namespace shims for the **Uno Platform**, enabling straightforward porting of WPF code without source modification.
 
 ## Overview
@@ -33,24 +35,23 @@ Install-Package LeXtudio.Windows
 ## What's Included
 
 ### System.Windows
-- `FontFamily` — font family metadata
-- `FontWeight` — weight definitions (Normal, Bold, etc.)
-- `FontStyle` — font style definitions (Normal, Italic, Oblique)
-- `FlowDirection` — text flow direction (LeftToRight, RightToLeft)
-- `TextAlignment` — text alignment options
-- `LineBreakCondition` — line breaking rules
-- `IWeakEventListener` — weak event pattern support
-- And additional typography and measurement types
+- WPF-compatible core types and runtime helpers including `DependencyObject`, `FrameworkElement`, `DependencyProperty`, `RoutedEvent`, `RoutedCommand`, and `IWeakEventListener`
+- Clipboard and input support via `DataObject`, `DataFormats`, `Keyboard`, `Mouse`, `CommandBinding`, and `IInputElement`
+- Platform-friendly helpers such as `Dispatcher`, `SystemFonts`, `SystemColors`, `FocusManager`, and `InputLanguageManager`
 
 ### System.Windows.Media
-- `TextRenderingMode` — text rendering quality settings
-- `TextFormattingMode` — text formatting options
-- `NumberSubstitution` — number substitution rules
-- Supporting color, brush, and text measurement types
+- WinUI-backed media helpers for `Brushes`, `Colors`, `ImageSource`, `Pen`, and `Matrix`
+- Text layout and formatting support with `Typeface`, `FormattedText`, `DrawingContext`, `CompositionTarget`, and `NumberSubstitution`
+- Rich text styling via `TextDecorations`, `TextDecorationCollection`, `TextEffect`, and text formatting helpers
 
 ### System.Windows.Documents
-- `TextDecorations` — underline, strikethrough, etc.
-- `TextDecoration` — individual text decoration support
+- Rich document model elements like `FlowDocument`, `Paragraph`, `Run`, `Span`, `Hyperlink`, and `Table`
+- Editing and selection types including `TextRange`, `TextPointer`, `TextSelection`, `TextElement`, `TextContainer`, `List`, and `ListItem`
+- Serialization and document interoperability helpers for XAML/RTF scenarios
+
+### System.Windows.Markup and Controls
+- XAML serialization helpers such as `XamlReader`, `XamlWriter`, and `XamlDesignerSerializationManager`
+- Control shims and bridge extensions including `RichTextBox`, `TextBlock` extensions, `Image`, `PanelShims`, and WinUI interoperability helpers
 
 ## Usage Example
 
@@ -100,7 +101,8 @@ For complex text layout or specialized rendering, defer to platform-specific API
 
 ## Related Projects
 
-- **[UnoEdit](https://github.com/lextudio/unoedit)** — Code editor for Uno Platform and WinUI
+- **[UnoRichText](https://github.com/lextudio/UnoRichText)** — Cross platform rich text controls. Ported from RichTextBox (WPF).
+- **[UnoEdit](https://github.com/lextudio/unoedit)** — Code editor for Uno Platform and WinUI. Ported from AvalonEdit (WPF).
 
 ## License
 
@@ -108,4 +110,4 @@ MIT — See LICENSE file in the repository.
 
 ## Contributing
 
-Found an issue or missing type? Contributions welcome! Please file an issue or submit a PR to the [UnoEdit](https://github.com/lextudio/unoedit) repository.
+Found an issue or missing type? Contributions welcome! Please file an issue or submit a PR to the [this repo](https://github.com/lextudio/WindowsShims) repository.
