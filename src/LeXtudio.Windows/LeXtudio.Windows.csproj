@@ -559,7 +559,7 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextStore.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ImmComposition.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeSerialization.cs" />
+    <!-- TextRangeSerialization.cs: WPF enabled (Session 20). -->
     <!-- TextMapOffsetErrorLogger.cs: deferred — part of spell-check infra, kept out for now. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextMapOffsetErrorLogger.cs" />
 
@@ -630,7 +630,7 @@
     <!-- DPTypeDescriptorContext migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEffectResolver.cs" />
     <!-- SplayTreeNode migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCharacters.cs" />
+    <!-- TextEditorCharacters.cs: WPF enabled (Session 20). -->
     <!-- TextEditorParagraphs.cs: WPF enabled (Session 17). -->
     <!-- TextTree undo/dump files needing WPF TextContainer or TextPointer: re-blocked until steps 5+7. -->
     <!-- Node files (TextTreeNode, ObjectNode, etc.) must compile now because SplayTreeNode.cs references them. -->

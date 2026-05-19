@@ -37,4 +37,14 @@ namespace System.Windows.Media.Imaging
 	{
 		public static BitmapSource Create(System.IO.Stream stream) => new BitmapSource();
 	}
+
+	// Shim for WPF BitmapImage; used by TextRangeSerialization for image embedding in XAML packages.
+	// The image-serialization path is gated #if !HAS_UNO; these stubs just satisfy the compiler.
+	public class BitmapImage : BitmapSource
+	{
+		public static readonly DependencyProperty UriSourceProperty =
+			DependencyProperty.Register("UriSource", typeof(Uri), typeof(BitmapImage), null);
+		public static readonly DependencyProperty CacheOptionProperty =
+			DependencyProperty.Register("CacheOption", typeof(object), typeof(BitmapImage), null);
+	}
 }

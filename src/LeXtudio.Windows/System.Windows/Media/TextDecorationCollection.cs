@@ -29,6 +29,17 @@ namespace System.Windows.Media
         public bool Remove(TextDecoration item) => _items.Remove(item);
         public void RemoveAt(int index) => _items.RemoveAt(index);
 
+        // WPF TryRemove: removes decorations matching toRemove and returns the modified collection.
+        // Returns false if nothing was removed (caller should then add instead).
+        public bool TryRemove(TextDecorationCollection toRemove, out TextDecorationCollection result)
+        {
+            var before = Count;
+            foreach (var dec in (toRemove ?? Empty))
+                _items.RemoveAll(d => d.Location == dec.Location);
+            result = this;
+            return Count < before;
+        }
+
         public bool ValueEquals(TextDecorationCollection? other)
         {
             if (other is null) return Count == 0;

@@ -12,6 +12,10 @@ public static class WinUIDependencyPropertyExtensions
     // and a GlobalIndex property to Microsoft.UI.Xaml.DependencyProperty.
     extension(Microsoft.UI.Xaml.DependencyProperty)
     {
+        // WPF DependencyProperty.FromName: look up a DP by name on a type.
+        // Not supported by WinUI; return null (serialization-only path, gated at entry).
+        public static Microsoft.UI.Xaml.DependencyProperty? FromName(string name, Type ownerType) => null;
+
         public static Microsoft.UI.Xaml.DependencyProperty Register(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
@@ -35,6 +39,10 @@ public static class WinUIDependencyPropertyExtensions
         public bool IsValidValue(object? value) => true;
 
         public bool ReadOnly => false;
+
+        // WPF OwnerType: the type that originally registered the property.
+        // Not tracked by WinUI; return null as shim (serialization-only path).
+        public Type? OwnerType => null;
 
         // WPF DependencyProperty.GetDefaultValue(Type) — returns the registered
         // default for that owner type. WinUI exposes PropertyMetadata.DefaultValue

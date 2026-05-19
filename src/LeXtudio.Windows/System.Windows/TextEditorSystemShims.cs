@@ -33,6 +33,18 @@ namespace System.Windows
 
 namespace System.Windows.Markup
 {
+    // Stub: WPF XAML type-mapping infrastructure; passed through TextRangeSerialization but never called.
+    public class XamlTypeMapper
+    {
+        public static readonly XamlTypeMapper Default = new XamlTypeMapper();
+    }
+
+    // Stub: provides the default XamlTypeMapper for XAML serialization.
+    public static class XmlParserDefaults
+    {
+        public static XamlTypeMapper DefaultMapper { get; } = XamlTypeMapper.Default;
+    }
+
     public sealed class XmlLanguage
     {
         public string IetfLanguageTag { get; }

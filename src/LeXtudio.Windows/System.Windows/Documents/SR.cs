@@ -175,6 +175,34 @@ internal static class SR
     internal const string KeySelectToWindowBottomDisplayString   = nameof(KeySelectToWindowBottomDisplayString);
     internal const string KeySelectAllDisplayString              = nameof(KeySelectAllDisplayString);
 
+    // TextEditorCharacters display strings
+    internal const string KeyResetFormat                  = nameof(KeyResetFormat);
+    internal const string KeyResetFormatDisplayString     = nameof(KeyResetFormatDisplayString);
+    internal const string KeyToggleBold                   = nameof(KeyToggleBold);
+    internal const string KeyToggleBoldDisplayString      = nameof(KeyToggleBoldDisplayString);
+    internal const string KeyToggleItalic                 = nameof(KeyToggleItalic);
+    internal const string KeyToggleItalicDisplayString    = nameof(KeyToggleItalicDisplayString);
+    internal const string KeyToggleUnderline              = nameof(KeyToggleUnderline);
+    internal const string KeyToggleUnderlineDisplayString = nameof(KeyToggleUnderlineDisplayString);
+    internal const string KeyToggleSubscript              = nameof(KeyToggleSubscript);
+    internal const string KeyToggleSubscriptDisplayString = nameof(KeyToggleSubscriptDisplayString);
+    internal const string KeyToggleSuperscript            = nameof(KeyToggleSuperscript);
+    internal const string KeyToggleSuperscriptDisplayString = nameof(KeyToggleSuperscriptDisplayString);
+    internal const string KeyIncreaseFontSize             = nameof(KeyIncreaseFontSize);
+    internal const string KeyIncreaseFontSizeDisplayString = nameof(KeyIncreaseFontSizeDisplayString);
+    internal const string KeyDecreaseFontSize             = nameof(KeyDecreaseFontSize);
+    internal const string KeyDecreaseFontSizeDisplayString = nameof(KeyDecreaseFontSizeDisplayString);
+    internal const string KeyApplyFontSize                = nameof(KeyApplyFontSize);
+    internal const string KeyApplyFontSizeDisplayString   = nameof(KeyApplyFontSizeDisplayString);
+    internal const string KeyApplyFontFamily              = nameof(KeyApplyFontFamily);
+    internal const string KeyApplyFontFamilyDisplayString = nameof(KeyApplyFontFamilyDisplayString);
+    internal const string KeyApplyForeground              = nameof(KeyApplyForeground);
+    internal const string KeyApplyForegroundDisplayString = nameof(KeyApplyForegroundDisplayString);
+    internal const string KeyApplyBackground              = nameof(KeyApplyBackground);
+    internal const string KeyApplyBackgroundDisplayString = nameof(KeyApplyBackgroundDisplayString);
+    internal const string KeyToggleSpellCheck             = nameof(KeyToggleSpellCheck);
+    internal const string KeyToggleSpellCheckDisplayString = nameof(KeyToggleSpellCheckDisplayString);
+
     // TextEditorCopyPaste display strings
     internal const string KeyCutDisplayString         = nameof(KeyCutDisplayString);
     internal const string KeyCopyDisplayString        = nameof(KeyCopyDisplayString);

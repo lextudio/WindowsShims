@@ -53,6 +53,9 @@ namespace System.Windows.Documents
         internal static System.IO.MemoryStream SaveImage(System.Windows.Media.Imaging.BitmapSource bitmapSource, string contentType) => new System.IO.MemoryStream();
         internal static object LoadElement(System.IO.MemoryStream stream) => null;
         internal static string SaveRange(Documents.ITextRange range, ref System.IO.Stream? wpfContainerMemory, bool useFlowDocumentAsRoot) => string.Empty;
+        // AddImage: embed an image into the WPF payload package and return its URI string.
+        // No-op stub — image serialization is gated #if !HAS_UNO in TextRangeSerialization.
+        internal string? AddImage(object image) => null;
         public void Dispose() { }
     }
 }
