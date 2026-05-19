@@ -62,6 +62,8 @@ internal static class SR
     internal const string TextElementCollection_NoEnumerator = "TextElementCollection_NoEnumerator";
     internal const string TextElementCollection_PreviousSiblingDoesNotBelongToThisCollection = "TextElementCollection_PreviousSiblingDoesNotBelongToThisCollection: {0}";
     internal const string TextElementCollection_TextElementTypeExpected = "TextElementCollection_TextElementTypeExpected: {0}";
+    internal const string TextRange_UnsupportedDataFormat = "TextRange_UnsupportedDataFormat: {0}";
+    internal const string TextRange_UnrecognizedStructureInDataFormat = "TextRange_UnrecognizedStructureInDataFormat: {0}";
     internal const string NegativeValue = "NegativeValue";
     internal const string StartIndexExceedsBufferSize = "StartIndexExceedsBufferSize";
     internal const string MaxLengthExceedsBufferSize = "MaxLengthExceedsBufferSize";

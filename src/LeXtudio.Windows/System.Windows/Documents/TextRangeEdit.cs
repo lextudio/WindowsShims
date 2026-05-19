@@ -4,6 +4,10 @@ internal static class TextRangeEdit
 {
     internal static TextPointer SplitElement(TextPointer position) => position;
 
+    internal static void MergeFlowDirection(TextPointer position)
+    {
+    }
+
     internal static TextAlignment GetTextAlignmentFromHorizontalAlignment(HorizontalAlignment alignment)
         => alignment switch
         {

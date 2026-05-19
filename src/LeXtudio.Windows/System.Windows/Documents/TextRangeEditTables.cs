@@ -4,6 +4,16 @@ internal static class TextRangeEditTables
 {
     internal static TextPointer EnsureInsertionPosition(TextPointer pointer) => pointer;
 
+    internal static System.Collections.Generic.List<TextSegment> BuildTableRange(
+        TextPointer anchorPosition,
+        TextPointer movingPosition,
+        bool includeCellAtMovingPosition,
+        out bool isTableCellRange)
+    {
+        isTableCellRange = false;
+        return null!;
+    }
+
     internal static Table InsertTable(TextPointer insertionPosition, int rowCount, int columnCount)
     {
         var table = new Table();

@@ -511,6 +511,16 @@ namespace System.Windows.Documents
             return [new TextSegment(start, end)];
         }
 
+        internal static List<TextSegment> BuildTableRange(
+            TextPointer anchorPosition,
+            TextPointer movingPosition,
+            bool includeCellAtMovingPosition,
+            out bool isTableCellRange)
+        {
+            isTableCellRange = false;
+            return null;
+        }
+
         internal static void IdentifyValidBoundaries(ITextRange range, out ITextPointer start, out ITextPointer end)
         {
             start = range.Start;

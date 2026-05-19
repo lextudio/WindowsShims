@@ -606,7 +606,7 @@
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs" />
     <!-- TextContainer.cs: WPF enabled -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeBase.cs" />
+    <!-- TextRangeBase.cs: WPF enabled; stub previously in HyperlinkSupport.cs removed. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextNavigator.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\NullTextContainer.cs" />
 
