@@ -24,6 +24,20 @@ public static class WinUIDependencyObjectExtensions
 
         public LocalValueEnumerator GetLocalValueEnumerator() => new();
 
+        // WPF DependencyObject.GetValueSource — we only differentiate "Default"
+        // from "Local" via ReadLocalValue. Inheritance and styles aren't tracked.
+        public BaseValueSourceInternal GetValueSource(
+            Microsoft.UI.Xaml.DependencyProperty dp,
+            object? metadata,
+            out bool hasModifiers)
+        {
+            hasModifiers = false;
+            var local = self.ReadLocalValue(dp);
+            return local == Microsoft.UI.Xaml.DependencyProperty.UnsetValue
+                ? BaseValueSourceInternal.Default
+                : BaseValueSourceInternal.Local;
+        }
+
         // ── WPF-style routed event dispatch ───────────────────────────
         public void AddHandler(RoutedEvent routedEvent, Delegate handler)
         {

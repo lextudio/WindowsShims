@@ -597,7 +597,8 @@
     <!-- TextElementCollection.cs: WPF enabled. Uno partial in TextElementCollection.uno.cs adds INotifyCollectionChanged. -->
     <Compile Remove="System.Windows\Documents\TextElementCollection.cs" />
     <!-- TextPointer.cs: WPF enabled -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeEdit.cs" />
+    <!-- TextRangeEdit.cs: WPF enabled; local shim deleted. -->
+    <Compile Remove="System.Windows\Documents\TextRangeEdit.cs" />
     <!-- TextSchema.cs: WPF enabled; local shim deleted. -->
     <Compile Remove="System.Windows\Documents\TextSchema.cs" />
 

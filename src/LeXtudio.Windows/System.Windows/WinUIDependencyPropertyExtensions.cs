@@ -35,6 +35,16 @@ public static class WinUIDependencyPropertyExtensions
         public bool IsValidValue(object? value) => true;
 
         public bool ReadOnly => false;
+
+        // WPF DependencyProperty.GetDefaultValue(Type) — returns the registered
+        // default for that owner type. WinUI exposes PropertyMetadata.DefaultValue
+        // via GetMetadata; if no metadata is available we fall back to the
+        // type-system default.
+        public object? GetDefaultValue(Type forType)
+        {
+            var metadata = property.GetMetadata(forType);
+            return metadata?.DefaultValue;
+        }
     }
 
     extension(object value)
