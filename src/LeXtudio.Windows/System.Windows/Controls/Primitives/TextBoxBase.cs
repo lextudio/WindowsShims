@@ -29,6 +29,23 @@ public abstract class TextBoxBase : FrameworkElement
             typeof(TextBoxBase),
             new System.Windows.FrameworkPropertyMetadata(null));
 
+    public static readonly DependencyProperty AcceptsTabProperty =
+        DependencyProperty.Register(
+            nameof(AcceptsTab),
+            typeof(bool),
+            typeof(TextBoxBase),
+            new System.Windows.FrameworkPropertyMetadata(false));
+
+    public static readonly DependencyProperty IsReadOnlyCaretVisibleProperty =
+        DependencyProperty.Register(
+            nameof(IsReadOnlyCaretVisible),
+            typeof(bool),
+            typeof(TextBoxBase),
+            new System.Windows.FrameworkPropertyMetadata(false));
+
+    public bool AcceptsTab { get; set; }
+    public bool IsReadOnlyCaretVisible { get; set; }
+
     public bool IsReadOnly { get; set; }
 
     public double ViewportWidth { get; protected set; }

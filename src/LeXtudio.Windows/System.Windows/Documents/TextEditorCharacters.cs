@@ -6,4 +6,6 @@ internal static class TextEditorCharacters
 {
     internal const double OneFontPoint = 1.0;
     internal const double MaxFontPoint = 32767.0;
+
+    internal static void _RegisterClassHandlers(System.Type controlType, bool registerEventListeners) { }
 }

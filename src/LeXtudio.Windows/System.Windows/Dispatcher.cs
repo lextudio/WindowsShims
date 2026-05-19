@@ -22,6 +22,13 @@ public static class CoreDispatcherExtensions
         System.Threading.SendOrPostCallback callback,
         object? arg)
         => callback(arg);
+
+    public static void BeginInvoke(
+        this global::Windows.UI.Core.CoreDispatcher dispatcher,
+        DispatcherPriority priority,
+        System.Windows.Threading.DispatcherOperationCallback callback,
+        object? arg)
+        => callback(arg);
 }
 
 
@@ -42,6 +49,9 @@ public sealed class Dispatcher
         method.DynamicInvoke(arg);
 
     public void BeginInvoke(DispatcherPriority priority, System.Threading.SendOrPostCallback callback, object? arg) =>
+        callback(arg);
+
+    public void BeginInvoke(DispatcherPriority priority, System.Windows.Threading.DispatcherOperationCallback callback, object? arg) =>
         callback(arg);
 }
 

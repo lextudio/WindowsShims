@@ -560,11 +560,15 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ImmComposition.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextRangeSerialization.cs" />
+    <!-- TextMapOffsetErrorLogger.cs: deferred — part of spell-check infra, kept out for now. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextMapOffsetErrorLogger.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorContextMenu.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorCopyPaste.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditor.cs" />
+    <!-- TextEditor.cs: WPF enabled (Session 16). Sibling TextEditor*.cs helpers
+         remain excluded — local stubs provide the static-helper entry points
+         that TextEditor.cs calls. Spell-check helpers stay out per user
+         direction. -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorDragDrop.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorMouse.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs" />

@@ -18,5 +18,11 @@ namespace System.Windows.Input
 			Modifiers     = modifiers;
 			DisplayString = displayString ?? string.Empty;
 		}
+
+		// WPF helper that parses "Ctrl+Z" style gesture strings. Shim returns a
+		// gesture with no key; commands invoked through the shim won't dispatch
+		// on real keystrokes.
+		public static KeyGesture CreateFromResourceStrings(string keyGestureToken, string keyDisplayString)
+			=> new KeyGesture(Key.None, ModifierKeys.None, keyDisplayString ?? string.Empty);
 	}
 }

@@ -54,6 +54,12 @@ namespace System.Windows
     public class GiveFeedbackEventArgs : RoutedEventArgs
     {
     }
+
+    public class DragEventArgs : RoutedEventArgs
+    {
+    }
+
+    public delegate void DependencyPropertyChangedEventHandler(object sender, System.Windows.DependencyPropertyChangedEventArgs e);
 }
 
 namespace System.Windows.Documents
@@ -86,6 +92,8 @@ namespace System.Windows.Input
 
     public class KeyboardFocusChangedEventArgs : RoutedEventArgs
     {
+        public Microsoft.UI.Xaml.UIElement? NewFocus { get; init; }
+        public Microsoft.UI.Xaml.UIElement? OldFocus { get; init; }
     }
 
     public class Cursor
@@ -213,7 +221,7 @@ namespace MS.Win32
         internal static bool GetStringTypeEx(uint locale, uint dwInfoType, ReadOnlySpan<char> lpSrcStr, Span<ushort> lpCharType) => false;
     }
 
-    internal static class UnsafeNativeMethods
+    internal static partial class UnsafeNativeMethods
     {
         internal static int GetLocaleInfoW(int locale, int lcType, string lpLCData, int cchData) => 0;
 
@@ -258,27 +266,7 @@ namespace System.Windows
 
 namespace System.Windows.Documents
 {
-    internal class TextEditor
-    {
-        internal static readonly TextEditorThreadLocalStore _ThreadLocalStore = new();
-
-        internal TextEditor()
-        {
-        }
-
-        internal ITextSelection Selection => null;
-        internal TextContainer TextContainer { get; } = new(null, false);
-        internal FrameworkElement? UiScope { get; set; }
-        internal bool AcceptsRichContent { get; set; } = true;
-        internal bool IsContextMenuOpen { get; set; }
-        internal bool AutoWordSelection { get; set; }
-        internal bool IsReadOnly { get; set; }
-        internal bool IsReadOnlyCaretVisible { get; set; }
-        internal ITextView? TextView { get; set; }
-        internal TextStore? TextStore { get; set; }
-        internal ImmComposition? ImmComposition { get; set; }
-        internal object? _cursor;
-    }
+    // TextEditor stub removed in Session 16; upstream TextEditor.cs is now active.
 
     internal sealed partial class FormattingDependencyObject : DependencyObject
     {
@@ -397,6 +385,8 @@ namespace System.Windows.Documents
         }
 
         internal abstract void OnShutDown(object target, object sender, EventArgs e);
+
+        internal void StopListening() { }
     }
 
     [Flags]
@@ -429,6 +419,33 @@ namespace System.Windows.Documents
         internal static void OnKeyDown(object scope, KeyEventArgs e) { }
         internal static void OnKeyUp(object scope, KeyEventArgs e) { }
         internal static void OnTextInput(object scope, TextCompositionEventArgs e) { }
+
+        // Called from TextEditor lifecycle hooks; no-ops in the shim.
+        internal static void _AddInputLanguageChangedEventHandler(TextEditor This) { }
+        internal static void _RemoveInputLanguageChangedEventHandler(TextEditor This) { }
+        internal static void _BreakTypingSequence(TextEditor This) { }
+        internal static void _FlushPendingInputItems(TextEditor This) { }
+        internal static void _ShowCursor() { }
+    }
+
+    internal static class TextEditorSelection
+    {
+        internal const bool IsPaginated = false;
+
+        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
+        internal static void _ClearSuggestedX(TextEditor This) { }
+        internal static void OnGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) { }
+        internal static void OnLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) { }
+    }
+
+    internal static class TextEditorLists
+    {
+        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
+    }
+
+    internal static class TextEditorParagraphs
+    {
+        internal static void _RegisterClassHandlers(Type controlType, bool acceptsRichContent, bool registerEventListeners) { }
     }
 
     internal static class TextEditorCopyPaste
@@ -454,15 +471,28 @@ namespace System.Windows.Documents
     {
         internal sealed class _DragDropProcess
         {
+            internal _DragDropProcess(TextEditor textEditor) { }
+
+            internal void SourceOnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e) { }
+            internal void SourceOnMouseMove(System.Windows.Input.MouseEventArgs e) { }
+            internal void SourceOnMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
+            internal void DoMouseLeftButtonUp(System.Windows.Input.MouseButtonEventArgs e) { }
+            internal void SourceOnQueryContinueDrag(System.Windows.QueryContinueDragEventArgs e) { }
+            internal void SourceOnGiveFeedback(System.Windows.GiveFeedbackEventArgs e) { }
+            internal void TargetEnsureDragOverPreviewCursor(object sender, System.Windows.DragEventArgs e) { }
+            internal void TargetOnDragEnter(System.Windows.DragEventArgs e) { }
+            internal void TargetOnDragOver(System.Windows.DragEventArgs e) { }
+            internal void TargetOnDragLeave(System.Windows.DragEventArgs e) { }
+            internal void TargetOnDrop(System.Windows.DragEventArgs e) { }
         }
 
         internal static void _RegisterClassHandlers(Type controlType, bool readOnly, bool registerEventListeners) { }
-        internal static void OnQueryContinueDrag(object scope, QueryContinueDragEventArgs e) { }
-        internal static void OnGiveFeedback(object scope, GiveFeedbackEventArgs e) { }
-        internal static void OnDragEnter(object scope, DragEventArgs e) { }
-        internal static void OnDragOver(object scope, DragEventArgs e) { }
-        internal static void OnDragLeave(object scope, DragEventArgs e) { }
-        internal static void OnDrop(object scope, DragEventArgs e) { }
+        internal static void OnQueryContinueDrag(object scope, System.Windows.QueryContinueDragEventArgs e) { }
+        internal static void OnGiveFeedback(object scope, System.Windows.GiveFeedbackEventArgs e) { }
+        internal static void OnDragEnter(object scope, System.Windows.DragEventArgs e) { }
+        internal static void OnDragOver(object scope, System.Windows.DragEventArgs e) { }
+        internal static void OnDragLeave(object scope, System.Windows.DragEventArgs e) { }
+        internal static void OnDrop(object scope, System.Windows.DragEventArgs e) { }
     }
 
     internal static class TextEditorTables
@@ -633,6 +663,7 @@ namespace System.Windows.Documents
 
         internal sealed class TableColumnResizeInfo
         {
+            internal void DisposeAdorner() { }
         }
     }
 

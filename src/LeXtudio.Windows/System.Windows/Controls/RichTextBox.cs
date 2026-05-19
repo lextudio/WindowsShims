@@ -13,6 +13,15 @@ public class RichTextBox : TextBoxBase, IAddChild
     private FontWeight _typingFontWeight = FontWeights.Normal;
     private FontStyle _typingFontStyle = FontStyles.Normal;
 
+    public static readonly DependencyProperty AutoWordSelectionProperty =
+        DependencyProperty.Register(
+            nameof(AutoWordSelection),
+            typeof(bool),
+            typeof(RichTextBox),
+            new System.Windows.FrameworkPropertyMetadata(false));
+
+    public bool AutoWordSelection { get; set; }
+
     public RichTextBox()
         : this(null)
     {
