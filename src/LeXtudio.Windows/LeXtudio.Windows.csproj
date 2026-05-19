@@ -615,20 +615,20 @@
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowPosition.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FrameworkTextComposition.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FrameworkRichTextComposition.cs" />
+    <!-- FrameworkTextComposition.cs: WPF enabled (Session 21). -->
+    <!-- FrameworkRichTextComposition.cs: WPF enabled (Session 21). -->
     <!-- SelectionWordBreaker migrated to upstream -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFindEngine.cs" />
     <!-- TextTreeDeleteContentUndoUnit, ExtractElementUndoUnit, UndoUnit: WPF enabled -->
     <!-- UIElementPropertyUndoUnit migrated to upstream -->
     <!-- ChangeBlockUndoRecord migrated to upstream -->
     <!-- TextPointerBase.cs: WPF enabled -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextSelectionHighlightLayer.cs" />
+    <!-- TextSelectionHighlightLayer.cs: WPF enabled (Session 21). -->
     <!-- TextParentUndoUnit migrated to upstream -->
     <!-- TextElementEnumerator migrated to upstream -->
     <!-- TextContainerChangeEventArgs migrated to upstream -->
     <!-- DPTypeDescriptorContext migrated to upstream -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEffectResolver.cs" />
+    <!-- TextEffectResolver.cs: WPF enabled (Session 21). -->
     <!-- SplayTreeNode migrated to upstream -->
     <!-- TextEditorCharacters.cs: WPF enabled (Session 20). -->
     <!-- TextEditorParagraphs.cs: WPF enabled (Session 17). -->

@@ -98,34 +98,3 @@ internal sealed class HighlightsCollection
         return layer;
     }
 }
-
-internal sealed class TextSelectionHighlightLayer : HighlightLayer
-{
-    private readonly TextSelection _selection;
-
-    public TextSelectionHighlightLayer(TextSelection selection)
-    {
-        _selection = selection;
-    }
-
-    internal override object GetHighlightValue(StaticTextPointer textPosition, LogicalDirection direction)
-        => DependencyProperty.UnsetValue;
-
-    internal override bool IsContentHighlighted(StaticTextPointer textPosition, LogicalDirection direction)
-        => false;
-
-    internal override StaticTextPointer GetNextChangePosition(StaticTextPointer textPosition, LogicalDirection direction)
-        => StaticTextPointer.Null;
-
-    internal override Type OwnerType => typeof(TextSelection);
-
-    internal override event HighlightChangedEventHandler Changed
-    {
-        add
-        {
-        }
-        remove
-        {
-        }
-    }
-}

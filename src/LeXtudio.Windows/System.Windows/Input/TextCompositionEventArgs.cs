@@ -2,14 +2,34 @@ namespace System.Windows.Input
 {
     public delegate void TextCompositionEventHandler(object sender, TextCompositionEventArgs e);
 
-    public class TextComposition
+    public enum TextCompositionAutoComplete
     {
-        public object Owner { get; set; }
-        public string Text { get; set; } = string.Empty;
+        Off = 0,
+        On = 1,
     }
 
-    public class FrameworkTextComposition : TextComposition
+    // Stub: WPF's input dispatch manager. Only the constructor signature is needed
+    // since FrameworkTextComposition passes it to the base TextComposition ctor.
+    public class InputManager
     {
+        public static InputManager? Current => null;
+    }
+
+    public class TextComposition
+    {
+        public TextComposition() { }
+
+        // WPF ctor used by FrameworkTextComposition
+        internal TextComposition(InputManager? inputManager, IInputElement? source, string text, TextCompositionAutoComplete autoComplete)
+        {
+            Text = text ?? string.Empty;
+        }
+
+        public object? Owner { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public string CompositionText { get; set; } = string.Empty;
+
+        public virtual void Complete() { }
     }
 
     public static class TextCompositionManager
