@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace System.Windows.Documents
 {
@@ -41,7 +42,14 @@ namespace System.Windows.Documents
 
         public static string GetTextInternal(object start, object end) => string.Empty;
 
-        internal static string GetTextInternal(ITextPointer startPosition, ITextPointer endPosition) => string.Empty;
+        internal static string GetTextInternal(ITextPointer startPosition, ITextPointer endPosition)
+        {
+            if (startPosition is null || endPosition is null)
+                return string.Empty;
+            var sb = new StringBuilder();
+            AppendSegmentText(sb, startPosition, endPosition);
+            return sb.ToString();
+        }
 
         internal static void BeginChange(ITextRange range)
         {
@@ -63,6 +71,26 @@ namespace System.Windows.Documents
 
         internal static void Select(ITextRange range, ITextPointer anchorPosition, ITextPointer movingPosition)
         {
+            if (range is null || anchorPosition is null || movingPosition is null)
+                return;
+
+            // Order positions so Start <= End. The interface back-door
+            // (ITextRange._TextSegments) gives us write access to the range's
+            // private segment list; without this, ITextRange.Start/End/IsEmpty
+            // trampoline back through TextRangeBase and stack-overflow.
+            ITextPointer start, end;
+            if (anchorPosition.CompareTo(movingPosition) <= 0)
+            {
+                start = anchorPosition;
+                end = movingPosition;
+            }
+            else
+            {
+                start = movingPosition;
+                end = anchorPosition;
+            }
+
+            range._TextSegments = new List<TextSegment> { new(start, end) };
         }
 
         internal static void Select(ITextRange thisRange, ITextPointer position1, ITextPointer position2, bool includeCellAtMovingPosition)
@@ -115,7 +143,79 @@ namespace System.Windows.Documents
         {
         }
 
-        internal static string GetText(ITextRange range) => string.Empty;
+        internal static string GetText(ITextRange range)
+        {
+            if (range is null)
+                return string.Empty;
+
+            var segments = range._TextSegments;
+            if (segments is null || segments.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            for (var i = 0; i < segments.Count; i++)
+            {
+                AppendSegmentText(sb, segments[i].Start, segments[i].End);
+            }
+            return sb.ToString();
+        }
+
+        // Walks the text tree from start (inclusive) to end (exclusive), emitting
+        // plain-text content using WPF's pointer semantics: Run characters are
+        // appended verbatim, paragraph/list-item ElementEnd emits "\r\n", and
+        // embedded UI elements contribute a single space placeholder.
+        private static void AppendSegmentText(StringBuilder sb, ITextPointer start, ITextPointer end)
+        {
+            if (start is null || end is null || start.CompareTo(end) >= 0)
+                return;
+
+            var pos = start.CreatePointer();
+            while (pos.CompareTo(end) < 0)
+            {
+                var context = pos.GetPointerContext(LogicalDirection.Forward);
+                switch (context)
+                {
+                    case TextPointerContext.Text:
+                    {
+                        var runLen = pos.GetTextRunLength(LogicalDirection.Forward);
+                        var remaining = pos.GetOffsetToPosition(end);
+                        var take = remaining > 0 && remaining < runLen ? remaining : runLen;
+                        if (take <= 0)
+                            return;
+
+                        var buffer = new char[take];
+                        pos.GetTextInRun(LogicalDirection.Forward, buffer, 0, take);
+                        sb.Append(buffer, 0, take);
+
+                        if (!pos.MoveToNextContextPosition(LogicalDirection.Forward))
+                            return;
+                        break;
+                    }
+                    case TextPointerContext.ElementEnd:
+                    {
+                        if (pos.GetAdjacentElement(LogicalDirection.Forward) is Paragraph)
+                            sb.Append("\r\n");
+
+                        if (!pos.MoveToNextContextPosition(LogicalDirection.Forward))
+                            return;
+                        break;
+                    }
+                    case TextPointerContext.EmbeddedElement:
+                    {
+                        sb.Append(' ');
+                        if (!pos.MoveToNextContextPosition(LogicalDirection.Forward))
+                            return;
+                        break;
+                    }
+                    default:
+                    {
+                        if (!pos.MoveToNextContextPosition(LogicalDirection.Forward))
+                            return;
+                        break;
+                    }
+                }
+            }
+        }
 
         internal static void SetText(ITextRange range, string textData)
         {
@@ -128,14 +228,30 @@ namespace System.Windows.Documents
         internal static TextSegment GetAutoWord(ITextRange thisRange)
             => new(thisRange.Start, thisRange.End);
 
-        internal static ITextPointer GetStart(ITextRange thisRange) => thisRange.Start;
+        internal static ITextPointer GetStart(ITextRange thisRange)
+        {
+            var segments = thisRange?._TextSegments;
+            return segments is { Count: > 0 } ? segments[0].Start : null!;
+        }
 
-        internal static ITextPointer GetEnd(ITextRange thisRange) => thisRange.End;
+        internal static ITextPointer GetEnd(ITextRange thisRange)
+        {
+            var segments = thisRange?._TextSegments;
+            return segments is { Count: > 0 } ? segments[^1].End : null!;
+        }
 
-        internal static bool GetIsEmpty(ITextRange thisRange) => thisRange.IsEmpty;
+        internal static bool GetIsEmpty(ITextRange thisRange)
+        {
+            var segments = thisRange?._TextSegments;
+            if (segments is null || segments.Count == 0)
+                return true;
+            var start = segments[0].Start;
+            var end = segments[^1].End;
+            return start is null || end is null || start.CompareTo(end) == 0;
+        }
 
         internal static List<TextSegment> GetTextSegments(ITextRange thisRange)
-            => [new(thisRange.Start, thisRange.End)];
+            => thisRange?._TextSegments ?? new List<TextSegment>();
 
         internal static string GetXml(ITextRange thisRange) => string.Empty;
 
