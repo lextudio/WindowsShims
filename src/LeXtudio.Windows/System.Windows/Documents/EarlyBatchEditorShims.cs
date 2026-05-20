@@ -351,50 +351,32 @@ namespace System.Windows.Documents
         public static void StopTransitoryExtension(object? textStore) { }
     }
 
-    // AdornerLayer shim: Adorner.cs and ColumnResizeAdorner.cs enabled in Session 25;
-    // AdornerLayer.cs from upstream remains deferred (VisualCollection not available in WinUI).
-    // Extends FrameworkElement so "as AdornerLayer" casts from DependencyObject compile.
-    public class AdornerLayer : FrameworkElement
-    {
-        private static readonly AdornerLayer _nullLayer = new();
-
-        public static AdornerLayer GetAdornerLayer(object visual) => _nullLayer;
-        public void Add(Adorner adorner) { }
-        public void Remove(Adorner adorner) { }
-        internal void Remove(CaretElement adorner) { }
-        public void Update(UIElement element) { }
-        new public void InvalidateVisual() { }
-    }
-
+    // AdornerLayer: upstream AdornerLayer.cs enabled in Session 25.
+    // CaretElement: remains deferred (see CaretElement.cs Compile Remove); stub satisfies
+    // TextSelection.cs, ITextSelection.cs, and TextEditorDragDrop.cs type references.
     internal sealed class CaretElement
     {
         internal const double c_endOfParaMagicMultiplier = 1.0;
 
-        internal CaretElement(TextEditor textEditor, bool isBlinkEnabled)
-        {
-        }
+        internal CaretElement(TextEditor textEditor, bool isBlinkEnabled) { }
 
         internal bool IsSelectionActive { get; set; }
-
         internal Geometry SelectionGeometry { get; set; }
 
         internal static FrameworkElement GetOwnerElement(DependencyObject uiScope)
-        {
-            return uiScope as FrameworkElement;
-        }
+            => uiScope as FrameworkElement;
 
         internal void SetBlinking(bool isBlinkEnabled) { }
         internal void OnTextViewUpdated() { }
         internal void Hide() { }
         internal void RefreshCaret(bool italic) { }
 
-        internal void Update(bool visible, Rect caretRect, Brush caretBrush, double opacity, bool italic, CaretScrollMethod scrollMethod, double scrollToOriginPosition)
-        {
-        }
+        internal void Update(bool visible, Rect caretRect, Brush caretBrush, double opacity, bool italic, CaretScrollMethod scrollMethod, double scrollToOriginPosition) { }
 
         internal void UpdateSelection() { }
         internal void DetachFromView() { }
     }
+
 
     internal sealed class TextStore
     {
@@ -457,6 +439,7 @@ namespace System.Windows.Documents
         internal ITextPointer? Start => null;
         internal ITextPointer? End => null;
         internal System.Collections.Generic.IEnumerable<string> Suggestions => System.Linq.Enumerable.Empty<string>();
+        internal void IgnoreAll() { }
     }
 
     internal sealed class Speller
@@ -468,6 +451,8 @@ namespace System.Windows.Documents
         internal void Detach() { }
         internal void SetCustomDictionaries(object dictionarySources, bool add) { }
         internal void SetSpellingReform(SpellingReform spellingReform) { }
+        internal SpellingError GetError(ITextPointer position, LogicalDirection direction, bool forceEvaluation) => null;
+        internal ITextPointer GetNextSpellingErrorPosition(ITextPointer position, LogicalDirection direction) => null;
     }
 
     internal abstract class ShutDownListener
@@ -506,13 +491,7 @@ namespace System.Windows.Documents
     // TextEditorCopyPaste stub removed in Session 19; upstream TextEditorCopyPaste.cs is now active.
     // TextEditorContextMenu stub removed in Session 17; upstream TextEditorContextMenu.cs is now active.
 
-    internal static class TextEditorSpelling
-    {
-        internal static void _RegisterClassHandlers(Type controlType, bool registerEventListeners) { }
-        internal static SpellingError GetSpellingErrorAtPosition(TextEditor editor, ITextPointer position, LogicalDirection direction) => null;
-        internal static SpellingError GetSpellingErrorAtSelection(TextEditor editor) => null;
-        internal static ITextPointer GetNextSpellingErrorPosition(TextEditor editor, ITextPointer position, LogicalDirection direction) => null;
-    }
+    // TextEditorSpelling stub removed in Session 26; upstream TextEditorSpelling.cs is now active.
 
     // TextEditorDragDrop stub removed in Session 19; upstream TextEditorDragDrop.cs is now active.
 

@@ -48,6 +48,11 @@ internal static class SR
     internal const string UndoUnitOpen                   = nameof(UndoUnitOpen);
     internal const string InputScopeAttribute_E_OUTOFMEMORY = "Insufficient memory to complete the operation.";
 
+    // AdornerLayer error strings
+    internal const string AdornedElementNotFound = "AdornedElementNotFound";
+    internal const string AdornerNotFound = "AdornerNotFound";
+    internal const string Visual_ArgumentOutOfRange = "Visual_ArgumentOutOfRange";
+
     internal const string TextContainer_UndoManagerCreatedMoreThanOnce = "TextContainer_UndoManagerCreatedMoreThanOnce";
     internal const string BadDistance = "BadDistance";
     internal const string NotInThisTree = "NotInThisTree";

@@ -56,6 +56,12 @@ namespace System.Windows.Markup
 
         public static XmlLanguage Empty { get; } = new XmlLanguage(string.Empty);
 
+        public System.Globalization.CultureInfo GetSpecificCulture()
+        {
+            try { return System.Globalization.CultureInfo.GetCultureInfo(IetfLanguageTag); }
+            catch { return System.Globalization.CultureInfo.InvariantCulture; }
+        }
+
         public override string ToString() => IetfLanguageTag;
     }
 }

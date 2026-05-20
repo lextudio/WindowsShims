@@ -47,6 +47,15 @@ public static class WinUIMediaExtensions
     }
 }
 
+// PointHitTestResult: WPF's System.Windows.Media.PointHitTestResult. Not available in WinUI;
+// used as base class for AdornerHitTestResult and by AdornerLayer.AdornerHitTest.
+public class PointHitTestResult
+{
+    public PointHitTestResult(Visual visual, Point pt) { VisualHit = visual; PointHit = pt; }
+    public Visual VisualHit { get; }
+    public Point PointHit { get; }
+}
+
 public abstract class GeneralTransform
 {
     public abstract Rect TransformBounds(Rect rect);

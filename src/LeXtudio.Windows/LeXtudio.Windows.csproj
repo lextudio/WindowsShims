@@ -1,7 +1,7 @@
 <Project Sdk="Uno.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net9.0-desktop</TargetFrameworks>
-    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <RootNamespace>LeXtudio.Windows</RootNamespace>
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -25,7 +25,7 @@
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.19041.0'">
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <UseWinUI>true</UseWinUI>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
@@ -549,10 +549,16 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WinRTSpellerInteropExtensions.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServices*.cs" />
 
-    <!-- Adorner*.cs: Adorner.cs and ColumnResizeAdorner.cs enabled (Session 25); AdornerLayer.cs/AdornerDecorator.cs/AdornerHitTestResult.cs remain deferred. -->
+    <!-- Adorner*.cs: Adorner.cs, AdornerLayer.cs, AdornerDecorator.cs, AdornerHitTestResult.cs, ColumnResizeAdorner.cs enabled (Session 25). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner*.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Adorner.cs"
              Link="System.Windows.Documents\Adorner.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AdornerLayer.cs"
+             Link="System.Windows.Documents\AdornerLayer.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AdornerDecorator.cs"
+             Link="System.Windows.Documents\AdornerDecorator.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\AdornerHitTestResult.cs"
+             Link="System.Windows.Media\AdornerHitTestResult.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\CaretElement.cs" />
     <!-- ColumnResize*.cs: ColumnResizeAdorner.cs and ColumnResizeUndoUnit.cs both enabled (Session 25). -->
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ColumnResize*.cs" />
@@ -575,7 +581,7 @@
     <!-- TextEditor.cs: WPF enabled (Session 16). -->
     <!-- TextEditorDragDrop.cs: WPF enabled (Session 19). -->
     <!-- TextEditorMouse.cs: WPF enabled (Session 17). -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextEditorSpelling.cs" />
+    <!-- TextEditorSpelling.cs: WPF enabled (Session 26). -->
     <!-- TextEditorTyping.cs: WPF enabled (Session 18). -->
     <!-- TextEditorTables.cs: WPF enabled (Session 17). -->
     <!-- TextEditorLists.cs: WPF enabled (Session 17). -->
