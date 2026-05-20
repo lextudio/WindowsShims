@@ -11,9 +11,20 @@ namespace System.Windows.Controls;
 /// </summary>
 public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 {
+    protected Control()
+    {
+        InitializeDefaultStyleKey();
+    }
+
+    // Subclasses override this to set DefaultStyleKey = typeof(TheirType) before the
+    // first Measure pass. Required because WPF's OverrideMetadata is a no-op on Uno.
+    protected virtual void InitializeDefaultStyleKey() { }
+
     // WPF makes OnApplyTemplate() public; WinUI declares it protected.
-    // Wrap so that override in TextBoxBase compiles (it uses 'public override').
-    public new virtual void OnApplyTemplate() => base.OnApplyTemplate();
+    // Must use 'protected override' (not 'new virtual') so Uno's layout system
+    // dispatches through the correct vtable slot when applying templates.
+    // WPF subclasses widen accessibility with 'public override', which is legal in C#.
+    protected override void OnApplyTemplate() => base.OnApplyTemplate();
 
     // ── WPF-only overrideable event methods ──────────────────────────────────
 

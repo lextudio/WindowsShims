@@ -36,6 +36,9 @@
     <None Include="..\..\LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>
+    <Page Include="Themes\Generic.xaml" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="GitVersion.MsBuild" Version="5.12.0" PrivateAssets="All" />
   </ItemGroup>
     <!-- Linked WPF source-of-truth artifacts (non-compiling in Uno).

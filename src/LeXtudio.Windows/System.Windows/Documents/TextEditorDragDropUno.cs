@@ -15,6 +15,14 @@ namespace System.Windows.Documents;
 /// </summary>
 internal sealed class TextEditorDragDropUno
 {
+    /// <summary>
+    /// Optional log sink wired up by the host (e.g. DragDropLog.Write).
+    /// Kept as a static delegate so WindowsShims has no compile-time dependency on UnoRichText.
+    /// </summary>
+    internal static Action<string>? Logger;
+
+    private static void Log(string msg) => Logger?.Invoke(msg);
+
     private readonly UnoUIElement _target;
     private readonly IRichTextDragDropHost _host;
 
@@ -37,31 +45,58 @@ internal sealed class TextEditorDragDropUno
     /// falls inside an existing selection, mirroring WPF _DragDropProcess.SourceOnMouseLeftButtonDown.
     /// </summary>
     public void UpdateCanDrag(bool pressIsInsideSelection)
-        => _target.CanDrag = pressIsInsideSelection;
+    {
+        Log($"UpdateCanDrag({pressIsInsideSelection}) target.CanDrag was {_target.CanDrag}");
+        _target.CanDrag = pressIsInsideSelection;
+    }
+
+    /// <summary>
+    /// Disables all drag-drop interaction while a pointer-driven selection gesture is active.
+    /// AllowDrop=true causes the OS to show drag cursors even when CanDrag=false, so we must
+    /// suppress it for the duration of a selection extend.
+    /// </summary>
+    public void SuspendForSelection()
+    {
+        Log($"SuspendForSelection: AllowDrop=false, CanDrag=false");
+        _target.AllowDrop = false;
+        _target.CanDrag = false;
+    }
+
+    public void ResumeAfterSelection()
+    {
+        Log($"ResumeAfterSelection: AllowDrop=true");
+        _target.AllowDrop = true;
+        _target.CanDrag = false;
+    }
 
     // Mirrors _DragDropProcess.SourceDoDragDrop — populates DataPackage from current selection.
     private void OnDragStarting(UnoUIElement sender, UnoDragStartingEventArgs e)
     {
+        var (selMin, selMax) = _host.GetSelectionRange();
+        Log($"DragStarting AllowDragDrop={AllowDragDrop()} sel=[{selMin},{selMax}) CanDrag={_target.CanDrag}");
         if (!AllowDragDrop())
         {
             e.Cancel = true;
+            Log("DragStarting cancelled: AllowDragDrop=false");
             return;
         }
 
-        var (selMin, selMax) = _host.GetSelectionRange();
         if (selMin < 0 || selMin == selMax)
         {
             e.Cancel = true;
+            Log("DragStarting cancelled: empty selection");
             return;
         }
 
         e.Data.SetText(_host.GetTextRange(selMin, selMax));
         e.DragUI.SetContentFromDataPackage();
+        Log($"DragStarting OK: dragging [{selMin},{selMax})");
     }
 
     // Mirrors _DragDropProcess.TargetOnDragEnter — accept text drops.
     private void OnDragEnter(object sender, UnoDragEventArgs e)
     {
+        Log($"DragEnter AllowDragDrop={AllowDragDrop()} hasText={e.DataView.Contains(StandardDataFormats.Text)}");
         if (!AllowDragDrop()) return;
         if (e.DataView.Contains(StandardDataFormats.Text))
             e.AcceptedOperation = DataPackageOperation.Copy;
@@ -76,15 +111,20 @@ internal sealed class TextEditorDragDropUno
         e.AcceptedOperation = DataPackageOperation.Copy;
         var pt = e.GetPosition(_target);
         _host.SetDropCaretOffset(_host.HitTest(pt));
+        Log($"DragOver pt={pt}");
     }
 
     // Mirrors _DragDropProcess.DeleteCaret — clear drop caret on leave.
     private void OnDragLeave(object sender, UnoDragEventArgs e)
-        => _host.SetDropCaretOffset(-1);
+    {
+        Log("DragLeave");
+        _host.SetDropCaretOffset(-1);
+    }
 
     // Mirrors _DragDropProcess.TargetOnDrop — insert dropped text at caret position.
     private async void OnDrop(object sender, UnoDragEventArgs e)
     {
+        Log("Drop");
         _host.SetDropCaretOffset(-1);
 
         if (!AllowDragDrop()) return;
@@ -97,6 +137,7 @@ internal sealed class TextEditorDragDropUno
         var text = await e.DataView.GetTextAsync();
         if (string.IsNullOrEmpty(text)) return;
 
+        Log($"Drop inserting '{text}' at {insertAt}");
         _host.InsertTextAt(insertAt, text);
     }
 
