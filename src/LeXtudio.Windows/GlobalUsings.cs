@@ -73,6 +73,7 @@ global using ContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs
 global using TextDecorations                = System.Windows.Media.TextDecorations;
 global using LocalizabilityAttribute        = System.Windows.Markup.LocalizabilityAttribute;
 global using LocalizationCategory          = System.Windows.Markup.LocalizationCategory;
+global using Readability                    = System.Windows.Markup.Readability;
 
 // ============ Typography Enums - Aliased to Microsoft.UI.Xaml Equivalents ============
 // WinUI defines the same OpenType feature enums with identical members/values.

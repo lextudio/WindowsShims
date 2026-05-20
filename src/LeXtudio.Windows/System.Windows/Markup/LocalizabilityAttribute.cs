@@ -6,5 +6,8 @@ namespace System.Windows.Markup
         public LocalizabilityAttribute(LocalizationCategory category) { }
 
         public Modifiability Modifiability { get; set; }
+        public Readability Readability { get; set; }
     }
+
+
 }

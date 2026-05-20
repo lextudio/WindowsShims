@@ -622,7 +622,8 @@
     <!-- RichTextBox.cs: WPF enabled (Session 28). -->
     <!-- TextBoxBase.cs: WPF enabled (Session 28). -->
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowDocument.cs" />
+    <!-- FlowDocument.cs: WPF enabled (Session 29). Local shim removed. -->
+    <Compile Remove="System.Windows\Documents\FlowDocument.cs" />
     <!-- TextContainer.cs: WPF enabled -->
     <!-- TextRangeBase.cs: WPF enabled; stub previously in HyperlinkSupport.cs removed. -->
     <!-- NullTextNavigator.cs: WPF enabled (Session 22). -->

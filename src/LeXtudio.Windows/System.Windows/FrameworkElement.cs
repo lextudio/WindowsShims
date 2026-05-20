@@ -22,6 +22,12 @@ public partial class FrameworkContentElement : DependencyObject
 
     protected virtual System.Windows.Automation.Peers.AutomationPeer? OnCreateAutomationPeer() => null;
 
+    // WPF FrameworkContentElement.OnPropertyChanged — called by property engine on value changes.
+    protected virtual void OnPropertyChanged(DependencyPropertyChangedEventArgs e) { }
+
+    // WPF UIElement.IsEnabledCore — overridden by FlowDocument to propagate RichTextBox read-only state.
+    protected virtual bool IsEnabledCore => true;
+
     // WPF-style routed event methods — called without `this.` in upstream WPF source files.
     // They forward to the C# 14 extension members defined in WinUIDependencyObjectExtensions.cs.
     public void AddHandler(RoutedEvent routedEvent, Delegate handler) =>
