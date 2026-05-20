@@ -16,5 +16,6 @@ namespace System.Windows
         public object? Source { get; set; }
         public object? OriginalSource { get; set; }
         public bool Handled { get; set; }
+        protected virtual void InvokeEventHandler(Delegate genericHandler, object genericTarget) { }
     }
 }

@@ -22,6 +22,10 @@ public static class WinUIDependencyObjectExtensions
         // ── Coerce (no property-engine coercion in this bridge) ───────
         public void CoerceValue(Microsoft.UI.Xaml.DependencyProperty property) { }
 
+        // WPF DependencyObject.SetValue accepting a DependencyPropertyKey (read-only DP write path).
+        public void SetValue(System.Windows.DependencyPropertyKey key, object? value)
+            => self.SetValue(key.DependencyProperty, value);
+
         public LocalValueEnumerator GetLocalValueEnumerator() => new();
 
         // WPF DependencyObject.GetValueSource — we only differentiate "Default"

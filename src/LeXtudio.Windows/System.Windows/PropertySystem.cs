@@ -25,6 +25,15 @@ public readonly struct DependencyPropertyChangedEventArgs
     public Entry NewEntry { get; init; }
     public BaseValueSourceInternal OldValueSource { get; init; }
 
+    public DependencyPropertyChangedEventArgs(DependencyProperty property, object? oldValue, object? newValue)
+    {
+        Property = property;
+        OldValue = oldValue;
+        NewValue = newValue;
+        OldValueSource = BaseValueSourceInternal.Local;
+        NewEntry = default;
+    }
+
     public static implicit operator DependencyPropertyChangedEventArgs(
         Microsoft.UI.Xaml.DependencyPropertyChangedEventArgs e)
         => new DependencyPropertyChangedEventArgs

@@ -28,6 +28,7 @@ internal static class SR
     internal const string CanOnlyHaveOneChild = "CanOnlyHaveOneChild";
     internal const string RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready = "RichTextBox_DocumentBelongsToAnotherRichTextBoxAlready";
     internal const string RichTextBox_CantSetDocumentInsideChangeBlock = "RichTextBox_CantSetDocumentInsideChangeBlock";
+    internal const string RichTextBox_PointerNotInSameDocument = "RichTextBox_PointerNotInSameDocument";
     internal const string TextEditorPropertyIsNotApplicableForTextFormatting = "TextEditorPropertyIsNotApplicableForTextFormatting";
     internal const string TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty = "TextEditorTypeOfParameterIsNotAppropriateForFormattingProperty";
     internal const string TextRange_InvalidParameterValue = "TextRange_InvalidParameterValue";
@@ -218,6 +219,12 @@ internal static class SR
     internal const string KeyShiftDeleteDisplayString = nameof(KeyShiftDeleteDisplayString);
     internal const string KeyShiftInsertDisplayString = nameof(KeyShiftInsertDisplayString);
 
+    // TextBoxBase strings
+    internal const string TextBoxBase_CantSetIsUndoEnabledInsideChangeBlock = nameof(TextBoxBase_CantSetIsUndoEnabledInsideChangeBlock);
+    internal const string TextBoxBase_UnmatchedEndChange                    = nameof(TextBoxBase_UnmatchedEndChange);
+    internal const string TextBoxScrollViewerMarkedAsTextBoxContentMustHaveNoContent = nameof(TextBoxScrollViewerMarkedAsTextBoxContentMustHaveNoContent);
+    internal const string TextBoxDecoratorMarkedAsTextBoxContentMustHaveNoContent    = nameof(TextBoxDecoratorMarkedAsTextBoxContentMustHaveNoContent);
+    internal const string TextBoxInvalidTextContainer                       = nameof(TextBoxInvalidTextContainer);
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);

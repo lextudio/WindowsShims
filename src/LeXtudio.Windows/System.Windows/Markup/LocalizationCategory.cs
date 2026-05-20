@@ -6,6 +6,19 @@ namespace System.Windows.Markup
         Font,
         Hyperlink,
         TextFlow,
-        NeverLocalize
+        NeverLocalize,
+        Text,
+        Inherit,
+        Ignore,
+        Title,
+        Label,
+        Button,
+        CheckBox,
+        ComboBox,
+        ListBox,
+        Menu,
+        RadioButton,
+        ToolTip,
+        XmlData,
     }
 }

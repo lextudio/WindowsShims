@@ -53,6 +53,7 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 global using Visual                    = Microsoft.UI.Xaml.UIElement;
 // Panel: alias to the WPF shim to resolve CS0104 between System.Windows.Controls.Panel and Microsoft.UI.Xaml.Controls.Panel.
 global using Panel                     = System.Windows.Controls.Panel;
+global using Control                   = System.Windows.Controls.Control;
 global using GeneralTransform          = System.Windows.Media.GeneralTransform;
 
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============
@@ -70,6 +71,8 @@ global using ContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs
 // TextDecorations static class (System.Windows.Media) — bring to global scope so
 // upstream files in System.Windows.Documents can reference it without an explicit using.
 global using TextDecorations                = System.Windows.Media.TextDecorations;
+global using LocalizabilityAttribute        = System.Windows.Markup.LocalizabilityAttribute;
+global using LocalizationCategory          = System.Windows.Markup.LocalizationCategory;
 
 // ============ Typography Enums - Aliased to Microsoft.UI.Xaml Equivalents ============
 // WinUI defines the same OpenType feature enums with identical members/values.

@@ -89,7 +89,7 @@ public static class WinUIFrameworkElementExtensions
             set => self.SetValue(s_contextMenuProperty, value);
         }
 
-        public bool Focusable => true;
+        public bool Focusable { get => true; set { } }
 
         public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
             => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));

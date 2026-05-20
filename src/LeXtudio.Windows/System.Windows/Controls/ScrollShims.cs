@@ -18,6 +18,10 @@ namespace System.Windows.Controls
         void PageDown();
         void PageLeft();
         void PageRight();
+        void MouseWheelUp();
+        void MouseWheelDown();
+        void MouseWheelLeft();
+        void MouseWheelRight();
     }
 
     // ScrollBar.PageDownCommand / PageUpCommand used by TextEditorSelection page-key handling.

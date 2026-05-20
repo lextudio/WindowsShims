@@ -87,7 +87,11 @@ namespace System.Windows.Controls
         public double VerticalChange { get; init; }
         public double HorizontalOffset { get; init; }
         public double VerticalOffset { get; init; }
-        public object? OriginalSource { get; init; }
+        public new object? OriginalSource { get; init; }
+        public double ViewportHeight { get; init; }
+        public double ViewportHeightChange { get; init; }
+        public double ViewportWidth { get; init; }
+        public double ViewportWidthChange { get; init; }
     }
 }
 
@@ -103,6 +107,23 @@ namespace System.Windows.Controls
             public static System.Windows.RoutedEvent ScrollChangedEvent => s_scrollChangedEvent;
             public static double _scrollLineDelta => 16.0;
             public IScrollInfo ScrollInfo => null;
+            public bool HandlesMouseWheelScrolling { get => true; set { } }
+            public bool CanContentScroll { get => true; set { } }
+            public void LineUp()   => sv.ChangeView(null, sv.VerticalOffset - 16, null);
+            public void LineDown() => sv.ChangeView(null, sv.VerticalOffset + 16, null);
+            public void LineLeft()  => sv.ChangeView(sv.HorizontalOffset - 16, null, null);
+            public void LineRight() => sv.ChangeView(sv.HorizontalOffset + 16, null, null);
+            public void PageUp()   => sv.ChangeView(null, sv.VerticalOffset - sv.ViewportHeight, null);
+            public void PageDown() => sv.ChangeView(null, sv.VerticalOffset + sv.ViewportHeight, null);
+            public void PageLeft()  => sv.ChangeView(sv.HorizontalOffset - sv.ViewportWidth, null, null);
+            public void PageRight() => sv.ChangeView(sv.HorizontalOffset + sv.ViewportWidth, null, null);
+            public void ScrollToHome() => sv.ChangeView(null, 0, null);
+            public void ScrollToEnd()  => sv.ChangeView(null, sv.ExtentHeight, null);
         }
+
+        // ScrollChanged event — cannot be declared in a C# 14 extension block,
+        // so callers must subscribe via WinUI's native scroll events.
+        public static void AddScrollChangedHandler(Microsoft.UI.Xaml.Controls.ScrollViewer sv, ScrollChangedEventHandler handler) { }
+        public static void RemoveScrollChangedHandler(Microsoft.UI.Xaml.Controls.ScrollViewer sv, ScrollChangedEventHandler handler) { }
     }
 }

@@ -28,4 +28,16 @@ public sealed class FlowDocument : TextElement
 
     public static readonly DependencyProperty FlowDirectionProperty =
         Microsoft.UI.Xaml.FrameworkElement.FlowDirectionProperty;
+
+    // WPF structural cache — not applicable on HAS_UNO.
+    internal object? StructuralCache => null;
+
+    // WPF DPI propagation — no-op on HAS_UNO.
+    internal void SetDpi(System.Windows.Controls.DpiScale dpiScale) { }
+
+    // WPF page-size notification — no-op event on HAS_UNO.
+    internal event EventHandler? PageSizeChanged;
+
+    // WPF text-wrapping property — no-op on HAS_UNO (wrapping is controlled via Uno's layout engine).
+    public TextWrapping TextWrapping { get; set; }
 }

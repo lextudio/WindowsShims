@@ -429,17 +429,19 @@ namespace System.Windows.Documents
         internal void CompleteComposition() { }
     }
 
-    internal enum SpellingReform
+    public enum SpellingReform
     {
         PreAndPostreform,
+        Prereform,
+        Postreform,
     }
 
-    internal sealed class SpellingError
+    public sealed class SpellingError
     {
         internal ITextPointer? Start => null;
         internal ITextPointer? End => null;
-        internal System.Collections.Generic.IEnumerable<string> Suggestions => System.Linq.Enumerable.Empty<string>();
-        internal void IgnoreAll() { }
+        public System.Collections.Generic.IEnumerable<string> Suggestions => System.Linq.Enumerable.Empty<string>();
+        public void IgnoreAll() { }
     }
 
     internal sealed class Speller
@@ -473,12 +475,7 @@ namespace System.Windows.Documents
         DispatcherShutdown = 2,
     }
 
-    internal enum UndoState
-    {
-        Normal,
-        Undo,
-        Redo,
-    }
+    // UndoState is defined in upstream MS.Internal.Documents.UndoManager.
 
     // TextEditorMouse stub removed in Session 17; upstream TextEditorMouse.cs is now active.
 
