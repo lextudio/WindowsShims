@@ -2,17 +2,26 @@ using System.Windows.Documents;
 
 namespace System.Windows.Controls;
 
-/// <summary>Stub for WPF SpellCheck — no spell-checking on HAS_UNO.</summary>
+/// <summary>WPF SpellCheck shim — forwards IsEnabled changes to the owning control via callback.</summary>
 public sealed class SpellCheck
 {
     public static readonly DependencyProperty IsEnabledProperty =
         DependencyProperty.Register(nameof(IsEnabled), typeof(bool), typeof(SpellCheck),
             new System.Windows.FrameworkPropertyMetadata(false));
 
-    public SpellCheck() { }
-    public SpellCheck(object owner) { }
+    private readonly Action<bool>? _isEnabledChanged;
 
-    public bool IsEnabled { get; set; }
+    public SpellCheck() { }
+    // Legacy overload: owner is a WPF TextBoxBase; no callback needed on that path.
+    public SpellCheck(object owner) { }
+    public SpellCheck(Action<bool> isEnabledChanged) { _isEnabledChanged = isEnabledChanged; }
+
+    private bool _isEnabled;
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set { _isEnabled = value; _isEnabledChanged?.Invoke(value); }
+    }
     public SpellingReform SpellingReform { get; set; }
     public System.Collections.IList CustomDictionaries { get; } = new System.Collections.ArrayList();
 }
