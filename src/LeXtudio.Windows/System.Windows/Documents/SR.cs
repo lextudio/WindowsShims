@@ -2,6 +2,7 @@
 // in this assembly (System.Windows.Documents, MS.Internal.Documents, etc.).
 internal static class SR
 {
+    internal const string FlowDocumentInvalidContnetChange = "FlowDocumentInvalidContnetChange";
     internal const string TextSchema_ChildTypeIsInvalid = "TextSchema_ChildTypeIsInvalid";
     internal const string InDifferentTextContainers = "InDifferentTextContainers";
     internal const string BadTextPositionOrder = "BadTextPositionOrder";
