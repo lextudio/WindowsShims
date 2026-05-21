@@ -57,6 +57,11 @@ namespace System.Windows.Input
             bool canExecute = true;
             foreach (CommandBinding binding in _bindings)
             {
+                if (!binding.AppliesTo(target))
+                {
+                    continue;
+                }
+
                 var args = new CanExecuteRoutedEventArgs(this, parameter)
                 {
                     Source = target,
@@ -81,6 +86,11 @@ namespace System.Windows.Input
         {
             foreach (CommandBinding binding in _bindings)
             {
+                if (!binding.AppliesTo(target))
+                {
+                    continue;
+                }
+
                 var args = new ExecutedRoutedEventArgs(this, parameter)
                 {
                     Source = target,

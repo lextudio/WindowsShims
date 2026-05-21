@@ -110,10 +110,57 @@ namespace System.Windows
     /// <summary>Compiler shim wrapping Uno cross-platform clipboard.</summary>
     public static class Clipboard
     {
-        public static void SetDataObject(IDataObject data, bool copy) { }
-        public static IDataObject GetDataObject() => new DataObject();
-        public static void SetText(string text) { }
-        public static string GetText() => string.Empty;
+        private static IDataObject? _dataObject;
+        private static string _text = string.Empty;
+
+        public static void SetDataObject(IDataObject data, bool copy)
+        {
+            _dataObject = data;
+            if (data.GetDataPresent(DataFormats.UnicodeText))
+            {
+                _text = data.GetData(DataFormats.UnicodeText)?.ToString() ?? string.Empty;
+            }
+            else if (data.GetDataPresent(DataFormats.Text))
+            {
+                _text = data.GetData(DataFormats.Text)?.ToString() ?? string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(_text))
+            {
+                try
+                {
+                    var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+                    package.SetText(_text);
+                    global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                    global::Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        public static IDataObject GetDataObject() => _dataObject ?? new DataObject();
+
+        public static void SetText(string text)
+        {
+            _text = text ?? string.Empty;
+            _dataObject = new DataObject(DataFormats.UnicodeText, _text);
+            ((DataObject)_dataObject).SetData(DataFormats.Text, _text);
+
+            try
+            {
+                var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+                package.SetText(_text);
+                global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                global::Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+            }
+            catch
+            {
+            }
+        }
+
+        public static string GetText() => _text;
     }
 
     public class DataObjectCopyingEventArgs : RoutedEventArgs

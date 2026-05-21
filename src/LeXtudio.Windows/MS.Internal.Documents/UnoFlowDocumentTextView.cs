@@ -78,6 +78,19 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     internal Rect GetRectangleFromTextPosition(ITextPointer position)
         => ((ITextView)this).GetRectangleFromTextPosition(position);
 
+    internal ITextPointer NormalizeToVisiblePosition(ITextPointer position)
+    {
+        var tc = _owner.Document?.StructuralCache.TextContainer;
+        if (tc == null || _owner.Page == null || _owner.Page.Lines.Count == 0)
+            return position;
+
+        int lastOffset = _owner.Page.Lines[^1].EndOffset;
+        if (position.CharOffset <= lastOffset)
+            return position;
+
+        return tc.CreatePointerAtCharOffset(lastOffset, LogicalDirection.Backward);
+    }
+
     // ── ITextView properties ────────────────────────────────────────────────
 
     UIElement ITextView.RenderScope => _owner;
@@ -130,6 +143,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
 
     Rect ITextView.GetRectangleFromTextPosition(ITextPointer position)
     {
+        position = NormalizeToVisiblePosition(position);
         if (_owner.Page == null) return Rect.Empty;
         int offset = position.CharOffset;
         var line = FindLineForPosition(position);
@@ -191,6 +205,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     {
         newSuggestedX = suggestedX;
         linesMoved = 0;
+        position = NormalizeToVisiblePosition(position);
 
         var tc = _owner.Document?.StructuralCache.TextContainer;
         if (tc == null || _owner.Page == null)
@@ -224,10 +239,21 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     {
         var tc = _owner.Document?.StructuralCache.TextContainer;
         if (tc == null) return position;
+        position = NormalizeToVisiblePosition(position);
         int offset = position.CharOffset;
-        int newOffset = direction == LogicalDirection.Forward
-            ? Math.Min(offset + 1, tc.IMECharCount)
-            : Math.Max(offset - 1, 0);
+        int newOffset;
+
+        if (direction == LogicalDirection.Forward)
+        {
+            int maxOffset = _owner.Page != null && _owner.Page.Lines.Count > 0
+                ? _owner.Page.Lines[^1].EndOffset
+                : tc.IMECharCount;
+            newOffset = Math.Min(offset + 1, maxOffset);
+        }
+        else
+        {
+            newOffset = Math.Max(offset - 1, 0);
+        }
         Log($"[GetNextCaretUnit] offset={offset} dir={direction} → {newOffset} (IMECharCount={tc.IMECharCount})");
         return tc.CreatePointerAtCharOffset(newOffset, direction);
     }
@@ -236,12 +262,14 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     {
         var tc = _owner.Document?.StructuralCache.TextContainer;
         if (tc == null) return position;
+        position = NormalizeToVisiblePosition(position);
         int newOffset = Math.Max(position.CharOffset - 1, 0);
         return tc.CreatePointerAtCharOffset(newOffset, LogicalDirection.Backward);
     }
 
     TextSegment ITextView.GetLineRange(ITextPointer position)
     {
+        position = NormalizeToVisiblePosition(position);
         if (_owner.Page == null) return TextSegment.Null;
         var line = FindLineForPosition(position);
         if (line == null) return TextSegment.Null;
@@ -307,6 +335,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     {
         if (_owner.Page == null) return 0;
 
+        position = NormalizeToVisiblePosition(position);
         int offset = position.CharOffset;
         var lines = _owner.Page.Lines;
         bool preferNextLineAtSharedBoundary = position.LogicalDirection == LogicalDirection.Forward;
@@ -369,7 +398,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         return last.EndOffset;
     }
 
-    private static double GetPixelXForOffset(FlorenceLine line, int offset)
+    internal static double GetPixelXForOffset(FlorenceLine line, int offset)
     {
         foreach (var run in line.Runs)
         {

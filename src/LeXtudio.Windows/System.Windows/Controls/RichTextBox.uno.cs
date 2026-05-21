@@ -7,6 +7,7 @@ namespace System.Windows.Controls;
 public partial class RichTextBox
 {
     internal static Action<string>? Logger;
+    private bool _isPointerSelecting;
 
     private static readonly string _logPath =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
@@ -70,12 +71,79 @@ public partial class RichTextBox
             // Drive caret display from Florence hit-test directly (WPF TextContainer
             // offsets are unusable in the Uno shim — IMECharCount reports stub values).
             if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
+            {
                 fdv.SetCaretAt(unoPoint);
+                fdv.RefreshSelection();
+            }
+
+            CapturePointer(e.Pointer);
+            _isPointerSelecting = true;
         }
         catch (Exception ex)
         {
             Log($"PointerPressed: SetCaretPosition THREW {ex.GetType().Name}: {ex.Message}");
             Log($"  at {ex.StackTrace?.Split('\n')[0]}");
+        }
+
+        e.Handled = true;
+    }
+
+    protected override void OnPointerMoved(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        base.OnPointerMoved(e);
+
+        if (!_isPointerSelecting)
+            return;
+
+        var te = TextEditor;
+        if (te?.TextView?.RenderScope is not Microsoft.UI.Xaml.UIElement renderScope)
+            return;
+
+        var point = e.GetCurrentPoint(renderScope);
+        if (!point.Properties.IsLeftButtonPressed)
+            return;
+
+        try
+        {
+            var cursorPosition = te.TextView.GetTextPositionFromPoint(new Point(point.Position.X, point.Position.Y), snapToText: true);
+            if (cursorPosition != null && te.Selection is ITextSelection selection)
+            {
+                selection.ExtendSelectionByMouse(cursorPosition, forceWordSelection: false, forceParagraphSelection: false);
+                if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
+                {
+                    fdv.SetCaretAt(selection.MovingPosition);
+                    fdv.RefreshSelection();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"PointerMoved THREW {ex.GetType().Name}: {ex.Message}");
+        }
+
+        e.Handled = true;
+    }
+
+    protected override void OnPointerReleased(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+
+        if (!_isPointerSelecting)
+            return;
+
+        _isPointerSelecting = false;
+        ReleasePointerCapture(e.Pointer);
+
+        try
+        {
+            if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+            {
+                fdv.RefreshSelection();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"PointerReleased THREW {ex.GetType().Name}: {ex.Message}");
         }
 
         e.Handled = true;
@@ -106,21 +174,9 @@ public partial class RichTextBox
             var command = GetNavigationCommand(wpfKey);
             if (command != null && command.CanExecute(null, this))
             {
-                // Guard MoveRightByCharacter against advancing into WPF paragraph/document
-                // boundary markers (positions beyond Florence's last line EndOffset). Those
-                // positions have IME char offsets > lastLine.EndOffset but map to the same
-                // pixel X, causing the caret to appear frozen while needing extra Left presses.
-                if (command == System.Windows.Documents.EditingCommands.MoveRightByCharacter
-                    && IsAtLastVisiblePosition())
-                {
-                    args.Handled = true; // Swallow — already at end of document.
-                }
-                else
-                {
-                    command.Execute(null, this);
-                    args.Handled = true;
-                    Log($"KeyDown: executed {command.Name}");
-                }
+                command.Execute(null, this);
+                args.Handled = true;
+                Log($"KeyDown: executed {command.Name}");
             }
         }
 
@@ -157,25 +213,6 @@ public partial class RichTextBox
             e.Handled = true;
     }
 
-    // Returns true when the current caret is at or beyond the last character position
-    // that Florence lays out. WPF's TextContainer has paragraph/document boundary
-    // markers (IMEChar offsets > lastLine.EndOffset) that are valid insertion positions
-    // internally but have no pixel representation in Florence — blocking Right at this
-    // point prevents phantom extra keystrokes.
-    private bool IsAtLastVisiblePosition()
-    {
-        try
-        {
-            var te = TextEditor;
-            if (te?.TextView?.RenderScope is not MS.Internal.Documents.FlowDocumentView fdv) return false;
-            if (fdv.Page == null || fdv.Page.Lines.Count == 0) return false;
-            int lastOffset = fdv.Page.Lines[^1].EndOffset;
-            int currentOffset = te.Selection?.MovingPosition?.CharOffset ?? -1;
-            return currentOffset >= lastOffset;
-        }
-        catch { return false; }
-    }
-
     private void UpdateCaretFromSelection()
     {
         try
@@ -186,19 +223,8 @@ public partial class RichTextBox
             var position = te.Selection?.MovingPosition;
             if (position == null)
                 return;
-            // Clamp to last visible position — WPF paragraph boundary markers
-            // (offsets > lastLine.EndOffset) have no Florence pixel representation.
-            if (fdv.Page != null && fdv.Page.Lines.Count > 0)
-            {
-                int lastOffset = fdv.Page.Lines[^1].EndOffset;
-                if (position.CharOffset > lastOffset)
-                {
-                    var tc = fdv.Document?.StructuralCache.TextContainer;
-                    if (tc != null)
-                        position = tc.CreatePointerAtCharOffset(lastOffset, System.Windows.Documents.LogicalDirection.Backward);
-                }
-            }
             fdv.SetCaretAt(position);
+            fdv.RefreshSelection();
             Log($"UpdateCaretFromSelection: offset={position.CharOffset} dir={position.LogicalDirection}");
         }
         catch (Exception ex)

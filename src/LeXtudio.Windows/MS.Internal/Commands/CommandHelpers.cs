@@ -14,21 +14,21 @@ namespace MS.Internal.Commands
             System.Type controlType,
             System.Windows.Input.RoutedCommand command,
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
             System.Windows.Input.RoutedCommand command,
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             System.Windows.Input.CanExecuteRoutedEventHandler canExecuteRoutedEventHandler)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler, canExecuteRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler, canExecuteRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
             System.Windows.Input.RoutedCommand command,
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             System.Windows.Input.KeyGesture key)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -36,7 +36,7 @@ namespace MS.Internal.Commands
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             System.Windows.Input.CanExecuteRoutedEventHandler canExecuteRoutedEventHandler,
             System.Windows.Input.KeyGesture key)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler, canExecuteRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler, canExecuteRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -44,7 +44,7 @@ namespace MS.Internal.Commands
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             System.Windows.Input.KeyGesture key1,
             System.Windows.Input.KeyGesture key2)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -53,7 +53,7 @@ namespace MS.Internal.Commands
             System.Windows.Input.CanExecuteRoutedEventHandler canExecuteRoutedEventHandler,
             System.Windows.Input.KeyGesture key1,
             System.Windows.Input.KeyGesture key2)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler, canExecuteRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler, canExecuteRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -61,7 +61,7 @@ namespace MS.Internal.Commands
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             System.Windows.Input.CanExecuteRoutedEventHandler canExecuteRoutedEventHandler,
             params System.Windows.Input.InputGesture[] inputGestures)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler, canExecuteRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler, canExecuteRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -69,7 +69,7 @@ namespace MS.Internal.Commands
             System.Windows.Input.ExecutedRoutedEventHandler executedRoutedEventHandler,
             string keyGestureToken,
             string keyDisplayString)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler);
 
         public static void RegisterCommandHandler(
             System.Type controlType,
@@ -78,6 +78,6 @@ namespace MS.Internal.Commands
             System.Windows.Input.CanExecuteRoutedEventHandler canExecuteRoutedEventHandler,
             string keyGestureToken,
             string keyDisplayString)
-            => new System.Windows.Input.CommandBinding(command, executedRoutedEventHandler, canExecuteRoutedEventHandler);
+            => new System.Windows.Input.CommandBinding(command, controlType, executedRoutedEventHandler, canExecuteRoutedEventHandler);
     }
 }

@@ -12,6 +12,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private UnoFlowDocumentTextView? _textView;
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
+    private readonly List<Microsoft.UI.Xaml.Controls.TextBlock> _lineBlocks = [];
 
     // Caret overlay. The visual lives here, but hit-testing and geometry come
     // from the WPF-facing ITextView adapter.
@@ -29,7 +31,6 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
             IsHitTestVisible = false,
         };
-        Children.Add(_caret);
 
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
         _blinkTimer.Tick += (_, _) =>
@@ -106,17 +107,23 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         if (!ReferenceEquals(_page, _arrangedPage))
         {
-            while (Children.Count > 1)
-                Children.RemoveAt(1);
-            foreach (var line in _page.Lines)
-                Children.Add(BuildLineTextBlock(line));
+            RebuildLineBlocks();
             _arrangedPage = _page;
         }
 
+        RefreshSelection();
+
         var lines = _page.Lines;
-        int lineCount = Children.Count - 1;
-        for (int i = 0; i < lineCount && i < lines.Count; i++)
-            Children[i + 1].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+        for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
+            _lineBlocks[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+
+        foreach (var rect in _selectionRects)
+        {
+            if (rect.Tag is Rect selectionRect)
+            {
+                rect.Arrange(new Windows.Foundation.Rect(selectionRect.X, selectionRect.Y, selectionRect.Width, selectionRect.Height));
+            }
+        }
 
         if (!_caretRect.IsEmpty)
         {
@@ -143,6 +150,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     internal void SetCaretAt(ITextPointer position)
     {
         var textView = _textView ??= new UnoFlowDocumentTextView(this);
+        position = textView.NormalizeToVisiblePosition(position);
         var rect = textView.GetRectangleFromTextPosition(position);
         if (rect.IsEmpty)
             return;
@@ -155,7 +163,92 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         InvalidateArrange();
     }
 
+    internal void RefreshSelection()
+    {
+        foreach (var rect in _selectionRects)
+            Children.Remove(rect);
+        _selectionRects.Clear();
+
+        if (_page == null || _document?.StructuralCache?.TextContainer?.TextSelection is not ITextSelection selection)
+        {
+            EnsureCaretVisualOnTop();
+            return;
+        }
+
+        int start = Math.Min(selection.Start.CharOffset, selection.End.CharOffset);
+        int end = Math.Max(selection.Start.CharOffset, selection.End.CharOffset);
+        if (start == end)
+        {
+            EnsureCaretVisualOnTop();
+            return;
+        }
+
+        foreach (var line in _page.Lines)
+        {
+            int segmentStart = Math.Max(start, line.StartOffset);
+            int segmentEnd = Math.Min(end, line.EndOffset);
+            if (segmentStart >= segmentEnd)
+                continue;
+
+            double x1 = UnoFlowDocumentTextView.GetPixelXForOffset(line, segmentStart);
+            double x2 = UnoFlowDocumentTextView.GetPixelXForOffset(line, segmentEnd);
+            double height = line.Height > 0 ? line.Height : 14;
+
+            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DodgerBlue),
+                Opacity = 0.35,
+                IsHitTestVisible = false,
+                Tag = new Rect(x1, line.Y, Math.Max(1, x2 - x1), height),
+            };
+
+            _selectionRects.Add(rect);
+            Children.Add(rect);
+        }
+
+        ReorderVisuals();
+        InvalidateArrange();
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private void RebuildLineBlocks()
+    {
+        foreach (var block in _lineBlocks)
+            Children.Remove(block);
+        _lineBlocks.Clear();
+
+        if (_page == null)
+        {
+            ReorderVisuals();
+            return;
+        }
+
+        foreach (var line in _page.Lines)
+        {
+            var block = BuildLineTextBlock(line);
+            _lineBlocks.Add(block);
+            Children.Add(block);
+        }
+
+        ReorderVisuals();
+    }
+
+    private void EnsureCaretVisualOnTop()
+    {
+        ReorderVisuals();
+        InvalidateArrange();
+    }
+
+    private void ReorderVisuals()
+    {
+        Children.Clear();
+        foreach (var rect in _selectionRects)
+            Children.Add(rect);
+        foreach (var block in _lineBlocks)
+            Children.Add(block);
+        Children.Add(_caret);
+    }
 
     private static Microsoft.UI.Xaml.Controls.TextBlock BuildLineTextBlock(FlorenceLine line)
     {
