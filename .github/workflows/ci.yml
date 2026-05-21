@@ -2,13 +2,22 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master ]
 
 jobs:
-  build:
-    runs-on: windows-latest
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            solution: src/WindowsShims.slnx
+          - os: macos-latest
+            solution: src/WindowsShims.slnx
+          - os: windows-latest
+            solution: src/WindowsShims.slnx
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,7 +27,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.x'
-      - name: Restore
-        run: dotnet restore src/LeXtudio.Windows/LeXtudio.Windows.csproj
-      - name: Build
-        run: dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -c Release
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: ./build.windows.bat Release
+      - name: Build (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: dotnet build -c Release ${{ matrix.solution }}
+      - name: Run unit tests
+        run: dotnet test --no-build -c Release --verbosity minimal ${{ matrix.solution }}
