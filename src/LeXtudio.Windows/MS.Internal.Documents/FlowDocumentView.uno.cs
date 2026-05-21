@@ -4,7 +4,7 @@ using MS.Internal.Florence;
 
 namespace MS.Internal.Documents;
 
-internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider
+internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider, IUnoAdornerLayerHost
 {
     private FlowDocument? _document;
     private FlorencePage? _page;
@@ -14,6 +14,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private double _lastMeasureHeight = -1;
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
     private readonly List<Microsoft.UI.Xaml.Controls.TextBlock> _lineBlocks = [];
+    private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
+    private bool _selectionDirty = true;
+    private readonly AdornerLayer _adornerLayer;
 
     // Caret overlay. The visual lives here, but hit-testing and geometry come
     // from the WPF-facing ITextView adapter.
@@ -24,6 +27,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal FlowDocumentView()
     {
+        IsHitTestVisible = true;
+        _adornerLayer = new AdornerLayer();
+
         _caret = new Microsoft.UI.Xaml.Shapes.Rectangle
         {
             Width = 1,
@@ -31,6 +37,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
             IsHitTestVisible = false,
         };
+        Children.Add(_caret);
 
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
         _blinkTimer.Tick += (_, _) =>
@@ -53,6 +60,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _lastMeasureWidth = -1;
             _lastMeasureHeight = -1;
             _textView = null;
+            _selectionDirty = true;
+            ClearSelectionVisuals();
             InvalidateMeasure();
         }
     }
@@ -72,6 +81,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal UnoFlowDocumentTextView? TextView => _textView;
     internal FlorencePage? Page => _page;
+    AdornerLayer IUnoAdornerLayerSource.AdornerLayer => _adornerLayer;
+    Visual IUnoAdornerLayerHost.AdornerScope => this;
 
     // ── Measure / Arrange ───────────────────────────────────────────────────
 
@@ -88,7 +99,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _page = FlorenceLayoutEngine.Format(_document, new Windows.Foundation.Size(w, h));
             _lastMeasureWidth = w;
             _lastMeasureHeight = h;
+            _selectionDirty = true;
             _textView?.OnLayoutUpdated();
+            _document?.StructuralCache?.TextContainer?.TextSelection?.UpdateCaretAndHighlight();
         }
 
         double totalH = _page.Lines.Count > 0
@@ -111,11 +124,19 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _arrangedPage = _page;
         }
 
-        RefreshSelection();
+        if (_selectionDirty)
+        {
+            RefreshSelection();
+        }
 
         var lines = _page.Lines;
         for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
             _lineBlocks[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+
+        foreach (var (adorner, _) in _adorners)
+        {
+            adorner.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width, finalSize.Height));
+        }
 
         foreach (var rect in _selectionRects)
         {
@@ -165,13 +186,17 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal void RefreshSelection()
     {
-        foreach (var rect in _selectionRects)
-            Children.Remove(rect);
-        _selectionRects.Clear();
+        if (_adorners.Count > 0)
+        {
+            ClearSelectionVisuals();
+            return;
+        }
+
+        _selectionDirty = false;
 
         if (_page == null || _document?.StructuralCache?.TextContainer?.TextSelection is not ITextSelection selection)
         {
-            EnsureCaretVisualOnTop();
+            ClearSelectionVisuals();
             return;
         }
 
@@ -179,10 +204,11 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         int end = Math.Max(selection.Start.CharOffset, selection.End.CharOffset);
         if (start == end)
         {
-            EnsureCaretVisualOnTop();
+            ClearSelectionVisuals();
             return;
         }
 
+        int rectIndex = 0;
         foreach (var line in _page.Lines)
         {
             int segmentStart = Math.Max(start, line.StartOffset);
@@ -194,20 +220,16 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             double x2 = UnoFlowDocumentTextView.GetPixelXForOffset(line, segmentEnd);
             double height = line.Height > 0 ? line.Height : 14;
 
-            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
-            {
-                Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DodgerBlue),
-                Opacity = 0.35,
-                IsHitTestVisible = false,
-                Tag = new Rect(x1, line.Y, Math.Max(1, x2 - x1), height),
-            };
-
-            _selectionRects.Add(rect);
-            Children.Add(rect);
+            var rect = GetOrCreateSelectionRect(rectIndex++);
+            rect.Tag = new Rect(x1, line.Y, Math.Max(1, x2 - x1), height);
+            rect.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         }
 
-        ReorderVisuals();
-        InvalidateArrange();
+        for (int i = rectIndex; i < _selectionRects.Count; i++)
+        {
+            _selectionRects[i].Tag = Rect.Empty;
+            _selectionRects[i].Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -219,10 +241,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         _lineBlocks.Clear();
 
         if (_page == null)
-        {
-            ReorderVisuals();
             return;
-        }
 
         foreach (var line in _page.Lines)
         {
@@ -231,23 +250,41 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             Children.Add(block);
         }
 
-        ReorderVisuals();
+        foreach (var (adorner, _) in _adorners)
+        {
+            if (!Children.Contains(adorner))
+            {
+                Children.Add(adorner);
+            }
+        }
     }
 
-    private void EnsureCaretVisualOnTop()
+    private Microsoft.UI.Xaml.Shapes.Rectangle GetOrCreateSelectionRect(int index)
     {
-        ReorderVisuals();
-        InvalidateArrange();
+        while (_selectionRects.Count <= index)
+        {
+            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DodgerBlue),
+                Opacity = 0.35,
+                IsHitTestVisible = false,
+                Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
+            };
+            _selectionRects.Add(rect);
+            int caretIndex = Math.Max(0, Children.IndexOf(_caret));
+            Children.Insert(caretIndex, rect);
+        }
+
+        return _selectionRects[index];
     }
 
-    private void ReorderVisuals()
+    private void ClearSelectionVisuals()
     {
-        Children.Clear();
         foreach (var rect in _selectionRects)
-            Children.Add(rect);
-        foreach (var block in _lineBlocks)
-            Children.Add(block);
-        Children.Add(_caret);
+        {
+            rect.Tag = Rect.Empty;
+            rect.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        }
     }
 
     private static Microsoft.UI.Xaml.Controls.TextBlock BuildLineTextBlock(FlorenceLine line)
@@ -280,6 +317,58 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             tb.Inlines.Add(inlineRun);
         }
         return tb;
+    }
+
+    void IUnoAdornerLayerHost.AddAdorner(Adorner adorner, int zOrder)
+    {
+        if (_adorners.Any(entry => ReferenceEquals(entry.Adorner, adorner)))
+        {
+            ((IUnoAdornerLayerHost)this).SetAdornerZOrder(adorner, zOrder);
+            return;
+        }
+
+        int index = _adorners.FindIndex(entry => zOrder < entry.ZOrder);
+        if (index < 0)
+        {
+            _adorners.Add((adorner, zOrder));
+            Children.Add(adorner);
+        }
+        else
+        {
+            _adorners.Insert(index, (adorner, zOrder));
+            int childIndex = Children.IndexOf(_adorners[index + 1].Adorner);
+            if (childIndex < 0)
+            {
+                Children.Add(adorner);
+            }
+            else
+            {
+                Children.Insert(childIndex, adorner);
+            }
+        }
+
+        _selectionDirty = true;
+        InvalidateArrange();
+    }
+
+    void IUnoAdornerLayerHost.RemoveAdorner(Adorner adorner)
+    {
+        int index = _adorners.FindIndex(entry => ReferenceEquals(entry.Adorner, adorner));
+        if (index < 0)
+        {
+            return;
+        }
+
+        _adorners.RemoveAt(index);
+        Children.Remove(adorner);
+        _selectionDirty = true;
+        InvalidateArrange();
+    }
+
+    void IUnoAdornerLayerHost.SetAdornerZOrder(Adorner adorner, int zOrder)
+    {
+        ((IUnoAdornerLayerHost)this).RemoveAdorner(adorner);
+        ((IUnoAdornerLayerHost)this).AddAdorner(adorner, zOrder);
     }
 }
 #endif
