@@ -14,7 +14,10 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 {
     private FlowDocument? _document;
     private FlorencePage? _page;
+    private FlorencePage? _arrangedPage;
     private UnoFlowDocumentTextView? _textView;
+    private double _lastMeasureWidth = -1;
+    private double _lastMeasureHeight = -1;
 
     // ── Document ────────────────────────────────────────────────────────────
 
@@ -25,6 +28,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         {
             _document = value;
             _page = null;
+            _arrangedPage = null;
+            _lastMeasureWidth = -1;
+            _lastMeasureHeight = -1;
             _textView = null;
             InvalidateMeasure();
         }
@@ -55,13 +61,19 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             return new Windows.Foundation.Size(0, 0);
 
         double w = double.IsInfinity(availableSize.Width) ? 600 : availableSize.Width;
-        _page = FlorenceLayoutEngine.Format(_document, new Windows.Foundation.Size(w, availableSize.Height));
+        double h = availableSize.Height;
+
+        if (_page == null || Math.Abs(w - _lastMeasureWidth) > 0.5 || Math.Abs(h - _lastMeasureHeight) > 0.5)
+        {
+            _page = FlorenceLayoutEngine.Format(_document, new Windows.Foundation.Size(w, h));
+            _lastMeasureWidth = w;
+            _lastMeasureHeight = h;
+            _textView?.OnLayoutUpdated();
+        }
 
         double totalH = _page.Lines.Count > 0
             ? _page.Lines[^1].Y + _page.Lines[^1].Height
             : 0;
-
-        _textView?.OnLayoutUpdated();
 
         return new Windows.Foundation.Size(
             Math.Min(w, double.IsInfinity(availableSize.Width) ? w : availableSize.Width),
@@ -70,17 +82,22 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
     {
-        Children.Clear();
-
         if (_page == null)
             return finalSize;
 
-        foreach (var line in _page.Lines)
+        // Rebuild children only when the page changed — avoids dirtying layout every frame.
+        if (!ReferenceEquals(_page, _arrangedPage))
         {
-            var tb = BuildLineTextBlock(line);
-            Children.Add(tb);
-            tb.Arrange(new Windows.Foundation.Rect(0, line.Y, finalSize.Width, line.Height));
+            Children.Clear();
+            foreach (var line in _page.Lines)
+                Children.Add(BuildLineTextBlock(line));
+            _arrangedPage = _page;
         }
+
+        // Always re-arrange children at the correct positions.
+        var lines = _page.Lines;
+        for (int i = 0; i < Children.Count && i < lines.Count; i++)
+            Children[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
 
         return finalSize;
     }
