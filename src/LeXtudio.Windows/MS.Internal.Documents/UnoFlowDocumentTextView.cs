@@ -69,7 +69,13 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             return tc.Start;
 
         // Within the line, find the character offset from the X position.
-        int charOffset = Math.Clamp(HitTestX(hit, point.X), 0, tc.IMECharCount);
+        int raw = HitTestX(hit, point.X);
+        int charOffset = Math.Clamp(raw, 0, tc.IMECharCount);
+        System.IO.File.AppendAllText(
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log"),
+            $"{DateTime.Now:HH:mm:ss.fff}  [HitTest] point=({point.X:F1},{point.Y:F1}) " +
+            $"hit.Y={hit.Y:F1} hit.H={hit.Height:F1} hit.Start={hit.StartOffset} hit.End={hit.EndOffset} " +
+            $"raw={raw} IMECharCount={tc.IMECharCount} clamped={charOffset}\n");
         return tc.CreatePointerAtCharOffset(charOffset, LogicalDirection.Forward);
     }
 

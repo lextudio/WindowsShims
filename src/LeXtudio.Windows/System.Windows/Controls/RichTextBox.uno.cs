@@ -32,15 +32,6 @@ public partial class RichTextBox
         {
             base.OnApplyTemplate();
             Log($"OnApplyTemplate: done, Template={Template}");
-
-            // Wire caret rendering.
-            var te = TextEditor;
-            if (te?.Selection != null &&
-                te.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
-            {
-                fdv.AttachSelection(te.Selection);
-                Log($"OnApplyTemplate: caret wired");
-            }
         }
         catch (Exception ex)
         {
@@ -75,6 +66,11 @@ public partial class RichTextBox
                 MouseButton.Left,
                 1);
             Log($"PointerPressed: SetCaretPosition done");
+
+            // Drive caret display from Florence hit-test directly (WPF TextContainer
+            // offsets are unusable in the Uno shim — IMECharCount reports stub values).
+            if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
+                fdv.SetCaretAt(unoPoint);
         }
         catch (Exception ex)
         {

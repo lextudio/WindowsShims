@@ -4,12 +4,6 @@ using MS.Internal.Florence;
 
 namespace MS.Internal.Documents;
 
-/// <summary>
-/// Uno render scope for RichTextBox.  Runs FlorenceLayoutEngine over the FlowDocument
-/// and renders each visual line as a Uno TextBlock child.  Implements IServiceProvider
-/// so the WPF TextEditor can obtain a UnoFlowDocumentTextView (ITextView) for cursor
-/// placement and editing.
-/// </summary>
 internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider
 {
     private FlowDocument? _document;
@@ -19,9 +13,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
 
-    // Caret overlay
+    // Caret overlay — positioned purely from Florence data, no WPF TextContainer involved.
     private readonly Microsoft.UI.Xaml.Shapes.Rectangle _caret;
-    private ITextSelection? _selection;
     private DispatcherTimer? _blinkTimer;
     private bool _caretVisible;
     private Rect _caretRect = Rect.Empty;
@@ -36,6 +29,13 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             IsHitTestVisible = false,
         };
         Children.Add(_caret);
+
+        _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
+        _blinkTimer.Tick += (_, _) =>
+        {
+            _caretVisible = !_caretVisible;
+            _caret.Opacity = _caretVisible ? 1 : 0;
+        };
     }
 
     // ── Document ────────────────────────────────────────────────────────────
@@ -55,7 +55,6 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
     }
 
-    // Override so RichTextBox.CreateRenderScope can set it after construction.
     internal bool OverridesDefaultStyle { get; set; }
 
     // ── IServiceProvider ────────────────────────────────────────────────────
@@ -104,10 +103,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         if (_page == null)
             return finalSize;
 
-        // Rebuild line children when the page changed (skip the caret overlay at index 0).
         if (!ReferenceEquals(_page, _arrangedPage))
         {
-            // Remove all children except the caret (index 0).
             while (Children.Count > 1)
                 Children.RemoveAt(1);
             foreach (var line in _page.Lines)
@@ -115,13 +112,11 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _arrangedPage = _page;
         }
 
-        // Arrange line children (skip caret at index 0).
         var lines = _page.Lines;
-        int lineCount = Children.Count - 1; // subtract caret
+        int lineCount = Children.Count - 1;
         for (int i = 0; i < lineCount && i < lines.Count; i++)
             Children[i + 1].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
 
-        // Position caret from stored rect, or hide it off-screen.
         if (!_caretRect.IsEmpty)
         {
             double h = _caretRect.Height > 0 ? _caretRect.Height : 14;
@@ -135,50 +130,58 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         return finalSize;
     }
 
-    // ── Caret ────────────────────────────────────────────────────────────────
+    // ── Caret — driven purely by Florence hit-test, no WPF TextContainer ─────
 
-    internal void AttachSelection(ITextSelection selection)
+    internal void SetCaretAt(Windows.Foundation.Point clickPoint)
     {
-        if (_selection != null)
-            _selection.Changed -= OnSelectionChanged;
-        _selection = selection;
-        _selection.Changed += OnSelectionChanged;
+        if (_page == null) return;
 
-        _blinkTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
-        _blinkTimer.Tick += (_, _) =>
+        var lines = _page.Lines;
+
+        // Find the line under the click.
+        FlorenceLine? hit = null;
+        foreach (var line in lines)
         {
-            _caretVisible = !_caretVisible;
-            _caret.Opacity = _caretVisible ? 1 : 0;
-        };
-    }
-
-    private void OnSelectionChanged(object? sender, EventArgs e)
-    {
-        UpdateCaretPosition();
-    }
-
-    private void UpdateCaretPosition()
-    {
-        if (_textView == null || _selection == null) return;
-
-        var caretPos = _selection.Start;
-        var rect = ((ITextView)_textView).GetRectangleFromTextPosition(caretPos);
-
-        if (rect.IsEmpty)
-        {
-            _caretRect = Rect.Empty;
-            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
-            _blinkTimer?.Stop();
-            InvalidateArrange();
-            return;
+            if (clickPoint.Y >= line.Y && clickPoint.Y < line.Y + line.Height)
+            { hit = line; break; }
         }
+        hit ??= lines.Count > 0 ? lines[^1] : null;
+        if (hit == null) return;
 
-        _caretRect = rect;
+        // Find X position within the line.
+        double caretX = HitTestXToPixel(hit, clickPoint.X);
+        double caretH = hit.Height > 0 ? hit.Height : 14;
+
+        _caretRect = new Rect(caretX, hit.Y, 1, caretH);
         _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         _caretVisible = true;
         _caret.Opacity = 1;
         _blinkTimer?.Start();
         InvalidateArrange();
+    }
+
+    /// <summary>Given a click X, return the pixel X of the nearest character boundary.</summary>
+    private static double HitTestXToPixel(FlorenceLine line, double clickX)
+    {
+        if (line.Runs.Count == 0) return 0;
+
+        foreach (var run in line.Runs)
+        {
+            if (clickX >= run.X && clickX < run.X + run.Width)
+            {
+                // Proportional split within the run.
+                double fraction = (clickX - run.X) / Math.Max(run.Width, 1);
+                int charInRun = (int)Math.Round(fraction * run.Length);
+                charInRun = Math.Clamp(charInRun, 0, run.Length);
+                // Return pixel X at that char boundary.
+                double charWidth = run.Length > 0 ? run.Width / run.Length : 0;
+                return run.X + charInRun * charWidth;
+            }
+        }
+
+        // Past the end — return end of last run.
+        var last = line.Runs[^1];
+        return last.X + last.Width;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
