@@ -341,7 +341,17 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             // intended typeface — matching what UnoFlowDocumentTextView measures
             // when computing caret X.
             if (run.FontFamily is not null) inlineRun.FontFamily = run.FontFamily;
-            tb.Inlines.Add(inlineRun);
+            if (run.Foreground is not null) inlineRun.Foreground = run.Foreground;
+
+            Microsoft.UI.Xaml.Documents.Inline inline = inlineRun;
+            if (run.Underline)
+            {
+                var underline = new Microsoft.UI.Xaml.Documents.Underline();
+                underline.Inlines.Add(inlineRun);
+                inline = underline;
+            }
+
+            tb.Inlines.Add(inline);
         }
         return tb;
     }
