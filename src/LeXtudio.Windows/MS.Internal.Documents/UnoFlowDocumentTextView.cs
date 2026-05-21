@@ -69,7 +69,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             return tc.Start;
 
         // Within the line, find the character offset from the X position.
-        int charOffset = HitTestX(hit, point.X);
+        int charOffset = Math.Clamp(HitTestX(hit, point.X), 0, tc.IMECharCount);
         return tc.CreatePointerAtCharOffset(charOffset, LogicalDirection.Forward);
     }
 
@@ -114,7 +114,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         linesMoved = targetIndex - currentIndex;
 
         var targetLine = lines[targetIndex];
-        int newOffset = HitTestX(targetLine, suggestedX);
+        int newOffset = Math.Clamp(HitTestX(targetLine, suggestedX), 0, tc.IMECharCount);
         newSuggestedX = GetXForOffset(targetLine, newOffset);
         return tc.CreatePointerAtCharOffset(newOffset, LogicalDirection.Forward);
     }

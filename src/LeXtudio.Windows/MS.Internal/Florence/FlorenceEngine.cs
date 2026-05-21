@@ -333,10 +333,31 @@ namespace MS.Internal.Florence
     // hit-testing. Replace with Uno text measurement for pixel-perfect layout.
     // -----------------------------------------------------------------------
 
+    internal static class TextMeasurer
+    {
+        // One reusable TextBlock per thread (always UI thread for Measure calls).
+        [ThreadStatic] private static Microsoft.UI.Xaml.Controls.TextBlock? _probe;
+
+        internal static double MeasureWidth(string text, double fontSize, bool bold, bool italic)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            _probe ??= new Microsoft.UI.Xaml.Controls.TextBlock();
+            _probe.Text = text;
+            _probe.FontSize = fontSize;
+            _probe.FontWeight = bold
+                ? Microsoft.UI.Text.FontWeights.Bold
+                : Microsoft.UI.Text.FontWeights.Normal;
+            _probe.FontStyle = italic
+                ? Windows.UI.Text.FontStyle.Italic
+                : Windows.UI.Text.FontStyle.Normal;
+            _probe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            return _probe.DesiredSize.Width;
+        }
+    }
+
     internal static class FlorenceLayoutEngine
     {
         private const double DefaultFontSize = 14.0;
-        private const double CharWidthRatio  = 0.50; // estimated width/height ratio
         private const double LineSpacing     = 1.2;  // line height = FontSize * LineSpacing
 
         /// <summary>
@@ -390,17 +411,19 @@ namespace MS.Internal.Florence
 
             foreach (var span in spans)
             {
-                double cw = span.FontSize * CharWidthRatio;
                 string remaining = span.Text;
                 int spanOffset = span.GlobalOffset;
                 lineHeight = Math.Max(lineHeight, span.FontSize * LineSpacing);
 
                 while (remaining.Length > 0)
                 {
-                    int fitChars = Math.Max(1, (int)Math.Floor((availWidth - x) / cw));
+                    // Binary-search for how many characters fit on the remaining line width.
+                    double spaceLeft = availWidth - x;
+                    int fitChars = FindFitChars(remaining, spaceLeft, span.FontSize, span.Bold, span.Italic);
+
                     if (fitChars >= remaining.Length)
                     {
-                        double w = remaining.Length * cw;
+                        double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic);
                         currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
                             span.FontSize, span.Bold, span.Italic));
                         x += w;
@@ -412,7 +435,7 @@ namespace MS.Internal.Florence
                     {
                         int breakAt = FindWordBreak(remaining, fitChars);
                         string lineChunk = remaining[..breakAt];
-                        double w = lineChunk.Length * cw;
+                        double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic);
                         currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
                             span.FontSize, span.Bold, span.Italic));
                         lineText += lineChunk;
@@ -452,6 +475,24 @@ namespace MS.Internal.Florence
             var line = new FlorenceLine(lineStart, lineText.Length, y, y + lineHeight * 0.8,
                 lineHeight, lineText, runs);
             page.AddLine(line);
+        }
+
+        private static int FindFitChars(string text, double availWidth, double fontSize, bool bold, bool italic)
+        {
+            if (availWidth <= 0) return 1;
+            double totalWidth = TextMeasurer.MeasureWidth(text, fontSize, bold, italic);
+            if (totalWidth <= availWidth) return text.Length;
+
+            // Binary search
+            int lo = 1, hi = text.Length - 1, best = 1;
+            while (lo <= hi)
+            {
+                int mid = (lo + hi) / 2;
+                double w = TextMeasurer.MeasureWidth(text[..mid], fontSize, bold, italic);
+                if (w <= availWidth) { best = mid; lo = mid + 1; }
+                else hi = mid - 1;
+            }
+            return best;
         }
 
         private static int FindWordBreak(string text, int maxChars)

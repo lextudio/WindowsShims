@@ -19,6 +19,25 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
 
+    // Caret overlay
+    private readonly Microsoft.UI.Xaml.Shapes.Rectangle _caret;
+    private ITextSelection? _selection;
+    private DispatcherTimer? _blinkTimer;
+    private bool _caretVisible;
+    private Rect _caretRect = Rect.Empty;
+
+    internal FlowDocumentView()
+    {
+        _caret = new Microsoft.UI.Xaml.Shapes.Rectangle
+        {
+            Width = 1,
+            Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black),
+            Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        Children.Add(_caret);
+    }
+
     // ── Document ────────────────────────────────────────────────────────────
 
     internal FlowDocument? Document
@@ -85,21 +104,81 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         if (_page == null)
             return finalSize;
 
-        // Rebuild children only when the page changed — avoids dirtying layout every frame.
+        // Rebuild line children when the page changed (skip the caret overlay at index 0).
         if (!ReferenceEquals(_page, _arrangedPage))
         {
-            Children.Clear();
+            // Remove all children except the caret (index 0).
+            while (Children.Count > 1)
+                Children.RemoveAt(1);
             foreach (var line in _page.Lines)
                 Children.Add(BuildLineTextBlock(line));
             _arrangedPage = _page;
         }
 
-        // Always re-arrange children at the correct positions.
+        // Arrange line children (skip caret at index 0).
         var lines = _page.Lines;
-        for (int i = 0; i < Children.Count && i < lines.Count; i++)
-            Children[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+        int lineCount = Children.Count - 1; // subtract caret
+        for (int i = 0; i < lineCount && i < lines.Count; i++)
+            Children[i + 1].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+
+        // Position caret from stored rect, or hide it off-screen.
+        if (!_caretRect.IsEmpty)
+        {
+            double h = _caretRect.Height > 0 ? _caretRect.Height : 14;
+            _caret.Arrange(new Windows.Foundation.Rect(_caretRect.X, _caretRect.Y, 1, h));
+        }
+        else
+        {
+            _caret.Arrange(new Windows.Foundation.Rect(-2, 0, 1, 0));
+        }
 
         return finalSize;
+    }
+
+    // ── Caret ────────────────────────────────────────────────────────────────
+
+    internal void AttachSelection(ITextSelection selection)
+    {
+        if (_selection != null)
+            _selection.Changed -= OnSelectionChanged;
+        _selection = selection;
+        _selection.Changed += OnSelectionChanged;
+
+        _blinkTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
+        _blinkTimer.Tick += (_, _) =>
+        {
+            _caretVisible = !_caretVisible;
+            _caret.Opacity = _caretVisible ? 1 : 0;
+        };
+    }
+
+    private void OnSelectionChanged(object? sender, EventArgs e)
+    {
+        UpdateCaretPosition();
+    }
+
+    private void UpdateCaretPosition()
+    {
+        if (_textView == null || _selection == null) return;
+
+        var caretPos = _selection.Start;
+        var rect = ((ITextView)_textView).GetRectangleFromTextPosition(caretPos);
+
+        if (rect.IsEmpty)
+        {
+            _caretRect = Rect.Empty;
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            _blinkTimer?.Stop();
+            InvalidateArrange();
+            return;
+        }
+
+        _caretRect = rect;
+        _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+        _caretVisible = true;
+        _caret.Opacity = 1;
+        _blinkTimer?.Start();
+        InvalidateArrange();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
