@@ -72,8 +72,8 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 
     internal virtual void AddToEventRouteCore(EventRoute route, RoutedEventArgs args) { }
 
-    // WPF UIElement.RaiseEvent — no-op stub; WinUI uses event subscription, not explicit raise.
-    public void RaiseEvent(RoutedEventArgs e) { }
+    // WPF UIElement.RaiseEvent — forward to the shared WPF-style routed event bag
+    public void RaiseEvent(RoutedEventArgs e) => WinUIDependencyObjectExtensions.RaiseEvent(this, e);
 
     // WPF DependencyObject.SetValue accepting a DependencyPropertyKey (read-only DP write path).
     public void SetValue(System.Windows.DependencyPropertyKey key, object? value)
@@ -90,8 +90,11 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
     protected DpiScale GetDpi() => new DpiScale(1.0, 1.0);
 
     // WPF UIElement.AddHandler/RemoveHandler taking System.Windows.RoutedEvent.
-    protected void AddHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) { }
-    protected void RemoveHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) { }
+    protected void AddHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.AddHandler(this, routedEvent, handler);
+
+    protected void RemoveHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.RemoveHandler(this, routedEvent, handler);
 
     // WPF Control.OnVisualStatePropertyChanged — VisualStateManager not used on HAS_UNO.
     internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
