@@ -7,11 +7,6 @@ public partial class TextBoxBase
 {
     internal void NotifySelectionChanged()
     {
-        if (RenderScope is FlowDocumentView flowDocumentView)
-        {
-            flowDocumentView.RefreshSelection();
-        }
-
         OnSelectionChanged(new RoutedEventArgs(SelectionChangedEvent));
     }
 }

@@ -16,6 +16,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private readonly List<Microsoft.UI.Xaml.Controls.TextBlock> _lineBlocks = [];
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
+    private ITextSelection? _trackedSelection;
     private readonly AdornerLayer _adornerLayer;
 
     // Caret overlay. The visual lives here, but hit-testing and geometry come
@@ -54,6 +55,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         get => _document;
         set
         {
+            UnhookSelectionChanged();
             _document = value;
             _page = null;
             _arrangedPage = null;
@@ -62,6 +64,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _textView = null;
             _selectionDirty = true;
             ClearSelectionVisuals();
+            HookSelectionChanged();
             InvalidateMeasure();
         }
     }
@@ -230,6 +233,30 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _selectionRects[i].Tag = Rect.Empty;
             _selectionRects[i].Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
         }
+    }
+
+    private void HookSelectionChanged()
+    {
+        _trackedSelection = _document?.StructuralCache?.TextContainer?.TextSelection;
+        if (_trackedSelection != null)
+        {
+            _trackedSelection.Changed += OnTrackedSelectionChanged;
+        }
+    }
+
+    private void UnhookSelectionChanged()
+    {
+        if (_trackedSelection != null)
+        {
+            _trackedSelection.Changed -= OnTrackedSelectionChanged;
+            _trackedSelection = null;
+        }
+    }
+
+    private void OnTrackedSelectionChanged(object? sender, EventArgs e)
+    {
+        _selectionDirty = true;
+        InvalidateArrange();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
