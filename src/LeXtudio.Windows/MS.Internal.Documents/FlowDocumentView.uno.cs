@@ -172,12 +172,18 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         var first = line.Runs[0];
         if (first.FontSize > 0) tb.FontSize = first.FontSize;
+        if (first.FontFamily is not null) tb.FontFamily = first.FontFamily;
 
         foreach (var run in line.Runs)
         {
             var inlineRun = new Microsoft.UI.Xaml.Documents.Run { Text = run.Text };
             if (run.Bold)   inlineRun.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
             if (run.Italic) inlineRun.FontStyle  = Windows.UI.Text.FontStyle.Italic;
+            // Per-run FontFamily mirrors WPF PTS TextRunProperties.Typeface.FontFamily
+            // so mixed-script content (e.g. CJK + Latin) renders each Run with its
+            // intended typeface — matching what UnoFlowDocumentTextView measures
+            // when computing caret X.
+            if (run.FontFamily is not null) inlineRun.FontFamily = run.FontFamily;
             tb.Inlines.Add(inlineRun);
         }
         return tb;

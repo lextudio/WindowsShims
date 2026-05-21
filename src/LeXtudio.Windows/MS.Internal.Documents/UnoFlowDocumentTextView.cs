@@ -17,6 +17,15 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     private readonly FlowDocumentView _owner;
     private bool _isValid;
 
+    private static readonly string _logPath =
+        System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
+
+    private static void Log(string msg)
+    {
+        try { System.IO.File.AppendAllText(_logPath,
+            $"{DateTime.Now:HH:mm:ss.fff}  [TextView] {msg}\n"); } catch { }
+    }
+
     internal UnoFlowDocumentTextView(FlowDocumentView owner)
     {
         _owner = owner;
@@ -25,7 +34,42 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     internal void OnLayoutUpdated()
     {
         _isValid = true;
+        if (_owner.Page != null)
+        {
+            var tc = _owner.Document?.StructuralCache.TextContainer;
+            Log($"[Layout] {_owner.Page.Lines.Count} lines, IMECharCount={tc?.IMECharCount}");
+            foreach (var ln in _owner.Page.Lines)
+                Log($"[Layout]   line[{ln.StartOffset}..{ln.EndOffset}] y={ln.Y:F1} runs={ln.Runs.Count} text='{ln.FullText}'");
+        }
         Updated?.Invoke(this, EventArgs.Empty);
+        // After a reflow (e.g. window resize), the Uno caret Rectangle has stale pixel
+        // coordinates. Recompute from the current selection so the caret tracks the text.
+        RefreshCaretAfterLayout();
+    }
+
+    private void RefreshCaretAfterLayout()
+    {
+        try
+        {
+            var tc = _owner.Document?.StructuralCache.TextContainer;
+            var position = tc?.TextSelection?.MovingPosition;
+            if (position == null) return;
+
+            // Clamp to last visible offset (same rule as UpdateCaretFromSelection).
+            if (_owner.Page != null && _owner.Page.Lines.Count > 0)
+            {
+                int lastOffset = _owner.Page.Lines[^1].EndOffset;
+                if (position.CharOffset > lastOffset)
+                    position = tc!.CreatePointerAtCharOffset(lastOffset, LogicalDirection.Backward);
+            }
+
+            _owner.SetCaretAt(position);
+            Log($"[Layout] caret refreshed to offset={position.CharOffset} dir={position.LogicalDirection}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[Layout] RefreshCaretAfterLayout THREW {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     internal ITextPointer GetTextPositionFromPoint(Windows.Foundation.Point point, bool snapToText)
@@ -89,11 +133,17 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (_owner.Page == null) return Rect.Empty;
         int offset = position.CharOffset;
         var line = FindLineForPosition(position);
-        if (line == null) return Rect.Empty;
+        if (line == null)
+        {
+            Log($"[GetRect] offset={offset} dir={position.LogicalDirection} → no line found → Empty");
+            return Rect.Empty;
+        }
 
         double x = GetPixelXForOffset(line, offset);
         double lineH = line.Height > 0 ? line.Height : 14;
-        return new Rect(x, line.Y, 1, lineH);
+        var rect = new Rect(x, line.Y, 1, lineH);
+        Log($"[GetRect] offset={offset} dir={position.LogicalDirection} → line[{line.StartOffset}..{line.EndOffset}] x={x:F1} y={line.Y:F1}");
+        return rect;
     }
 
     Rect ITextView.GetRawRectangleFromTextPosition(ITextPointer position, out Transform transform)
@@ -178,6 +228,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         int newOffset = direction == LogicalDirection.Forward
             ? Math.Min(offset + 1, tc.IMECharCount)
             : Math.Max(offset - 1, 0);
+        Log($"[GetNextCaretUnit] offset={offset} dir={direction} → {newOffset} (IMECharCount={tc.IMECharCount})");
         return tc.CreatePointerAtCharOffset(newOffset, direction);
     }
 
@@ -198,6 +249,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (tc == null) return TextSegment.Null;
         var start = tc.CreatePointerAtCharOffset(line.StartOffset, LogicalDirection.Forward);
         var end   = tc.CreatePointerAtCharOffset(line.EndOffset,   LogicalDirection.Backward);
+        Log($"[GetLineRange] query offset={position.CharOffset} dir={position.LogicalDirection} → line[{line.StartOffset}..{line.EndOffset}]");
         return new TextSegment(start, end);
     }
 
@@ -289,11 +341,27 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         {
             if (x >= run.X && x < run.X + run.Width)
             {
-                // Proportional split within the run.
-                double fraction = (x - run.X) / Math.Max(run.Width, 1);
-                int charInRun = (int)Math.Round(fraction * run.Length);
-                charInRun = Math.Clamp(charInRun, 0, run.Length);
-                return run.StartOffset + charInRun;
+                // Binary search across the run's text using actual TextBlock-measured
+                // prefix widths — keeps caret on variable-width / mixed-script text
+                // (e.g. CJK + Latin) aligned with what BuildLineTextBlock renders.
+                double target = x - run.X;
+                int lo = 0;
+                int hi = run.Length;
+                while (lo < hi)
+                {
+                    int mid = (lo + hi + 1) / 2;
+                    double w = MeasurePrefixWidth(run, mid);
+                    if (w <= target) lo = mid;
+                    else hi = mid - 1;
+                }
+                if (lo < run.Length)
+                {
+                    double left  = MeasurePrefixWidth(run, lo);
+                    double right = MeasurePrefixWidth(run, lo + 1);
+                    if (Math.Abs(target - right) < Math.Abs(target - left))
+                        lo += 1;
+                }
+                return run.StartOffset + Math.Clamp(lo, 0, run.Length);
             }
         }
         // Past the end of the line.
@@ -308,11 +376,26 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             if (offset >= run.StartOffset && offset <= run.EndOffset)
             {
                 int charInRun = offset - run.StartOffset;
-                return run.X + (run.Length > 0 ? run.CharWidth * charInRun : 0);
+                if (run.Length <= 0 || charInRun <= 0)
+                    return run.X;
+                if (charInRun >= run.Length)
+                    return run.X + run.Width;
+                // Use the same TextBlock measurement engine the renderer uses
+                // (see FlowDocumentView.BuildLineTextBlock) so the caret's X
+                // matches the rendered pixel position of that character,
+                // even with proportional fonts and font fallback.
+                return run.X + MeasurePrefixWidth(run, charInRun);
             }
         }
         return line.Runs.Count > 0 ? line.Runs[^1].X + line.Runs[^1].Width : 0;
     }
+
+    // Delegate to the same TextMeasurer that Florence used during layout, so caret X
+    // is calculated with the same sentinel-corrected widths used to place runs.
+    // This is critical for trailing whitespace: TextBlock.DesiredSize.Width strips
+    // trailing spaces, but TextMeasurer.MeasureWidth compensates via a sentinel char.
+    private static double MeasurePrefixWidth(FlorenceRun run, int charCount)
+        => MS.Internal.Florence.TextMeasurer.MeasurePrefixWidth(run, charCount);
 
     private static ITextPointer NullStart()
         => new MS.Internal.Florence.FlorenceTextPointer(

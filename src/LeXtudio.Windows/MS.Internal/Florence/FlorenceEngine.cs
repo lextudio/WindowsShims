@@ -247,7 +247,8 @@ namespace MS.Internal.Florence
     internal sealed class FlorenceRun
     {
         internal FlorenceRun(int startOffset, int length, double x, double width, string text,
-            double fontSize, bool bold, bool italic)
+            double fontSize, bool bold, bool italic,
+            Microsoft.UI.Xaml.Media.FontFamily? fontFamily)
         {
             StartOffset = startOffset;
             Length      = length;
@@ -257,6 +258,7 @@ namespace MS.Internal.Florence
             FontSize    = fontSize;
             Bold        = bold;
             Italic      = italic;
+            FontFamily  = fontFamily;
         }
 
         internal int    StartOffset { get; }
@@ -268,6 +270,9 @@ namespace MS.Internal.Florence
         internal double FontSize    { get; }
         internal bool   Bold        { get; }
         internal bool   Italic      { get; }
+        // Mirrors WPF's TextRunProperties.Typeface.FontFamily. Null means inherit
+        // whatever the host's TextBlock default resolves to.
+        internal Microsoft.UI.Xaml.Media.FontFamily? FontFamily { get; }
 
         // Average pixel width per character in this run (estimated).
         internal double CharWidth => Length > 0 ? Width / Length : 0;
@@ -338,11 +343,49 @@ namespace MS.Internal.Florence
         // One reusable TextBlock per thread (always UI thread for Measure calls).
         [ThreadStatic] private static Microsoft.UI.Xaml.Controls.TextBlock? _probe;
 
-        internal static double MeasureWidth(string text, double fontSize, bool bold, bool italic)
+        // TextBlock.DesiredSize.Width strips trailing whitespace (matches WPF/DirectWrite
+        // TextLine.Width, but NOT WidthIncludingTrailingWhitespace). That breaks caret
+        // positioning: prefix "ab " measures the same as "ab", so the caret jumps backward
+        // across spaces. We work around by appending a non-whitespace sentinel and
+        // subtracting its width — this preserves trailing whitespace in the measurement
+        // while keeping kerning impact small (period has no kern pairs with whitespace
+        // in any reasonable font).
+        private const char SentinelChar = '.';
+
+        internal static double MeasureWidth(string text, double fontSize, bool bold, bool italic,
+            Microsoft.UI.Xaml.Media.FontFamily? fontFamily = null)
         {
             if (string.IsNullOrEmpty(text)) return 0;
+
+            ConfigureProbe(fontSize, bold, italic, fontFamily);
+
+            // Width(text) = Width(text + sentinel) - Width(sentinel). Doing it this way
+            // means trailing whitespace inside `text` is no longer at the end of the
+            // measured string and survives the trim.
+            double sentinelWidth = MeasureRaw(SentinelChar.ToString());
+            double withSentinel  = MeasureRaw(text + SentinelChar);
+            return Math.Max(0, withSentinel - sentinelWidth);
+        }
+
+        internal static double MeasurePrefixWidth(Florence.FlorenceRun run, int charCount)
+        {
+            if (charCount <= 0) return 0;
+            if (charCount >= run.Length) return run.Width;
+            return MeasureWidth(run.Text.Substring(0, charCount),
+                run.FontSize, run.Bold, run.Italic, run.FontFamily);
+        }
+
+        private static double MeasureRaw(string text)
+        {
+            _probe!.Text = text;
+            _probe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            return _probe.DesiredSize.Width;
+        }
+
+        private static void ConfigureProbe(double fontSize, bool bold, bool italic,
+            Microsoft.UI.Xaml.Media.FontFamily? fontFamily)
+        {
             _probe ??= new Microsoft.UI.Xaml.Controls.TextBlock();
-            _probe.Text = text;
             _probe.FontSize = fontSize;
             _probe.FontWeight = bold
                 ? Microsoft.UI.Text.FontWeights.Bold
@@ -350,8 +393,10 @@ namespace MS.Internal.Florence
             _probe.FontStyle = italic
                 ? Windows.UI.Text.FontStyle.Italic
                 : Windows.UI.Text.FontStyle.Normal;
-            _probe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-            return _probe.DesiredSize.Width;
+            if (fontFamily is not null)
+                _probe.FontFamily = fontFamily;
+            else
+                _probe.ClearValue(Microsoft.UI.Xaml.Controls.TextBlock.FontFamilyProperty);
         }
     }
 
@@ -390,13 +435,13 @@ namespace MS.Internal.Florence
             FlorencePage page)
         {
             int paragraphStartOffset = globalOffset;
-            var spans = CollectSpans(para.Inlines, DefaultFontSize, bold: false, italic: false);
+            var spans = CollectSpans(para.Inlines, DefaultFontSize, bold: false, italic: false, fontFamily: null);
 
             // Empty paragraph: emit a blank line so the cursor can be placed.
             if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
             {
                 double lineH = DefaultFontSize * LineSpacing;
-                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false);
+                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null);
                 var emptyLine = new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { emptyRun });
                 page.AddLine(emptyLine);
                 y += lineH;
@@ -406,7 +451,8 @@ namespace MS.Internal.Florence
             double x = 0;
             double lineHeight = 0;
             var currentLineRuns = new List<(string text, double runX, double runWidth,
-                int runStart, int runLen, double fontSize, bool bold, bool italic)>();
+                int runStart, int runLen, double fontSize, bool bold, bool italic,
+                Microsoft.UI.Xaml.Media.FontFamily? fontFamily)>();
             int lineStart = globalOffset;
             string lineText = "";
 
@@ -420,13 +466,13 @@ namespace MS.Internal.Florence
                 {
                     // Binary-search for how many characters fit on the remaining line width.
                     double spaceLeft = availWidth - x;
-                    int fitChars = FindFitChars(remaining, spaceLeft, span.FontSize, span.Bold, span.Italic);
+                    int fitChars = FindFitChars(remaining, spaceLeft, span.FontSize, span.Bold, span.Italic, span.FontFamily);
 
                     if (fitChars >= remaining.Length)
                     {
-                        double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic);
+                        double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
-                            span.FontSize, span.Bold, span.Italic));
+                            span.FontSize, span.Bold, span.Italic, span.FontFamily));
                         x += w;
                         lineText += remaining;
                         spanOffset += remaining.Length;
@@ -436,9 +482,9 @@ namespace MS.Internal.Florence
                     {
                         int breakAt = FindWordBreak(remaining, fitChars);
                         string lineChunk = remaining[..breakAt];
-                        double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic);
+                        double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
-                            span.FontSize, span.Bold, span.Italic));
+                            span.FontSize, span.Bold, span.Italic, span.FontFamily));
                         lineText += lineChunk;
                         int consumed = breakAt;
                         while (consumed < remaining.Length && remaining[consumed] == ' ')
@@ -468,20 +514,22 @@ namespace MS.Internal.Florence
 
         private static void EmitLine(FlorencePage page,
             List<(string text, double runX, double runWidth, int runStart, int runLen,
-                double fontSize, bool bold, bool italic)> runData,
+                double fontSize, bool bold, bool italic,
+                Microsoft.UI.Xaml.Media.FontFamily? fontFamily)> runData,
             int lineStart, string lineText, double y, double lineHeight)
         {
             var runs = runData.Select(r => new FlorenceRun(r.runStart, r.runLen, r.runX, r.runWidth,
-                r.text, r.fontSize, r.bold, r.italic)).ToList();
+                r.text, r.fontSize, r.bold, r.italic, r.fontFamily)).ToList();
             var line = new FlorenceLine(lineStart, lineText.Length, y, y + lineHeight * 0.8,
                 lineHeight, lineText, runs);
             page.AddLine(line);
         }
 
-        private static int FindFitChars(string text, double availWidth, double fontSize, bool bold, bool italic)
+        private static int FindFitChars(string text, double availWidth, double fontSize, bool bold, bool italic,
+            Microsoft.UI.Xaml.Media.FontFamily? fontFamily)
         {
             if (availWidth <= 0) return 1;
-            double totalWidth = TextMeasurer.MeasureWidth(text, fontSize, bold, italic);
+            double totalWidth = TextMeasurer.MeasureWidth(text, fontSize, bold, italic, fontFamily);
             if (totalWidth <= availWidth) return text.Length;
 
             // Binary search
@@ -489,7 +537,7 @@ namespace MS.Internal.Florence
             while (lo <= hi)
             {
                 int mid = (lo + hi) / 2;
-                double w = TextMeasurer.MeasureWidth(text[..mid], fontSize, bold, italic);
+                double w = TextMeasurer.MeasureWidth(text[..mid], fontSize, bold, italic, fontFamily);
                 if (w <= availWidth) { best = mid; lo = mid + 1; }
                 else hi = mid - 1;
             }
@@ -504,49 +552,73 @@ namespace MS.Internal.Florence
             return maxChars;
         }
 
-        private record SpanInfo(string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic);
+        private record SpanInfo(
+            string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic,
+            Microsoft.UI.Xaml.Media.FontFamily? FontFamily);
 
         private static List<SpanInfo> CollectSpans(
             System.Windows.Documents.InlineCollection inlines,
-            double fontSize, bool bold, bool italic)
+            double fontSize, bool bold, bool italic,
+            Microsoft.UI.Xaml.Media.FontFamily? fontFamily)
         {
             var result = new List<SpanInfo>();
             int localOffset = 0;
             foreach (var inline in inlines)
             {
                 double fs = double.IsNaN(inline.FontSize) || inline.FontSize <= 0 ? fontSize : inline.FontSize;
+                // WPF inheritance: a Run/Bold/Italic/Span without an explicit FontFamily
+                // inherits the parent's value. WPF's Inline.FontFamily DP defaults to a
+                // non-null Segoe UI, so we treat "matches the inherited default" as
+                // no-override and pass null down for the default branch.
+                var ff = ResolveInheritedFontFamily(inline.FontFamily, fontFamily);
 
                 if (inline is System.Windows.Documents.Run run)
                 {
                     string text = new System.Windows.Documents.TextRange(run.ContentStart, run.ContentEnd).Text;
-                    result.Add(new SpanInfo(text, localOffset, fs, bold, italic));
+                    result.Add(new SpanInfo(text, localOffset, fs, bold, italic, ff));
                     localOffset += text.Length;
                 }
                 else if (inline is System.Windows.Documents.Bold b)
                 {
-                    var sub = CollectSpans(b.Inlines, fs, bold: true, italic);
+                    var sub = CollectSpans(b.Inlines, fs, bold: true, italic, ff);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Italic it)
                 {
-                    var sub = CollectSpans(it.Inlines, fs, bold, italic: true);
+                    var sub = CollectSpans(it.Inlines, fs, bold, italic: true, ff);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Span sp)
                 {
-                    var sub = CollectSpans(sp.Inlines, fs, bold, italic);
+                    var sub = CollectSpans(sp.Inlines, fs, bold, italic, ff);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.LineBreak)
                 {
-                    result.Add(new SpanInfo("\n", localOffset, fs, bold, italic));
+                    result.Add(new SpanInfo("\n", localOffset, fs, bold, italic, ff));
                     localOffset++;
                 }
             }
             return result;
+        }
+
+        private static Microsoft.UI.Xaml.Media.FontFamily? ResolveInheritedFontFamily(
+            Microsoft.UI.Xaml.Media.FontFamily? inlineValue,
+            Microsoft.UI.Xaml.Media.FontFamily? inherited)
+        {
+            // WPF's Inline.FontFamily DP has the inheritable default "Segoe UI". When
+            // the source value matches that default we cannot distinguish "explicitly
+            // set to Segoe UI" from "inherited", so we prefer the parent's value to
+            // preserve inheritance semantics from outer Bold/Italic/Span scopes.
+            if (inlineValue is null) return inherited;
+            string? source = inlineValue.Source;
+            if (string.IsNullOrEmpty(source)) return inherited;
+            if (inherited is null && string.Equals(source, "Segoe UI", StringComparison.OrdinalIgnoreCase))
+                return null; // root default — let TextBlock resolve it
+            return new Microsoft.UI.Xaml.Media.FontFamily(source);
         }
     }
 }

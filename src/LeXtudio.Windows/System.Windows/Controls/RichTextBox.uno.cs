@@ -106,14 +106,33 @@ public partial class RichTextBox
             var command = GetNavigationCommand(wpfKey);
             if (command != null && command.CanExecute(null, this))
             {
-                command.Execute(null, this);
-                args.Handled = true;
-                Log($"KeyDown: executed {command.Name}");
+                // Guard MoveRightByCharacter against advancing into WPF paragraph/document
+                // boundary markers (positions beyond Florence's last line EndOffset). Those
+                // positions have IME char offsets > lastLine.EndOffset but map to the same
+                // pixel X, causing the caret to appear frozen while needing extra Left presses.
+                if (command == System.Windows.Documents.EditingCommands.MoveRightByCharacter
+                    && IsAtLastVisiblePosition())
+                {
+                    args.Handled = true; // Swallow — already at end of document.
+                }
+                else
+                {
+                    command.Execute(null, this);
+                    args.Handled = true;
+                    Log($"KeyDown: executed {command.Name}");
+                }
             }
         }
 
         if (args.Handled)
+        {
             e.Handled = true;
+            // After any handled key (navigation or typing), refresh the visual caret
+            // from the TextEditor's current selection position. Without this the caret
+            // rectangle stays at the pointer-click position even though the logical
+            // position has moved.
+            UpdateCaretFromSelection();
+        }
     }
 
     protected override void OnCharacterReceived(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs e)
@@ -136,6 +155,56 @@ public partial class RichTextBox
         TextEditorTyping.OnTextInput(this, composition);
         if (composition.Handled)
             e.Handled = true;
+    }
+
+    // Returns true when the current caret is at or beyond the last character position
+    // that Florence lays out. WPF's TextContainer has paragraph/document boundary
+    // markers (IMEChar offsets > lastLine.EndOffset) that are valid insertion positions
+    // internally but have no pixel representation in Florence — blocking Right at this
+    // point prevents phantom extra keystrokes.
+    private bool IsAtLastVisiblePosition()
+    {
+        try
+        {
+            var te = TextEditor;
+            if (te?.TextView?.RenderScope is not MS.Internal.Documents.FlowDocumentView fdv) return false;
+            if (fdv.Page == null || fdv.Page.Lines.Count == 0) return false;
+            int lastOffset = fdv.Page.Lines[^1].EndOffset;
+            int currentOffset = te.Selection?.MovingPosition?.CharOffset ?? -1;
+            return currentOffset >= lastOffset;
+        }
+        catch { return false; }
+    }
+
+    private void UpdateCaretFromSelection()
+    {
+        try
+        {
+            var te = TextEditor;
+            if (te?.TextView?.RenderScope is not MS.Internal.Documents.FlowDocumentView fdv)
+                return;
+            var position = te.Selection?.MovingPosition;
+            if (position == null)
+                return;
+            // Clamp to last visible position — WPF paragraph boundary markers
+            // (offsets > lastLine.EndOffset) have no Florence pixel representation.
+            if (fdv.Page != null && fdv.Page.Lines.Count > 0)
+            {
+                int lastOffset = fdv.Page.Lines[^1].EndOffset;
+                if (position.CharOffset > lastOffset)
+                {
+                    var tc = fdv.Document?.StructuralCache.TextContainer;
+                    if (tc != null)
+                        position = tc.CreatePointerAtCharOffset(lastOffset, System.Windows.Documents.LogicalDirection.Backward);
+                }
+            }
+            fdv.SetCaretAt(position);
+            Log($"UpdateCaretFromSelection: offset={position.CharOffset} dir={position.LogicalDirection}");
+        }
+        catch (Exception ex)
+        {
+            Log($"UpdateCaretFromSelection THREW {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private static Key MapVirtualKey(global::Windows.System.VirtualKey vk) => vk switch
