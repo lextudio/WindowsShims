@@ -593,6 +593,8 @@ namespace MS.Internal.Florence
             foreach (var inline in inlines)
             {
                 double fs = double.IsNaN(inline.FontSize) || inline.FontSize <= 0 ? fontSize : inline.FontSize;
+                bool isBold = bold || inline.FontWeight.Weight >= System.Windows.FontWeights.SemiBold.Weight;
+                bool isItalic = italic || inline.FontStyle != System.Windows.FontStyles.Normal;
                 // WPF inheritance: a Run/Bold/Italic/Span without an explicit FontFamily
                 // inherits the parent's value. WPF's Inline.FontFamily DP defaults to a
                 // non-null Segoe UI, so we treat "matches the inherited default" as
@@ -605,36 +607,36 @@ namespace MS.Internal.Florence
                 if (inline is System.Windows.Documents.Run run)
                 {
                     string text = new System.Windows.Documents.TextRange(run.ContentStart, run.ContentEnd).Text;
-                    result.Add(new SpanInfo(text, localOffset, fs, bold, italic, ff, fg, hasUnderline, currentHyperlink));
+                    result.Add(new SpanInfo(text, localOffset, fs, isBold, isItalic, ff, fg, hasUnderline, currentHyperlink));
                     localOffset += text.Length;
                 }
                 else if (inline is System.Windows.Documents.Hyperlink link)
                 {
-                    var sub = CollectSpans(link.Inlines, fs, bold, italic, ff, fg, hasUnderline, link);
+                    var sub = CollectSpans(link.Inlines, fs, isBold, isItalic, ff, fg, hasUnderline, link);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Bold b)
                 {
-                    var sub = CollectSpans(b.Inlines, fs, bold: true, italic, ff, fg, hasUnderline, currentHyperlink);
+                    var sub = CollectSpans(b.Inlines, fs, bold: true, isItalic, ff, fg, hasUnderline, currentHyperlink);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Italic it)
                 {
-                    var sub = CollectSpans(it.Inlines, fs, bold, italic: true, ff, fg, hasUnderline, currentHyperlink);
+                    var sub = CollectSpans(it.Inlines, fs, isBold, italic: true, ff, fg, hasUnderline, currentHyperlink);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Span sp)
                 {
-                    var sub = CollectSpans(sp.Inlines, fs, bold, italic, ff, fg, hasUnderline, currentHyperlink);
+                    var sub = CollectSpans(sp.Inlines, fs, isBold, isItalic, ff, fg, hasUnderline, currentHyperlink);
                     result.AddRange(sub);
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.LineBreak)
                 {
-                    result.Add(new SpanInfo("\n", localOffset, fs, bold, italic, ff, fg, hasUnderline, currentHyperlink));
+                    result.Add(new SpanInfo("\n", localOffset, fs, isBold, isItalic, ff, fg, hasUnderline, currentHyperlink));
                     localOffset++;
                 }
             }
