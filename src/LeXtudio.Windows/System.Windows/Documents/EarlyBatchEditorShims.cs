@@ -30,17 +30,6 @@ namespace System.Windows
         public int Count => 0;
     }
 
-    internal class SingleChildEnumerator : System.Collections.IEnumerator
-    {
-        private readonly object _child;
-        private readonly int _count;
-        private int _index = -1;
-        internal SingleChildEnumerator(object child) { _child = child; _count = child == null ? 0 : 1; }
-        object System.Collections.IEnumerator.Current => _index == 0 ? _child : null!;
-        bool System.Collections.IEnumerator.MoveNext() { _index++; return _index < _count; }
-        void System.Collections.IEnumerator.Reset() { _index = -1; }
-    }
-
     public class BindingExpressionBase
     {
         public object? Value => null;

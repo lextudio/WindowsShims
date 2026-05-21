@@ -45,6 +45,8 @@
        These files are intentionally linked for audit/diff workflows while
        Uno-compilable behavior lives in local *.uno.cs partials. -->
   <ItemGroup>
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Window.cs"
+             Link="System.Windows\Window.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\TextPanelProperties.cs"
              Link="System.Windows\TextPanelProperties.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Inline.cs"
