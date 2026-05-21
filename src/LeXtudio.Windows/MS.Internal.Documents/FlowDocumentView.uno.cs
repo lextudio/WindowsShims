@@ -13,7 +13,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
 
-    // Caret overlay — positioned purely from Florence data, no WPF TextContainer involved.
+    // Caret overlay. The visual lives here, but hit-testing and geometry come
+    // from the WPF-facing ITextView adapter.
     private readonly Microsoft.UI.Xaml.Shapes.Rectangle _caret;
     private DispatcherTimer? _blinkTimer;
     private bool _caretVisible;
@@ -130,58 +131,28 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         return finalSize;
     }
 
-    // ── Caret — driven purely by Florence hit-test, no WPF TextContainer ─────
+    // ── Caret ───────────────────────────────────────────────────────────────
 
     internal void SetCaretAt(Windows.Foundation.Point clickPoint)
     {
-        if (_page == null) return;
+        var textView = _textView ??= new UnoFlowDocumentTextView(this);
+        var position = textView.GetTextPositionFromPoint(clickPoint, snapToText: true);
+        SetCaretAt(position);
+    }
 
-        var lines = _page.Lines;
+    internal void SetCaretAt(ITextPointer position)
+    {
+        var textView = _textView ??= new UnoFlowDocumentTextView(this);
+        var rect = textView.GetRectangleFromTextPosition(position);
+        if (rect.IsEmpty)
+            return;
 
-        // Find the line under the click.
-        FlorenceLine? hit = null;
-        foreach (var line in lines)
-        {
-            if (clickPoint.Y >= line.Y && clickPoint.Y < line.Y + line.Height)
-            { hit = line; break; }
-        }
-        hit ??= lines.Count > 0 ? lines[^1] : null;
-        if (hit == null) return;
-
-        // Find X position within the line.
-        double caretX = HitTestXToPixel(hit, clickPoint.X);
-        double caretH = hit.Height > 0 ? hit.Height : 14;
-
-        _caretRect = new Rect(caretX, hit.Y, 1, caretH);
+        _caretRect = rect;
         _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         _caretVisible = true;
         _caret.Opacity = 1;
         _blinkTimer?.Start();
         InvalidateArrange();
-    }
-
-    /// <summary>Given a click X, return the pixel X of the nearest character boundary.</summary>
-    private static double HitTestXToPixel(FlorenceLine line, double clickX)
-    {
-        if (line.Runs.Count == 0) return 0;
-
-        foreach (var run in line.Runs)
-        {
-            if (clickX >= run.X && clickX < run.X + run.Width)
-            {
-                // Proportional split within the run.
-                double fraction = (clickX - run.X) / Math.Max(run.Width, 1);
-                int charInRun = (int)Math.Round(fraction * run.Length);
-                charInRun = Math.Clamp(charInRun, 0, run.Length);
-                // Return pixel X at that char boundary.
-                double charWidth = run.Length > 0 ? run.Width / run.Length : 0;
-                return run.X + charInRun * charWidth;
-            }
-        }
-
-        // Past the end — return end of last run.
-        var last = line.Runs[^1];
-        return last.X + last.Width;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

@@ -38,46 +38,61 @@ namespace System.Windows.Input
 
 		public bool CanExecute(object parameter)
 		{
-			if (_bindings.Count == 0)
-			{
-				return true;
-			}
-
-			bool anyHandled = false;
-			bool canExecute = true;
-			foreach (CommandBinding binding in _bindings)
-			{
-				var args = new CanExecuteRoutedEventArgs(this, parameter);
-				binding.OnCanExecute(args);
-				if (args.Handled)
-				{
-					anyHandled = true;
-					canExecute = args.CanExecute;
-					if (!args.ContinueRouting)
-					{
-						return args.CanExecute;
-					}
-				}
-			}
-
-			return !anyHandled || canExecute;
+			return CanExecute(parameter, null);
 		}
 
 		public void Execute(object parameter)
 		{
-			foreach (CommandBinding binding in _bindings)
-			{
-				var args = new ExecutedRoutedEventArgs(this, parameter);
-				binding.OnExecuted(args);
-				if (args.Handled)
-				{
-					return;
-				}
-			}
+			Execute(parameter, null);
 		}
 
-        public bool CanExecute(object parameter, object target) => CanExecute(parameter);
-        public void Execute(object parameter, object target) => Execute(parameter);
+        public bool CanExecute(object parameter, object? target)
+        {
+            if (_bindings.Count == 0)
+            {
+                return true;
+            }
+
+            bool anyHandled = false;
+            bool canExecute = true;
+            foreach (CommandBinding binding in _bindings)
+            {
+                var args = new CanExecuteRoutedEventArgs(this, parameter)
+                {
+                    Source = target,
+                    OriginalSource = target,
+                };
+                binding.OnCanExecute(target, args);
+                if (args.Handled)
+                {
+                    anyHandled = true;
+                    canExecute = args.CanExecute;
+                    if (!args.ContinueRouting)
+                    {
+                        return args.CanExecute;
+                    }
+                }
+            }
+
+            return !anyHandled || canExecute;
+        }
+
+        public void Execute(object parameter, object? target)
+        {
+            foreach (CommandBinding binding in _bindings)
+            {
+                var args = new ExecutedRoutedEventArgs(this, parameter)
+                {
+                    Source = target,
+                    OriginalSource = target,
+                };
+                binding.OnExecuted(target, args);
+                if (args.Handled)
+                {
+                    return;
+                }
+            }
+        }
 #pragma warning disable 67
 		public event EventHandler CanExecuteChanged { add { } remove { } }
 #pragma warning restore 67

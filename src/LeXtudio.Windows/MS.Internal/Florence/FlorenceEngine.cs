@@ -389,6 +389,7 @@ namespace MS.Internal.Florence
             double availWidth, ref double y, ref int globalOffset,
             FlorencePage page)
         {
+            int paragraphStartOffset = globalOffset;
             var spans = CollectSpans(para.Inlines, DefaultFontSize, bold: false, italic: false);
 
             // Empty paragraph: emit a blank line so the cursor can be placed.
@@ -412,7 +413,7 @@ namespace MS.Internal.Florence
             foreach (var span in spans)
             {
                 string remaining = span.Text;
-                int spanOffset = span.GlobalOffset;
+                int spanOffset = paragraphStartOffset + span.GlobalOffset;
                 lineHeight = Math.Max(lineHeight, span.FontSize * LineSpacing);
 
                 while (remaining.Length > 0)
@@ -444,7 +445,7 @@ namespace MS.Internal.Florence
                             consumed++;
                         spanOffset += consumed;
                         remaining = remaining[consumed..];
-                        globalOffset += lineText.Length;
+                        globalOffset = spanOffset;
                         EmitLine(page, currentLineRuns, lineStart, lineText, y, lineHeight);
                         y += lineHeight;
                         lineStart = globalOffset;
@@ -517,7 +518,7 @@ namespace MS.Internal.Florence
 
                 if (inline is System.Windows.Documents.Run run)
                 {
-                    string text = run.Text ?? "";
+                    string text = new System.Windows.Documents.TextRange(run.ContentStart, run.ContentEnd).Text;
                     result.Add(new SpanInfo(text, localOffset, fs, bold, italic));
                     localOffset += text.Length;
                 }

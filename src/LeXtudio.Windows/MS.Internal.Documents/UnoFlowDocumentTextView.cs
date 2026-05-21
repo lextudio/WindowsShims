@@ -28,6 +28,12 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         Updated?.Invoke(this, EventArgs.Empty);
     }
 
+    internal ITextPointer GetTextPositionFromPoint(Windows.Foundation.Point point, bool snapToText)
+        => ((ITextView)this).GetTextPositionFromPoint(new Point(point.X, point.Y), snapToText);
+
+    internal Rect GetRectangleFromTextPosition(ITextPointer position)
+        => ((ITextView)this).GetRectangleFromTextPosition(position);
+
     // ── ITextView properties ────────────────────────────────────────────────
 
     UIElement ITextView.RenderScope => _owner;
@@ -68,8 +74,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (hit == null)
             return tc.Start;
 
-        // Within the line, find the character offset from the X position.
-        int raw = HitTestX(hit, point.X);
+        int raw = HitTestCharOffset(hit, point.X);
         int charOffset = Math.Clamp(raw, 0, tc.IMECharCount);
         System.IO.File.AppendAllText(
             System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log"),
@@ -83,10 +88,10 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     {
         if (_owner.Page == null) return Rect.Empty;
         int offset = position.CharOffset;
-        var line = FindLineForOffset(offset);
+        var line = FindLineForPosition(position);
         if (line == null) return Rect.Empty;
 
-        double x = GetXForOffset(line, offset);
+        double x = GetPixelXForOffset(line, offset);
         double lineH = line.Height > 0 ? line.Height : 14;
         return new Rect(x, line.Y, 1, lineH);
     }
@@ -98,7 +103,36 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     }
 
     Geometry ITextView.GetTightBoundingGeometryFromTextPositions(ITextPointer startPosition, ITextPointer endPosition)
-        => Geometry.Empty;
+    {
+        if (_owner.Page == null)
+            return Geometry.Empty;
+
+        int start = Math.Min(startPosition.CharOffset, endPosition.CharOffset);
+        int end = Math.Max(startPosition.CharOffset, endPosition.CharOffset);
+        if (start == end)
+            return Geometry.Empty;
+
+        var geometry = new GeometryGroup();
+        foreach (var line in _owner.Page.Lines)
+        {
+            int lineStart = line.StartOffset;
+            int lineEnd = line.EndOffset;
+            int segmentStart = Math.Max(start, lineStart);
+            int segmentEnd = Math.Min(end, lineEnd);
+            if (segmentStart >= segmentEnd)
+                continue;
+
+            double x1 = GetPixelXForOffset(line, segmentStart);
+            double x2 = GetPixelXForOffset(line, segmentEnd);
+            double height = line.Height > 0 ? line.Height : 14;
+            geometry.Children.Add(new RectangleGeometry
+            {
+                Rect = new Rect(x1, line.Y, Math.Max(1, x2 - x1), height)
+            });
+        }
+
+        return geometry.Children.Count == 0 ? Geometry.Empty : geometry;
+    }
 
     // ── Line navigation ─────────────────────────────────────────────────────
 
@@ -113,15 +147,14 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             return position;
 
         var lines = _owner.Page.Lines;
-        int currentOffset = position.CharOffset;
-        int currentIndex = FindLineIndexForOffset(currentOffset);
+        int currentIndex = FindLineIndexForPosition(position);
         int targetIndex = currentIndex + count;
         targetIndex = Math.Clamp(targetIndex, 0, lines.Count - 1);
         linesMoved = targetIndex - currentIndex;
 
         var targetLine = lines[targetIndex];
-        int newOffset = Math.Clamp(HitTestX(targetLine, suggestedX), 0, tc.IMECharCount);
-        newSuggestedX = GetXForOffset(targetLine, newOffset);
+        int newOffset = Math.Clamp(HitTestCharOffset(targetLine, suggestedX), 0, tc.IMECharCount);
+        newSuggestedX = GetPixelXForOffset(targetLine, newOffset);
         return tc.CreatePointerAtCharOffset(newOffset, LogicalDirection.Forward);
     }
 
@@ -159,7 +192,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     TextSegment ITextView.GetLineRange(ITextPointer position)
     {
         if (_owner.Page == null) return TextSegment.Null;
-        var line = FindLineForOffset(position.CharOffset);
+        var line = FindLineForPosition(position);
         if (line == null) return TextSegment.Null;
         var tc = _owner.Document?.StructuralCache.TextContainer;
         if (tc == null) return TextSegment.Null;
@@ -211,26 +244,45 @@ internal sealed class UnoFlowDocumentTextView : ITextView
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
-    private FlorenceLine? FindLineForOffset(int offset)
+    private FlorenceLine? FindLineForPosition(ITextPointer position)
     {
         if (_owner.Page == null) return null;
-        foreach (var line in _owner.Page.Lines)
-            if (offset >= line.StartOffset && offset <= line.EndOffset)
-                return line;
-        return _owner.Page.Lines.Count > 0 ? _owner.Page.Lines[^1] : null;
+        int index = FindLineIndexForPosition(position);
+        return index >= 0 && index < _owner.Page.Lines.Count ? _owner.Page.Lines[index] : null;
     }
 
-    private int FindLineIndexForOffset(int offset)
+    private int FindLineIndexForPosition(ITextPointer position)
     {
         if (_owner.Page == null) return 0;
+
+        int offset = position.CharOffset;
         var lines = _owner.Page.Lines;
+        bool preferNextLineAtSharedBoundary = position.LogicalDirection == LogicalDirection.Forward;
+
         for (int i = 0; i < lines.Count; i++)
+        {
+            bool sharedBoundaryWithNext = i + 1 < lines.Count
+                && lines[i].EndOffset == offset
+                && lines[i + 1].StartOffset == offset;
+
+            if (preferNextLineAtSharedBoundary && sharedBoundaryWithNext)
+                continue;
+
             if (offset >= lines[i].StartOffset && offset <= lines[i].EndOffset)
                 return i;
+        }
+
+        if (preferNextLineAtSharedBoundary)
+        {
+            for (int i = 0; i < lines.Count; i++)
+                if (lines[i].StartOffset == offset)
+                    return i;
+        }
+
         return lines.Count - 1;
     }
 
-    private static int HitTestX(FlorenceLine line, double x)
+    private static int HitTestCharOffset(FlorenceLine line, double x)
     {
         if (line.Runs.Count == 0) return line.StartOffset;
         foreach (var run in line.Runs)
@@ -249,7 +301,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         return last.EndOffset;
     }
 
-    private static double GetXForOffset(FlorenceLine line, int offset)
+    private static double GetPixelXForOffset(FlorenceLine line, int offset)
     {
         foreach (var run in line.Runs)
         {

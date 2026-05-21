@@ -100,6 +100,18 @@ public partial class RichTextBox
             IsRepeat = e.KeyStatus.RepeatCount > 1,
         };
         TextEditorTyping.OnKeyDown(this, args);
+
+        if (!args.Handled)
+        {
+            var command = GetNavigationCommand(wpfKey);
+            if (command != null && command.CanExecute(null, this))
+            {
+                command.Execute(null, this);
+                args.Handled = true;
+                Log($"KeyDown: executed {command.Name}");
+            }
+        }
+
         if (args.Handled)
             e.Handled = true;
     }
@@ -142,6 +154,19 @@ public partial class RichTextBox
         global::Windows.System.VirtualKey.Tab       => Key.Tab,
         global::Windows.System.VirtualKey.Escape    => Key.Escape,
         _                                   => Key.None,
+    };
+
+    private static RoutedUICommand? GetNavigationCommand(Key key) => key switch
+    {
+        Key.Left => System.Windows.Documents.EditingCommands.MoveLeftByCharacter,
+        Key.Right => System.Windows.Documents.EditingCommands.MoveRightByCharacter,
+        Key.Up => System.Windows.Documents.EditingCommands.MoveUpByLine,
+        Key.Down => System.Windows.Documents.EditingCommands.MoveDownByLine,
+        Key.Home => System.Windows.Documents.EditingCommands.MoveToLineStart,
+        Key.End => System.Windows.Documents.EditingCommands.MoveToLineEnd,
+        Key.PageUp => System.Windows.Documents.EditingCommands.MoveUpByPage,
+        Key.PageDown => System.Windows.Documents.EditingCommands.MoveDownByPage,
+        _ => null,
     };
 }
 #endif

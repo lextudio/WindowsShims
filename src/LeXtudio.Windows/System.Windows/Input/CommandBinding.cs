@@ -5,8 +5,8 @@ namespace System.Windows.Input
 	public class CommandBinding
 	{
 		public ICommand Command { get; }
-		private readonly EventHandler<ExecutedRoutedEventArgs>? _executed;
-		private readonly EventHandler<CanExecuteRoutedEventArgs>? _canExecute;
+		private readonly ExecutedRoutedEventHandler? _executed;
+		private readonly CanExecuteRoutedEventHandler? _canExecute;
 
 		public CommandBinding(ICommand command)
 		{
@@ -19,7 +19,7 @@ namespace System.Windows.Input
 
 		public CommandBinding(
 			ICommand command,
-			EventHandler<ExecutedRoutedEventArgs> executed)
+			ExecutedRoutedEventHandler executed)
 			: this(command)
 		{
 			_executed = executed;
@@ -27,22 +27,22 @@ namespace System.Windows.Input
 
 		public CommandBinding(
 			ICommand command,
-			EventHandler<ExecutedRoutedEventArgs> executed,
-			EventHandler<CanExecuteRoutedEventArgs> canExecute)
+			ExecutedRoutedEventHandler executed,
+			CanExecuteRoutedEventHandler canExecute)
 			: this(command)
 		{
 			_executed = executed;
 			_canExecute = canExecute;
 		}
 
-		internal void OnExecuted(ExecutedRoutedEventArgs e)
+		internal void OnExecuted(object? target, ExecutedRoutedEventArgs e)
 		{
-			_executed?.Invoke(this, e);
+			_executed?.Invoke(target ?? this, e);
 		}
 
-		internal void OnCanExecute(CanExecuteRoutedEventArgs e)
+		internal void OnCanExecute(object? target, CanExecuteRoutedEventArgs e)
 		{
-			_canExecute?.Invoke(this, e);
+			_canExecute?.Invoke(target ?? this, e);
 		}
 	}
 }
