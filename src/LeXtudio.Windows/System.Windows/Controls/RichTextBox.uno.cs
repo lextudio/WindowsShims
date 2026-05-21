@@ -8,7 +8,6 @@ public partial class RichTextBox
 {
     internal static Action<string>? Logger;
     private bool _isPointerSelecting;
-    private int _pendingSelectionNotifyId;
 
     private static readonly string _logPath =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
@@ -74,10 +73,7 @@ public partial class RichTextBox
             if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
             {
                 fdv.SetCaretAt(unoPoint);
-                fdv.RefreshSelection();
             }
-
-            NotifySelectionChangedDeferred();
 
             CapturePointer(e.Pointer);
             _isPointerSelecting = true;
@@ -115,10 +111,7 @@ public partial class RichTextBox
                 if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
                 {
                     fdv.SetCaretAt(selection.MovingPosition);
-                    fdv.RefreshSelection();
                 }
-
-                NotifySelectionChangedDeferred();
             }
         }
         catch (Exception ex)
@@ -138,21 +131,6 @@ public partial class RichTextBox
 
         _isPointerSelecting = false;
         ReleasePointerCapture(e.Pointer);
-
-        try
-        {
-            if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
-            {
-                fdv.RefreshSelection();
-            }
-
-            NotifySelectionChangedDeferred();
-        }
-        catch (Exception ex)
-        {
-            Log($"PointerReleased THREW {ex.GetType().Name}: {ex.Message}");
-        }
-
         e.Handled = true;
     }
 
@@ -231,66 +209,11 @@ public partial class RichTextBox
             if (position == null)
                 return;
             fdv.SetCaretAt(position);
-            fdv.RefreshSelection();
             Log($"UpdateCaretFromSelection: offset={position.CharOffset} dir={position.LogicalDirection}");
         }
         catch (Exception ex)
         {
             Log($"UpdateCaretFromSelection THREW {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    private void NotifySelectionChangedDeferred()
-    {
-        try
-        {
-            int notifyId = ++_pendingSelectionNotifyId;
-            LogSelectionSnapshot($"NotifySelectionChangedDeferred[{notifyId}]: queued");
-            var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            if (queue != null)
-            {
-                _ = queue.TryEnqueue(() =>
-                {
-                    LogSelectionSnapshot($"NotifySelectionChangedDeferred[{notifyId}]: running");
-                    NotifySelectionChanged();
-                    LogSelectionSnapshot($"NotifySelectionChangedDeferred[{notifyId}]: after NotifySelectionChanged");
-                });
-            }
-            else
-            {
-                LogSelectionSnapshot($"NotifySelectionChangedDeferred[{notifyId}]: no queue, immediate");
-                NotifySelectionChanged();
-                LogSelectionSnapshot($"NotifySelectionChangedDeferred[{notifyId}]: immediate complete");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"NotifySelectionChangedDeferred THREW {ex.GetType().Name}: {ex.Message}");
-            NotifySelectionChanged();
-        }
-    }
-
-    private void LogSelectionSnapshot(string prefix)
-    {
-        try
-        {
-            var selection = Selection;
-            if (selection == null)
-            {
-                Log($"{prefix}: Selection=null");
-                return;
-            }
-
-            string text = selection.Text ?? string.Empty;
-            string escaped = text
-                .Replace("\\", "\\\\")
-                .Replace("\r", "\\r")
-                .Replace("\n", "\\n");
-            Log($"{prefix}: start={selection.Start?.CharOffset} end={selection.End?.CharOffset} moving={selection.MovingPosition?.CharOffset} empty={selection.IsEmpty} text=\"{escaped}\"");
-        }
-        catch (Exception ex)
-        {
-            Log($"{prefix}: snapshot THREW {ex.GetType().Name}: {ex.Message}");
         }
     }
 

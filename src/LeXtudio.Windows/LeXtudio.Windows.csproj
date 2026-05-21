@@ -667,7 +667,6 @@
 
     <!-- Prefer upstream core implementations; remove local duplicates that currently collide. -->
     <Compile Remove="System.Windows\Documents\TextRange.cs" />
-    <Compile Remove="System.Windows\Documents\TextSelection.cs" />
     <!-- System.Windows\Documents\TextRangeEditTables.cs local stub deleted (Session 24). -->
   </ItemGroup>
 </Project>
