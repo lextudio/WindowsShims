@@ -243,21 +243,59 @@ namespace MS.Internal.Florence
     // Layout model — the output of a Florence layout pass.
     // -----------------------------------------------------------------------
 
-    /// <summary>A single laid-out line within a page.</summary>
-    internal sealed class FlorenceLine
+    /// <summary>A single text run within a laid-out line.</summary>
+    internal sealed class FlorenceRun
     {
-        internal FlorenceLine(int startOffset, int length, double baseline, double height)
+        internal FlorenceRun(int startOffset, int length, double x, double width, string text,
+            double fontSize, bool bold, bool italic)
         {
             StartOffset = startOffset;
             Length      = length;
-            Baseline    = baseline;
-            Height      = height;
+            X           = x;
+            Width       = width;
+            Text        = text;
+            FontSize    = fontSize;
+            Bold        = bold;
+            Italic      = italic;
         }
 
         internal int    StartOffset { get; }
+        internal int    EndOffset   => StartOffset + Length;
         internal int    Length      { get; }
+        internal double X           { get; }
+        internal double Width       { get; }
+        internal string Text        { get; }
+        internal double FontSize    { get; }
+        internal bool   Bold        { get; }
+        internal bool   Italic      { get; }
+
+        // Average pixel width per character in this run (estimated).
+        internal double CharWidth => Length > 0 ? Width / Length : 0;
+    }
+
+    /// <summary>A single laid-out line within a page.</summary>
+    internal sealed class FlorenceLine
+    {
+        internal FlorenceLine(int startOffset, int length, double y, double baseline, double height,
+            string fullText, IReadOnlyList<FlorenceRun> runs)
+        {
+            StartOffset = startOffset;
+            Length      = length;
+            Y           = y;
+            Baseline    = baseline;
+            Height      = height;
+            FullText    = fullText;
+            Runs        = runs;
+        }
+
+        internal int    StartOffset { get; }
+        internal int    EndOffset   => StartOffset + Length;
+        internal int    Length      { get; }
+        internal double Y           { get; }
         internal double Baseline    { get; }
         internal double Height      { get; }
+        internal string FullText    { get; }
+        internal IReadOnlyList<FlorenceRun> Runs { get; }
     }
 
     /// <summary>A single laid-out page within a document.</summary>
@@ -265,7 +303,7 @@ namespace MS.Internal.Florence
     {
         private readonly List<FlorenceLine> _lines = new List<FlorenceLine>();
 
-        internal Size PageSize  { get; set; }
+        internal Windows.Foundation.Size PageSize  { get; set; }
         internal IReadOnlyList<FlorenceLine> Lines => _lines;
 
         internal void AddLine(FlorenceLine line) => _lines.Add(line);
@@ -287,6 +325,187 @@ namespace MS.Internal.Florence
 
         /// <summary>Discard all layout results — next access triggers a fresh pass.</summary>
         internal void Invalidate() => _pages.Clear();
+    }
+
+    // -----------------------------------------------------------------------
+    // Florence layout engine — walks FlowDocument, produces FlorencePage.
+    // Uses character-width estimation (FontSize * 0.5) for line breaking and
+    // hit-testing. Replace with Uno text measurement for pixel-perfect layout.
+    // -----------------------------------------------------------------------
+
+    internal static class FlorenceLayoutEngine
+    {
+        private const double DefaultFontSize = 14.0;
+        private const double CharWidthRatio  = 0.50; // estimated width/height ratio
+        private const double LineSpacing     = 1.2;  // line height = FontSize * LineSpacing
+
+        /// <summary>
+        /// Format the FlowDocument into a single bottomless FlorencePage.
+        /// </summary>
+        internal static FlorencePage Format(System.Windows.Documents.FlowDocument document, Windows.Foundation.Size constraint)
+        {
+            var page = new FlorencePage { PageSize = constraint };
+            double availWidth = constraint.Width <= 0 ? 600 : constraint.Width;
+            double y = 0;
+            int globalOffset = 0;
+
+            foreach (var block in document.Blocks)
+            {
+                if (block is System.Windows.Documents.Paragraph para)
+                {
+                    FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                    // paragraph spacing
+                    y += DefaultFontSize * 0.3;
+                }
+            }
+
+            page.PageSize = new Windows.Foundation.Size(availWidth, Math.Max(y, constraint.Height));
+            return page;
+        }
+
+        private static void FormatParagraph(
+            System.Windows.Documents.Paragraph para,
+            double availWidth, ref double y, ref int globalOffset,
+            FlorencePage page)
+        {
+            var spans = CollectSpans(para.Inlines, DefaultFontSize, bold: false, italic: false);
+
+            // Empty paragraph: emit a blank line so the cursor can be placed.
+            if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
+            {
+                double lineH = DefaultFontSize * LineSpacing;
+                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false);
+                var emptyLine = new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { emptyRun });
+                page.AddLine(emptyLine);
+                y += lineH;
+                return;
+            }
+
+            double x = 0;
+            double lineHeight = 0;
+            var currentLineRuns = new List<(string text, double runX, double runWidth,
+                int runStart, int runLen, double fontSize, bool bold, bool italic)>();
+            int lineStart = globalOffset;
+            string lineText = "";
+
+            foreach (var span in spans)
+            {
+                double cw = span.FontSize * CharWidthRatio;
+                string remaining = span.Text;
+                int spanOffset = span.GlobalOffset;
+                lineHeight = Math.Max(lineHeight, span.FontSize * LineSpacing);
+
+                while (remaining.Length > 0)
+                {
+                    int fitChars = Math.Max(1, (int)Math.Floor((availWidth - x) / cw));
+                    if (fitChars >= remaining.Length)
+                    {
+                        double w = remaining.Length * cw;
+                        currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
+                            span.FontSize, span.Bold, span.Italic));
+                        x += w;
+                        lineText += remaining;
+                        spanOffset += remaining.Length;
+                        remaining = "";
+                    }
+                    else
+                    {
+                        int breakAt = FindWordBreak(remaining, fitChars);
+                        string lineChunk = remaining[..breakAt];
+                        double w = lineChunk.Length * cw;
+                        currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
+                            span.FontSize, span.Bold, span.Italic));
+                        lineText += lineChunk;
+                        int consumed = breakAt;
+                        while (consumed < remaining.Length && remaining[consumed] == ' ')
+                            consumed++;
+                        spanOffset += consumed;
+                        remaining = remaining[consumed..];
+                        globalOffset += lineText.Length;
+                        EmitLine(page, currentLineRuns, lineStart, lineText, y, lineHeight);
+                        y += lineHeight;
+                        lineStart = globalOffset;
+                        lineText = "";
+                        x = 0;
+                        lineHeight = span.FontSize * LineSpacing;
+                        currentLineRuns = new();
+                    }
+                }
+                globalOffset = spanOffset;
+            }
+
+            if (currentLineRuns.Count > 0 || lineText.Length == 0)
+            {
+                EmitLine(page, currentLineRuns, lineStart, lineText, y,
+                    lineHeight > 0 ? lineHeight : DefaultFontSize * LineSpacing);
+                y += lineHeight > 0 ? lineHeight : DefaultFontSize * LineSpacing;
+            }
+        }
+
+        private static void EmitLine(FlorencePage page,
+            List<(string text, double runX, double runWidth, int runStart, int runLen,
+                double fontSize, bool bold, bool italic)> runData,
+            int lineStart, string lineText, double y, double lineHeight)
+        {
+            var runs = runData.Select(r => new FlorenceRun(r.runStart, r.runLen, r.runX, r.runWidth,
+                r.text, r.fontSize, r.bold, r.italic)).ToList();
+            var line = new FlorenceLine(lineStart, lineText.Length, y, y + lineHeight * 0.8,
+                lineHeight, lineText, runs);
+            page.AddLine(line);
+        }
+
+        private static int FindWordBreak(string text, int maxChars)
+        {
+            if (maxChars >= text.Length) return text.Length;
+            for (int i = maxChars; i > 0; i--)
+                if (text[i - 1] == ' ') return i;
+            return maxChars;
+        }
+
+        private record SpanInfo(string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic);
+
+        private static List<SpanInfo> CollectSpans(
+            System.Windows.Documents.InlineCollection inlines,
+            double fontSize, bool bold, bool italic)
+        {
+            var result = new List<SpanInfo>();
+            int localOffset = 0;
+            foreach (var inline in inlines)
+            {
+                double fs = double.IsNaN(inline.FontSize) || inline.FontSize <= 0 ? fontSize : inline.FontSize;
+
+                if (inline is System.Windows.Documents.Run run)
+                {
+                    string text = run.Text ?? "";
+                    result.Add(new SpanInfo(text, localOffset, fs, bold, italic));
+                    localOffset += text.Length;
+                }
+                else if (inline is System.Windows.Documents.Bold b)
+                {
+                    var sub = CollectSpans(b.Inlines, fs, bold: true, italic);
+                    result.AddRange(sub);
+                    localOffset += sub.Sum(s => s.Text.Length);
+                }
+                else if (inline is System.Windows.Documents.Italic it)
+                {
+                    var sub = CollectSpans(it.Inlines, fs, bold, italic: true);
+                    result.AddRange(sub);
+                    localOffset += sub.Sum(s => s.Text.Length);
+                }
+                else if (inline is System.Windows.Documents.Span sp)
+                {
+                    var sub = CollectSpans(sp.Inlines, fs, bold, italic);
+                    result.AddRange(sub);
+                    localOffset += sub.Sum(s => s.Text.Length);
+                }
+                else if (inline is System.Windows.Documents.LineBreak)
+                {
+                    result.Add(new SpanInfo("\n", localOffset, fs, bold, italic));
+                    localOffset++;
+                }
+            }
+            return result;
+        }
     }
 }
 

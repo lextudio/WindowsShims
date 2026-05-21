@@ -25,8 +25,16 @@ public partial class RichTextBox
     protected override void OnApplyTemplate()
     {
         Log($"OnApplyTemplate: DefaultStyleKey={DefaultStyleKey}, Template={Template}");
-        base.OnApplyTemplate();
-        Log($"OnApplyTemplate: done, Template={Template}");
+        try
+        {
+            base.OnApplyTemplate();
+            Log($"OnApplyTemplate: done, Template={Template}");
+        }
+        catch (Exception ex)
+        {
+            Log($"OnApplyTemplate THREW: {ex.GetType().Name}: {ex.Message}");
+            Log($"  StackTrace: {ex.StackTrace?.Split('\n')[0]}");
+        }
     }
 }
 #endif

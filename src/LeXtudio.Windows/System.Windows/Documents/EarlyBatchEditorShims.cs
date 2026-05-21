@@ -30,6 +30,17 @@ namespace System.Windows
         public int Count => 0;
     }
 
+    internal class SingleChildEnumerator : System.Collections.IEnumerator
+    {
+        private readonly object _child;
+        private readonly int _count;
+        private int _index = -1;
+        internal SingleChildEnumerator(object child) { _child = child; _count = child == null ? 0 : 1; }
+        object System.Collections.IEnumerator.Current => _index == 0 ? _child : null!;
+        bool System.Collections.IEnumerator.MoveNext() { _index++; return _index < _count; }
+        void System.Collections.IEnumerator.Reset() { _index = -1; }
+    }
+
     public class BindingExpressionBase
     {
         public object? Value => null;
@@ -125,11 +136,6 @@ namespace System.Windows
 
 namespace System.Windows.Documents
 {
-    internal class FlowDocumentView : Microsoft.UI.Xaml.FrameworkElement
-    {
-        public Microsoft.UI.Xaml.DependencyObject? TemplatedParent => null;
-        public new Microsoft.UI.Xaml.DependencyObject? Parent => null;
-    }
 }
 
 namespace System.Windows.Input
@@ -357,6 +363,7 @@ namespace System.Windows.Documents
     internal sealed class CaretElement
     {
         internal const double c_endOfParaMagicMultiplier = 1.0;
+        internal const double CaretPaddingWidth = 1.0;
 
         internal CaretElement(TextEditor textEditor, bool isBlinkEnabled) { }
 
