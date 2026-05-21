@@ -414,15 +414,21 @@ namespace MS.Internal.Florence
             double availWidth = constraint.Width <= 0 ? 600 : constraint.Width;
             double y = 0;
             int globalOffset = 0;
+            var paragraphs = document.Blocks.OfType<System.Windows.Documents.Paragraph>().ToList();
 
-            foreach (var block in document.Blocks)
+            for (int i = 0; i < paragraphs.Count; i++)
             {
-                if (block is System.Windows.Documents.Paragraph para)
-                {
-                    FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
-                    // paragraph spacing
-                    y += DefaultFontSize * 0.3;
-                }
+                var para = paragraphs[i];
+                FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+
+                // WPF text model exposes an invisible paragraph boundary position
+                // between neighboring paragraphs. Reserve one logical char slot so
+                // Florence offsets align with TextContainer caret navigation.
+                if (i < paragraphs.Count - 1)
+                    globalOffset += 1;
+
+                // paragraph spacing
+                y += DefaultFontSize * 0.3;
             }
 
             page.PageSize = new Windows.Foundation.Size(availWidth, Math.Max(y, constraint.Height));
