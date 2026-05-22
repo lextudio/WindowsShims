@@ -13,7 +13,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
-    private readonly List<Microsoft.UI.Xaml.Controls.TextBlock> _lineBlocks = [];
+    private readonly List<Microsoft.UI.Xaml.FrameworkElement> _lineBlocks = [];
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
     private ITextSelection? _trackedSelection;
@@ -272,7 +272,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         foreach (var line in _page.Lines)
         {
-            var block = BuildLineTextBlock(line);
+            var block = BuildLineVisual(line);
             _lineBlocks.Add(block);
             Children.Add(block);
         }
@@ -314,7 +314,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
     }
 
-    private static Microsoft.UI.Xaml.Controls.TextBlock BuildLineTextBlock(FlorenceLine line)
+    private static Microsoft.UI.Xaml.FrameworkElement BuildLineVisual(FlorenceLine line)
     {
         var tb = new Microsoft.UI.Xaml.Controls.TextBlock
         {
@@ -342,19 +342,60 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             // when computing caret X.
             if (run.FontFamily is not null) inlineRun.FontFamily = run.FontFamily;
             if (run.Foreground is not null) inlineRun.Foreground = run.Foreground;
-
-            Microsoft.UI.Xaml.Documents.Inline inline = inlineRun;
-            if (run.Underline)
-            {
-                var underline = new Microsoft.UI.Xaml.Documents.Underline();
-                underline.Inlines.Add(inlineRun);
-                inline = underline;
-            }
-
-            tb.Inlines.Add(inline);
+            tb.Inlines.Add(inlineRun);
         }
-        return tb;
+
+        bool hasDecorations = line.Runs.Any(run => run.TextDecorations != Windows.UI.Text.TextDecorations.None);
+        if (!hasDecorations)
+        {
+            return tb;
+        }
+
+        var canvas = new Microsoft.UI.Xaml.Controls.Canvas();
+        canvas.Children.Add(tb);
+        Microsoft.UI.Xaml.Controls.Canvas.SetLeft(tb, 0);
+        Microsoft.UI.Xaml.Controls.Canvas.SetTop(tb, 0);
+
+        foreach (var run in line.Runs)
+        {
+            AddDecorationVisuals(canvas, run, line.Height, tb.Foreground);
+        }
+
+        return canvas;
     }
+
+    private static void AddDecorationVisuals(
+        Microsoft.UI.Xaml.Controls.Canvas canvas,
+        FlorenceRun run,
+        double lineHeight,
+        Microsoft.UI.Xaml.Media.Brush? fallbackForeground)
+    {
+        var brush = CloneBrush(run.Foreground ?? fallbackForeground)
+            ?? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+
+        if ((run.TextDecorations & Windows.UI.Text.TextDecorations.Strikethrough) != 0)
+        {
+            var strike = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = run.Width, Height = 1, Fill = brush };
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(strike, run.X);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(strike, lineHeight * 0.55);
+            canvas.Children.Add(strike);
+        }
+
+        if ((run.TextDecorations & Windows.UI.Text.TextDecorations.Underline) != 0)
+        {
+            var underline = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = run.Width, Height = 1, Fill = CloneBrush(brush) ?? brush };
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(underline, run.X);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(underline, lineHeight * 0.88);
+            canvas.Children.Add(underline);
+        }
+    }
+
+    private static Microsoft.UI.Xaml.Media.Brush? CloneBrush(Microsoft.UI.Xaml.Media.Brush? brush) => brush switch
+    {
+        null => null,
+        Microsoft.UI.Xaml.Media.SolidColorBrush scb => new Microsoft.UI.Xaml.Media.SolidColorBrush(scb.Color) { Opacity = scb.Opacity },
+        _ => brush
+    };
 
     void IUnoAdornerLayerHost.AddAdorner(Adorner adorner, int zOrder)
     {
