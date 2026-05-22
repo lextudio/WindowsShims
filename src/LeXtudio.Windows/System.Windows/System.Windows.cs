@@ -219,8 +219,8 @@ namespace System.Windows
     {
         public Media.CompositionTarget CompositionTarget { get; set; }
 
-        public static PresentationSource FromVisual(Visual visual) => null;
-        public static PresentationSource CriticalFromVisual(object visual) => null;
+        public static PresentationSource FromVisual(global::System.Windows.Media.Visual visual) => visual?.PresentationSource;
+        public static PresentationSource CriticalFromVisual(object visual) => visual is global::System.Windows.Media.Visual v ? v.PresentationSource : null;
         public static void AddSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
         public static void RemoveSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
     }
