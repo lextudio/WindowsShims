@@ -8,6 +8,9 @@ public partial class RichTextBox
 {
     internal static Action<string>? Logger;
     private bool _isPointerSelecting;
+    private System.Windows.Documents.Hyperlink? _pressedHyperlink;
+    private Point _pressedPoint;
+    private bool _pointerMovedSincePress;
 
     private static readonly string _logPath =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
@@ -58,6 +61,9 @@ public partial class RichTextBox
 
         var unoPoint = e.GetCurrentPoint(renderScope).Position;
         Log($"PointerPressed at ({unoPoint.X:F1},{unoPoint.Y:F1})");
+        _pressedPoint = new Point(unoPoint.X, unoPoint.Y);
+        _pointerMovedSincePress = false;
+        _pressedHyperlink = (renderScope as MS.Internal.Documents.FlowDocumentView)?.GetHyperlinkAt(unoPoint);
 
         try
         {
@@ -91,16 +97,28 @@ public partial class RichTextBox
     {
         base.OnPointerMoved(e);
 
-        if (!_isPointerSelecting)
-            return;
-
         var te = TextEditor;
         if (te?.TextView?.RenderScope is not Microsoft.UI.Xaml.UIElement renderScope)
             return;
 
         var point = e.GetCurrentPoint(renderScope);
+        var fdv = renderScope as MS.Internal.Documents.FlowDocumentView;
+        if (fdv != null)
+        {
+            fdv.UpdatePointerCursor(point.Position);
+        }
+
+        if (!_isPointerSelecting)
+            return;
+
         if (!point.Properties.IsLeftButtonPressed)
             return;
+
+        if (!_pointerMovedSincePress
+            && (Math.Abs(point.Position.X - _pressedPoint.X) > 4 || Math.Abs(point.Position.Y - _pressedPoint.Y) > 4))
+        {
+            _pointerMovedSincePress = true;
+        }
 
         try
         {
@@ -108,7 +126,7 @@ public partial class RichTextBox
             if (cursorPosition != null && te.Selection is ITextSelection selection)
             {
                 selection.ExtendSelectionByMouse(cursorPosition, forceWordSelection: false, forceParagraphSelection: false);
-                if (renderScope is MS.Internal.Documents.FlowDocumentView fdv)
+                if (fdv != null)
                 {
                     fdv.SetCaretAt(selection.MovingPosition);
                 }
@@ -129,9 +147,36 @@ public partial class RichTextBox
         if (!_isPointerSelecting)
             return;
 
+        var te = TextEditor;
+        if (te?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            var point = e.GetCurrentPoint(fdv);
+            var releasedHyperlink = fdv.GetHyperlinkAt(point.Position);
+            if (!_pointerMovedSincePress
+                && _pressedHyperlink is not null
+                && ReferenceEquals(_pressedHyperlink, releasedHyperlink))
+            {
+                fdv.ActivateHyperlink(_pressedHyperlink);
+                e.Handled = true;
+            }
+
+            fdv.UpdatePointerCursor(point.Position);
+        }
+
         _isPointerSelecting = false;
         ReleasePointerCapture(e.Pointer);
+        _pressedHyperlink = null;
         e.Handled = true;
+    }
+
+    protected override void OnPointerExited(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        base.OnPointerExited(e);
+
+        if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            fdv.ClearPointerCursor();
+        }
     }
 
     protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

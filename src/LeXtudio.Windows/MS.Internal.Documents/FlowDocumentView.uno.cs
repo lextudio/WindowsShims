@@ -6,6 +6,10 @@ namespace MS.Internal.Documents;
 
 internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider, IUnoAdornerLayerHost
 {
+    private static Microsoft.UI.Input.InputCursor? _hyperlinkCursor;
+    private static Microsoft.UI.Input.InputCursor HyperlinkCursor =>
+        _hyperlinkCursor ??= Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+
     private FlowDocument? _document;
     private FlorencePage? _page;
     private FlorencePage? _arrangedPage;
@@ -311,6 +315,56 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         {
             rect.Tag = Rect.Empty;
             rect.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        }
+    }
+
+    internal System.Windows.Documents.Hyperlink? GetHyperlinkAt(Windows.Foundation.Point point)
+    {
+        if (_page == null)
+            return null;
+
+        foreach (var line in _page.Lines)
+        {
+            if (point.Y < line.Y || point.Y > line.Y + line.Height)
+                continue;
+
+            foreach (var run in line.Runs)
+            {
+                if (run.Hyperlink is null)
+                    continue;
+
+                if (point.X >= run.X && point.X <= run.X + run.Width)
+                    return run.Hyperlink;
+            }
+        }
+
+        return null;
+    }
+
+    internal void UpdatePointerCursor(Windows.Foundation.Point point)
+    {
+        ProtectedCursor = GetHyperlinkAt(point) is null ? null : HyperlinkCursor;
+    }
+
+    internal void ClearPointerCursor()
+    {
+        ProtectedCursor = null;
+    }
+
+    internal void ActivateHyperlink(System.Windows.Documents.Hyperlink hyperlink)
+    {
+        hyperlink.RaiseClick();
+
+        if (hyperlink.NavigateUri is { } uri)
+        {
+            try
+            {
+                _ = Windows.System.Launcher.LaunchUriAsync(uri);
+            }
+            catch
+            {
+                // Keep hyperlink activation non-fatal so host handlers can still respond to Click.
+            }
         }
     }
 
