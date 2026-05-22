@@ -29,6 +29,7 @@
     <UseWinUI>true</UseWinUI>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\images\company_logo_512.png" Pack="true" PackagePath="/" />

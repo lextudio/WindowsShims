@@ -15,18 +15,66 @@ if (-not (Test-Path $ProjectPath)) {
 }
 
 $OutputPath = if ([System.IO.Path]::IsPathRooted($OutDir)) { $OutDir } else { Join-Path $RepoRoot $OutDir }
-if (Test-Path $OutputPath) {
-    Remove-Item -Path $OutputPath -Recurse -Force
-}
-New-Item -ItemType Directory -Path $OutputPath | Out-Null
+function Find-MSBuild {
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    if ($programFilesX86) {
+        $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $vswhere) {
+            $installPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath 2>$null
+            if ($installPath) {
+                $candidate = Join-Path $installPath "MSBuild\Current\Bin\MSBuild.exe"
+                if (Test-Path $candidate) {
+                    return (Resolve-Path $candidate).Path
+                }
+            }
+        }
+    }
 
+    $command = Get-Command msbuild -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Path
+    }
+
+    throw "MSBuild was not found. Install Visual Studio/MSBuild to pack the Windows/WPF target."
+}
+
+function Resolve-ProjectPath([string]$Project) {
+    if (Test-Path $Project) {
+        return (Resolve-Path $Project).Path
+    }
+
+    $candidate = Join-Path $RepoRoot $Project
+    if (Test-Path $candidate) {
+        return (Resolve-Path $candidate).Path
+    }
+
+    throw "Project file not found: $Project"
+}
+
+function Reset-Directory([string]$Path) {
+    if (Test-Path $Path) {
+        Remove-Item -LiteralPath $Path -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $Path | Out-Null
+}
+
+Reset-Directory $OutputPath
+
+$msbuild = Find-MSBuild
+Write-Host "MSBuild: $msbuild"
 Write-Host "Packing project: $ProjectPath"
 Write-Host "Configuration: $Configuration"
 Write-Host "Output path: $OutputPath"
 
-dotnet pack $ProjectPath -c $Configuration -o $OutputPath
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet pack failed with exit code $LASTEXITCODE"
+$previousOutDir = [Environment]::GetEnvironmentVariable("OutDir", "Process")
+[Environment]::SetEnvironmentVariable("OutDir", $null, "Process")
+try {
+    & $msbuild $ProjectPath /restore /t:Pack /p:Configuration=$Configuration /p:PackageOutputPath=$OutputPath /v:minimal /nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw "MSBuild pack failed with exit code $LASTEXITCODE"
+    }
+} finally {
+    [Environment]::SetEnvironmentVariable("OutDir", $previousOutDir, "Process")
 }
 
 Write-Host "Package created in: $OutputPath"
