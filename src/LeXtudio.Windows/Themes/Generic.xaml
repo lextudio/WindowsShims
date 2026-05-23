@@ -4,6 +4,7 @@
     xmlns:swc="using:System.Windows.Controls">
 
     <Style TargetType="swc:RichTextBox">
+        <Setter Property="FontFamily" Value="Open Sans" />
         <Setter Property="Background" Value="White" />
         <Setter Property="BorderBrush" Value="#CCCCCC" />
         <Setter Property="BorderThickness" Value="1" />
