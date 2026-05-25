@@ -189,6 +189,12 @@ public partial class RichTextBox
         var wpfKey = MapVirtualKey(e.Key);
         if (wpfKey == Key.None) return;
 
+        // Letter keys are only forwarded to WPF when a modifier is held (e.g. Ctrl+C/V/Z).
+        // Plain letter input arrives via OnCharacterReceived; intercepting it here would double-insert.
+        if (wpfKey >= Key.A && wpfKey <= Key.Z &&
+            (System.Windows.Input.Keyboard.Modifiers & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt)) == 0)
+            return;
+
         Log($"KeyDown: {e.Key} → {wpfKey}");
 
         var args = new KeyEventArgs
@@ -243,6 +249,28 @@ public partial class RichTextBox
             e.Handled = true;
     }
 
+    internal override void OnTextContainerChanged(object sender, TextContainerChangedEventArgs e)
+    {
+        base.OnTextContainerChanged(sender, e);
+
+        if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            fdv.InvalidateDocumentLayout();
+            Log($"OnTextContainerChanged: invalidated FlowDocumentView layout");
+        }
+    }
+
+    protected override void OnSelectionChanged(RoutedEventArgs e)
+    {
+        if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            fdv.InvalidateDocumentLayout();
+            Log($"OnSelectionChanged: invalidated FlowDocumentView layout");
+        }
+
+        base.OnSelectionChanged(e);
+    }
+
     private void UpdateCaretFromSelection()
     {
         try
@@ -277,20 +305,53 @@ public partial class RichTextBox
         global::Windows.System.VirtualKey.Enter     => Key.Return,
         global::Windows.System.VirtualKey.Tab       => Key.Tab,
         global::Windows.System.VirtualKey.Escape    => Key.Escape,
-        _                                   => Key.None,
+        // Letter keys — needed so Ctrl+A/C/V/X/Z/Y/B/I/U reach TextEditorTyping
+        global::Windows.System.VirtualKey.A         => Key.A,
+        global::Windows.System.VirtualKey.B         => Key.B,
+        global::Windows.System.VirtualKey.C         => Key.C,
+        global::Windows.System.VirtualKey.I         => Key.I,
+        global::Windows.System.VirtualKey.U         => Key.U,
+        global::Windows.System.VirtualKey.V         => Key.V,
+        global::Windows.System.VirtualKey.X         => Key.X,
+        global::Windows.System.VirtualKey.Y         => Key.Y,
+        global::Windows.System.VirtualKey.Z         => Key.Z,
+        _                                            => Key.None,
     };
 
-    private static RoutedUICommand? GetNavigationCommand(Key key) => key switch
+    private static RoutedUICommand? GetNavigationCommand(Key key)
     {
-        Key.Left => System.Windows.Documents.EditingCommands.MoveLeftByCharacter,
-        Key.Right => System.Windows.Documents.EditingCommands.MoveRightByCharacter,
-        Key.Up => System.Windows.Documents.EditingCommands.MoveUpByLine,
-        Key.Down => System.Windows.Documents.EditingCommands.MoveDownByLine,
-        Key.Home => System.Windows.Documents.EditingCommands.MoveToLineStart,
-        Key.End => System.Windows.Documents.EditingCommands.MoveToLineEnd,
-        Key.PageUp => System.Windows.Documents.EditingCommands.MoveUpByPage,
-        Key.PageDown => System.Windows.Documents.EditingCommands.MoveDownByPage,
-        _ => null,
-    };
+        bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool ctrl  = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        return (key, shift, ctrl) switch
+        {
+            // Shift+Ctrl — select to document boundary
+            (Key.Home, true, true)     => System.Windows.Documents.EditingCommands.SelectToDocumentStart,
+            (Key.End,  true, true)     => System.Windows.Documents.EditingCommands.SelectToDocumentEnd,
+            // Shift — extend selection
+            (Key.Left,     true, _)    => System.Windows.Documents.EditingCommands.SelectLeftByCharacter,
+            (Key.Right,    true, _)    => System.Windows.Documents.EditingCommands.SelectRightByCharacter,
+            (Key.Up,       true, _)    => System.Windows.Documents.EditingCommands.SelectUpByLine,
+            (Key.Down,     true, _)    => System.Windows.Documents.EditingCommands.SelectDownByLine,
+            (Key.Home,     true, _)    => System.Windows.Documents.EditingCommands.SelectToLineStart,
+            (Key.End,      true, _)    => System.Windows.Documents.EditingCommands.SelectToLineEnd,
+            (Key.PageUp,   true, _)    => System.Windows.Documents.EditingCommands.SelectUpByPage,
+            (Key.PageDown, true, _)    => System.Windows.Documents.EditingCommands.SelectDownByPage,
+            // Ctrl — word / document navigation
+            (Key.Left,  _, true)       => System.Windows.Documents.EditingCommands.MoveLeftByWord,
+            (Key.Right, _, true)       => System.Windows.Documents.EditingCommands.MoveRightByWord,
+            (Key.Home,  _, true)       => System.Windows.Documents.EditingCommands.MoveToDocumentStart,
+            (Key.End,   _, true)       => System.Windows.Documents.EditingCommands.MoveToDocumentEnd,
+            // Plain navigation
+            (Key.Left,     _, _)       => System.Windows.Documents.EditingCommands.MoveLeftByCharacter,
+            (Key.Right,    _, _)       => System.Windows.Documents.EditingCommands.MoveRightByCharacter,
+            (Key.Up,       _, _)       => System.Windows.Documents.EditingCommands.MoveUpByLine,
+            (Key.Down,     _, _)       => System.Windows.Documents.EditingCommands.MoveDownByLine,
+            (Key.Home,     _, _)       => System.Windows.Documents.EditingCommands.MoveToLineStart,
+            (Key.End,      _, _)       => System.Windows.Documents.EditingCommands.MoveToLineEnd,
+            (Key.PageUp,   _, _)       => System.Windows.Documents.EditingCommands.MoveUpByPage,
+            (Key.PageDown, _, _)       => System.Windows.Documents.EditingCommands.MoveDownByPage,
+            _                          => null,
+        };
+    }
 }
 #endif

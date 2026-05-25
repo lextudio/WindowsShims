@@ -47,6 +47,11 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         RefreshCaretAfterLayout();
     }
 
+    internal void OnLayoutInvalidated()
+    {
+        _isValid = false;
+    }
+
     private void RefreshCaretAfterLayout()
     {
         try

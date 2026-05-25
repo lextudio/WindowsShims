@@ -4,7 +4,7 @@ using MS.Internal.Florence;
 
 namespace MS.Internal.Documents;
 
-internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider, IUnoAdornerLayerHost
+internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProvider, IUnoAdornerLayerHost, ITextLayoutHost
 {
     private static Microsoft.UI.Input.InputCursor? _hyperlinkCursor;
     private static Microsoft.UI.Input.InputCursor HyperlinkCursor =>
@@ -16,6 +16,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private UnoFlowDocumentTextView? _textView;
     private double _lastMeasureWidth = -1;
     private double _lastMeasureHeight = -1;
+    private uint _lastFormattedGeneration;
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
     private readonly List<Microsoft.UI.Xaml.FrameworkElement> _lineBlocks = [];
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
@@ -60,16 +61,21 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         set
         {
             UnhookSelectionChanged();
+            if (_document != null && ReferenceEquals(_document.TextLayoutHost, this))
+            {
+                _document.TextLayoutHost = null;
+            }
+
             _document = value;
-            _page = null;
-            _arrangedPage = null;
-            _lastMeasureWidth = -1;
-            _lastMeasureHeight = -1;
             _textView = null;
-            _selectionDirty = true;
             ClearSelectionVisuals();
+            if (_document != null)
+            {
+                _document.TextLayoutHost = this;
+            }
+
             HookSelectionChanged();
-            InvalidateMeasure();
+            InvalidateDocumentLayout();
         }
     }
 
@@ -90,6 +96,28 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     internal FlorencePage? Page => _page;
     AdornerLayer IUnoAdornerLayerSource.AdornerLayer => _adornerLayer;
     Visual IUnoAdornerLayerHost.AdornerScope => this;
+    object ITextLayoutHost.RenderScope => this;
+    bool ITextLayoutHost.IsLayoutValid => _page != null;
+    double ITextLayoutHost.ViewportWidth => ActualWidth;
+    double ITextLayoutHost.ViewportHeight => ActualHeight;
+    double ITextLayoutHost.ExtentHeight => _page?.Lines.Count > 0
+        ? _page.Lines[^1].Y + _page.Lines[^1].Height
+        : 0;
+
+    void ITextLayoutHost.InvalidateLayout() => InvalidateDocumentLayout();
+
+    internal void InvalidateDocumentLayout()
+    {
+        _page = null;
+        _arrangedPage = null;
+        _lastMeasureWidth = -1;
+        _lastMeasureHeight = -1;
+        _lastFormattedGeneration = 0;
+        _selectionDirty = true;
+        _textView?.OnLayoutInvalidated();
+        InvalidateMeasure();
+        InvalidateArrange();
+    }
 
     // ── Measure / Arrange ───────────────────────────────────────────────────
 
@@ -104,6 +132,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         if (_page == null || Math.Abs(w - _lastMeasureWidth) > 0.5 || Math.Abs(h - _lastMeasureHeight) > 0.5)
         {
             _page = FlorenceLayoutEngine.Format(_document, new Windows.Foundation.Size(w, h));
+            _lastFormattedGeneration = _document.StructuralCache.TextContainer.Generation;
             _lastMeasureWidth = w;
             _lastMeasureHeight = h;
             _selectionDirty = true;
@@ -259,6 +288,13 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     private void OnTrackedSelectionChanged(object? sender, EventArgs e)
     {
+        var generation = _document?.StructuralCache?.TextContainer?.Generation ?? 0;
+        if (generation != _lastFormattedGeneration)
+        {
+            InvalidateDocumentLayout();
+            return;
+        }
+
         _selectionDirty = true;
         InvalidateArrange();
     }
