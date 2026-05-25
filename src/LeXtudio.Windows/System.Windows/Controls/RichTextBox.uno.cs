@@ -350,6 +350,13 @@ public partial class RichTextBox
             (Key.End,      _, _)       => System.Windows.Documents.EditingCommands.MoveToLineEnd,
             (Key.PageUp,   _, _)       => System.Windows.Documents.EditingCommands.MoveUpByPage,
             (Key.PageDown, _, _)       => System.Windows.Documents.EditingCommands.MoveDownByPage,
+            // Editing
+            (Key.Delete, _, true)      => System.Windows.Documents.EditingCommands.DeleteNextWord,
+            (Key.Back,   _, true)      => System.Windows.Documents.EditingCommands.DeletePreviousWord,
+            (Key.Delete, _, _)         => System.Windows.Documents.EditingCommands.Delete,
+            (Key.Back,   _, _)         => System.Windows.Documents.EditingCommands.Backspace,
+            (Key.Return, true, _)      => System.Windows.Documents.EditingCommands.EnterLineBreak,
+            (Key.Return, _,    _)      => System.Windows.Documents.EditingCommands.EnterParagraphBreak,
             _                          => null,
         };
     }

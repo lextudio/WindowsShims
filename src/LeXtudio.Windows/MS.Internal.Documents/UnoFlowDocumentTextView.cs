@@ -282,7 +282,8 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (tc == null) return TextSegment.Null;
         var start = tc.CreatePointerAtCharOffset(line.StartOffset, LogicalDirection.Forward);
         var end   = tc.CreatePointerAtCharOffset(line.EndOffset,   LogicalDirection.Backward);
-        Log($"[GetLineRange] query offset={position.CharOffset} dir={position.LogicalDirection} → line[{line.StartOffset}..{line.EndOffset}]");
+        Log($"[GetLineRange] query offset={position.CharOffset} dir={position.LogicalDirection} → line[{line.StartOffset}..{line.EndOffset}] startNull={start==null} endNull={end==null}");
+        if (start == null || end == null) return TextSegment.Null;
         return new TextSegment(start, end);
     }
 
