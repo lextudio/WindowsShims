@@ -204,23 +204,16 @@ public partial class RichTextBox
         // Delete-at-paragraph-end cases and invoke TextRangeEditLists.MergeParagraphs directly.
         var mods = System.Windows.Input.Keyboard.Modifiers;
         bool noEditModifier = (mods & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt | System.Windows.Input.ModifierKeys.Shift)) == 0;
-        if (wpfKey == Key.Back || wpfKey == Key.Delete)
-        {
-            Log($"FastPathCheck: key={wpfKey} noMods={noEditModifier} selNull={te.Selection==null} empty={te.Selection?.IsEmpty} startType={te.Selection?.Start?.GetType().Name}");
-        }
         if (noEditModifier && (wpfKey == Key.Back || wpfKey == Key.Delete)
             && te.Selection != null && te.Selection.IsEmpty
             && te.Selection.Start is System.Windows.Documents.TextPointer caretTp)
         {
             var isAtParaStart = System.Windows.Documents.TextPointerBase.IsAtParagraphOrBlockUIContainerStart(caretTp);
-            var paraOrBuc = caretTp.ParagraphOrBlockUIContainer;
-            var parent = caretTp.Parent;
-            var parentBlock = caretTp.ParentBlock;
-            Log($"FastPathCheck: isAtParaStart={isAtParaStart} parent={parent?.GetType().Name} parentBlock={parentBlock?.GetType().Name} paraOrBuc={paraOrBuc?.GetType().Name}");
-            // ParentBlock walks via TextElement.Parent which is unreliable in this Uno shim
-            // (Run.Parent doesn't surface its containing Paragraph). Fall back to scanning the
-            // FlowDocument.Blocks collection and finding the block that contains the caret offset.
-            if (paraOrBuc == null && Document != null)
+            // TextPointer.ParagraphOrBlockUIContainer walks via TextElement.Parent which is
+            // unreliable in this Uno shim (Run.Parent doesn't surface its containing Paragraph).
+            // Scan FlowDocument.Blocks for the block that contains the caret offset instead.
+            System.Windows.Documents.Block paraOrBuc = null;
+            if (Document != null)
             {
                 foreach (var block in Document.Blocks)
                 {
@@ -230,7 +223,6 @@ public partial class RichTextBox
                         break;
                     }
                 }
-                Log($"FastPathCheck: blocks-scan paraOrBuc={paraOrBuc?.GetType().Name}");
             }
             System.Windows.Documents.Block prevBlock = null, nextBlock = null;
             if (paraOrBuc != null && Document != null)
@@ -249,7 +241,6 @@ public partial class RichTextBox
             {
                 var cur = paraOrBuc as System.Windows.Documents.Paragraph;
                 var prev = prevBlock as System.Windows.Documents.Paragraph;
-                Log($"FastPathCheck: back cur={cur?.GetType().Name} prev={prev?.GetType().Name}");
                 if (cur != null && prev != null)
                 {
                     using (te.Selection.DeclareChangeBlock())

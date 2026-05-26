@@ -369,9 +369,14 @@ namespace MS.Internal.Florence
 
             ConfigureProbe(fontSize, bold, italic, fontFamily);
 
-            // Width(text) = Width(text + sentinel) - Width(sentinel). Doing it this way
-            // means trailing whitespace inside `text` is no longer at the end of the
-            // measured string and survives the trim.
+            if (!char.IsWhiteSpace(text[^1]))
+            {
+                return MeasureRaw(text);
+            }
+
+            // TextBlock trims trailing whitespace from DesiredSize.Width. Only append
+            // the sentinel for trailing-whitespace runs; using it for ordinary text can
+            // perturb kerning/advance widths enough to shift later run X positions.
             double sentinelWidth = MeasureRaw(SentinelChar.ToString());
             double withSentinel  = MeasureRaw(text + SentinelChar);
             return Math.Max(0, withSentinel - sentinelWidth);
@@ -624,25 +629,25 @@ namespace MS.Internal.Florence
                 else if (inline is System.Windows.Documents.Hyperlink link)
                 {
                     var sub = CollectSpans(link.Inlines, fs, isBold, isItalic, ff, fg, currentTextDecorations, link);
-                    result.AddRange(sub);
+                    result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Bold b)
                 {
                     var sub = CollectSpans(b.Inlines, fs, bold: true, isItalic, ff, fg, currentTextDecorations, currentHyperlink);
-                    result.AddRange(sub);
+                    result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Italic it)
                 {
                     var sub = CollectSpans(it.Inlines, fs, isBold, italic: true, ff, fg, currentTextDecorations, currentHyperlink);
-                    result.AddRange(sub);
+                    result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Span sp)
                 {
                     var sub = CollectSpans(sp.Inlines, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink);
-                    result.AddRange(sub);
+                    result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.LineBreak)
@@ -652,6 +657,14 @@ namespace MS.Internal.Florence
                 }
             }
             return result;
+        }
+
+        private static IEnumerable<SpanInfo> RebaseSpans(IEnumerable<SpanInfo> spans, int offset)
+        {
+            foreach (var span in spans)
+            {
+                yield return span with { GlobalOffset = span.GlobalOffset + offset };
+            }
         }
 
         private static Microsoft.UI.Xaml.Media.Brush? ResolveForeground(

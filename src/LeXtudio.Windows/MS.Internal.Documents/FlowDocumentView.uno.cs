@@ -406,49 +406,41 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     private static Microsoft.UI.Xaml.FrameworkElement BuildLineVisual(FlorenceLine line)
     {
-        var tb = new Microsoft.UI.Xaml.Controls.TextBlock
-        {
-            TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap
-        };
-
         if (line.Runs.Count == 0)
         {
-            tb.Text = line.FullText;
-            return tb;
-        }
-
-        var first = line.Runs[0];
-        if (first.FontSize > 0) tb.FontSize = first.FontSize;
-        if (first.FontFamily is not null) tb.FontFamily = first.FontFamily;
-
-        foreach (var run in line.Runs)
-        {
-            var inlineRun = new Microsoft.UI.Xaml.Documents.Run { Text = run.Text };
-            if (run.Bold)   inlineRun.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
-            if (run.Italic) inlineRun.FontStyle  = Windows.UI.Text.FontStyle.Italic;
-            // Per-run FontFamily mirrors WPF PTS TextRunProperties.Typeface.FontFamily
-            // so mixed-script content (e.g. CJK + Latin) renders each Run with its
-            // intended typeface — matching what UnoFlowDocumentTextView measures
-            // when computing caret X.
-            if (run.FontFamily is not null) inlineRun.FontFamily = run.FontFamily;
-            if (run.Foreground is not null) inlineRun.Foreground = run.Foreground;
-            tb.Inlines.Add(inlineRun);
-        }
-
-        bool hasDecorations = line.Runs.Any(run => run.TextDecorations != Windows.UI.Text.TextDecorations.None);
-        if (!hasDecorations)
-        {
+            var tb = new Microsoft.UI.Xaml.Controls.TextBlock
+            {
+                Text = line.FullText,
+                TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap
+            };
             return tb;
         }
 
         var canvas = new Microsoft.UI.Xaml.Controls.Canvas();
-        canvas.Children.Add(tb);
-        Microsoft.UI.Xaml.Controls.Canvas.SetLeft(tb, 0);
-        Microsoft.UI.Xaml.Controls.Canvas.SetTop(tb, 0);
 
         foreach (var run in line.Runs)
         {
-            AddDecorationVisuals(canvas, run, line.Height, tb.Foreground);
+            var tb = new Microsoft.UI.Xaml.Controls.TextBlock
+            {
+                Text = run.Text,
+                TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap
+            };
+
+            if (run.FontSize > 0) tb.FontSize = run.FontSize;
+            if (run.Bold) tb.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+            if (run.Italic) tb.FontStyle = Windows.UI.Text.FontStyle.Italic;
+            if (run.FontFamily is not null) tb.FontFamily = run.FontFamily;
+            if (run.Foreground is not null) tb.Foreground = run.Foreground;
+
+            canvas.Children.Add(tb);
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(tb, run.X);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(tb, 0);
+        }
+
+        var localBaseline = line.Baseline - line.Y;
+        foreach (var run in line.Runs)
+        {
+            AddDecorationVisuals(canvas, run, localBaseline);
         }
 
         return canvas;
@@ -457,25 +449,41 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private static void AddDecorationVisuals(
         Microsoft.UI.Xaml.Controls.Canvas canvas,
         FlorenceRun run,
-        double lineHeight,
-        Microsoft.UI.Xaml.Media.Brush? fallbackForeground)
+        double baseline)
     {
-        var brush = CloneBrush(run.Foreground ?? fallbackForeground)
+        if (run.TextDecorations == Windows.UI.Text.TextDecorations.None) return;
+
+        var brush = CloneBrush(run.Foreground)
             ?? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black);
+        var fontSize = run.FontSize > 0 ? run.FontSize : 12.0;
 
         if ((run.TextDecorations & Windows.UI.Text.TextDecorations.Strikethrough) != 0)
         {
-            var strike = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = run.Width, Height = 1, Fill = brush };
-            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(strike, run.X);
-            Microsoft.UI.Xaml.Controls.Canvas.SetTop(strike, lineHeight * 0.55);
+            var strikeY = baseline - fontSize * 0.26;
+            var strike = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                X1 = run.X,
+                X2 = run.X + run.Width,
+                Y1 = strikeY,
+                Y2 = strikeY,
+                Stroke = brush,
+                StrokeThickness = 1,
+            };
             canvas.Children.Add(strike);
         }
 
         if ((run.TextDecorations & Windows.UI.Text.TextDecorations.Underline) != 0)
         {
-            var underline = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = run.Width, Height = 1, Fill = CloneBrush(brush) ?? brush };
-            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(underline, run.X);
-            Microsoft.UI.Xaml.Controls.Canvas.SetTop(underline, lineHeight * 0.88);
+            var underlineY = baseline + fontSize * 0.10;
+            var underline = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                X1 = run.X,
+                X2 = run.X + run.Width,
+                Y1 = underlineY,
+                Y2 = underlineY,
+                Stroke = CloneBrush(brush) ?? brush,
+                StrokeThickness = 1,
+            };
             canvas.Children.Add(underline);
         }
     }
