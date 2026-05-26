@@ -197,6 +197,94 @@ public partial class RichTextBox
 
         Log($"KeyDown: {e.Key} → {wpfKey}");
 
+        // Paragraph-merge fast path. The upstream WPF SetText/DeleteContentToPosition path that
+        // EditingCommands.Backspace/Delete relies on does not actually merge adjacent paragraphs
+        // in this shim — the call returns silently with the document structure unchanged. Until
+        // that root cause is fixed, intercept the unmodified Backspace-at-paragraph-start and
+        // Delete-at-paragraph-end cases and invoke TextRangeEditLists.MergeParagraphs directly.
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        bool noEditModifier = (mods & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt | System.Windows.Input.ModifierKeys.Shift)) == 0;
+        if (wpfKey == Key.Back || wpfKey == Key.Delete)
+        {
+            Log($"FastPathCheck: key={wpfKey} noMods={noEditModifier} selNull={te.Selection==null} empty={te.Selection?.IsEmpty} startType={te.Selection?.Start?.GetType().Name}");
+        }
+        if (noEditModifier && (wpfKey == Key.Back || wpfKey == Key.Delete)
+            && te.Selection != null && te.Selection.IsEmpty
+            && te.Selection.Start is System.Windows.Documents.TextPointer caretTp)
+        {
+            var isAtParaStart = System.Windows.Documents.TextPointerBase.IsAtParagraphOrBlockUIContainerStart(caretTp);
+            var paraOrBuc = caretTp.ParagraphOrBlockUIContainer;
+            var parent = caretTp.Parent;
+            var parentBlock = caretTp.ParentBlock;
+            Log($"FastPathCheck: isAtParaStart={isAtParaStart} parent={parent?.GetType().Name} parentBlock={parentBlock?.GetType().Name} paraOrBuc={paraOrBuc?.GetType().Name}");
+            // ParentBlock walks via TextElement.Parent which is unreliable in this Uno shim
+            // (Run.Parent doesn't surface its containing Paragraph). Fall back to scanning the
+            // FlowDocument.Blocks collection and finding the block that contains the caret offset.
+            if (paraOrBuc == null && Document != null)
+            {
+                foreach (var block in Document.Blocks)
+                {
+                    if (caretTp.CompareTo(block.ElementStart) >= 0 && caretTp.CompareTo(block.ElementEnd) <= 0)
+                    {
+                        paraOrBuc = block;
+                        break;
+                    }
+                }
+                Log($"FastPathCheck: blocks-scan paraOrBuc={paraOrBuc?.GetType().Name}");
+            }
+            System.Windows.Documents.Block prevBlock = null, nextBlock = null;
+            if (paraOrBuc != null && Document != null)
+            {
+                System.Windows.Documents.Block last = null;
+                bool foundCur = false;
+                foreach (var b in Document.Blocks)
+                {
+                    if (foundCur) { nextBlock = b; break; }
+                    if (b == paraOrBuc) { prevBlock = last; foundCur = true; }
+                    last = b;
+                }
+            }
+
+            if (wpfKey == Key.Back && isAtParaStart)
+            {
+                var cur = paraOrBuc as System.Windows.Documents.Paragraph;
+                var prev = prevBlock as System.Windows.Documents.Paragraph;
+                Log($"FastPathCheck: back cur={cur?.GetType().Name} prev={prev?.GetType().Name}");
+                if (cur != null && prev != null)
+                {
+                    using (te.Selection.DeclareChangeBlock())
+                    {
+                        var caretAt = prev.ContentEnd;
+                        System.Windows.Documents.TextRangeEditLists.MergeParagraphs(prev, cur);
+                        te.Selection.Select(caretAt, caretAt);
+                    }
+                    Log($"KeyDown: paragraph-merge-back fast-path executed");
+                    e.Handled = true;
+                    UpdateCaretFromSelection();
+                    return;
+                }
+            }
+            else if (wpfKey == Key.Delete)
+            {
+                var cur = paraOrBuc as System.Windows.Documents.Paragraph;
+                var next = nextBlock as System.Windows.Documents.Paragraph;
+                bool atParaEnd = cur != null && caretTp.CompareTo(cur.ContentEnd) == 0;
+                if (atParaEnd && cur != null && next != null)
+                {
+                    using (te.Selection.DeclareChangeBlock())
+                    {
+                        var caretAt = cur.ContentEnd;
+                        System.Windows.Documents.TextRangeEditLists.MergeParagraphs(cur, next);
+                        te.Selection.Select(caretAt, caretAt);
+                    }
+                    Log($"KeyDown: paragraph-merge-forward fast-path executed");
+                    e.Handled = true;
+                    UpdateCaretFromSelection();
+                    return;
+                }
+            }
+        }
+
         var args = new KeyEventArgs
         {
             Key = wpfKey,
