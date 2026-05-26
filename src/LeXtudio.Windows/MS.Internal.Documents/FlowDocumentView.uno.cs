@@ -420,21 +420,22 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         foreach (var run in line.Runs)
         {
-            var tb = new Microsoft.UI.Xaml.Controls.TextBlock
+            for (int i = 0; i < run.Text.Length; i++)
             {
-                Text = run.Text,
-                TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap
-            };
+                var tb = new Microsoft.UI.Xaml.Controls.TextBlock
+                {
+                    Text = run.Text[i].ToString(),
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.NoWrap
+                };
 
-            if (run.FontSize > 0) tb.FontSize = run.FontSize;
-            if (run.Bold) tb.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
-            if (run.Italic) tb.FontStyle = Windows.UI.Text.FontStyle.Italic;
-            if (run.FontFamily is not null) tb.FontFamily = run.FontFamily;
-            if (run.Foreground is not null) tb.Foreground = run.Foreground;
+                ApplyRunFormatting(tb, run);
 
-            canvas.Children.Add(tb);
-            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(tb, run.X);
-            Microsoft.UI.Xaml.Controls.Canvas.SetTop(tb, 0);
+                canvas.Children.Add(tb);
+                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(
+                    tb,
+                    run.X + MS.Internal.Florence.TextMeasurer.MeasurePrefixWidth(run, i));
+                Microsoft.UI.Xaml.Controls.Canvas.SetTop(tb, 0);
+            }
         }
 
         var localBaseline = line.Baseline - line.Y;
@@ -444,6 +445,15 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
 
         return canvas;
+    }
+
+    private static void ApplyRunFormatting(Microsoft.UI.Xaml.Controls.TextBlock tb, FlorenceRun run)
+    {
+        if (run.FontSize > 0) tb.FontSize = run.FontSize;
+        if (run.Bold) tb.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+        if (run.Italic) tb.FontStyle = Windows.UI.Text.FontStyle.Italic;
+        if (run.FontFamily is not null) tb.FontFamily = run.FontFamily;
+        if (run.Foreground is not null) tb.Foreground = run.Foreground;
     }
 
     private static void AddDecorationVisuals(
