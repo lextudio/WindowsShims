@@ -65,7 +65,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             {
                 int lastOffset = _owner.Page.Lines[^1].EndOffset;
                 if (position.CharOffset > lastOffset)
-                    position = tc!.CreatePointerAtCharOffset(lastOffset, LogicalDirection.Backward);
+                    position = SafeCreatePointerAtCharOffset(tc!, lastOffset, LogicalDirection.Backward, position) ?? position;
             }
 
             _owner.SetCaretAt(position);
@@ -93,7 +93,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (position.CharOffset <= lastOffset)
             return position;
 
-        return tc.CreatePointerAtCharOffset(lastOffset, LogicalDirection.Backward);
+        return SafeCreatePointerAtCharOffset(tc, lastOffset, LogicalDirection.Backward, position) ?? position;
     }
 
     // ── ITextView properties ────────────────────────────────────────────────
@@ -143,7 +143,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             $"{DateTime.Now:HH:mm:ss.fff}  [HitTest] point=({point.X:F1},{point.Y:F1}) " +
             $"hit.Y={hit.Y:F1} hit.H={hit.Height:F1} hit.Start={hit.StartOffset} hit.End={hit.EndOffset} " +
             $"raw={raw} IMECharCount={tc.IMECharCount} clamped={charOffset}\n");
-        return tc.CreatePointerAtCharOffset(charOffset, LogicalDirection.Forward);
+        return SafeCreatePointerAtCharOffset(tc, charOffset, LogicalDirection.Forward, tc.Start) ?? tc.Start;
     }
 
     Rect ITextView.GetRectangleFromTextPosition(ITextPointer position)
@@ -225,7 +225,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         var targetLine = lines[targetIndex];
         int newOffset = Math.Clamp(HitTestCharOffset(targetLine, suggestedX), 0, tc.IMECharCount);
         newSuggestedX = GetPixelXForOffset(targetLine, newOffset);
-        return tc.CreatePointerAtCharOffset(newOffset, LogicalDirection.Forward);
+        return SafeCreatePointerAtCharOffset(tc, newOffset, LogicalDirection.Forward, position) ?? position;
     }
 
     ITextPointer ITextView.GetPositionAtNextPage(ITextPointer position, Point suggestedOffset,
@@ -260,7 +260,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
             newOffset = Math.Max(offset - 1, 0);
         }
         Log($"[GetNextCaretUnit] offset={offset} dir={direction} → {newOffset} (IMECharCount={tc.IMECharCount})");
-        return tc.CreatePointerAtCharOffset(newOffset, direction);
+        return SafeCreatePointerAtCharOffset(tc, newOffset, direction, position) ?? position;
     }
 
     ITextPointer ITextView.GetBackspaceCaretUnitPosition(ITextPointer position)
@@ -269,7 +269,7 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (tc == null) return position;
         position = NormalizeToVisiblePosition(position);
         int newOffset = Math.Max(position.CharOffset - 1, 0);
-        return tc.CreatePointerAtCharOffset(newOffset, LogicalDirection.Backward);
+        return SafeCreatePointerAtCharOffset(tc, newOffset, LogicalDirection.Backward, position) ?? position;
     }
 
     TextSegment ITextView.GetLineRange(ITextPointer position)
@@ -280,10 +280,11 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (line == null) return TextSegment.Null;
         var tc = _owner.Document?.StructuralCache.TextContainer;
         if (tc == null) return TextSegment.Null;
-        var start = tc.CreatePointerAtCharOffset(line.StartOffset, LogicalDirection.Forward);
-        var end   = tc.CreatePointerAtCharOffset(line.EndOffset,   LogicalDirection.Backward);
+        var start = SafeCreatePointerAtCharOffset(tc, line.StartOffset, LogicalDirection.Forward, null);
+        var end   = SafeCreatePointerAtCharOffset(tc, line.EndOffset,   LogicalDirection.Backward, null);
         Log($"[GetLineRange] query offset={position.CharOffset} dir={position.LogicalDirection} → line[{line.StartOffset}..{line.EndOffset}] startNull={start==null} endNull={end==null}");
-        if (start == null || end == null) return TextSegment.Null;
+        if (start == null || end == null || start.CompareTo(end) > 0)
+            return TextSegment.Null;
         return new TextSegment(start, end);
     }
 
@@ -431,6 +432,24 @@ internal sealed class UnoFlowDocumentTextView : ITextView
     // trailing spaces, but TextMeasurer.MeasureWidth compensates via a sentinel char.
     private static double MeasurePrefixWidth(FlorenceRun run, int charCount)
         => MS.Internal.Florence.TextMeasurer.MeasurePrefixWidth(run, charCount);
+
+    private static ITextPointer? SafeCreatePointerAtCharOffset(
+        ITextContainer textContainer,
+        int charOffset,
+        LogicalDirection direction,
+        ITextPointer? fallback)
+    {
+        try
+        {
+            int clamped = Math.Clamp(charOffset, 0, Math.Max(0, textContainer.IMECharCount));
+            return textContainer.CreatePointerAtCharOffset(clamped, direction);
+        }
+        catch (Exception ex)
+        {
+            Log($"[CreatePointerAtCharOffset] offset={charOffset} dir={direction} failed {ex.GetType().Name}: {ex.Message}");
+            return fallback;
+        }
+    }
 
     private static ITextPointer NullStart()
         => new MS.Internal.Florence.FlorenceTextPointer(

@@ -211,18 +211,13 @@ public partial class RichTextBox
             var isAtParaStart = System.Windows.Documents.TextPointerBase.IsAtParagraphOrBlockUIContainerStart(caretTp);
             // TextPointer.ParagraphOrBlockUIContainer walks via TextElement.Parent which is
             // unreliable in this Uno shim (Run.Parent doesn't surface its containing Paragraph).
-            // Scan FlowDocument.Blocks for the block that contains the caret offset instead.
+            // Scan FlowDocument.Blocks by char offset instead. At a shared paragraph boundary,
+            // Delete should prefer the block ending at the caret, while Backspace should prefer
+            // the block starting at the caret.
             System.Windows.Documents.Block paraOrBuc = null;
             if (Document != null)
             {
-                foreach (var block in Document.Blocks)
-                {
-                    if (caretTp.CompareTo(block.ElementStart) >= 0 && caretTp.CompareTo(block.ElementEnd) <= 0)
-                    {
-                        paraOrBuc = block;
-                        break;
-                    }
-                }
+                paraOrBuc = FindEditingBlock(Document, caretTp, wpfKey);
             }
             System.Windows.Documents.Block prevBlock = null, nextBlock = null;
             if (paraOrBuc != null && Document != null)
@@ -246,10 +241,10 @@ public partial class RichTextBox
                     using (te.Selection.DeclareChangeBlock())
                     {
                         var caretAt = prev.ContentEnd;
-                        System.Windows.Documents.TextRangeEditLists.MergeParagraphs(prev, cur);
+                        bool merged = System.Windows.Documents.TextRangeEditLists.MergeParagraphs(prev, cur);
+                        Log($"KeyDown: paragraph-merge-back fast-path result={merged} caret={caretTp.CharOffset} prev={DescribeBlock(prev)} cur={DescribeBlock(cur)}");
                         te.Selection.Select(caretAt, caretAt);
                     }
-                    Log($"KeyDown: paragraph-merge-back fast-path executed");
                     e.Handled = true;
                     UpdateCaretFromSelection();
                     return;
@@ -259,20 +254,21 @@ public partial class RichTextBox
             {
                 var cur = paraOrBuc as System.Windows.Documents.Paragraph;
                 var next = nextBlock as System.Windows.Documents.Paragraph;
-                bool atParaEnd = cur != null && caretTp.CompareTo(cur.ContentEnd) == 0;
+                bool atParaEnd = cur != null && IsAtParagraphEndForDelete(caretTp, cur);
                 if (atParaEnd && cur != null && next != null)
                 {
                     using (te.Selection.DeclareChangeBlock())
                     {
                         var caretAt = cur.ContentEnd;
-                        System.Windows.Documents.TextRangeEditLists.MergeParagraphs(cur, next);
+                        bool merged = System.Windows.Documents.TextRangeEditLists.MergeParagraphs(cur, next);
+                        Log($"KeyDown: paragraph-merge-forward fast-path result={merged} caret={caretTp.CharOffset} cur={DescribeBlock(cur)} next={DescribeBlock(next)}");
                         te.Selection.Select(caretAt, caretAt);
                     }
-                    Log($"KeyDown: paragraph-merge-forward fast-path executed");
                     e.Handled = true;
                     UpdateCaretFromSelection();
                     return;
                 }
+                Log($"KeyDown: paragraph-merge-forward skipped caret={caretTp.CharOffset} atEnd={atParaEnd} cur={DescribeBlock(cur)} next={DescribeBlock(next)}");
             }
         }
 
@@ -304,6 +300,49 @@ public partial class RichTextBox
             // position has moved.
             UpdateCaretFromSelection();
         }
+    }
+
+    private static System.Windows.Documents.Block? FindEditingBlock(
+        FlowDocument document,
+        System.Windows.Documents.TextPointer caret,
+        Key key)
+    {
+        System.Windows.Documents.Block? containing = null;
+
+        foreach (var block in document.Blocks)
+        {
+            if (key == Key.Delete && caret.CharOffset == block.ContentEnd.CharOffset)
+                return block;
+
+            if (key == Key.Back && caret.CharOffset == block.ContentStart.CharOffset)
+                return block;
+
+            if (caret.CompareTo(block.ElementStart) >= 0 && caret.CompareTo(block.ElementEnd) <= 0)
+                containing ??= block;
+        }
+
+        return containing;
+    }
+
+    private static bool IsAtParagraphEndForDelete(
+        System.Windows.Documents.TextPointer caret,
+        System.Windows.Documents.Paragraph paragraph)
+    {
+        if (caret.CompareTo(paragraph.ContentEnd) == 0)
+            return true;
+
+        // The Uno text view can hand editing code a normalized caret pointer whose
+        // logical tree position differs from ContentEnd while the symbol offset is
+        // exactly the same. Treat that as a paragraph-end delete request too.
+        return caret.CharOffset == paragraph.ContentEnd.CharOffset;
+    }
+
+    private static string DescribeBlock(System.Windows.Documents.Block? block)
+    {
+        if (block == null)
+            return "<null>";
+
+        return $"{block.GetType().Name}[ES={block.ElementStart.CharOffset},CS={block.ContentStart.CharOffset},CE={block.ContentEnd.CharOffset},EE={block.ElementEnd.CharOffset}]";
     }
 
     protected override void OnCharacterReceived(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs e)
