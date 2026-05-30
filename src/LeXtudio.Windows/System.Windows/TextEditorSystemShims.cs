@@ -21,6 +21,16 @@ namespace System.Windows
         public static bool MouseVanish => false;
         public static double MinimumHorizontalDragDistance => 4.0;
         public static double MinimumVerticalDragDistance => 4.0;
+
+        // Screen-metric surface used by AvalonDock floating-window placement.
+        // WPF reads these from Win32; on Skia we return sensible defaults (the
+        // real placement on macOS is handled by the NSWindow path in UnoDock).
+        public static double PrimaryScreenWidth => 1920.0;
+        public static double PrimaryScreenHeight => 1080.0;
+        public static double VirtualScreenLeft => 0.0;
+        public static double VirtualScreenTop => 0.0;
+        public static double VirtualScreenWidth => 1920.0;
+        public static double VirtualScreenHeight => 1080.0;
     }
 
     public static class SafeSystemMetrics
