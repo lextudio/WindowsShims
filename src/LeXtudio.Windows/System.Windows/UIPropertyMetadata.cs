@@ -9,7 +9,7 @@ namespace System.Windows
 	public class UIPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
 	{
 		public UIPropertyMetadata()
-			: base(null) { }
+			: base((object?)null) { }
 
 		public UIPropertyMetadata(object defaultValue)
 			: base(defaultValue)
