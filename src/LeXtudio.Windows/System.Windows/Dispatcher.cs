@@ -1,3 +1,5 @@
+using System.Windows.Threading;
+
 namespace System.Windows;
 
 /// <summary>
@@ -61,12 +63,4 @@ public sealed class Dispatcher
 public struct DispatcherProcessingDisabled : IDisposable
 {
     public void Dispose() { }
-}
-
-public enum DispatcherPriority
-{
-    Background,
-    Loaded,
-    Normal,
-    Send
 }
