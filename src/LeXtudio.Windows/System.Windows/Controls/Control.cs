@@ -125,6 +125,15 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 
     internal virtual DependencyObjectType DTypeThemeStyleKey => DependencyObjectType.FromSystemTypeInternal(GetType());
 
+    // WPF Control internal bool-flag storage (bit-packed in WPF; simple field on HAS_UNO).
+    private ControlBoolFlags _controlBoolField;
+    internal bool ReadControlFlag(ControlBoolFlags reqFlag) => (_controlBoolField & reqFlag) != 0;
+    internal void WriteControlFlag(ControlBoolFlags reqFlag, bool set)
+    {
+        if (set) _controlBoolField |= reqFlag;
+        else _controlBoolField &= ~reqFlag;
+    }
+
     // RichTextBox-level overrides that surface through TextBoxBase
     protected internal virtual IEnumerator LogicalChildren
         => System.Linq.Enumerable.Empty<object>().GetEnumerator();

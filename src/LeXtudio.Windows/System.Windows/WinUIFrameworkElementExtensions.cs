@@ -107,4 +107,25 @@ public static class WinUIFrameworkElementExtensions
         public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
             => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));
     }
+
+    // WPF Visual-tree management APIs that FrameworkElement exposes (via UIElement/Visual).
+    // In WinUI, panels manage their own visual children; ToolBarTray (a plain FrameworkElement)
+    // calls these in its ToolBarCollection helper. No-ops satisfy the call sites while Uno
+    // handles the actual visual parenting through its own visual tree.
+    extension(Microsoft.UI.Xaml.FrameworkElement self)
+    {
+        public void AddVisualChild(Microsoft.UI.Xaml.UIElement child) { }
+        public void RemoveVisualChild(Microsoft.UI.Xaml.UIElement child) { }
+        public void AddLogicalChild(object child) { }
+        public void RemoveLogicalChild(object child) { }
+
+        // WPF SetResourceReference — set a property to a dynamic resource lookup.
+        // On Uno, fall back to a simple SetValue(dp, Application.Current.Resources[key]).
+        public void SetResourceReference(DependencyProperty dp, object resourceKey)
+        {
+            if (resourceKey != null &&
+                Microsoft.UI.Xaml.Application.Current?.Resources?.TryGetValue(resourceKey, out var res) == true)
+                self.SetValue(dp, res);
+        }
+    }
 }

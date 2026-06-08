@@ -18,6 +18,12 @@ namespace System.Windows
         public Type TargetType { get; }
     }
 
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
+    public sealed class AttachedPropertyBrowsableForChildrenAttribute : Attribute
+    {
+        public bool IncludeDescendants { get; set; }
+    }
+
     public abstract class ContentPosition
     {
     }

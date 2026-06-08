@@ -104,3 +104,11 @@ global using FontFraction              = Microsoft.UI.Xaml.FontFraction;
 global using FontEastAsianWidths       = Microsoft.UI.Xaml.FontEastAsianWidths;
 global using FontEastAsianLanguage     = Microsoft.UI.Xaml.FontEastAsianLanguage;
 global using FontCapitals              = Microsoft.UI.Xaml.FontCapitals;
+
+// VisualTreeHelper: route unqualified usage to WinUI's type.
+// Our shim in System.Windows.Media was deleted to avoid CS0104 ambiguity.
+global using VisualTreeHelper          = Microsoft.UI.Xaml.Media.VisualTreeHelper;
+
+// Orientation: route unqualified usage to WinUI's type so StackPanel.Orientation comparisons compile.
+// System.Windows.Controls.Orientation (shim) has identical integer values (Horizontal=0, Vertical=1).
+global using Orientation               = Microsoft.UI.Xaml.Controls.Orientation;

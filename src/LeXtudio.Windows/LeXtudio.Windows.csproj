@@ -855,4 +855,20 @@
     <Compile Remove="System.Windows\Documents\TextRange.cs" />
     <!-- System.Windows\Documents\TextRangeEditTables.cs local stub deleted (Session 24). -->
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- WPF ToolBar family: source-level migration (HAS_UNO guards in each file) -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\HeaderedContentControl.cs"
+             Link="System.Windows.Controls\HeaderedContentControl.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\HeaderedItemsControl.cs"
+             Link="System.Windows.Controls\HeaderedItemsControl.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\ToolBar.cs"
+             Link="System.Windows.Controls\ToolBar.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\ToolBarTray.cs"
+             Link="System.Windows.Controls\ToolBarTray.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\ToolBarPanel.cs"
+             Link="System.Windows.Controls.Primitives\ToolBarPanel.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\ToolBarOverflowPanel.cs"
+             Link="System.Windows.Controls.Primitives\ToolBarOverflowPanel.cs" />
+  </ItemGroup>
 </Project>

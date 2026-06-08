@@ -35,6 +35,14 @@ namespace System.Windows.Controls
             new("LineDown", typeof(ScrollBar));
         public static readonly System.Windows.Input.RoutedCommand LineUpCommand =
             new("LineUp", typeof(ScrollBar));
+
+        // ValidateValueCallback used by ToolBarTray.OrientationProperty
+        public static bool IsValidOrientation(object o)
+        {
+            if (o is Orientation value)
+                return value == Orientation.Horizontal || value == Orientation.Vertical;
+            return false;
+        }
     }
 }
 

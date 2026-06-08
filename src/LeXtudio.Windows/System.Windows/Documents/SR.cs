@@ -250,6 +250,9 @@ internal static class SR
     internal const string TextBoxScrollViewerMarkedAsTextBoxContentMustHaveNoContent = nameof(TextBoxScrollViewerMarkedAsTextBoxContentMustHaveNoContent);
     internal const string TextBoxDecoratorMarkedAsTextBoxContentMustHaveNoContent    = nameof(TextBoxDecoratorMarkedAsTextBoxContentMustHaveNoContent);
     internal const string TextBoxInvalidTextContainer                       = nameof(TextBoxInvalidTextContainer);
+    internal const string ToolBar_InvalidStyle_ToolBarPanel = "ToolBar template must contain a ToolBarPanel, not '{0}'";
+    internal const string ToolBar_InvalidStyle_ToolBarOverflowPanel = "ToolBar template must contain a ToolBarOverflowPanel, not '{0}'";
+
     internal static string Format(string format, params object[] args)
     {
         return string.Format(format, args);

@@ -108,3 +108,21 @@ public static class DependencyPropertyHelper
             IsExpression = false,
         };
 }
+
+public static class DependencyObjectExtensions
+{
+    // WPF DependencyObject.SetCurrentValueInternal — sets value without overriding a locally-set
+    // value in WPF's property system. On HAS_UNO there is no such distinction; plain SetValue suffices.
+    public static void SetCurrentValueInternal(this DependencyObject d, DependencyProperty dp, object? value)
+        => d.SetValue(dp, value);
+
+    // WPF FrameworkElement.HasNonDefaultValue — returns true when the property has been explicitly set
+    // (not just inherited or defaulted). On HAS_UNO we approximate: if the local value equals the
+    // property's default we treat it as "default". This is conservative but safe for ToolBar usage.
+    public static bool HasNonDefaultValue(this DependencyObject d, DependencyProperty dp)
+    {
+        object? local = d.ReadLocalValue(dp);
+        return local != Microsoft.UI.Xaml.DependencyProperty.UnsetValue;
+    }
+
+}

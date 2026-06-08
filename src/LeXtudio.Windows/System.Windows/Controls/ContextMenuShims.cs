@@ -63,15 +63,6 @@ namespace System.Windows.Controls
     {
     }
 
-    public partial class ItemsControl : Microsoft.UI.Xaml.Controls.Control
-    {
-        public ItemCollection Items { get; } = new ItemCollection();
-        public void SetResourceReference(DependencyProperty dp, object resourceKey) { }
-    }
-
-    // ItemCollection moved to ItemCollection.cs when it grew currency support
-    // for the selector spine.
-
     public static class ContextMenuService
     {
         public static ContextMenu? GetContextMenu(Microsoft.UI.Xaml.DependencyObject element) => null;
