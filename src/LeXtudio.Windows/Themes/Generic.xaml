@@ -1,7 +1,8 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:swc="using:System.Windows.Controls">
+    xmlns:swc="using:System.Windows.Controls"
+    xmlns:swcp="using:System.Windows.Controls.Primitives">
 
     <!-- Session 25: minimal DataGrid template. The shim populates
          PART_ShimRowsHost in code (header + data rows) — this is the shim's
@@ -50,6 +51,51 @@
                             Padding="{TemplateBinding Padding}"
                             HorizontalScrollBarVisibility="Disabled"
                             VerticalScrollBarVisibility="Auto" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+
+    <!-- ToolBarTray: basic background only (FrameworkElement, no ControlTemplate) -->
+    <Style TargetType="swc:ToolBarTray">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- ToolBar: horizontal item strip.
+         PART_ToolBarOverflowPanel is included but collapsed — the overflow panel is
+         always collapsed on Uno because MeasureOverride / ArrangeOverride are guarded
+         with #if !HAS_UNO in the linked WPF source.
+         PART_ToolBarPanel is not marked IsItemsHost (read-only in Uno Panel); items
+         are hosted by ItemsPresenter in the standard WinUI way. -->
+    <Style TargetType="swc:ToolBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="#CCCCCC" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="2,1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="swc:ToolBar">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        Padding="{TemplateBinding Padding}">
+                        <StackPanel Orientation="Horizontal">
+                            <ContentPresenter
+                                x:Name="ToolBarHeader"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="0,0,4,0" />
+                            <swcp:ToolBarPanel x:Name="PART_ToolBarPanel">
+                                <ItemsPresenter />
+                            </swcp:ToolBarPanel>
+                            <swcp:ToolBarOverflowPanel
+                                x:Name="PART_ToolBarOverflowPanel"
+                                WrapWidth="200"
+                                Visibility="Collapsed" />
+                        </StackPanel>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
