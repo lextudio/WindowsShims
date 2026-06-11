@@ -51,6 +51,7 @@ internal static class SR
     internal const string InputScopeAttribute_E_OUTOFMEMORY = "Insufficient memory to complete the operation.";
     internal const string DataGridLength_Infinity = "Value should not be infinity.";
     internal const string DataGridLength_InvalidType = "Invalid type.";
+    internal const string DataGrid_InvalidColumnReuse = "The column '{0}' already belongs to another DataGrid.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";

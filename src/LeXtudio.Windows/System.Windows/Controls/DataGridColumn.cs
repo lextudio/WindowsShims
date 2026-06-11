@@ -99,12 +99,27 @@ public partial class DataGridColumn : DependencyObject
 
     public int DisplayIndex { get; set; } = -1;
 
+    internal DataGrid? DataGridOwner { get; set; }
+
+    internal bool IsVisible => Visibility == Visibility.Visible;
+
     public virtual BindingBase? ClipboardContentBinding { get; set; }
 
     protected virtual bool OnCoerceIsReadOnly(bool baseValue) => baseValue;
 
     protected void NotifyPropertyChanged(string propertyName)
     {
+    }
+
+    internal void NotifyPropertyChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs args,
+        DataGridNotificationTarget target)
+    {
+        if (args.Property is not null)
+        {
+            NotifyPropertyChanged(args.Property.Name);
+        }
     }
 
     protected internal virtual void RefreshCellContent(FrameworkElement element, string propertyName)

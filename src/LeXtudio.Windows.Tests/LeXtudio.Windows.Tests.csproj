@@ -37,9 +37,12 @@
     <Compile Include="Program.cs" />
     <Compile Include="BindingTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
+    <Compile Include="DataGridCollectionTests.cs" />
     <Compile Include="DataGridColumnTests.cs" />
+    <Compile Include="DataGridComboBoxColumnTests.cs" />
     <Compile Include="DataGridEventArgsTests.cs" />
     <Compile Include="DataGridLengthTests.cs" />
+    <Compile Include="DataGridRowEventArgsTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

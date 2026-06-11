@@ -98,6 +98,7 @@ namespace System.Windows
     {
         public const string Text         = "Text";
         public const string UnicodeText  = "UnicodeText";
+        public const string CommaSeparatedValue = "CSV";
         public const string OemText      = "OemText";
         public const string Rtf          = "Rtf";
         public const string Html         = "Html";
