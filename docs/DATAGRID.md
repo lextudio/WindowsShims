@@ -12,12 +12,13 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 12 build/test status: green for the low-coupling DataGrid surface,
+- Session 13 build/test status: green for the low-coupling DataGrid surface,
   binding bridge, local column/bound-column/text/checkbox/template-column/
   combo-box-column shells, cell/row shells, owner/column collection shell, the
   full linked event-args/notification/clipboard-helper layer, linked
-  `DataGridCellInfo` over the `ItemInfo` bridge, and the linked new-item
-  event args.
+  `DataGridCellInfo` over the `ItemInfo` bridge, the linked new-item event
+  args, and the linked cell-selection collection stack
+  (`VirtualizedCellInfoCollection`/`SelectedCellsCollection`).
 - Control-shell direction (decided in session 12): pursue the linked
   `DataGrid.cs` path with guarded internals, growing bridges rung by rung,
   rather than a local shell over Uno `ListView`/`Grid`.
@@ -66,7 +67,7 @@ spine.
 | New-item pipeline args | `AddingNewItemEventArgs`, `InitializingNewItemEventArgs`, `InitializingNewItemEventHandler`, `IProvideDataGridColumn` | Linked WPF source | `linked-upstream` | Leaf files from the session-12 probe; no new bridges needed. |
 | Cell identity | `DataGridCellInfo` | Linked WPF source | `linked-upstream` | Compiles over the local `ItemsControl.ItemInfo` bridge, `DataGrid.NewItemInfo`, and `DataGridCell` row-owner internals. |
 | Item info bridge | `ItemsControl.ItemInfo`, `ItemsControl.EqualsEx` | `System.Windows/Controls/ItemsControlItemInfo.cs` | `local-bridge` | Item/container/index equality subset; WPF sentinel containers and generator `Refresh` are omitted until virtualization paths are linked. |
-| Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Not enabled | `blocked` | `VirtualizedCellInfoCollection` (1.7k lines) needs DataGrid items/generator internals; the event args' internal constructor depends on it. |
+| Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Adds WPF-shaped `Columns`, internal owner tracking, display-index lookup, and notification stubs. Full width redistribution, virtualization maps, sorting, selection, and item ownership remain deferred. |
 | Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
 | Hyperlink column | `DataGridHyperlinkColumn` | Not enabled | `blocked` | Needs navigation/routed-command pieces (`Hyperlink` content binding, `OnExecutedRouted` style command plumbing). |
@@ -105,9 +106,9 @@ spine.
    (new-item args, `ItemInfo` bridge, linked `DataGridCellInfo`). Completed in
    session 12.
 13. Climb the remaining linked-`DataGrid.cs` ladder recorded in the session-12
-   probe results: cell-selection collections, selector spine bridge,
-   header/presenter shells, validation/binding-group bridges, then the control
-   root itself.
+   probe results: cell-selection collections (completed in session 13),
+   selector spine bridge, header/presenter shells, validation/binding-group
+   bridges, then the control root itself.
 14. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts.
 
@@ -377,6 +378,35 @@ container generator exists.
 Session 12 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 51 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 13: cell-selection collection stack
+
+Session 13 compared the two candidate rungs. The selector spine
+(`MultiSelector` is only 102 lines, but it sits on `Selector` at ~3k and
+`ItemsControl` at ~4k lines) is the expensive rung; the cell-selection
+collections turned out to be cheap because `VirtualizedCellInfoCollection`'s
+owner contract is narrow: `Columns`, `ColumnFromDisplayIndex` (already
+present), plus `Items`, `ItemInfoFromIndex`, and `Dispatcher.VerifyAccess`.
+
+Guarded internals added to the local `DataGrid` shell: a plain `ItemCollection`
+`Items` list (until the selector spine provides a real one),
+`ItemInfoFromIndex` without generator container resolution, and a subset
+`OnSelectedCellsChanged` that skips WPF's selection-unit validation and
+pending-change coalescing and just raises the public `SelectedCellsChanged`
+event. `DataGrid.SelectedCells` is now exposed as `IList<DataGridCellInfo>`
+over the linked `SelectedCellsCollection`.
+
+Supporting shim work: four SR strings
+(`SelectedCellsCollection_InvalidItem`/`_DuplicateItem`,
+`VirtualizedCellInfoCollection_DoesNotSupportIndexChanges`/`_IsReadOnly`) and
+`VerifyAccess`/`CheckAccess` on both the `Dispatcher` shim and the
+`CoreDispatcher` extensions (WinUI's native `Dispatcher` property shadows the
+WPF-shaped extension, so the upstream call lands on `CoreDispatcher`).
+
+Session 13 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 56 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions

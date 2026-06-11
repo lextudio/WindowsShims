@@ -532,6 +532,14 @@
              Link="System.Windows.Controls\IProvideDataGridColumn.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridCellInfo.cs"
              Link="System.Windows.Controls\DataGridCellInfo.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\VirtualizedCellInfoCollection.cs"
+             Link="System.Windows.Controls\VirtualizedCellInfoCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\SelectedCellsCollection.cs"
+             Link="System.Windows.Controls\SelectedCellsCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\SelectedCellsChangedEventArgs.cs"
+             Link="System.Windows.Controls\SelectedCellsChangedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\SelectedCellsChangedEventHandler.cs"
+             Link="System.Windows.Controls\SelectedCellsChangedEventHandler.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttribute.cs"
              Link="System.Windows.Documents\TextServicesDisplayAttribute.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttributePropertyRanges.cs"

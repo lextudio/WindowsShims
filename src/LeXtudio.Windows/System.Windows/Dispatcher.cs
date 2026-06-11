@@ -12,6 +12,12 @@ public static class CoreDispatcherExtensions
     public static DispatcherProcessingDisabled DisableProcessing(
         this global::Windows.UI.Core.CoreDispatcher dispatcher) => default;
 
+    public static bool CheckAccess(this global::Windows.UI.Core.CoreDispatcher dispatcher) => true;
+
+    public static void VerifyAccess(this global::Windows.UI.Core.CoreDispatcher dispatcher)
+    {
+    }
+
     public static void BeginInvoke(
         this global::Windows.UI.Core.CoreDispatcher dispatcher,
         DispatcherPriority priority,
@@ -43,6 +49,12 @@ public sealed class Dispatcher
         => CurrentDispatcher;
 
     public DispatcherProcessingDisabled DisableProcessing() => default;
+
+    public bool CheckAccess() => true;
+
+    public void VerifyAccess()
+    {
+    }
 
     public void BeginInvoke(DispatcherPriority priority, Delegate method) =>
         method.DynamicInvoke();

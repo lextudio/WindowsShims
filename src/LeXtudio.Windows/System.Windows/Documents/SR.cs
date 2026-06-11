@@ -52,6 +52,10 @@ internal static class SR
     internal const string DataGridLength_Infinity = "Value should not be infinity.";
     internal const string DataGridLength_InvalidType = "Invalid type.";
     internal const string DataGrid_InvalidColumnReuse = "The column '{0}' already belongs to another DataGrid.";
+    internal const string SelectedCellsCollection_InvalidItem = "The DataGridCellInfo is not valid for this DataGrid.";
+    internal const string SelectedCellsCollection_DuplicateItem = "The cell is already selected.";
+    internal const string VirtualizedCellInfoCollection_DoesNotSupportIndexChanges = "This collection does not support changes at a specific index.";
+    internal const string VirtualizedCellInfoCollection_IsReadOnly = "This collection is read-only.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";
