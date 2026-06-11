@@ -56,6 +56,8 @@ internal static class SR
     internal const string SelectedCellsCollection_DuplicateItem = "The cell is already selected.";
     internal const string VirtualizedCellInfoCollection_DoesNotSupportIndexChanges = "This collection does not support changes at a specific index.";
     internal const string VirtualizedCellInfoCollection_IsReadOnly = "This collection is read-only.";
+    internal const string ChangingTypeNotAllowed = "Changing the Type of a ComponentResourceKey is not allowed once it has been set.";
+    internal const string ChangingIdNotAllowed = "Changing the ID of a ComponentResourceKey is not allowed once it has been set.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";

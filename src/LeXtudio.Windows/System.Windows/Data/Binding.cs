@@ -47,6 +47,10 @@ public class Binding : BindingBase
 
     public PropertyPath? Path { get; set; }
 
+    // WPF XML binding path. The selector spine checks it to pick CLR vs XML
+    // evaluation; XML sources are not supported by the bridge.
+    public string? XPath { get; set; }
+
     public object? Source { get; set; }
 
     public string? ElementName { get; set; }

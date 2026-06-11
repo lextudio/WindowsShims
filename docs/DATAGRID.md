@@ -12,13 +12,19 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 13 build/test status: green for the low-coupling DataGrid surface,
+- Session 15 build/test status: green for the low-coupling DataGrid surface,
   binding bridge, local column/bound-column/text/checkbox/template-column/
   combo-box-column shells, cell/row shells, owner/column collection shell, the
   full linked event-args/notification/clipboard-helper layer, linked
   `DataGridCellInfo` over the `ItemInfo` bridge, the linked new-item event
-  args, and the linked cell-selection collection stack
-  (`VirtualizedCellInfoCollection`/`SelectedCellsCollection`).
+  args, the linked cell-selection collection stack, the rung-5/6 leaves, and
+  the spine layer-1 bridges (shim `ItemsControl` virtuals, linked
+  `BooleanBoxes`, untargeted `BindingExpression` bridge,
+  `DynamicValueConverter` bridge, `BuildInfo`/attribute shims).
+- Mechanism note (discovered in session 15): `ext/wpf` is a patched fork that
+  uses `#if !HAS_UNO` guards inside upstream files (for example `Window.cs`,
+  `AdornerLayer`, `TextBoxBase`). Fork-patching is an established third
+  option alongside direct linking and local bridges.
 - Control-shell direction (decided in session 12): pursue the linked
   `DataGrid.cs` path with guarded internals, growing bridges rung by rung,
   rather than a local shell over Uno `ListView`/`Grid`.
@@ -67,6 +73,16 @@ spine.
 | New-item pipeline args | `AddingNewItemEventArgs`, `InitializingNewItemEventArgs`, `InitializingNewItemEventHandler`, `IProvideDataGridColumn` | Linked WPF source | `linked-upstream` | Leaf files from the session-12 probe; no new bridges needed. |
 | Cell identity | `DataGridCellInfo` | Linked WPF source | `linked-upstream` | Compiles over the local `ItemsControl.ItemInfo` bridge, `DataGrid.NewItemInfo`, and `DataGridCell` row-owner internals. |
 | Item info bridge | `ItemsControl.ItemInfo`, `ItemsControl.EqualsEx` | `System.Windows/Controls/ItemsControlItemInfo.cs` | `local-bridge` | Item/container/index equality subset; WPF sentinel containers and generator `Refresh` are omitted until virtualization paths are linked. |
+| Thumb drag args | `DragStartedEventArgs`, `DragDeltaEventArgs`, `DragCompletedEventArgs` + handlers | Linked WPF source | `linked-upstream` | Linked over a minimal local `Thumb` shell that carries the three drag routed-event identities; Thumb input behavior is not implemented. |
+| Resource keys | `ResourceKey`, `ComponentResourceKey` | Linked WPF source | `linked-upstream` | Needed a `MarkupExtension` shim, a `ComponentResourceKeyConverter` shim, and two SR strings. |
+| Container tracking | `ContainerTracking<>` | Linked WPF source | `linked-upstream` | Self-contained linked-list node used by row/cell container tracking. |
+| Uncommon field bridge | `UncommonField<>` | `MS.Internal/UncommonField.cs` | `local-bridge` | `ConditionalWeakTable`-backed; WPF's effective-value-table storage is not reachable on WinUI. |
+| Focus direction | `FocusNavigationDirection` | `System.Windows/Input/FocusNavigationDirection.cs` | `local-bridge` | Enum shim mirroring WPF member order. |
+| Known boxes | `BooleanBoxes` | Linked WPF source (WindowsBase) | `linked-upstream` | Replaced the local nested-class shim; now a real `MS.Internal.KnownBoxes` namespace as upstream files expect. |
+| Spine virtuals | `ItemsControl` `OnItemsChanged`/`OnItemsSourceChanged`/`Prepare`/`ClearContainerForItemOverride`/`AdjustItemInfoOverride`/`OnInitialized`/`OnIsKeyboardFocusWithinChanged` | `System.Windows/Controls/ItemsControlSpine.cs` | `local-bridge` | No-op virtual hooks Selector/MultiSelector override; real behavior waits on item-container generation. |
+| Binding expression bridge | `BindingExpressionBase`, `BindingExpression`, `BindingExpressionUncommonField`, `DynamicValueConverter`, `Binding.XPath` | `System.Windows/Data/BindingExpression.cs`, `MS.Internal/Data/DataBridges.cs` | `local-bridge` | Untargeted expression walks dotted CLR property paths via reflection for the selector `SelectedValue` paths; XML/indexer/property-engine evaluation not supported. Converter uses component-model converters with `UnsetValue` failure contract. |
+| Spine attribute/info shims | `AttachedPropertyBrowsableForChildrenAttribute`, `MS.Internal.PresentationFramework.BuildInfo` | local shims | `local-bridge` | Designer metadata flattened to `Attribute`; BuildInfo constants mirror `RefAssemblyAttrs.cs` (not linked because it carries assembly-level attributes). |
+| Selector spine | `Selector`, `MultiSelector` | Not enabled | `blocked` | Layer-2 probe: 79 unique contracts — rich `ItemsControl` surface, `ItemCollection`-as-`CollectionView` currency, property-engine internals (`SetCurrentValueInternal`, `EffectiveValueEntry`, `DependencyPropertyKey` set paths), automation peers, `ItemInfo` sentinels, `SystemXmlHelper`. Needs fork-patching or a local spine bridge decision. |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Adds WPF-shaped `Columns`, internal owner tracking, display-index lookup, and notification stubs. Full width redistribution, virtualization maps, sorting, selection, and item ownership remain deferred. |
 | Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
@@ -107,8 +123,11 @@ spine.
    session 12.
 13. Climb the remaining linked-`DataGrid.cs` ladder recorded in the session-12
    probe results: cell-selection collections (completed in session 13),
-   selector spine bridge, header/presenter shells, validation/binding-group
-   bridges, then the control root itself.
+   rung-5/6 leaves and the spine probe (completed in session 14), spine
+   layer-1 bridges and layer-2 catalog (completed in session 15), selector
+   spine enablement (fork-patch vs local bridge decision pending),
+   header/presenter shells, validation/binding-group bridges, then the
+   control root itself.
 14. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts.
 
@@ -407,6 +426,80 @@ WPF-shaped extension, so the upstream call lands on `CoreDispatcher`).
 Session 13 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 56 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 14: selector spine probe and rung-5/6 leaves
+
+Session 14 probe-linked `Selector.cs` + `MultiSelector.cs` and got a
+surprisingly small first-order catalog: 16 unique unresolved contracts. The
+wall is not `ItemsControl` member surface as expected, but the WPF data-engine
+internals: `BindingExpression`, `BindingExpressionUncommonField`,
+`DynamicValueConverter`, `MS.Internal.Data`, `MS.Internal.KnownBoxes`, plus
+seven missing virtuals on the shim `ItemsControl`
+(`OnItemsChanged`/`OnItemsSourceChanged`/`Prepare`/`ClearContainerForItemOverride`/
+`AdjustItemInfoOverride`/`OnInitialized`/`OnIsKeyboardFocusWithinChanged`) and
+`AttachedPropertyBrowsableForChildren`. The probe was reverted; the usual
+caveat applies that error-type cascades hide deeper member-level errors.
+
+The session then landed the rung-5/6 leaves:
+
+- Linked Thumb drag args (`DragStartedEventArgs`, `DragDeltaEventArgs`,
+  `DragCompletedEventArgs` with their handler delegates) over a minimal local
+  `Thumb` shell carrying the three drag routed-event identities.
+- Linked `ResourceKey` + `ComponentResourceKey` over new `MarkupExtension`
+  and `ComponentResourceKeyConverter` shims and two SR strings.
+- Linked `ContainerTracking<>` (self-contained).
+- Added a `ConditionalWeakTable`-backed `UncommonField<>` bridge (WPF's
+  effective-value-table storage is unreachable on WinUI).
+- Added a `FocusNavigationDirection` enum shim mirroring WPF member order.
+
+Session 14 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 61 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 15: spine layer-1 bridges and layer-2 catalog
+
+Session 15 cleared the session-14 spine catalog and re-probed. What landed:
+
+- Seven no-op WPF-shaped virtuals on the shim `ItemsControl`
+  (`ItemsControlSpine.cs`).
+- Linked WindowsBase `KnownBoxes.cs`, deleting the local shim whose
+  static-class shape broke `using MS.Internal.KnownBoxes;`.
+- An untargeted `BindingExpression` bridge (`BindingExpressionBase` with the
+  `DisconnectedItem` sentinel, reflection-based dotted-path evaluation with
+  `Activate`/`Deactivate`/`Value`), `BindingExpressionUncommonField`, a
+  `DynamicValueConverter` bridge over component-model converters, and
+  `Binding.XPath` storage.
+- `AttachedPropertyBrowsableForChildrenAttribute` (flat designer shim) and
+  `MS.Internal.PresentationFramework.BuildInfo` constants.
+
+Discovery: `ext/wpf` is a patched fork using `#if !HAS_UNO` guards inside
+upstream files (`Window.cs`, `AdornerLayer`, `TextBoxBase`). Fork-patching is
+therefore an established third mechanism alongside linking and local bridges.
+
+The layer-2 re-probe of `Selector.cs`/`MultiSelector.cs` surfaced 79 unique /
+302 total errors. Clusters: rich `ItemsControl` member surface (`NewItemInfo`,
+`NewUnresolvedItemInfo`, `HasItems`, `ItemInfoFromIndex`,
+`GetItemOrContainerFromContainer`, `IsItemItsOwnContainerOverride`),
+`ItemCollection` behaving as a `CollectionView` (`CurrentItem`,
+`MoveCurrentToPosition`, `IsEmpty`), WPF property-engine internals
+(`SetCurrentValueInternal`, `GetValueEntry`/`LookupEntry`,
+`EffectiveValueEntry`, `DependencyPropertyKey` set paths), `ItemInfo`
+sentinels (intentionally omitted from the bridge), automation peers,
+`KeyboardNavigation.Current`, `SystemXmlHelper`, `SelectedItemCollection`,
+`DeferredSelectedIndexReference`, handler add/remove signature differences,
+and several SR strings. Probe reverted; baseline stays green.
+
+Conclusion: clean source-linking of the spine is not reachable by bridging
+alone — the property-engine cluster has no Uno equivalent. The next decision
+is fork-patching `Selector.cs`/`MultiSelector.cs` with `#if !HAS_UNO` guards
+around those clusters versus writing a WPF-shaped local `Selector` spine that
+exposes only what `DataGrid.cs` consumes.
+
+Session 15 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 70 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions
