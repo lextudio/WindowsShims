@@ -462,6 +462,30 @@
              Link="System.Windows.Controls\TextChange.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\TextChangedEventArgs.cs"
              Link="System.Windows.Controls\TextChangedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridClipboardCopyMode.cs"
+             Link="System.Windows.Controls\DataGridClipboardCopyMode.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridClipboardCellContent.cs"
+             Link="System.Windows.Controls\DataGridClipboardCellContent.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridEditAction.cs"
+             Link="System.Windows.Controls\DataGridEditAction.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridEditingUnit.cs"
+             Link="System.Windows.Controls\DataGridEditingUnit.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridGridLinesVisibility.cs"
+             Link="System.Windows.Controls\DataGridGridLinesVisibility.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridHeadersVisibility.cs"
+             Link="System.Windows.Controls\DataGridHeadersVisibility.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridLength.cs"
+             Link="System.Windows.Controls\DataGridLength.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridLengthConverter.cs"
+             Link="System.Windows.Controls\DataGridLengthConverter.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridLengthUnitType.cs"
+             Link="System.Windows.Controls\DataGridLengthUnitType.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridRowDetailsVisibilityMode.cs"
+             Link="System.Windows.Controls\DataGridRowDetailsVisibilityMode.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridSelectionMode.cs"
+             Link="System.Windows.Controls\DataGridSelectionMode.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridSelectionUnit.cs"
+             Link="System.Windows.Controls\DataGridSelectionUnit.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttribute.cs"
              Link="System.Windows.Documents\TextServicesDisplayAttribute.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttributePropertyRanges.cs"
@@ -671,6 +695,3 @@
     <!-- System.Windows\Documents\TextRangeEditTables.cs local stub deleted (Session 24). -->
   </ItemGroup>
 </Project>
-
-
-

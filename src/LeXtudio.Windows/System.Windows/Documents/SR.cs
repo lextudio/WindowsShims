@@ -49,6 +49,8 @@ internal static class SR
     internal const string UndoNotInNormalState           = nameof(UndoNotInNormalState);
     internal const string UndoUnitOpen                   = nameof(UndoUnitOpen);
     internal const string InputScopeAttribute_E_OUTOFMEMORY = "Insufficient memory to complete the operation.";
+    internal const string DataGridLength_Infinity = "Value should not be infinity.";
+    internal const string DataGridLength_InvalidType = "Invalid type.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";

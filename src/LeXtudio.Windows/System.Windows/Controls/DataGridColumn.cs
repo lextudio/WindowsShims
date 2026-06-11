@@ -1,0 +1,136 @@
+using System.Windows.Data;
+
+namespace System.Windows.Controls;
+
+public partial class DataGridColumn : DependencyObject
+{
+    public static readonly DependencyProperty HeaderProperty =
+        DependencyProperty.Register(
+            nameof(Header),
+            typeof(object),
+            typeof(DataGridColumn),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty WidthProperty =
+        DependencyProperty.Register(
+            nameof(Width),
+            typeof(DataGridLength),
+            typeof(DataGridColumn),
+            new PropertyMetadata(DataGridLength.Auto));
+
+    public static readonly DependencyProperty MinWidthProperty =
+        DependencyProperty.Register(
+            nameof(MinWidth),
+            typeof(double),
+            typeof(DataGridColumn),
+            new PropertyMetadata(20d));
+
+    public static readonly DependencyProperty MaxWidthProperty =
+        DependencyProperty.Register(
+            nameof(MaxWidth),
+            typeof(double),
+            typeof(DataGridColumn),
+            new PropertyMetadata(double.PositiveInfinity));
+
+    public static readonly DependencyProperty VisibilityProperty =
+        DependencyProperty.Register(
+            nameof(Visibility),
+            typeof(Visibility),
+            typeof(DataGridColumn),
+            new PropertyMetadata(Visibility.Visible));
+
+    public static readonly DependencyProperty IsReadOnlyProperty =
+        DependencyProperty.Register(
+            nameof(IsReadOnly),
+            typeof(bool),
+            typeof(DataGridColumn),
+            new PropertyMetadata(false));
+
+    public static readonly DependencyProperty SortMemberPathProperty =
+        DependencyProperty.Register(
+            nameof(SortMemberPath),
+            typeof(string),
+            typeof(DataGridColumn),
+            new PropertyMetadata(string.Empty));
+
+    public object? Header
+    {
+        get => GetValue(HeaderProperty);
+        set => SetValue(HeaderProperty, value);
+    }
+
+    public DataGridLength Width
+    {
+        get => (DataGridLength)GetValue(WidthProperty);
+        set => SetValue(WidthProperty, value);
+    }
+
+    public double MinWidth
+    {
+        get => (double)GetValue(MinWidthProperty);
+        set => SetValue(MinWidthProperty, value);
+    }
+
+    public double MaxWidth
+    {
+        get => (double)GetValue(MaxWidthProperty);
+        set => SetValue(MaxWidthProperty, value);
+    }
+
+    public Visibility Visibility
+    {
+        get => (Visibility)GetValue(VisibilityProperty);
+        set => SetValue(VisibilityProperty, value);
+    }
+
+    public bool IsReadOnly
+    {
+        get => (bool)GetValue(IsReadOnlyProperty);
+        set => SetValue(IsReadOnlyProperty, value);
+    }
+
+    public string SortMemberPath
+    {
+        get => (string)GetValue(SortMemberPathProperty);
+        set => SetValue(SortMemberPathProperty, value);
+    }
+
+    public double ActualWidth { get; internal set; }
+
+    public int DisplayIndex { get; set; } = -1;
+
+    public virtual BindingBase? ClipboardContentBinding { get; set; }
+
+    protected virtual bool OnCoerceIsReadOnly(bool baseValue) => baseValue;
+
+    protected void NotifyPropertyChanged(string propertyName)
+    {
+    }
+
+    protected internal virtual void RefreshCellContent(FrameworkElement element, string propertyName)
+    {
+    }
+
+    protected virtual FrameworkElement? GenerateElement(DataGridCell cell, object dataItem) => null;
+
+    protected virtual FrameworkElement? GenerateEditingElement(DataGridCell cell, object dataItem) => null;
+
+    protected virtual object? PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs editingEventArgs)
+        => null;
+
+    protected virtual void CancelCellEdit(FrameworkElement editingElement, object? uneditedValue)
+    {
+    }
+
+    protected virtual bool CommitCellEdit(FrameworkElement editingElement) => true;
+
+    internal static void NotifyPropertyChangeForRefreshContent(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs args)
+    {
+        if (dependencyObject is DataGridColumn column && args.Property is not null)
+        {
+            column.NotifyPropertyChanged(args.Property.Name);
+        }
+    }
+}

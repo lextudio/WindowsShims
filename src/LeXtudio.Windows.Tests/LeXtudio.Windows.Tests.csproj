@@ -1,0 +1,64 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <StartupObject>LeXtudio.Windows.Tests.Program</StartupObject>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <UnoSingleProject>true</UnoSingleProject>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateTargetPlatformAttribute>false</GenerateTargetPlatformAttribute>
+    <GenerateSupportedOSPlatformAttribute>false</GenerateSupportedOSPlatformAttribute>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <UseWinUI>true</UseWinUI>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+
+  <Target Name="_RestoreOutputTypeForTests"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PropertyGroup>
+      <OutputType>Exe</OutputType>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="BindingTests.cs" />
+    <Compile Include="DataGridBoundColumnTests.cs" />
+    <Compile Include="DataGridColumnTests.cs" />
+    <Compile Include="DataGridEventArgsTests.cs" />
+    <Compile Include="DataGridLengthTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
+    <PackageReference Include="NUnit" Version="4.5.1" />
+    <PackageReference Include="NUnitLite" Version="4.5.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="6.2.0" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <ProjectReference Include="..\LeXtudio.Windows\LeXtudio.Windows.csproj" SetTargetFramework="TargetFramework=net10.0-desktop" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <ProjectReference Include="..\LeXtudio.Windows\LeXtudio.Windows.csproj" SetTargetFramework="TargetFramework=net10.0-windows10.0.19041.0" />
+  </ItemGroup>
+</Project>
