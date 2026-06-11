@@ -63,7 +63,7 @@ namespace System.Windows.Controls
     {
     }
 
-    public class ItemsControl : Microsoft.UI.Xaml.FrameworkElement
+    public partial class ItemsControl : Microsoft.UI.Xaml.FrameworkElement
     {
         public ItemCollection Items { get; } = new ItemCollection();
         public void SetResourceReference(DependencyProperty dp, object resourceKey) { }

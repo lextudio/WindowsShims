@@ -37,6 +37,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="BindingTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
+    <Compile Include="DataGridCellInfoTests.cs" />
     <Compile Include="DataGridCollectionTests.cs" />
     <Compile Include="DataGridColumnTests.cs" />
     <Compile Include="DataGridComboBoxColumnTests.cs" />

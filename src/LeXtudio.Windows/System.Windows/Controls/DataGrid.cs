@@ -19,6 +19,12 @@ public partial class DataGrid : Control
 
     internal DataGridColumnCollection InternalColumns => _columns;
 
+    // WPF inherits NewItemInfo from ItemsControl, which also resolves the
+    // container/index from the item container generator. The shell has no
+    // generator yet, so the info keeps whatever the caller passes.
+    internal ItemsControl.ItemInfo NewItemInfo(object? item, DependencyObject? container = null, int index = -1)
+        => new(item, container, index);
+
     internal DataGridColumn ColumnFromDisplayIndex(int displayIndex)
         => InternalColumns.ColumnFromDisplayIndex(displayIndex);
 

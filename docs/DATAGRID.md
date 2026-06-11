@@ -12,10 +12,15 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 11 build/test status: green for the low-coupling DataGrid surface,
+- Session 12 build/test status: green for the low-coupling DataGrid surface,
   binding bridge, local column/bound-column/text/checkbox/template-column/
-  combo-box-column shells, cell/row shells, owner/column collection shell, and
-  the full linked event-args/notification/clipboard-helper layer.
+  combo-box-column shells, cell/row shells, owner/column collection shell, the
+  full linked event-args/notification/clipboard-helper layer, linked
+  `DataGridCellInfo` over the `ItemInfo` bridge, and the linked new-item
+  event args.
+- Control-shell direction (decided in session 12): pursue the linked
+  `DataGrid.cs` path with guarded internals, growing bridges rung by rung,
+  rather than a local shell over Uno `ListView`/`Grid`.
 
 ## Status Key
 
@@ -58,6 +63,10 @@ spine.
 | Notification target | `DataGridNotificationTarget` | Linked WPF source | `linked-upstream` | Session 11 replaced the session-9 local copy (byte-identical enum). |
 | Clipboard/format helpers | `DataGridClipboardHelper`, `DataGridItemAttachedStorage`, `DataGridHeadersVisibilityToVisibilityConverter` | Linked WPF source | `linked-upstream` | Clipboard helper needed `DataFormats.CommaSeparatedValue` added to the clipboard shim; converter compiles against the WPF-shaped `IValueConverter` shim. |
 | Item property metadata | `IItemProperties`, `ItemPropertyInfo` | Linked WPF source (WindowsBase) | `linked-upstream` | Self-contained; enables the internal auto-generation event args constructor. |
+| New-item pipeline args | `AddingNewItemEventArgs`, `InitializingNewItemEventArgs`, `InitializingNewItemEventHandler`, `IProvideDataGridColumn` | Linked WPF source | `linked-upstream` | Leaf files from the session-12 probe; no new bridges needed. |
+| Cell identity | `DataGridCellInfo` | Linked WPF source | `linked-upstream` | Compiles over the local `ItemsControl.ItemInfo` bridge, `DataGrid.NewItemInfo`, and `DataGridCell` row-owner internals. |
+| Item info bridge | `ItemsControl.ItemInfo`, `ItemsControl.EqualsEx` | `System.Windows/Controls/ItemsControlItemInfo.cs` | `local-bridge` | Item/container/index equality subset; WPF sentinel containers and generator `Refresh` are omitted until virtualization paths are linked. |
+| Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Not enabled | `blocked` | `VirtualizedCellInfoCollection` (1.7k lines) needs DataGrid items/generator internals; the event args' internal constructor depends on it. |
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Adds WPF-shaped `Columns`, internal owner tracking, display-index lookup, and notification stubs. Full width redistribution, virtualization maps, sorting, selection, and item ownership remain deferred. |
 | Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
 | Hyperlink column | `DataGridHyperlinkColumn` | Not enabled | `blocked` | Needs navigation/routed-command pieces (`Hyperlink` content binding, `OnExecutedRouted` style command plumbing). |
@@ -91,11 +100,16 @@ spine.
    (`DataGridClipboardHelper`, `DataGridItemAttachedStorage`,
    `ItemPropertyInfo`), unblocking row/edit event args with a minimal
    `DataGridRow` shell. Completed in session 11.
-12. Build the control shell only after column APIs compile: choose either a
-   linked `DataGrid.cs` with guarded internals or a short-lived local shell that
-   exposes WPF-shaped dependency properties over Uno `ListView`/`Grid`.
-13. Bring row/cell containers and presenters online only when the control shell
-   has tests proving the owner/column/item contracts.
+12. Control-shell milestone, linked path chosen: probe-link upstream
+   `DataGrid.cs`, catalog its first-order contracts, and land the first rungs
+   (new-item args, `ItemInfo` bridge, linked `DataGridCellInfo`). Completed in
+   session 12.
+13. Climb the remaining linked-`DataGrid.cs` ladder recorded in the session-12
+   probe results: cell-selection collections, selector spine bridge,
+   header/presenter shells, validation/binding-group bridges, then the control
+   root itself.
+14. Bring row/cell container behavior and presenters online only when the
+   control shell has tests proving the owner/column/item contracts.
 
 ## Test Plan
 
@@ -320,6 +334,49 @@ and the `ItemsControl`/`MultiSelector`/virtualization stack.
 Session 11 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 44 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 12: linked `DataGrid.cs` probe and first rungs
+
+The control-shell direction is decided: linked upstream `DataGrid.cs` with
+guarded internals. Session 12 probe-linked the 8,628-line upstream file (with
+the local `DataGrid` shell excluded) and captured the first-order catalog: 27
+unique unresolved contracts. Notably, `CommandManager`, `KeyboardNavigation`,
+`VirtualizingPanel`, `ItemsPanelTemplate`, and `FrameworkElementFactory`
+already resolve from the RichTextBox-era shims. Error-type cascades suppress
+member-level errors, so deeper layers will surface as these clear.
+
+The catalog clusters into a bridge ladder:
+
+1. New-item pipeline leaves (`AddingNewItemEventArgs`,
+   `InitializingNewItemEventArgs`/`Handler`, `IProvideDataGridColumn`) —
+   linked in session 12.
+2. Cell identity (`DataGridCellInfo` over `ItemsControl.ItemInfo`,
+   `DataGrid.NewItemInfo`, cell row-owner internals) — linked in session 12.
+3. Cell-selection collections (`VirtualizedCellInfoCollection`,
+   `SelectedCellsCollection`, `SelectedCellsChangedEventArgs`/`Handler`) —
+   need DataGrid items/generator internals.
+4. Selector spine (`MultiSelector` base, `SelectedItemCollection`,
+   `ItemNavigateArgs`, `FocusNavigationDirection`) — the load-bearing rung;
+   needs a WPF-shaped `ItemsControl`/`Selector`/`MultiSelector` bridge.
+5. Headers/presenters (`DataGridColumnHeader`,
+   `DataGridColumnHeadersPresenter`) and Thumb drag args
+   (`DragStarted`/`DragDelta`/`DragCompletedEventArgs`, likely aliasable to
+   WinUI primitives).
+6. Validation/binding (`ValidationRule`, `BindingGroup`,
+   `IEditableCollectionView`, `PropertyGroupDescription`, `MS.Internal.Data`)
+   and infra (`UncommonField<>`, `ContainerTracking<>`,
+   `ComponentResourceKey`).
+
+The `ItemInfo` bridge intentionally omits WPF's sentinel containers (they
+require constructing bare `DependencyObject` instances, dispatcher-bound on
+Uno) and generator `Refresh`; equality keeps the item/container/index subset.
+`DataGrid.NewItemInfo` returns caller-provided state until a real item
+container generator exists.
+
+Session 12 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 51 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions
