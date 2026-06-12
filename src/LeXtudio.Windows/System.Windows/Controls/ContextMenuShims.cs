@@ -69,9 +69,8 @@ namespace System.Windows.Controls
         public void SetResourceReference(DependencyProperty dp, object resourceKey) { }
     }
 
-    public class ItemCollection : System.Collections.Generic.List<object>
-    {
-    }
+    // ItemCollection moved to ItemCollection.cs when it grew currency support
+    // for the selector spine.
 
     public static class ContextMenuService
     {

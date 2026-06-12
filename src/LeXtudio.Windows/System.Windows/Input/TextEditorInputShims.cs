@@ -45,8 +45,14 @@ namespace System.Windows.Input
         public static Cursor ArrowCD { get; } = new();
     }
 
-    public static class KeyboardNavigation
+    // Non-static so the selector spine can use the WPF KeyboardNavigation.Current
+    // instance surface; static members keep their existing call sites.
+    public sealed class KeyboardNavigation
     {
+        private KeyboardNavigation()
+        {
+        }
+
         public static readonly Microsoft.UI.Xaml.DependencyProperty TabNavigationProperty =
             Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
                 "TabNavigation", typeof(int), typeof(KeyboardNavigation),
@@ -56,6 +62,24 @@ namespace System.Windows.Input
             Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
                 "AcceptsReturn", typeof(bool), typeof(KeyboardNavigation),
                 new Microsoft.UI.Xaml.PropertyMetadata(false));
+
+        internal static KeyboardNavigation Current { get; } = new();
+
+        // Focus-scope tracking is not wired on Uno; subscribers never fire.
+        internal event EventHandler? FocusEnterMainFocusScope
+        {
+            add { }
+            remove { }
+        }
+
+        internal void UpdateActiveElement(
+            Microsoft.UI.Xaml.DependencyObject scope,
+            Microsoft.UI.Xaml.DependencyObject activeElement)
+        {
+        }
+
+        internal static Microsoft.UI.Xaml.DependencyObject? GetVisualRoot(
+            Microsoft.UI.Xaml.DependencyObject element) => null;
     }
 
     public sealed class PopupControlService

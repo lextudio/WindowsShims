@@ -554,6 +554,16 @@
              Link="System.Windows.Controls.Primitives\DragCompletedEventArgs.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\WindowsBase\MS\Internal\KnownBoxes.cs"
              Link="MS.Internal\KnownBoxes.cs" />
+    <!-- Selector spine: linked with HAS_UNO fork guards around the property-engine,
+       automation, and layout-event clusters (session 16) -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\SelectedItemCollection.cs"
+             Link="System.Windows.Controls\SelectedItemCollection.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\SelectionChangedEventArgs.cs"
+             Link="System.Windows.Controls\SelectionChangedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\Selector.cs"
+             Link="System.Windows.Controls.Primitives\Selector.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\MultiSelector.cs"
+             Link="System.Windows.Controls.Primitives\MultiSelector.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttribute.cs"
              Link="System.Windows.Documents\TextServicesDisplayAttribute.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttributePropertyRanges.cs"

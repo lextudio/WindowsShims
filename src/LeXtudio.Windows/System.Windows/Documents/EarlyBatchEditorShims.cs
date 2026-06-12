@@ -30,10 +30,9 @@ namespace System.Windows
         public int Count => 0;
     }
 
-    public class BindingExpressionBase
-    {
-        public object? Value => null;
-    }
+    // BindingExpressionBase consolidated into System.Windows.Data
+    // (System.Windows/Data/BindingExpression.cs); the System.Windows copy
+    // shadowed the bridge via enclosing-namespace lookup.
 
 
     public readonly struct LocalValueEntry

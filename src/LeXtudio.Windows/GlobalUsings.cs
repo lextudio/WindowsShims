@@ -54,6 +54,11 @@ global using Visual                    = Microsoft.UI.Xaml.UIElement;
 // Panel: alias to the WPF shim to resolve CS0104 between System.Windows.Controls.Panel and Microsoft.UI.Xaml.Controls.Panel.
 global using Panel                     = System.Windows.Controls.Panel;
 global using Control                   = System.Windows.Controls.Control;
+// PropertyPath/BindingExpressionBase: WPF source files mean the WPF-shaped
+// binding types, and Uno's implicit usings would otherwise resolve unqualified
+// references to the Microsoft.UI.Xaml(.Data) types.
+global using PropertyPath              = System.Windows.Data.PropertyPath;
+global using BindingExpressionBase     = System.Windows.Data.BindingExpressionBase;
 global using GeneralTransform          = System.Windows.Media.GeneralTransform;
 
 // ============ Types with Shim Implementations (No Direct WinUI Equivalent) ============

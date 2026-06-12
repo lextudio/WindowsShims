@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Specialized;
+using MS.Internal.Controls;
 
 namespace System.Windows.Controls;
 
@@ -7,8 +8,17 @@ namespace System.Windows.Controls;
 // across UIElement/FrameworkElement/ItemsControl; the shim hosts them all on
 // ItemsControl because the Uno base types do not have them. They are no-op
 // hooks until item-container generation exists.
-public partial class ItemsControl
+public partial class ItemsControl : IGeneratorHost
 {
+    private ItemContainerGenerator? _itemContainerGenerator;
+
+    public ItemContainerGenerator ItemContainerGenerator => _itemContainerGenerator ??= new ItemContainerGenerator();
+
+    bool IGeneratorHost.IsItemItsOwnContainer(object item) => IsItemItsOwnContainerOverride(item);
+
+    // No container generation, so containers never resolve to their owner.
+    public static ItemsControl? ItemsControlFromItemContainer(DependencyObject container) => null;
+
     protected virtual void OnInitialized(EventArgs e)
     {
     }
@@ -36,4 +46,80 @@ public partial class ItemsControl
     internal virtual void AdjustItemInfoOverride(NotifyCollectionChangedEventArgs e)
     {
     }
+
+    // Info adjustment tracks generated containers in WPF; without a generator
+    // the stored infos have nothing to adjust.
+    internal void AdjustItemInfos(NotifyCollectionChangedEventArgs e, IEnumerable<ItemInfo> list)
+    {
+    }
+
+    internal void AdjustItemInfosAfterGeneratorChange(IEnumerable<ItemInfo> list, bool claimUniqueContainer)
+    {
+    }
+
+    public bool HasItems => Items.Count > 0;
+
+    // WPF resolves containers through the item container generator; the shim
+    // keeps caller-provided state until one exists.
+    internal ItemInfo NewItemInfo(object? item, DependencyObject? container = null, int index = -1)
+        => new(item, container, index);
+
+    internal ItemInfo NewUnresolvedItemInfo(object? item)
+        => new(item, ItemInfo.UnresolvedContainer, -1);
+
+    internal ItemInfo? ItemInfoFromIndex(int index)
+        => index >= 0 && index < Items.Count
+            ? new ItemInfo(Items[index], null, index)
+            : null;
+
+    // No container generation yet, so containers never map back to items.
+    internal static object? GetItemOrContainerFromContainer(DependencyObject container) => null;
+
+    protected virtual bool IsItemItsOwnContainerOverride(object item) => item is Microsoft.UI.Xaml.UIElement;
+
+    // WPF inherits these from DispatcherObject/DependencyObject. They live on
+    // the shim because upstream code calls them without a receiver, where C#
+    // does not consider extension members.
+    public bool CheckAccess() => true;
+
+    public void VerifyAccess()
+    {
+    }
+
+    internal void SetValue(DependencyPropertyKey key, object? value)
+        => SetValue(key.DependencyProperty, value);
+
+    internal void ClearValue(DependencyPropertyKey key)
+        => ClearValue(key.DependencyProperty);
+
+    // Uno has no current-value layer distinct from local values.
+    internal void SetCurrentValueInternal(DependencyProperty dp, object? value)
+        => SetValue(dp, value);
+
+    public void CoerceValue(DependencyProperty dp)
+    {
+    }
+
+    // Bare-call routed-event plumbing; explicit-receiver sites use the
+    // DependencyObject extension members backed by the same handler bags.
+    public void AddHandler(RoutedEvent routedEvent, Delegate handler)
+        => ((Microsoft.UI.Xaml.DependencyObject)this).AddHandler(routedEvent, handler);
+
+    public void RemoveHandler(RoutedEvent routedEvent, Delegate handler)
+        => ((Microsoft.UI.Xaml.DependencyObject)this).RemoveHandler(routedEvent, handler);
+
+    public void RaiseEvent(RoutedEventArgs e)
+        => ((Microsoft.UI.Xaml.DependencyObject)this).RaiseEvent(e);
+
+    // WPF ItemsSource swaps the inner view; the shim only stores the value
+    // until the items/view pipeline exists.
+    public IEnumerable? ItemsSource { get; set; }
+
+    // Focus tracking is not bridged; WPF reads this during selection-active
+    // bookkeeping only.
+    public bool IsKeyboardFocusWithin => false;
+
+    // The shim has no ISupportInitialize phase, so elements are always
+    // considered initialized.
+    public bool IsInitialized => true;
 }

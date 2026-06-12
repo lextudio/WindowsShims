@@ -58,6 +58,18 @@ internal static class SR
     internal const string VirtualizedCellInfoCollection_IsReadOnly = "This collection is read-only.";
     internal const string ChangingTypeNotAllowed = "Changing the Type of a ComponentResourceKey is not allowed once it has been set.";
     internal const string ChangingIdNotAllowed = "Changing the ID of a ComponentResourceKey is not allowed once it has been set.";
+    internal const string RangeActionsNotSupported = "Range actions are not supported.";
+    internal const string UnexpectedCollectionChangeAction = "Unexpected collection change action '{0}'.";
+    internal const string SelectionChangeNotActive = "SelectionChange is not active.";
+    internal const string SelectionChangeActive = "SelectionChange is already active.";
+    internal const string MultiSelectorSelectAll = "Can only call SelectAll when SelectionMode is Multiple or Extended.";
+    internal const string ChangingCollectionNotSupported = "Cannot modify the items collection while a change is in progress.";
+    internal const string CannotSelectNotSelectableItem = "The item cannot be selected because it is not selectable.";
+    internal const string DeferSelectionActive = "Deferred selection is already active.";
+    internal const string DeferSelectionNotActive = "Deferred selection is not active.";
+    internal const string InsertInDeferSelectionActive = "Cannot insert while deferred selection is active.";
+    internal const string MoveInDeferSelectionActive = "Cannot move while deferred selection is active.";
+    internal const string SetInDeferSelectionActive = "Cannot set while deferred selection is active.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";

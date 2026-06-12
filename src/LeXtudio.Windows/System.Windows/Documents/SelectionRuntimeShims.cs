@@ -1,9 +1,7 @@
 namespace System.Windows.Documents;
 
-internal static class FrameworkAppContextSwitches
-{
-    internal static bool UseAdornerForTextboxSelectionRendering => false;
-}
+// FrameworkAppContextSwitches moved to MS.Internal/SpineStubs.cs to match
+// WPF's MS.Internal namespace.
 
 internal sealed class PasswordTextContainer : TextContainer
 {

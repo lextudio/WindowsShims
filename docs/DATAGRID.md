@@ -12,15 +12,12 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 15 build/test status: green for the low-coupling DataGrid surface,
-  binding bridge, local column/bound-column/text/checkbox/template-column/
-  combo-box-column shells, cell/row shells, owner/column collection shell, the
-  full linked event-args/notification/clipboard-helper layer, linked
-  `DataGridCellInfo` over the `ItemInfo` bridge, the linked new-item event
-  args, the linked cell-selection collection stack, the rung-5/6 leaves, and
-  the spine layer-1 bridges (shim `ItemsControl` virtuals, linked
-  `BooleanBoxes`, untargeted `BindingExpression` bridge,
-  `DynamicValueConverter` bridge, `BuildInfo`/attribute shims).
+- Session 17 build/test status: green with the local `DataGrid` shell rebased
+  onto the linked `MultiSelector` spine (Items/item-info/selection surface
+  now inherited), the duplicate `BindingExpressionBase` shims consolidated
+  into `System.Windows.Data`, and everything from prior sessions (linked
+  event args, cell info, cell-selection stack, selector spine with `HAS_UNO`
+  fork guards, spine bridges).
 - Mechanism note (discovered in session 15): `ext/wpf` is a patched fork that
   uses `#if !HAS_UNO` guards inside upstream files (for example `Window.cs`,
   `AdornerLayer`, `TextBoxBase`). Fork-patching is an established third
@@ -82,9 +79,12 @@ spine.
 | Spine virtuals | `ItemsControl` `OnItemsChanged`/`OnItemsSourceChanged`/`Prepare`/`ClearContainerForItemOverride`/`AdjustItemInfoOverride`/`OnInitialized`/`OnIsKeyboardFocusWithinChanged` | `System.Windows/Controls/ItemsControlSpine.cs` | `local-bridge` | No-op virtual hooks Selector/MultiSelector override; real behavior waits on item-container generation. |
 | Binding expression bridge | `BindingExpressionBase`, `BindingExpression`, `BindingExpressionUncommonField`, `DynamicValueConverter`, `Binding.XPath` | `System.Windows/Data/BindingExpression.cs`, `MS.Internal/Data/DataBridges.cs` | `local-bridge` | Untargeted expression walks dotted CLR property paths via reflection for the selector `SelectedValue` paths; XML/indexer/property-engine evaluation not supported. Converter uses component-model converters with `UnsetValue` failure contract. |
 | Spine attribute/info shims | `AttachedPropertyBrowsableForChildrenAttribute`, `MS.Internal.PresentationFramework.BuildInfo` | local shims | `local-bridge` | Designer metadata flattened to `Attribute`; BuildInfo constants mirror `RefAssemblyAttrs.cs` (not linked because it carries assembly-level attributes). |
-| Selector spine | `Selector`, `MultiSelector` | Not enabled | `blocked` | Layer-2 probe: 79 unique contracts — rich `ItemsControl` surface, `ItemCollection`-as-`CollectionView` currency, property-engine internals (`SetCurrentValueInternal`, `EffectiveValueEntry`, `DependencyPropertyKey` set paths), automation peers, `ItemInfo` sentinels, `SystemXmlHelper`. Needs fork-patching or a local spine bridge decision. |
+| Selector spine | `Selector`, `MultiSelector`, `SelectedItemCollection`, `SelectionChangedEventArgs`/`Handler` | Linked WPF source (fork-guarded) | `linked-upstream` | Session 16: compiles over the grown shim `ItemsControl`/`ItemCollection` with seven `#if HAS_UNO` fork guards (attached-handler statics, two effective-value coercion blocks, automation event, `LayoutUpdated` signature adapters, deferred selected-index write). Behavior is selection-state only — no container generation, input, or automation yet. |
+| Item collection currency | `ItemCollection` | `System.Windows/Controls/ItemCollection.cs` | `local-bridge` | Collection-change notifications plus `CurrentItem`/`CurrentPosition`/`MoveCurrentTo(Position)` currency; view features (filter/sort/defer, reliable hash codes) unsupported. |
+| Generator stub | `ItemContainerGenerator`, `GeneratorStatus` | `System.Windows/Controls/ItemContainerGenerator.cs` | `local-bridge` | No containers are generated; lookups return null/-1 and status stays `NotStarted`. |
+| Spine misc stubs | `SystemXmlHelper`, `FrameworkAppContextSwitches`, `IGeneratorHost`, `KeyboardNavigation.Current`/`GetVisualRoot`, `CollectionViewSource.IsDefaultView` | `MS.Internal/SpineStubs.cs`, input shims, `System.Windows/Data/CollectionViewSource.cs` | `local-bridge` | XML sources unsupported; focus-scope tracking not wired; every view is "the default view". |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
-| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Adds WPF-shaped `Columns`, internal owner tracking, display-index lookup, and notification stubs. Full width redistribution, virtualization maps, sorting, selection, and item ownership remain deferred. |
+| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Session 17 rebased the shell onto linked `MultiSelector`, so `Items`, item-info helpers, and the selection surface are inherited from the spine. Adds WPF-shaped `Columns`, owner tracking, display-index lookup, `SelectedCells`, and notification stubs. Width redistribution, virtualization maps, and sorting remain deferred. |
 | Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
 | Hyperlink column | `DataGridHyperlinkColumn` | Not enabled | `blocked` | Needs navigation/routed-command pieces (`Hyperlink` content binding, `OnExecutedRouted` style command plumbing). |
 | Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPanel`, presenters | Not enabled (local shells only) | `blocked` | Requires item container generation, virtualization, layout override parity, visual states, and automation support. |
@@ -125,9 +125,11 @@ spine.
    probe results: cell-selection collections (completed in session 13),
    rung-5/6 leaves and the spine probe (completed in session 14), spine
    layer-1 bridges and layer-2 catalog (completed in session 15), selector
-   spine enablement (fork-patch vs local bridge decision pending),
-   header/presenter shells, validation/binding-group bridges, then the
-   control root itself.
+   spine enablement via fork guards (completed in session 16), shell rebase
+   onto `MultiSelector` plus the 21-site control-root catalog (completed in
+   session 17), then the control root itself: validation/binding stubs,
+   header shells, `ItemNavigateArgs`, shim virtuals, and two signature fork
+   guards.
 14. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts.
 
@@ -500,6 +502,90 @@ exposes only what `DataGrid.cs` consumes.
 Session 15 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 70 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 16: selector spine linked with fork guards
+
+Session 16 decided the spine mechanism (fork-patch, per the `HAS_UNO`
+precedent) and landed it the same session. The path that worked: grow the
+cheap shim surface first, then guard only what is genuinely engine-bound.
+
+Shim growth that eliminated most of the layer-2 catalog:
+
+- `ItemCollection` rewritten as a currency-tracking collection
+  (collection-change events, `CurrentItem`/`CurrentPosition`/`MoveCurrentTo`).
+- `ItemInfo` completed: lazy sentinel containers (a generated
+  `SentinelContainerObject` partial, because bare `DependencyObject` is an
+  interface on Uno), full WPF equality, `Reset`, `Key`.
+- Shim `ItemsControl` grew `HasItems`, `NewItemInfo`/`NewUnresolvedItemInfo`,
+  `ItemInfoFromIndex`, `AdjustItemInfos(AfterGeneratorChange)`, generator
+  property, `IGeneratorHost`, `ItemsSource`/`IsInitialized`/
+  `IsKeyboardFocusWithin`, and bare-call members (`CheckAccess`,
+  `CoerceValue`, `SetValue`/`ClearValue` with `DependencyPropertyKey`,
+  `SetCurrentValueInternal`, `AddHandler`/`RemoveHandler`/`RaiseEvent`) —
+  bare calls cannot bind to extension members, so these must be real members.
+- `KeyboardNavigation` became instance-capable (`Current`,
+  `FocusEnterMainFocusScope`, `UpdateActiveElement`, `GetVisualRoot`).
+- Stubs: `SystemXmlHelper`, `CollectionViewSource.IsDefaultView`,
+  `ItemContainerGenerator`/`GeneratorStatus`, `FrameworkAppContextSwitches`
+  (consolidated into `MS.Internal` from the misplaced Documents copy).
+- Eight more SR strings; `FrameworkPropertyMetadataOptions.Journal`.
+
+Fork guards added to `Selector.cs` (seven sites): the four attached
+Selected/Unselected handler helpers (route through the handler-bag
+extensions), two effective-value/deferred-reference coercion blocks (coerce
+unconditionally), the automation `IsSelected` event (no-op), `LayoutUpdated`
+subscription adapters for WinUI's `EventHandler<object>` signature, and the
+deferred selected-index write (computed eagerly via
+`SetCurrentValueInternal`). One qualification edit resolves
+`BindingExpressionBase.DisconnectedItem` against the System.Windows.Data
+bridge (an older `System.Windows.BindingExpressionBase` shim shadows it via
+enclosing-namespace lookup — consolidation candidate).
+
+Caveat: the spine compiles and carries selection state, but container
+generation, input-driven selection, currency synchronization, and automation
+remain non-functional until those bridges exist. Dispatcher-bound
+construction still limits plain NUnit coverage to type surface and the plain
+event args.
+
+Session 16 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 74 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 17: shell rebase and control-root catalog
+
+Session 17 consolidated the duplicate `BindingExpressionBase` shims (the
+`System.Windows` EarlyBatch copy shadowed the `System.Windows.Data` bridge
+via enclosing-namespace lookup; the base now carries a virtual `Value` that
+the bridge expression overrides, and the session-16 fork qualification was
+reverted), then rebased the local `DataGrid` shell from `Control` onto the
+linked `MultiSelector`. The shell dropped its duplicated `Items`,
+`NewItemInfo`, and `ItemInfoFromIndex` members — those now come from the
+spine — while keeping the column/cell surface local.
+
+The control-root re-probe of upstream `DataGrid.cs` (8,628 lines) against
+the rebased chain produced only 21 unique error sites, all concrete
+member-level errors (no cascades, since the base chain fully resolves):
+
+- Validation/binding cluster: `ValidationRule`, `BindingGroup`,
+  `IEditableCollectionView`, `PropertyGroupDescription`.
+- Header cluster: `DataGridColumnHeader`, `DataGridColumnHeadersPresenter`.
+- `ItemNavigateArgs` (ItemsControl nested type).
+- Ten missing virtuals on the shim chain (`OnTextInput`, `OnKeyDown`,
+  `OnMouseMove`, `OnIsMouseCapturedChanged`, `OnIsGroupingChanged`,
+  `OnContextMenuOpening`, `OnTemplateChanged`, `HandlesScrolling`,
+  `GetContainerForItemOverride`, `ChangeVisualState`).
+- Two override-signature clashes needing fork guards:
+  `OnApplyTemplate` (WPF widens to public; WinUI is protected) and
+  `OnCreateAutomationPeer` (different `AutomationPeer` types).
+
+Probe reverted. This catalog is the session-18 enablement list for the
+control root.
+
+Session 17 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 75 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions

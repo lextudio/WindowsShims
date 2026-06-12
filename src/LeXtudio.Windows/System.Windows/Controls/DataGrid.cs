@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Windows.Controls.Primitives;
 
 namespace System.Windows.Controls;
 
-public partial class DataGrid : Control
+// Rebased onto the linked MultiSelector spine in session 17: Items, item-info
+// helpers, and the selection surface now come from Selector/ItemsControl.
+public partial class DataGrid : MultiSelector
 {
     private readonly DataGridColumnCollection _columns;
     private SelectedCellsCollection? _selectedCells;
@@ -16,10 +19,6 @@ public partial class DataGrid : Control
 
     public ObservableCollection<DataGridColumn> Columns => _columns;
 
-    // WPF inherits Items from ItemsControl. The shell keeps a plain item list
-    // until the selector spine exists.
-    public ItemCollection Items { get; } = new();
-
     public IList<DataGridCellInfo> SelectedCells => _selectedCells ??= new SelectedCellsCollection(this);
 
     public event SelectedCellsChangedEventHandler? SelectedCellsChanged;
@@ -27,19 +26,6 @@ public partial class DataGrid : Control
     public DataGridGridLinesVisibility GridLinesVisibility { get; set; } = DataGridGridLinesVisibility.All;
 
     internal DataGridColumnCollection InternalColumns => _columns;
-
-    // WPF inherits NewItemInfo from ItemsControl, which also resolves the
-    // container/index from the item container generator. The shell has no
-    // generator yet, so the info keeps whatever the caller passes.
-    internal ItemsControl.ItemInfo NewItemInfo(object? item, DependencyObject? container = null, int index = -1)
-        => new(item, container, index);
-
-    // WPF inherits this from ItemsControl, where the container is resolved
-    // from the item container generator.
-    internal ItemsControl.ItemInfo? ItemInfoFromIndex(int index)
-        => index >= 0 && index < Items.Count
-            ? new ItemsControl.ItemInfo(Items[index], null, index)
-            : null;
 
     // Subset of the WPF handler: no selection-unit validation or pending-change
     // coalescing until the selector spine exists; just notify listeners.

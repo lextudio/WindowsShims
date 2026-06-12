@@ -7,6 +7,10 @@ public abstract class BindingExpressionBase
     // WPF uses a NamedObject sentinel that marks items disconnected from the
     // visual tree. Only reference identity matters to callers.
     internal static readonly object DisconnectedItem = new();
+
+    // Document cloning reads this to copy a bound property's current value;
+    // expressions that cannot evaluate report null.
+    public virtual object? Value => null;
 }
 
 // Untargeted binding-expression bridge for the selector spine's
@@ -25,7 +29,7 @@ public class BindingExpression : BindingExpressionBase
 
     public Binding ParentBinding { get; }
 
-    public object? Value
+    public override object? Value
     {
         get
         {
