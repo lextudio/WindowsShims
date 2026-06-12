@@ -70,6 +70,7 @@ internal static class SR
     internal const string InsertInDeferSelectionActive = "Cannot insert while deferred selection is active.";
     internal const string MoveInDeferSelectionActive = "Cannot move while deferred selection is active.";
     internal const string SetInDeferSelectionActive = "Cannot set while deferred selection is active.";
+    internal const string CannotChangeAfterSealed = "The '{0}' object cannot be modified after it is sealed.";
 
     // AdornerLayer error strings
     internal const string AdornedElementNotFound = "AdornedElementNotFound";

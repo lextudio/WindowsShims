@@ -49,6 +49,7 @@
     <Compile Include="DataGridRowEventArgsTests.cs" />
     <Compile Include="DataGridSelectedCellsTests.cs" />
     <Compile Include="DataGridSpineLeafTests.cs" />
+    <Compile Include="ItemCollectionViewTests.cs" />
     <Compile Include="SelectorSpineTests.cs" />
   </ItemGroup>
 

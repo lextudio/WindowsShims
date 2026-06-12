@@ -12,14 +12,15 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 19 build/test status: green with the command-system bridge
-  (`CommandManager` class command/input bindings over the RichTextBox-era
-  `RoutedCommand`/`CommandBinding` shims, new `InputBinding`) and the
-  `FrameworkPropertyMetadata` overload-ambiguity fix, plus everything from
-  prior sessions (control-root prerequisites, rebased shell, selector spine,
-  cell-selection stack).
+- Session 20 build/test status: green with the sorting/view cluster — linked
+  `SortDescription`/`SortDescriptionCollection`, `ItemCollection` carrying
+  `SortDescriptions` and implementing `IEditableCollectionView`, minimal
+  `CollectionView.NewItemPlaceholder`, `IsGrouping`, grouping stubs — plus
+  everything from prior sessions.
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
-  (command and metadata clusters cleared).
+  (command/metadata), 320 after session 20 (sorting/view). Remaining:
+  automation peers, keyboard-focus traversal, helper/visual internals,
+  row/cell/presenter internals.
 - Mechanism note (discovered in session 15): `ext/wpf` is a patched fork that
   uses `#if !HAS_UNO` guards inside upstream files (for example `Window.cs`,
   `AdornerLayer`, `TextBoxBase`). Fork-patching is an established third
@@ -90,6 +91,9 @@ spine.
 | Grouping bridge | `GroupDescription`, `PropertyGroupDescription` | `System.Windows/Data/GroupDescriptions.cs` | `local-bridge` | Group-name extraction reuses the untargeted binding-expression path walker; upstream files drag `SortDescriptionCollection`/XML helpers. |
 | Header shells | `DataGridColumnHeader`, `DataGridColumnHeadersPresenter` | `System.Windows/Controls/Primitives/` | `local-shell` | Column identity and owner-notification entry points only; visual states, gripper resize, and header generation deferred. |
 | Command system | `CommandManager`, `InputBinding` over existing `RoutedCommand`/`CommandBinding`/`KeyGesture` shims | `System.Windows/Input/CommandManager.cs` | `local-bridge` | Class command bindings dispatch through the RoutedCommand registry with owner-type scoping; class input bindings recorded but not yet fired from input events; requery notifications direct rather than dispatcher-batched. |
+| Sort descriptions | `SortDescription`, `SortDescriptionCollection` | Linked WPF source (WindowsBase) | `linked-upstream` | Needed one SR string (`CannotChangeAfterSealed`); `ItemCollection.SortDescriptions` stores them but sorting is not applied to the view. |
+| Editable view | `ItemCollection : IEditableCollectionView` | `System.Windows/Controls/ItemCollection.cs` | `local-bridge` | Direct-list semantics: edit-item bookkeeping and removal work; `AddNew`/placeholders/cancel-edit unsupported (reported honestly via `CanAddNew`/`CanCancelEdit`). |
+| View/grouping stubs | `CollectionView.NewItemPlaceholder`, `CollectionViewGroupInternal`, `GroupItem`, `IsGrouping` | `System.Windows/Data/CollectionViewShims.cs`, `GroupItem.cs`, spine | `local-bridge` | Placeholder is a stable sentinel never produced by the shim view; grouping paths are unreachable while `IsGrouping` is false. |
 | Control root | upstream `DataGrid.cs` | Not enabled (local shell active) | `blocked` | Session 18 probe with all type prerequisites resolved: 386 unique member-level sites (see probe results). Needs a staged enablement plan, not a single session. |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Session 17 rebased the shell onto linked `MultiSelector`, so `Items`, item-info helpers, and the selection surface are inherited from the spine. Adds WPF-shaped `Columns`, owner tracking, display-index lookup, `SelectedCells`, and notification stubs. Width redistribution, virtualization maps, and sorting remain deferred. |
@@ -137,9 +141,10 @@ spine.
    prerequisites and the 386-site member catalog (completed in session 18).
 14. Control-root staged enablement, roughly one session per cluster from the
    session-18 catalog: command system and metadata friction (completed in
-   session 19; 386 → 355 sites), sorting/view, keyboard-focus traversal,
-   automation guards, helper/visual internals, row/cell/presenter internals —
-   then repeat the `DataGrid.cs` link attempt.
+   session 19; 386 → 355 sites), sorting/view (completed in session 20;
+   355 → 320), keyboard-focus traversal, automation guards, helper/visual
+   internals, row/cell/presenter internals — then repeat the `DataGrid.cs`
+   link attempt.
 15. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts; a
    runtime sample with static items and explicit columns gates behavior
@@ -684,6 +689,33 @@ helper/visual internals, row/cell/presenter internals.
 Session 19 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 85 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 20: sorting/view cluster (control-root cluster 2)
+
+Session 20 cleared the sorting/view cluster:
+
+- Linked WindowsBase `SortDescription.cs` and `SortDescriptionCollection.cs`
+  (one new SR string). The collection implements `INotifyCollectionChanged`,
+  which `DataGrid.cs` casts to for sort-change tracking.
+- `ItemCollection` gained `SortDescriptions` (stored, not applied to the
+  view) and an `IEditableCollectionView` implementation with direct-list
+  semantics: `EditItem`/`CommitEdit` bookkeeping and `Remove`/`RemoveAt`
+  work; `AddNew`, placeholders, and `CancelEdit` are unsupported and
+  reported honestly through `CanAddNew`/`CanCancelEdit`/
+  `NewItemPlaceholderPosition`. `DataGrid.EditableItems` is a plain cast of
+  `Items`, so the editing pipeline binds against this implementation.
+- Minimal `CollectionView` with the stable `NewItemPlaceholder` sentinel
+  (never produced by the shim view, so placeholder checks are simply false),
+  `CollectionViewGroupInternal` and `GroupItem` stubs for
+  grouping-navigation code, and `IsGrouping => false` on the shim
+  `ItemsControl` which makes those paths unreachable.
+
+Re-probe: 355 → 320 unique sites; the sorting/view names no longer appear.
+
+Session 20 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 90 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions

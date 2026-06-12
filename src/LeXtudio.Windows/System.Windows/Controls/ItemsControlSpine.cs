@@ -119,6 +119,9 @@ public partial class ItemsControl : IGeneratorHost
 
     public bool HasItems => Items.Count > 0;
 
+    // Grouping needs CollectionView group plumbing the bridge does not have.
+    public bool IsGrouping => false;
+
     // WPF resolves containers through the item container generator; the shim
     // keeps caller-provided state until one exists.
     internal ItemInfo NewItemInfo(object? item, DependencyObject? container = null, int index = -1)
