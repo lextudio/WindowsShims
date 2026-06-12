@@ -30,6 +30,8 @@ namespace System.Windows.Input
         }
         public static IInputElement? FocusedElement => null;
 
+        public static KeyboardDevice PrimaryDevice => KeyboardDevice.Empty;
+
         public static readonly System.Windows.RoutedEvent GotKeyboardFocusEvent = new();
         public static readonly System.Windows.RoutedEvent LostKeyboardFocusEvent = new();
         public static readonly System.Windows.RoutedEvent PreviewKeyDownEvent = new();

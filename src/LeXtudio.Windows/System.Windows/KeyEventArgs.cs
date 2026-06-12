@@ -1,6 +1,11 @@
 namespace System.Windows.Input
 {
-    public class KeyboardDevice
+    // WPF input-device base; only identity matters to the bridged callers.
+    public abstract class InputDevice
+    {
+    }
+
+    public class KeyboardDevice : InputDevice
     {
         public static readonly KeyboardDevice Empty = new();
         public ModifierKeys Modifiers => Keyboard.Modifiers;

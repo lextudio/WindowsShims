@@ -57,6 +57,66 @@ public partial class ItemsControl : IGeneratorHost
     {
     }
 
+    // WPF control/element virtuals the DataGrid control root overrides.
+    protected virtual void OnTextInput(Input.TextCompositionEventArgs e)
+    {
+    }
+
+    // The KeyEventArgs shim lives in System.Windows (matching how linked files
+    // resolve it through enclosing-namespace lookup).
+    protected virtual void OnKeyDown(KeyEventArgs e)
+    {
+    }
+
+    protected virtual void OnMouseMove(Input.MouseEventArgs e)
+    {
+    }
+
+    protected virtual void OnIsMouseCapturedChanged(DependencyPropertyChangedEventArgs e)
+    {
+    }
+
+    internal virtual void OnIsGroupingChanged(DependencyPropertyChangedEventArgs e)
+    {
+    }
+
+    protected virtual void OnContextMenuOpening(ContextMenuEventArgs e)
+    {
+    }
+
+    protected virtual void OnTemplateChanged(ControlTemplate oldTemplate, ControlTemplate newTemplate)
+    {
+    }
+
+    protected internal virtual bool HandlesScrolling => false;
+
+    protected virtual DependencyObject? GetContainerForItemOverride() => null;
+
+    internal virtual void ChangeVisualState(bool useTransitions)
+    {
+    }
+
+    // Containers are never generated, so focusing an item's container is a no-op.
+    internal virtual bool FocusItem(ItemInfo info, ItemNavigateArgs itemNavigateArgs) => false;
+
+    // Bridge subset of WPF's nested navigation-args type.
+    internal class ItemNavigateArgs
+    {
+        private static ItemNavigateArgs? _empty;
+
+        public ItemNavigateArgs(Input.InputDevice? deviceUsed, Input.ModifierKeys modifierKeys)
+        {
+            DeviceUsed = deviceUsed;
+            ModifierKeys = modifierKeys;
+        }
+
+        public Input.InputDevice? DeviceUsed { get; }
+
+        internal Input.ModifierKeys ModifierKeys { get; }
+
+        public static ItemNavigateArgs Empty => _empty ??= new ItemNavigateArgs(null, Input.ModifierKeys.None);
+    }
+
     public bool HasItems => Items.Count > 0;
 
     // WPF resolves containers through the item container generator; the shim
