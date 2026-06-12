@@ -36,6 +36,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="BindingExpressionBridgeTests.cs" />
+    <Compile Include="CommandManagerBridgeTests.cs" />
     <Compile Include="BindingTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
     <Compile Include="DataGridCellInfoTests.cs" />

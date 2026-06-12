@@ -5,7 +5,7 @@ namespace System.Windows.Input
 	public class CommandBinding
 	{
 		public ICommand Command { get; }
-		internal Type? TargetType { get; }
+		internal Type? TargetType { get; private set; }
 		private readonly ExecutedRoutedEventHandler? _executed;
 		private readonly CanExecuteRoutedEventHandler? _canExecute;
 
@@ -70,6 +70,13 @@ namespace System.Windows.Input
 		internal void OnCanExecute(object? target, CanExecuteRoutedEventArgs e)
 		{
 			_canExecute?.Invoke(target ?? this, e);
+		}
+
+		// Class registration (CommandManager.RegisterClassCommandBinding) scopes a
+		// binding constructed with the public constructors to its owner type.
+		internal void SetClassOwner(Type ownerType)
+		{
+			TargetType ??= ownerType;
 		}
 
 		internal bool AppliesTo(object? target)

@@ -60,11 +60,10 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
     public FrameworkPropertyMetadata(Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
         : base(null, propertyChangedCallback) { }
 
-    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
-        : base(defaultValue, propertyChangedCallback)
-    {
-        DefaultValue = defaultValue;
-    }
+    // NOTE: there is intentionally no (object?, Microsoft.UI.Xaml.PropertyChangedCallback?)
+    // overload. Roslyn treats WPF method-group arguments as ambiguous between it and the
+    // WPF-delegate overload above (hit by linked DataGrid.cs at ~18 sites); WinUI callers
+    // needing a default value use the options or coerce overloads below.
 
     public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback)
         : base(defaultValue, propertyChangedCallback)
