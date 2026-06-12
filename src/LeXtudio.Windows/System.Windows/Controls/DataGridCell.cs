@@ -12,6 +12,9 @@ public partial class DataGridCell : ContentControl
 
     internal object? RowDataItem => RowOwner?.Item;
 
+    // WPF UIElement.Focus() has no FocusState; route to programmatic focus.
+    public bool Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+
     internal void BuildVisualTree()
     {
     }

@@ -63,7 +63,40 @@ namespace System.Windows.Input
                 "AcceptsReturn", typeof(bool), typeof(KeyboardNavigation),
                 new Microsoft.UI.Xaml.PropertyMetadata(false));
 
+        public static readonly Microsoft.UI.Xaml.DependencyProperty DirectionalNavigationProperty =
+            Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
+                "DirectionalNavigation", typeof(KeyboardNavigationMode), typeof(KeyboardNavigation),
+                new Microsoft.UI.Xaml.PropertyMetadata(KeyboardNavigationMode.Continue));
+
+        public static readonly Microsoft.UI.Xaml.DependencyProperty ControlTabNavigationProperty =
+            Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
+                "ControlTabNavigation", typeof(KeyboardNavigationMode), typeof(KeyboardNavigation),
+                new Microsoft.UI.Xaml.PropertyMetadata(KeyboardNavigationMode.Continue));
+
+        public static KeyboardNavigationMode GetDirectionalNavigation(Microsoft.UI.Xaml.DependencyObject element)
+            => (KeyboardNavigationMode)element.GetValue(DirectionalNavigationProperty);
+
+        public static void SetDirectionalNavigation(Microsoft.UI.Xaml.DependencyObject element, KeyboardNavigationMode mode)
+            => element.SetValue(DirectionalNavigationProperty, mode);
+
         internal static KeyboardNavigation Current { get; } = new();
+
+        // Focus visuals and traversal prediction are not bridged; predictions
+        // return null and ancestry checks report false, so traversal falls
+        // back to the default MoveFocus path.
+        internal static void ShowFocusVisual()
+        {
+        }
+
+        internal bool IsAncestorOfEx(
+            Microsoft.UI.Xaml.DependencyObject ancestor,
+            Microsoft.UI.Xaml.DependencyObject child) => false;
+
+        internal Microsoft.UI.Xaml.DependencyObject? PredictFocusedElement(
+            Microsoft.UI.Xaml.DependencyObject sourceElement,
+            FocusNavigationDirection direction,
+            bool treeViewNavigation,
+            bool considerDescendants) => null;
 
         // Focus-scope tracking is not wired on Uno; subscribers never fire.
         internal event EventHandler? FocusEnterMainFocusScope

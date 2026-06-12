@@ -174,6 +174,12 @@ public partial class ItemsControl : IGeneratorHost
     public void RaiseEvent(RoutedEventArgs e)
         => ((Microsoft.UI.Xaml.DependencyObject)this).RaiseEvent(e);
 
+    // Focus traversal is not bridged; WPF callers fall through their
+    // no-focus-moved paths.
+    public bool MoveFocus(Input.TraversalRequest request) => false;
+
+    public bool Focus() => false;
+
     // WPF ItemsSource swaps the inner view; the shim only stores the value
     // until the items/view pipeline exists.
     public IEnumerable? ItemsSource { get; set; }

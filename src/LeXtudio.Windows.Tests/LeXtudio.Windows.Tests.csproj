@@ -42,6 +42,7 @@
     <Compile Include="DataGridCellInfoTests.cs" />
     <Compile Include="DataGridCollectionTests.cs" />
     <Compile Include="DataGridControlRootPrereqTests.cs" />
+    <Compile Include="FocusAndAutomationBridgeTests.cs" />
     <Compile Include="DataGridColumnTests.cs" />
     <Compile Include="DataGridComboBoxColumnTests.cs" />
     <Compile Include="DataGridEventArgsTests.cs" />

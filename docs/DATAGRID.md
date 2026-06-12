@@ -12,15 +12,18 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 20 build/test status: green with the sorting/view cluster — linked
-  `SortDescription`/`SortDescriptionCollection`, `ItemCollection` carrying
-  `SortDescriptions` and implementing `IEditableCollectionView`, minimal
-  `CollectionView.NewItemPlaceholder`, `IsGrouping`, grouping stubs — plus
-  everything from prior sessions.
+- Session 21 build/test status: green with the keyboard-focus and automation
+  clusters — linked `TraversalRequest` (replacing the local
+  `FocusNavigationDirection` shim), `KeyboardNavigationMode`,
+  `KeyboardNavigation` traversal members, `Keyboard.Focus`, zero-argument
+  `Focus()` members, and the automation peer stub layer — plus everything
+  from prior sessions.
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
-  (command/metadata), 320 after session 20 (sorting/view). Remaining:
-  automation peers, keyboard-focus traversal, helper/visual internals,
-  row/cell/presenter internals.
+  (command/metadata), 320 after session 20 (sorting/view), 248 after session
+  21 (focus + automation). Remaining: helper/visual internals
+  (`DataGridHelper.FindVisualParent`/`IsDefaultValue`, `VisualStates`,
+  `Panel.Children`, `ContentElement`) and row/cell/presenter/column-collection
+  internals — the final two clusters.
 - Mechanism note (discovered in session 15): `ext/wpf` is a patched fork that
   uses `#if !HAS_UNO` guards inside upstream files (for example `Window.cs`,
   `AdornerLayer`, `TextBoxBase`). Fork-patching is an established third
@@ -94,6 +97,8 @@ spine.
 | Sort descriptions | `SortDescription`, `SortDescriptionCollection` | Linked WPF source (WindowsBase) | `linked-upstream` | Needed one SR string (`CannotChangeAfterSealed`); `ItemCollection.SortDescriptions` stores them but sorting is not applied to the view. |
 | Editable view | `ItemCollection : IEditableCollectionView` | `System.Windows/Controls/ItemCollection.cs` | `local-bridge` | Direct-list semantics: edit-item bookkeeping and removal work; `AddNew`/placeholders/cancel-edit unsupported (reported honestly via `CanAddNew`/`CanCancelEdit`). |
 | View/grouping stubs | `CollectionView.NewItemPlaceholder`, `CollectionViewGroupInternal`, `GroupItem`, `IsGrouping` | `System.Windows/Data/CollectionViewShims.cs`, `GroupItem.cs`, spine | `local-bridge` | Placeholder is a stable sentinel never produced by the shim view; grouping paths are unreachable while `IsGrouping` is false. |
+| Focus traversal | `TraversalRequest`/`FocusNavigationDirection` (linked WindowsBase), `KeyboardNavigationMode`, `KeyboardNavigation` traversal members, `Keyboard.Focus`, zero-argument `Focus()` | linked + input shims | `linked-upstream` / `local-bridge` | Prediction returns null and ancestry checks false (traversal falls back to `MoveFocus`, which reports no movement); cell/row `Focus()` routes to WinUI programmatic focus for real. |
+| Automation stubs | `AutomationPeer`/`UIElementAutomationPeer`/`DataGrid*AutomationPeer`, `AutomationEvents`, `ValuePatternIdentifiers` | `System.Windows/Automation/Peers/` | `local-bridge` | `FromElement` null + `ListenerExists` false make every automation path unreachable; chosen over ~36 fork guards. |
 | Control root | upstream `DataGrid.cs` | Not enabled (local shell active) | `blocked` | Session 18 probe with all type prerequisites resolved: 386 unique member-level sites (see probe results). Needs a staged enablement plan, not a single session. |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Session 17 rebased the shell onto linked `MultiSelector`, so `Items`, item-info helpers, and the selection surface are inherited from the spine. Adds WPF-shaped `Columns`, owner tracking, display-index lookup, `SelectedCells`, and notification stubs. Width redistribution, virtualization maps, and sorting remain deferred. |
@@ -142,9 +147,9 @@ spine.
 14. Control-root staged enablement, roughly one session per cluster from the
    session-18 catalog: command system and metadata friction (completed in
    session 19; 386 → 355 sites), sorting/view (completed in session 20;
-   355 → 320), keyboard-focus traversal, automation guards, helper/visual
-   internals, row/cell/presenter internals — then repeat the `DataGrid.cs`
-   link attempt.
+   355 → 320), keyboard-focus traversal and automation stubs (completed in
+   session 21; 320 → 248), helper/visual internals, row/cell/presenter
+   internals — then repeat the `DataGrid.cs` link attempt.
 15. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts; a
    runtime sample with static items and explicit columns gates behavior
@@ -716,6 +721,44 @@ Re-probe: 355 → 320 unique sites; the sorting/view names no longer appear.
 Session 20 verification: `dotnet test
 WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
 --framework net10.0-desktop --no-restore` passed 90 tests; the solution build
+also succeeds for `net10.0-desktop`.
+
+### Session 21: focus traversal and automation stubs (clusters 3-4)
+
+Keyboard-focus cluster:
+
+- Linked WindowsBase `TraversalRequest.cs`, which carries the real
+  `FocusNavigationDirection` enum — the session-14 local enum shim was
+  deleted in its favor.
+- Added `KeyboardNavigationMode` (WPF member order) and grew
+  `KeyboardNavigation`: `DirectionalNavigation`/`ControlTabNavigation`
+  attached properties, `ShowFocusVisual`, and instance `IsAncestorOfEx`
+  (false) / `PredictFocusedElement` (null) so traversal prediction falls
+  through to the default `MoveFocus` path.
+- `Keyboard.Focus(IInputElement)` reports the element back;
+  `MoveFocus`/`Focus()` on the shim `ItemsControl` report no focus movement;
+  `DataGridCell`/`DataGridRow` gained zero-argument `Focus()` members that
+  route to WinUI programmatic focus (those are real, not stubs).
+
+Automation cluster (stubs, not guards — cheaper than ~36 fork edits and
+honest at runtime): `AutomationPeer.FromElement` returns null and
+`ListenerExists` returns false, so every automation path in the control root
+is unreachable; `UIElementAutomationPeer`, `DataGridAutomationPeer` (raise
+members + `FindOrCreateItemAutomationPeer`), `DataGridItemAutomationPeer`,
+`DataGridCellItemAutomationPeer`, the full WPF-ordered `AutomationEvents`
+enum, and `ValuePatternIdentifiers.ValueProperty` exist for compilation.
+
+Re-probe: 320 → 248 unique sites. Remaining: helper/visual internals and the
+row/cell/presenter/column-collection internals (the largest final cluster —
+`DataGridRow.DetailsPresenter`/`CellsPresenter`/`DetailsVisibility`/
+`TryGetCell`/`BindingGroup`, `DataGridCellsPresenter`,
+`DataGridColumnCollection` width/realization internals,
+`DataGridColumn.SortDirection`, `OnBringItemIntoView`,
+`ItemInfoFromContainer`).
+
+Session 21 verification: `dotnet test
+WindowsShims/src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj
+--framework net10.0-desktop --no-restore` passed 95 tests; the solution build
 also succeeds for `net10.0-desktop`.
 
 ## Open Questions

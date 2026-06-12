@@ -32,6 +32,10 @@ namespace System.Windows.Input
 
         public static KeyboardDevice PrimaryDevice => KeyboardDevice.Empty;
 
+        // Programmatic focus moves are not bridged to Uno's focus manager yet;
+        // the element is reported back as if focus succeeded.
+        public static IInputElement? Focus(IInputElement? element) => element;
+
         public static readonly System.Windows.RoutedEvent GotKeyboardFocusEvent = new();
         public static readonly System.Windows.RoutedEvent LostKeyboardFocusEvent = new();
         public static readonly System.Windows.RoutedEvent PreviewKeyDownEvent = new();
