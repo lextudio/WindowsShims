@@ -257,4 +257,43 @@ public sealed class DataGridControlRootLinkTests
             Is.Not.Null,
             "DataGrid.ShimColumnWidth(DataGridColumn) resolves the per-column width.");
     }
+
+    [Test]
+    public void HeaderSortSurfaceExists()
+    {
+        // Session 30: header click toggles sort. Behavior (order + glyph) is
+        // verified by the sample probe; pin the entry point and ordering hook.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGrid).GetMethod("HandleShimHeaderClicked", flags), Is.Not.Null,
+            "DataGrid.HandleShimHeaderClicked(DataGridColumn) is the sort entry point.");
+        Assert.That(typeof(DataGrid).GetMethod("OrderedItems", flags), Is.Not.Null,
+            "DataGrid.OrderedItems() applies the active sort to the render order.");
+    }
+
+    [Test]
+    public void RetainedSelectionFieldExists()
+    {
+        // Session 31: selection is retained by item identity so it survives
+        // render rebuilds (sort / reactivity). Behavior verified by the probe;
+        // pin the retained-selection field so the mechanism isn't dropped.
+        Assert.That(
+            typeof(DataGrid).GetField("_shimSelectedItem", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid retains the selected item across rebuilds.");
+    }
+
+    [Test]
+    public void KeyboardNavigationSurfaceExists()
+    {
+        // Session 33: Up/Down move the selection. Behavior verified by probe.
+        Assert.That(
+            typeof(DataGrid).GetMethod("MoveSelectionByOffset", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.MoveSelectionByOffset(int) drives arrow-key selection.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("MoveSelectionToIndex", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.MoveSelectionToIndex(int) drives Home/End (session 33/34).");
+    }
 }

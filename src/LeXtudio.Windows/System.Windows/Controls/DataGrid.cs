@@ -61,7 +61,9 @@ public partial class DataGrid
         ItemContainerGenerator.ResetContainers();
         host.Children.Add(BuildHeaderRow());
 
-        foreach (var item in Items)
+        var selectionStillPresent = false;
+
+        foreach (var item in OrderedItems())
         {
             if (item is null)
             {
@@ -70,13 +72,63 @@ public partial class DataGrid
 
             var row = new DataGridRow();
             row.PrepareRow(item, this);
+            // Re-apply selection across rebuilds (sort / reactivity) by item
+            // identity, so the highlighted row follows its data item.
+            if (_shimSelectedItem is not null && EqualsEx(item, _shimSelectedItem))
+            {
+                row.IsSelected = true;
+                selectionStillPresent = true;
+            }
+
             // Register the row so the linked WPF code can resolve containers
             // (selection, scroll-into-view, row details) via the generator.
             ItemContainerGenerator.RegisterContainer(item, row);
             host.Children.Add(row);
         }
 
+        // The selected item left the collection — drop the stale selection.
+        if (_shimSelectedItem is not null && !selectionStillPresent)
+        {
+            _shimSelectedItem = null;
+            if (SelectedItem is not null)
+            {
+                SelectedItem = null;
+            }
+        }
+
         ItemContainerGenerator.NotifyContainersGenerated();
+    }
+
+    // Items in display order: sorted by the active sort column if one is set,
+    // otherwise the collection's own order.
+    private IEnumerable<object?> OrderedItems()
+    {
+        var items = Items.Cast<object?>();
+        if (_activeSortColumn is { } col && col.SortDirection is { } dir)
+        {
+            object? KeySelector(object? item) => item is null ? null : GetSortValue(col, item);
+            items = dir == System.ComponentModel.ListSortDirection.Ascending
+                ? items.OrderBy(KeySelector, Comparer<object?>.Default)
+                : items.OrderByDescending(KeySelector, Comparer<object?>.Default);
+        }
+
+        return items.ToList();
+    }
+
+    private static object? GetSortValue(DataGridColumn column, object item)
+    {
+        var path = column.SortMemberPath;
+        if (string.IsNullOrEmpty(path)
+            && column is DataGridBoundColumn bound
+            && bound.Binding is Data.Binding binding
+            && binding.Path is { } propertyPath)
+        {
+            path = propertyPath.Path;
+        }
+
+        return string.IsNullOrEmpty(path)
+            ? null
+            : item.GetType().GetProperty(path)?.GetValue(item);
     }
 
     private Microsoft.UI.Xaml.Controls.StackPanel BuildHeaderRow()
@@ -96,7 +148,7 @@ public partial class DataGrid
             header.Children.Add(new DataGridColumnHeader
             {
                 Column = column,
-                Content = column.Header,
+                Content = HeaderContent(column),
                 Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
@@ -104,6 +156,19 @@ public partial class DataGrid
         }
 
         return header;
+    }
+
+    // Header content with a sort-direction glyph when this column is the
+    // active sort.
+    private object? HeaderContent(DataGridColumn column)
+    {
+        if (ReferenceEquals(column, _activeSortColumn) && column.SortDirection is { } dir)
+        {
+            var glyph = dir == System.ComponentModel.ListSortDirection.Ascending ? " ▲" : " ▼";
+            return (column.Header?.ToString() ?? string.Empty) + glyph;
+        }
+
+        return column.Header;
     }
 
     // Column width: explicit pixel widths are honored; Auto/SizeToCells/
@@ -144,6 +209,9 @@ public partial class DataGrid
     // ── Session 28: shim selection ───────────────────────────────────────────
     // Pointer press on a row routes here. Single-select for now: clear every
     // generated row, select the clicked one, and reflect into SelectedItem.
+    // Retained selection, by item identity, so it survives render rebuilds.
+    private object? _shimSelectedItem;
+
     internal void HandleShimRowClicked(DataGridRow clicked)
     {
         foreach (var container in ItemContainerGenerator.Containers)
@@ -155,10 +223,105 @@ public partial class DataGrid
         }
 
         clicked.IsSelected = true;
+        _shimSelectedItem = clicked.Item;
+        clicked.BringIntoView();
 
         if (clicked.Item is not null)
         {
             SelectedItem = clicked.Item;
         }
+    }
+
+    // ── Session 30: header-click sort ────────────────────────────────────────
+    // Toggle the clicked column's sort: none → Ascending → Descending →
+    // Ascending. Clears the other columns' direction (single sort key), then
+    // re-renders in sorted order.
+    private DataGridColumn? _activeSortColumn;
+
+    // ── Session 33: keyboard navigation ──────────────────────────────────────
+    // Up/Down arrows move the single selection between rows.
+    private const int ShimPageSize = 5;
+
+    protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        base.OnKeyDown(e);
+        switch (e.Key)
+        {
+            case global::Windows.System.VirtualKey.Up:
+                MoveSelectionByOffset(-1);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.Down:
+                MoveSelectionByOffset(1);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.Home:
+                MoveSelectionToIndex(0);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.End:
+                MoveSelectionToIndex(int.MaxValue);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.PageUp:
+                MoveSelectionByOffset(-ShimPageSize);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.PageDown:
+                MoveSelectionByOffset(ShimPageSize);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    internal void MoveSelectionByOffset(int delta)
+    {
+        var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        var current = rows.FindIndex(r => r.IsSelected);
+        var target = current < 0
+            ? (delta > 0 ? 0 : rows.Count - 1)
+            : Math.Clamp(current + delta, 0, rows.Count - 1);
+
+        HandleShimRowClicked(rows[target]);
+    }
+
+    internal void MoveSelectionToIndex(int index)
+    {
+        var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        HandleShimRowClicked(rows[Math.Clamp(index, 0, rows.Count - 1)]);
+    }
+
+    internal void HandleShimHeaderClicked(DataGridColumn column)
+    {
+        if (!column.CanUserSort)
+        {
+            return;
+        }
+
+        var next = column.SortDirection == System.ComponentModel.ListSortDirection.Ascending
+            ? System.ComponentModel.ListSortDirection.Descending
+            : System.ComponentModel.ListSortDirection.Ascending;
+
+        foreach (var other in Columns)
+        {
+            if (!ReferenceEquals(other, column))
+            {
+                other.SortDirection = null;
+            }
+        }
+
+        column.SortDirection = next;
+        _activeSortColumn = column;
+        BuildShimVisualTree();
     }
 }

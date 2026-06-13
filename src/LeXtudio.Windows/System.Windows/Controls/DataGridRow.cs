@@ -66,7 +66,7 @@ public partial class DataGridRow : Control
     // WPF UIElement.Focus() has no FocusState; route to programmatic focus.
     public bool Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
 
-    public void BringIntoView() { }
+    public void BringIntoView() => StartBringIntoView();
 
     internal void PrepareRow(object item, DataGrid dataGrid)
     {

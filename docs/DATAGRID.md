@@ -67,6 +67,32 @@ coupled for the current milestone.
   `DataGridLength.IsAbsolute`). Probe: a `Width=60` column renders 60px wide.
   113 tests green. Only absolute widths honored — `Auto`/`Star` still fall
   back to 120; no header sort/resize/reorder yet (see `session29.md`).
+- Session 30: header-click sorting. `HandleShimHeaderClicked` toggles the
+  column `SortDirection` (single key) and `OrderedItems` re-renders rows
+  sorted by the column's reflected value; the active column shows a ▲/▼
+  glyph. Probe verifies ascending/descending order. 114 tests green.
+  Shim-side only — bypasses the WPF `Sorting`/`SortDescriptions` pipeline,
+  single key, selection not preserved across rebuild (see `session30.md`).
+- Session 31: selection survives render rebuilds. `_shimSelectedItem` retains
+  the selected item by identity; `BuildShimVisualTree` re-applies `IsSelected`
+  to the rebuilt row holding that item, so the highlight follows the item
+  through sort/reactivity. Probe verifies highlight survives a re-sort. 115
+  tests green. Single-item retention; stale reference not cleared on removal
+  yet (see `session31.md`).
+- Session 32: removing the selected item clears the selection.
+  `BuildShimVisualTree` drops `_shimSelectedItem` and resets `SelectedItem`
+  when no rebuilt row matches the retained item. Probe verifies `SelectedItem`
+  becomes null after removing the selected item. 115 tests green (16 probe
+  steps). No "select neighbor on delete" behavior yet (see `session32.md`).
+- Session 33: keyboard navigation. `OnKeyDown` Up/Down →
+  `MoveSelectionByOffset`, reusing the single-select path. Probe verifies
+  Down/Up move the highlight. 116 tests green (17 probe steps). Up/Down only,
+  no `BringIntoView` on navigation yet (see `session33.md`).
+- Session 34: selection scrolls into view (`DataGridRow.BringIntoView` →
+  `StartBringIntoView`, called on select), and Home/End/PageUp/PageDown
+  navigation added (`MoveSelectionToIndex`, page=5). Probe verifies Home/End.
+  116 tests green (18 probe steps). Fixed page size, no viewport measure (see
+  `session34.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

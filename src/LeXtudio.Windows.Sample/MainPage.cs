@@ -287,6 +287,148 @@ public sealed partial class MainPage : Page
             }
         });
 
+        Step("header click sorts rows (ascending then descending)", () =>
+        {
+            // Age column (index 1). Items: 36, 45, 39, 41 (Katherine added).
+            var ageColumn = _grid!.Columns[1];
+
+            _grid.HandleShimHeaderClicked(ageColumn);
+            var asc = RowAges();
+            Console.WriteLine($"[probe]   ages ascending = [{string.Join(",", asc)}]");
+            if (!IsSorted(asc, ascending: true))
+            {
+                throw new InvalidOperationException($"ages not ascending: [{string.Join(",", asc)}]");
+            }
+
+            _grid.HandleShimHeaderClicked(ageColumn);
+            var desc = RowAges();
+            Console.WriteLine($"[probe]   ages descending = [{string.Join(",", desc)}]");
+            if (!IsSorted(desc, ascending: false))
+            {
+                throw new InvalidOperationException($"ages not descending: [{string.Join(",", desc)}]");
+            }
+        });
+
+        Step("selection survives a sort rebuild (by item identity)", () =>
+        {
+            var gen = _grid!.ItemContainerGenerator;
+            var row = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            if (row is null)
+            {
+                throw new InvalidOperationException("no row to select");
+            }
+
+            _grid.HandleShimRowClicked(row);
+            var selectedItem = row.Item;
+
+            // Re-sort (ascending) — rows are rebuilt; the selected item should
+            // keep its highlight on whatever row now holds it.
+            _grid.HandleShimHeaderClicked(_grid.Columns[1]);
+
+            var stillSelected = false;
+            for (var i = 0; ; i++)
+            {
+                if (gen.ContainerFromIndex(i) is not WpfDataGridRow r)
+                {
+                    break;
+                }
+
+                if (ReferenceEquals(r.Item, selectedItem))
+                {
+                    stillSelected = r.IsSelected;
+                    break;
+                }
+            }
+
+            Console.WriteLine($"[probe]   selected item still highlighted after sort = {stillSelected}");
+            if (!stillSelected)
+            {
+                throw new InvalidOperationException("selection was lost across the sort rebuild");
+            }
+        });
+
+        Step("removing the selected item clears the selection", () =>
+        {
+            var gen = _grid!.ItemContainerGenerator;
+            var row = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            if (row?.Item is not { } item)
+            {
+                throw new InvalidOperationException("no row/item to select");
+            }
+
+            _grid.HandleShimRowClicked(row);
+            if (!ReferenceEquals(_grid.SelectedItem, item))
+            {
+                throw new InvalidOperationException("precondition failed: item not selected");
+            }
+
+            _grid.Items.Remove(item);
+
+            Console.WriteLine($"[probe]   SelectedItem after remove = {(_grid.SelectedItem is null ? "null" : "set")}");
+            if (_grid.SelectedItem is not null)
+            {
+                throw new InvalidOperationException("selection was not cleared after removing the selected item");
+            }
+
+            // And no remaining row should be highlighted.
+            for (var i = 0; ; i++)
+            {
+                if (gen.ContainerFromIndex(i) is not WpfDataGridRow r)
+                {
+                    break;
+                }
+
+                if (r.IsSelected)
+                {
+                    throw new InvalidOperationException("a row is still highlighted after the selected item was removed");
+                }
+            }
+        });
+
+        Step("keyboard navigation moves selection (Down/Up)", () =>
+        {
+            var gen = _grid!.ItemContainerGenerator;
+            var row0 = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            _grid.HandleShimRowClicked(row0!);
+
+            _grid.MoveSelectionByOffset(1);
+            var down = gen.ContainerFromIndex(1) as WpfDataGridRow;
+            if (down is null || !down.IsSelected || (gen.ContainerFromIndex(0) as WpfDataGridRow)!.IsSelected)
+            {
+                throw new InvalidOperationException("Down did not move selection to row 1");
+            }
+
+            _grid.MoveSelectionByOffset(-1);
+            if (!(gen.ContainerFromIndex(0) as WpfDataGridRow)!.IsSelected || down.IsSelected)
+            {
+                throw new InvalidOperationException("Up did not move selection back to row 0");
+            }
+        });
+
+        Step("Home/End move selection to first/last row", () =>
+        {
+            var gen = _grid!.ItemContainerGenerator;
+            var rowCount = 0;
+            while (gen.ContainerFromIndex(rowCount) is WpfDataGridRow)
+            {
+                rowCount++;
+            }
+
+            _grid.MoveSelectionToIndex(int.MaxValue);
+            var last = gen.ContainerFromIndex(rowCount - 1) as WpfDataGridRow;
+            if (last is null || !last.IsSelected)
+            {
+                throw new InvalidOperationException("End did not select the last row");
+            }
+
+            _grid.MoveSelectionToIndex(0);
+            var first = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            if (first is null || !first.IsSelected || last.IsSelected)
+            {
+                throw new InvalidOperationException("Home did not select the first row");
+            }
+        });
+
         Step("report: grid desired size", () =>
         {
             Console.WriteLine($"[probe]   DesiredSize={_grid!.DesiredSize}");
@@ -302,6 +444,42 @@ public sealed partial class MainPage : Page
         {
             Environment.Exit(ProbeFailures == 0 ? 0 : 1);
         }
+    }
+
+    // Ages of the items in current display order (via the generator).
+    private List<int> RowAges()
+    {
+        var gen = _grid!.ItemContainerGenerator;
+        var ages = new List<int>();
+        for (var i = 0; ; i++)
+        {
+            if (gen.ContainerFromIndex(i) is not WpfDataGridRow row || row.Item is not Person p)
+            {
+                break;
+            }
+
+            ages.Add(p.Age);
+        }
+
+        return ages;
+    }
+
+    private static bool IsSorted(List<int> values, bool ascending)
+    {
+        for (var i = 1; i < values.Count; i++)
+        {
+            if (ascending && values[i] < values[i - 1])
+            {
+                return false;
+            }
+
+            if (!ascending && values[i] > values[i - 1])
+            {
+                return false;
+            }
+        }
+
+        return values.Count > 1;
     }
 
     private static async Task FallbackExitAsync()
