@@ -220,6 +220,7 @@ public partial class DataGrid
             var row = new DataGridRow();
             row.PrepareRow(item, this); // also initializes row.Tracker
             row.ShimRowIndex = rowIndex++;
+            row.ApplyShimRowStyle();
             row.ApplyShimRowBackground();
             row.Tracker!.StartTracking(ref _rowTrackingRoot);
             // Re-apply selection across rebuilds (sort / reactivity) from the
@@ -445,6 +446,9 @@ public partial class DataGrid
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
+            headerCell.ApplyShimFrozenState();
+            headerCell.ApplyShimColumnHeaderStyle();
+            headerCell.ApplyShimGridLines();
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
         }

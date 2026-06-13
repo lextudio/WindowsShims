@@ -216,9 +216,21 @@ public partial class ItemsControl : IGeneratorHost
         DependencyProperty.Register("ItemContainerStyle", typeof(Style), typeof(ItemsControl),
             new PropertyMetadata(null));
 
+    public Style? ItemContainerStyle
+    {
+        get => (Style?)GetValue(ItemContainerStyleProperty);
+        set => SetValue(ItemContainerStyleProperty, value);
+    }
+
     public static readonly DependencyProperty ItemContainerStyleSelectorProperty =
         DependencyProperty.Register("ItemContainerStyleSelector", typeof(StyleSelector), typeof(ItemsControl),
             new PropertyMetadata(null));
+
+    public StyleSelector? ItemContainerStyleSelector
+    {
+        get => (StyleSelector?)GetValue(ItemContainerStyleSelectorProperty);
+        set => SetValue(ItemContainerStyleSelectorProperty, value);
+    }
 
     public static readonly DependencyProperty ItemsPanelProperty =
         DependencyProperty.Register("ItemsPanel", typeof(ItemsPanelTemplate), typeof(ItemsControl),

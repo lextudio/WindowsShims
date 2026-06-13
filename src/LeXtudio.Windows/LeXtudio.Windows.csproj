@@ -458,6 +458,8 @@
              Link="System.Windows.Controls.Primitives\TextBoxBase.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\RichTextBox.cs"
              Link="System.Windows.Controls\RichTextBox.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\StyleSelector.cs"
+             Link="System.Windows.Controls\StyleSelector.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\TextChange.cs"
              Link="System.Windows.Controls\TextChange.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\TextChangedEventArgs.cs"

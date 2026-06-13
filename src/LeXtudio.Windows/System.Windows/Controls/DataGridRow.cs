@@ -66,6 +66,8 @@ public partial class DataGridRow : Control
 
     internal DataGrid? DataGridOwner { get; set; }
 
+    public Style? ShimAppliedRowStyle { get; private set; }
+
     internal DataGridCellsPresenter? CellsPresenter { get; set; }
 
     internal DataGridDetailsPresenter? DetailsPresenter { get; set; }
@@ -176,6 +178,20 @@ public partial class DataGridRow : Control
             Background = DataGridOwner?.ShimRowBackground(ShimRowIndex);
     }
 
+    internal void ApplyShimRowStyle()
+    {
+        if (DataGridOwner is not { } owner)
+        {
+            ShimAppliedRowStyle = null;
+            return;
+        }
+
+        ShimAppliedRowStyle =
+            owner.RowStyle ??
+            owner.ItemContainerStyle ??
+            (owner.RowStyleSelector ?? owner.ItemContainerStyleSelector)?.SelectStyle(Item!, this);
+    }
+
     private void UpdateSelectionVisual()
     {
         // Row-level selection tints the row; cells stay transparent so the
@@ -266,6 +282,9 @@ public partial class DataGridRow : Control
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
             cell.BuildVisualTree();
+            cell.ApplyShimFrozenState();
+            cell.ApplyShimCellStyle();
+            cell.ApplyShimGridLines();
             // Re-apply a retained cell selection to the rebuilt cell instance.
             owner.TryReselectCell(cell);
             _cells.Add(cell);
@@ -364,10 +383,12 @@ public partial class DataGridRow : Control
         host.Width = owner.RowHeaderShimWidth;
         _rowHeaderElement = new DataGridRowHeader
         {
+            ParentDataGrid = owner,
             ParentRow = this,
             Width = owner.RowHeaderShimWidth,
             HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
         };
+        _rowHeaderElement.ApplyShimGridLines();
         host.Content = _rowHeaderElement;
         RefreshRowHeaderGlyph();
     }
@@ -407,6 +428,11 @@ public partial class DataGridRow : Control
                 || args.Property == DataGrid.AlternatingRowBackgroundProperty)
             {
                 ApplyShimRowBackground();
+            }
+            else if (args.Property == DataGrid.RowStyleProperty
+                || args.Property == DataGrid.RowStyleSelectorProperty)
+            {
+                ApplyShimRowStyle();
             }
         }
 

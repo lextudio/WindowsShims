@@ -30,6 +30,12 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     public bool IsReadOnly { get; set; }
 
+    public bool IsFrozen { get; private set; }
+
+    public bool HasShimGridLine { get; private set; }
+
+    public Style? ShimAppliedCellStyle { get; private set; }
+
     public DataGridColumn? Column { get; set; }
 
     internal DataGridRow? RowOwner { get; set; }
@@ -299,8 +305,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         }
         else if (!HasValidationError)
         {
-            BorderBrush = null;
-            BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            ApplyShimGridLines();
         }
     }
 
@@ -331,11 +336,64 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             {
                 IsReadOnly = DataGridOwner?.IsCellEffectivelyReadOnly(Column) ?? false;
             }
+            else if (args.Property == DataGrid.FrozenColumnCountProperty
+                     || args.Property == DataGridColumn.IsFrozenProperty)
+            {
+                ApplyShimFrozenState();
+            }
+            else if (args.Property == DataGrid.CellStyleProperty)
+            {
+                ApplyShimCellStyle();
+            }
+            else if (args.Property == DataGridColumn.CellStyleProperty)
+            {
+                ApplyShimCellStyle();
+            }
+        }
+
+        if (DataGridHelper.ShouldNotifyCellsPresenter(target)
+            && args.Property == DataGrid.FrozenColumnCountProperty)
+        {
+            ApplyShimFrozenState();
         }
 
         if (DataGridHelper.ShouldRefreshCellContent(target))
         {
             BuildVisualTree();
         }
+    }
+
+    internal void ApplyShimFrozenState()
+    {
+        IsFrozen = Column is { DataGridOwner: { } owner } column
+            ? column.DisplayIndex < owner.FrozenColumnCount
+            : Column?.IsFrozen == true;
+        Opacity = IsFrozen ? 0.96 : 1.0;
+    }
+
+    internal void ApplyShimCellStyle()
+    {
+        ShimAppliedCellStyle = Column?.CellStyle ?? DataGridOwner?.CellStyle;
+    }
+
+    internal void ApplyShimGridLines()
+    {
+        if (HasValidationError || DataGridOwner?.CurrentCellContainer == this)
+        {
+            return;
+        }
+
+        var owner = DataGridOwner;
+        var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
+        var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
+        var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;
+
+        HasShimGridLine = horizontal || vertical;
+        BorderThickness = HasShimGridLine
+            ? new Microsoft.UI.Xaml.Thickness(0, 0, vertical ? 1 : 0, horizontal ? 1 : 0)
+            : new Microsoft.UI.Xaml.Thickness(0);
+        BorderBrush = HasShimGridLine
+            ? (vertical ? owner?.VerticalGridLinesBrush : owner?.HorizontalGridLinesBrush)
+            : null;
     }
 }

@@ -259,6 +259,57 @@ coupled for the current milestone.
   realizes headers and cells in display-index order. 126 tests green and probe
   reports `DONE failures=0` with a new display-index reorder step (see
   `session64.md`).
+- Session 70: **notification probe batch.** Reused the live WPF DP notification
+  bridge from sessions 67-69 to pin three more linked property paths:
+  `RowBackground` live row updates, `GridLinesVisibility` no-crash callback
+  execution, and `CanUserResizeColumns` / `CanUserReorderColumns` option
+  notifications. No new rendering substrate was required; the sample probe now
+  covers 45 steps. 136 tests green and probe reports `DONE failures=0` (see
+  `session70.md`).
+- Session 71: **initial frozen-column notification batch.** Reused linked WPF
+  `FrozenColumnCount` / `DataGridColumnCollection` updates and added narrow
+  Uno-side markers on realized `DataGridColumnHeader` and `DataGridCell`
+  visuals. The shim computes realized frozen state from `DisplayIndex <
+  FrozenColumnCount` because WPF notifies rows/cells before the collection
+  target updates `DataGridColumn.IsFrozen`. This pins live frozen-state
+  propagation without implementing frozen layout/scrolling. 136 tests green;
+  probe covers 46 steps and reports `DONE failures=0` (see `session71.md`).
+- Session 72: **style notification batch.** Reused linked WPF notification
+  callbacks for `CellStyle` and `ColumnHeaderStyle`, added a narrow `HAS_UNO`
+  row notification after `RowStyle` coerces `ItemContainerStyle`, and exposed
+  realized-style markers on rows, cells, and column headers. The current scope
+  is style-object propagation to shim visuals; style setter application and
+  selectors remain deferred. 136 tests green; probe covers 47 steps and
+  reports `DONE failures=0` (see `session72.md`).
+- Session 73: **column style precedence batch.** Realized cells now compute
+  effective style as `DataGridColumn.CellStyle ?? DataGrid.CellStyle`, and
+  realized column headers use `DataGridColumn.HeaderStyle ??
+  DataGrid.ColumnHeaderStyle`. The linked column notification callbacks already
+  route these changes to cells/headers; the shim now updates its realized-style
+  markers live and verifies column override plus fallback. 136 tests green;
+  probe covers 48 steps and reports `DONE failures=0` (see `session73.md`).
+- Session 74: **visible grid-line rendering batch.** Reused linked WPF
+  `GridLinesVisibility` / grid-line brush callbacks, which regenerate item
+  containers through `OnItemTemplateChanged`, and mapped the state to realized
+  cell borders in the shim render path. Cells now draw bottom/right borders
+  for horizontal/vertical/all modes while preserving current-cell and
+  validation border priority. 136 tests green; probe reports
+  `DONE failures=0` with visible grid-line assertions (see `session74.md`).
+- Session 75: **header grid-line completion batch.** Extended the session-74
+  grid-line rendering to realized `DataGridColumnHeader` and
+  `DataGridRowHeader` surfaces, still using the linked WPF
+  `GridLinesVisibility` container-regeneration callback. The sample now
+  verifies cell, column-header, and row-header borders for none/horizontal/
+  vertical/all modes. 136 tests green; probe reports `DONE failures=0` (see
+  `session75.md`).
+- Session 76: **row style-selector reuse batch.** Linked upstream WPF
+  `StyleSelector.cs`, added the missing `ItemsControl` style/selector CLR
+  accessors, and routed linked `RowStyleSelector` changes to realized rows.
+  Rows now compute effective style with WPF precedence:
+  `RowStyle ?? ItemContainerStyle ?? (RowStyleSelector ??
+  ItemContainerStyleSelector)?.SelectStyle(...)`. Setter application remains
+  deferred, but selector invocation and explicit-style override are verified.
+  136 tests green; probe reports `DONE failures=0` (see `session76.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`

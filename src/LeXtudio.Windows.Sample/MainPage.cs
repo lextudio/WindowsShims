@@ -28,6 +28,20 @@ public sealed partial class MainPage : Page
                 : new System.Windows.Controls.ValidationResult(false, "Age must be at least 18");
     }
 
+    private sealed class ProbeRowStyleSelector : System.Windows.Controls.StyleSelector
+    {
+        public object? SelectedItem { get; set; }
+        public Microsoft.UI.Xaml.Style? SelectedStyle { get; set; }
+        public Microsoft.UI.Xaml.Style? FallbackStyle { get; set; }
+        public int CallCount { get; private set; }
+
+        public override Microsoft.UI.Xaml.Style? SelectStyle(object item, DependencyObject container)
+        {
+            CallCount++;
+            return ReferenceEquals(item, SelectedItem) ? SelectedStyle : FallbackStyle;
+        }
+    }
+
     public sealed class Person : System.ComponentModel.IDataErrorInfo, System.ComponentModel.IEditableObject
     {
         private int _ageBackup;
@@ -1427,6 +1441,187 @@ public sealed partial class MainPage : Page
                 throw new InvalidOperationException($"cell did not pick up column.IsReadOnly=false");
         });
 
+        Step("frozen columns mark first display columns live", () =>
+        {
+            // Session 71: FrozenColumnCount fires the linked WPF callback with
+            // ColumnCollection | ColumnHeadersPresenter | CellsPresenter. The
+            // upstream collection sets DataGridColumn.IsFrozen; the shim mirrors
+            // that state onto realized headers/cells.
+            var oldFrozenCount = _grid!.FrozenColumnCount;
+            var gen = _grid.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .GetValue(_grid)!;
+
+            _grid.FrozenColumnCount = 2;
+
+            var cell0 = row0.TryGetCell(0) ?? throw new InvalidOperationException("no cell 0");
+            var cell1 = row0.TryGetCell(1) ?? throw new InvalidOperationException("no cell 1");
+            var cell2 = row0.TryGetCell(2) ?? throw new InvalidOperationException("no cell 2");
+
+            Console.WriteLine($"[probe]   frozen: col0={_grid.Columns[0].IsFrozen}, col1={_grid.Columns[1].IsFrozen}, col2={_grid.Columns[2].IsFrozen}, h0={headerCells[0].IsFrozen}, h1={headerCells[1].IsFrozen}, c0={cell0.IsFrozen}, c1={cell1.IsFrozen}");
+            if (!_grid.Columns[0].IsFrozen || !_grid.Columns[1].IsFrozen || _grid.Columns[2].IsFrozen)
+                throw new InvalidOperationException("FrozenColumnCount did not update DataGridColumn.IsFrozen");
+            if (!headerCells[0].IsFrozen || !headerCells[1].IsFrozen || headerCells[2].IsFrozen)
+                throw new InvalidOperationException("FrozenColumnCount did not update realized headers");
+            if (!cell0.IsFrozen || !cell1.IsFrozen || cell2.IsFrozen)
+                throw new InvalidOperationException("FrozenColumnCount did not update realized cells");
+
+            _grid.FrozenColumnCount = oldFrozenCount;
+        });
+
+        Step("style notifications update realized row/cell/header markers live", () =>
+        {
+            // Session 72: pin style-object propagation to realized shim visuals.
+            // Full setter application remains deferred.
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .GetValue(_grid)!;
+
+            var cell0 = row0.TryGetCell(0) ?? throw new InvalidOperationException("no cell 0");
+            var header0 = headerCells.Count > 0 ? headerCells[0] : null;
+            if (header0 is null)
+                throw new InvalidOperationException("no header 0");
+
+            var oldRowStyle = _grid.RowStyle;
+            var oldCellStyle = _grid.CellStyle;
+            var oldHeaderStyle = _grid.ColumnHeaderStyle;
+
+            var rowStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(WpfDataGridRow) };
+            var cellStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.DataGridCell) };
+            var headerStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.Primitives.DataGridColumnHeader) };
+
+            _grid.RowStyle = rowStyle;
+            _grid.CellStyle = cellStyle;
+            _grid.ColumnHeaderStyle = headerStyle;
+
+            Console.WriteLine($"[probe]   styles: row={ReferenceEquals(row0.ShimAppliedRowStyle, rowStyle)}, cell={ReferenceEquals(cell0.ShimAppliedCellStyle, cellStyle)}, header={ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, headerStyle)}");
+            if (!ReferenceEquals(row0.ShimAppliedRowStyle, rowStyle))
+                throw new InvalidOperationException("RowStyle did not update realized row");
+            if (!ReferenceEquals(cell0.ShimAppliedCellStyle, cellStyle))
+                throw new InvalidOperationException("CellStyle did not update realized cell");
+            if (!ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, headerStyle))
+                throw new InvalidOperationException("ColumnHeaderStyle did not update realized header");
+
+            _grid.RowStyle = oldRowStyle;
+            _grid.CellStyle = oldCellStyle;
+            _grid.ColumnHeaderStyle = oldHeaderStyle;
+        });
+
+        Step("row style selector updates realized rows and yields to explicit style", () =>
+        {
+            // Session 76: RowStyleSelector reuses the linked WPF selector source;
+            // realized rows compute the same style/selector precedence locally.
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            var oldRowStyle = _grid.RowStyle;
+            var oldRowStyleSelector = _grid.RowStyleSelector;
+            var oldItemContainerStyle = _grid.ItemContainerStyle;
+            var oldItemContainerStyleSelector = _grid.ItemContainerStyleSelector;
+
+            var selectedStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(WpfDataGridRow) };
+            var fallbackStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(WpfDataGridRow) };
+            var explicitStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(WpfDataGridRow) };
+            var selector = new ProbeRowStyleSelector
+            {
+                SelectedItem = row0.Item,
+                SelectedStyle = selectedStyle,
+                FallbackStyle = fallbackStyle,
+            };
+
+            _grid.RowStyle = null;
+            _grid.ItemContainerStyle = null;
+            _grid.ItemContainerStyleSelector = null;
+            _grid.RowStyleSelector = selector;
+
+            Console.WriteLine($"[probe]   row style selector: selected={ReferenceEquals(row0.ShimAppliedRowStyle, selectedStyle)}, calls={selector.CallCount}");
+            if (!ReferenceEquals(row0.ShimAppliedRowStyle, selectedStyle) || selector.CallCount == 0)
+                throw new InvalidOperationException("RowStyleSelector did not update realized row");
+
+            _grid.RowStyle = explicitStyle;
+
+            Console.WriteLine($"[probe]   row style explicit override: explicit={ReferenceEquals(row0.ShimAppliedRowStyle, explicitStyle)}");
+            if (!ReferenceEquals(row0.ShimAppliedRowStyle, explicitStyle))
+                throw new InvalidOperationException("RowStyle did not override RowStyleSelector");
+
+            _grid.RowStyle = null;
+
+            Console.WriteLine($"[probe]   row style selector fallback: selected={ReferenceEquals(row0.ShimAppliedRowStyle, selectedStyle)}");
+            if (!ReferenceEquals(row0.ShimAppliedRowStyle, selectedStyle))
+                throw new InvalidOperationException("RowStyleSelector did not reapply after clearing RowStyle");
+
+            _grid.RowStyle = oldRowStyle;
+            _grid.RowStyleSelector = oldRowStyleSelector;
+            _grid.ItemContainerStyle = oldItemContainerStyle;
+            _grid.ItemContainerStyleSelector = oldItemContainerStyleSelector;
+        });
+
+        Step("column style overrides win over grid styles and fall back live", () =>
+        {
+            // Session 73: DataGridColumn.CellStyle/HeaderStyle use the linked
+            // column notification path; shim visuals compute effective style
+            // directly because TransferProperty coercion is not implemented.
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .GetValue(_grid)!;
+
+            var cell0 = row0.TryGetCell(0) ?? throw new InvalidOperationException("no cell 0");
+            var header0 = headerCells.Count > 0 ? headerCells[0] : null;
+            if (header0 is null || cell0.Column is null || header0.Column is null)
+                throw new InvalidOperationException("missing realized first cell/header column");
+
+            var cellColumn = cell0.Column;
+            var headerColumn = header0.Column;
+
+            var oldGridCellStyle = _grid.CellStyle;
+            var oldGridHeaderStyle = _grid.ColumnHeaderStyle;
+            var oldColumnCellStyle = cellColumn.CellStyle;
+            var oldColumnHeaderStyle = headerColumn.HeaderStyle;
+
+            var gridCellStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.DataGridCell) };
+            var columnCellStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.DataGridCell) };
+            var gridHeaderStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.Primitives.DataGridColumnHeader) };
+            var columnHeaderStyle = new Microsoft.UI.Xaml.Style { TargetType = typeof(System.Windows.Controls.Primitives.DataGridColumnHeader) };
+
+            _grid.CellStyle = gridCellStyle;
+            _grid.ColumnHeaderStyle = gridHeaderStyle;
+            cellColumn.CellStyle = columnCellStyle;
+            headerColumn.HeaderStyle = columnHeaderStyle;
+
+            Console.WriteLine($"[probe]   column styles override: cell={ReferenceEquals(cell0.ShimAppliedCellStyle, columnCellStyle)}, header={ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, columnHeaderStyle)}");
+            if (!ReferenceEquals(cell0.ShimAppliedCellStyle, columnCellStyle))
+                throw new InvalidOperationException("column CellStyle did not override grid CellStyle");
+            if (!ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, columnHeaderStyle))
+                throw new InvalidOperationException("column HeaderStyle did not override grid ColumnHeaderStyle");
+
+            cellColumn.CellStyle = null;
+            headerColumn.HeaderStyle = null;
+
+            Console.WriteLine($"[probe]   column styles fallback: cell={ReferenceEquals(cell0.ShimAppliedCellStyle, gridCellStyle)}, header={ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, gridHeaderStyle)}");
+            if (!ReferenceEquals(cell0.ShimAppliedCellStyle, gridCellStyle))
+                throw new InvalidOperationException("cell did not fall back to grid CellStyle");
+            if (!ReferenceEquals(header0.ShimAppliedColumnHeaderStyle, gridHeaderStyle))
+                throw new InvalidOperationException("header did not fall back to grid ColumnHeaderStyle");
+
+            cellColumn.CellStyle = oldColumnCellStyle;
+            headerColumn.HeaderStyle = oldColumnHeaderStyle;
+            _grid.CellStyle = oldGridCellStyle;
+            _grid.ColumnHeaderStyle = oldGridHeaderStyle;
+        });
+
         Step("column visibility: collapse hides column; restore rebuilds", () =>
         {
             // Session 68: DataGridColumn.VisibilityProperty → OnVisibilityPropertyChanged fires
@@ -1457,6 +1652,34 @@ public sealed partial class MainPage : Page
             _grid.Columns[1].Visibility = Visibility.Visible;
         });
 
+        Step("row background: even rows update live", () =>
+        {
+            // Session 70: RowBackground uses OnNotifyRowPropertyChanged(target=Rows)
+            // rather than the AlternatingRowBackground Rows|DataGrid path. Verify
+            // the same row notification chain reaches realized rows live.
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0 ||
+                gen.ContainerFromIndex(1) is not WpfDataGridRow row1)
+                throw new InvalidOperationException("need at least 2 rows");
+
+            // Keep row0 unselected so row background is visible instead of the
+            // selected-row brush.
+            _grid.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Single;
+            _grid.HandleShimRowClicked(row1);
+
+            var rowBrush = new SolidColorBrush(Colors.LightGoldenrodYellow);
+            _grid.RowBackground = rowBrush;
+
+            Console.WriteLine($"[probe]   row0 Background after RowBackground set = {row0.Background}");
+            if (!ReferenceEquals(row0.Background, rowBrush))
+                throw new InvalidOperationException($"row0 did not pick up RowBackground (Background={row0.Background})");
+
+            _grid.RowBackground = null;
+            Console.WriteLine($"[probe]   row0 Background after RowBackground clear = {row0.Background}");
+            if (ReferenceEquals(row0.Background, rowBrush))
+                throw new InvalidOperationException("row0 did not revert when RowBackground cleared");
+        });
+
         Step("alternating row background: initial stripe + live update", () =>
         {
             // Session 69: grid.AlternatingRowBackground stripes odd-indexed rows.
@@ -1467,8 +1690,15 @@ public sealed partial class MainPage : Page
             // ShouldNotifyRows → ApplyShimRowBackground().
             var gen = _grid!.ItemContainerGenerator;
             if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0 ||
-                gen.ContainerFromIndex(1) is not WpfDataGridRow row1)
-                throw new InvalidOperationException("need at least 2 rows");
+                gen.ContainerFromIndex(1) is not WpfDataGridRow row1 ||
+                gen.ContainerFromIndex(2) is not WpfDataGridRow row2)
+                throw new InvalidOperationException("need at least 3 rows");
+
+            // The previous row-background probe selects row1. Select a
+            // different row so row1's Background is controlled by striping, not
+            // the selected-row visual.
+            _grid.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Single;
+            _grid.HandleShimRowClicked(row2);
 
             var altBrush = new SolidColorBrush(Colors.LightBlue);
             _grid.AlternatingRowBackground = altBrush;
@@ -1476,19 +1706,121 @@ public sealed partial class MainPage : Page
             Console.WriteLine($"[probe]   row0 (index=0) Background after set = {row0.Background}");
             Console.WriteLine($"[probe]   row1 (index=1) Background after set = {row1.Background}");
 
-            // Row 1 (odd index) should have the alternating brush.
-            if (!ReferenceEquals(row1.Background, altBrush))
+            // Row 1 (odd index) should have the alternating brush. The DP
+            // bridge may not preserve brush reference identity, so compare color.
+            if (row1.Background is not SolidColorBrush row1Brush)
                 throw new InvalidOperationException($"row1 did not pick up AlternatingRowBackground (Background={row1.Background})");
 
+            var appliedAltColor = row1Brush.Color;
+
             // Row 0 (even index) should NOT have the alternating brush.
-            if (ReferenceEquals(row0.Background, altBrush))
+            if (row0.Background is SolidColorBrush row0Brush && row0Brush.Color == appliedAltColor)
                 throw new InvalidOperationException("row0 incorrectly received AlternatingRowBackground");
 
             // Clear the brush and verify rows revert.
             _grid.AlternatingRowBackground = null;
             Console.WriteLine($"[probe]   row1 Background after clear = {row1.Background}");
-            if (ReferenceEquals(row1.Background, altBrush))
+            if (row1.Background is SolidColorBrush clearedBrush && clearedBrush.Color == appliedAltColor)
                 throw new InvalidOperationException("row1 did not revert when AlternatingRowBackground cleared");
+        });
+
+        Step("grid-lines render cell/header/row-header borders from linked notifications", () =>
+        {
+            // Sessions 74-75: upstream GridLinesVisibility uses
+            // OnNotifyGridLinePropertyChanged, which regenerates item
+            // containers. The shim maps that state to cell/header borders.
+            var oldVisibility = _grid!.GridLinesVisibility;
+            var oldHorizontalBrush = _grid.HorizontalGridLinesBrush;
+            var oldVerticalBrush = _grid.VerticalGridLinesBrush;
+            var oldHeadersVisibility = _grid.HeadersVisibility;
+
+            var horizontalBrush = new SolidColorBrush(Colors.Orange);
+            var verticalBrush = new SolidColorBrush(Colors.DarkCyan);
+            _grid.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.All;
+            _grid.HorizontalGridLinesBrush = horizontalBrush;
+            _grid.VerticalGridLinesBrush = verticalBrush;
+
+            (System.Windows.Controls.DataGridCell Cell,
+                System.Windows.Controls.Primitives.DataGridColumnHeader Header,
+                System.Windows.Controls.Primitives.DataGridRowHeader RowHeader) SurfacesAfter(
+                    System.Windows.Controls.DataGridGridLinesVisibility visibility)
+            {
+                _grid.GridLinesVisibility = visibility;
+                _grid.UpdateLayout();
+                if (_grid.ItemContainerGenerator.ContainerFromIndex(0) is not WpfDataGridRow row)
+                    throw new InvalidOperationException("no row 0 for grid-line probe");
+                var cell = row.TryGetCell(0) ?? throw new InvalidOperationException("no cell 0 for grid-line probe");
+                var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                    typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                        .GetValue(_grid)!;
+                var header = headerCells.Count > 0 ? headerCells[0] : null;
+                if (header is null)
+                    throw new InvalidOperationException("no header 0 for grid-line probe");
+
+                var rowHeaderHost = FindDescendant(row, "PART_RowHeader") as Microsoft.UI.Xaml.Controls.ContentControl;
+                if (rowHeaderHost?.Content is not System.Windows.Controls.Primitives.DataGridRowHeader rowHeader)
+                    throw new InvalidOperationException("no row header for grid-line probe");
+
+                return (cell, header, rowHeader);
+            }
+
+            var none = SurfacesAfter(System.Windows.Controls.DataGridGridLinesVisibility.None);
+            Console.WriteLine($"[probe]   grid lines none: cell={none.Cell.BorderThickness}, header={none.Header.BorderThickness}, rowHeader={none.RowHeader.BorderThickness}");
+            if (none.Cell.HasShimGridLine || none.Header.HasShimGridLine || none.RowHeader.HasShimGridLine)
+                throw new InvalidOperationException("GridLinesVisibility.None should clear grid-line borders");
+
+            var horizontal = SurfacesAfter(System.Windows.Controls.DataGridGridLinesVisibility.Horizontal);
+            Console.WriteLine($"[probe]   grid lines horizontal: cell={horizontal.Cell.BorderThickness}, header={horizontal.Header.BorderThickness}, rowHeader={horizontal.RowHeader.BorderThickness}");
+            if (!horizontal.Cell.HasShimGridLine || !horizontal.Header.HasShimGridLine || !horizontal.RowHeader.HasShimGridLine
+                || horizontal.Cell.BorderThickness.Bottom != 1 || horizontal.Header.BorderThickness.Bottom != 1 || horizontal.RowHeader.BorderThickness.Bottom != 1
+                || horizontal.Cell.BorderThickness.Right != 0 || horizontal.Header.BorderThickness.Right != 0 || horizontal.RowHeader.BorderThickness.Right != 0
+                || !ReferenceEquals(horizontal.Cell.BorderBrush, horizontalBrush)
+                || !ReferenceEquals(horizontal.Header.BorderBrush, horizontalBrush)
+                || !ReferenceEquals(horizontal.RowHeader.BorderBrush, horizontalBrush))
+                throw new InvalidOperationException("Horizontal grid lines did not render bottom borders on all surfaces");
+
+            var vertical = SurfacesAfter(System.Windows.Controls.DataGridGridLinesVisibility.Vertical);
+            Console.WriteLine($"[probe]   grid lines vertical: cell={vertical.Cell.BorderThickness}, header={vertical.Header.BorderThickness}, rowHeader={vertical.RowHeader.BorderThickness}");
+            if (!vertical.Cell.HasShimGridLine || !vertical.Header.HasShimGridLine || !vertical.RowHeader.HasShimGridLine
+                || vertical.Cell.BorderThickness.Right != 1 || vertical.Header.BorderThickness.Right != 1 || vertical.RowHeader.BorderThickness.Right != 1
+                || vertical.Cell.BorderThickness.Bottom != 0 || vertical.Header.BorderThickness.Bottom != 0 || vertical.RowHeader.BorderThickness.Bottom != 0
+                || !ReferenceEquals(vertical.Cell.BorderBrush, verticalBrush)
+                || !ReferenceEquals(vertical.Header.BorderBrush, verticalBrush)
+                || !ReferenceEquals(vertical.RowHeader.BorderBrush, verticalBrush))
+                throw new InvalidOperationException("Vertical grid lines did not render right borders on all surfaces");
+
+            var all = SurfacesAfter(System.Windows.Controls.DataGridGridLinesVisibility.All);
+            Console.WriteLine($"[probe]   grid lines all: cell={all.Cell.BorderThickness}, header={all.Header.BorderThickness}, rowHeader={all.RowHeader.BorderThickness}");
+            if (!all.Cell.HasShimGridLine || !all.Header.HasShimGridLine || !all.RowHeader.HasShimGridLine
+                || all.Cell.BorderThickness.Right != 1 || all.Header.BorderThickness.Right != 1 || all.RowHeader.BorderThickness.Right != 1
+                || all.Cell.BorderThickness.Bottom != 1 || all.Header.BorderThickness.Bottom != 1 || all.RowHeader.BorderThickness.Bottom != 1)
+                throw new InvalidOperationException("All grid lines did not render right+bottom borders on all surfaces");
+
+            _grid.GridLinesVisibility = oldVisibility;
+            _grid.HorizontalGridLinesBrush = oldHorizontalBrush;
+            _grid.VerticalGridLinesBrush = oldVerticalBrush;
+            _grid.HeadersVisibility = oldHeadersVisibility;
+        });
+
+        Step("column resize/reorder options notify without header gripper support", () =>
+        {
+            // Session 70: these properties route through linked WPF notification
+            // callbacks. The shim headers have no gripper/reorder UI yet, so the
+            // observable requirement for now is that the callbacks fire safely.
+            var oldResize = _grid!.CanUserResizeColumns;
+            var oldReorder = _grid.CanUserReorderColumns;
+
+            _grid.CanUserResizeColumns = false;
+            _grid.CanUserReorderColumns = false;
+            _grid.CanUserResizeColumns = true;
+            _grid.CanUserReorderColumns = true;
+
+            Console.WriteLine($"[probe]   CanUserResizeColumns={_grid.CanUserResizeColumns}, CanUserReorderColumns={_grid.CanUserReorderColumns}");
+            if (!_grid.CanUserResizeColumns || !_grid.CanUserReorderColumns)
+                throw new InvalidOperationException("column resize/reorder option values were not retained");
+
+            _grid.CanUserResizeColumns = oldResize;
+            _grid.CanUserReorderColumns = oldReorder;
         });
 
         Step("report: grid desired size", () =>

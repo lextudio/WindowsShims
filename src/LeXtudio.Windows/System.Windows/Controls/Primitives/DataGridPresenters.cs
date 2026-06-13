@@ -46,11 +46,29 @@ public partial class DataGridRowHeader : ContentControl
     internal DataGrid? ParentDataGrid { get; set; }
     internal DataGridRow? ParentRow { get; set; }
 
+    public bool HasShimGridLine { get; private set; }
+
     internal void NotifyPropertyChanged(
         DependencyObject d,
         string propertyName,
         DependencyPropertyChangedEventArgs e,
         DataGridNotificationTarget target)
     {
+    }
+
+    internal void ApplyShimGridLines()
+    {
+        var owner = ParentDataGrid ?? ParentRow?.DataGridOwner;
+        var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
+        var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
+        var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;
+
+        HasShimGridLine = horizontal || vertical;
+        BorderThickness = HasShimGridLine
+            ? new Microsoft.UI.Xaml.Thickness(0, 0, vertical ? 1 : 0, horizontal ? 1 : 0)
+            : new Microsoft.UI.Xaml.Thickness(0);
+        BorderBrush = HasShimGridLine
+            ? (vertical ? owner?.VerticalGridLinesBrush : owner?.HorizontalGridLinesBrush)
+            : null;
     }
 }

@@ -8,6 +8,12 @@ public partial class DataGridColumnHeader : ContentControl, IProvideDataGridColu
 
     public int DisplayIndex => Column?.DisplayIndex ?? -1;
 
+    public bool IsFrozen { get; private set; }
+
+    public bool HasShimGridLine { get; private set; }
+
+    public Style? ShimAppliedColumnHeaderStyle { get; private set; }
+
     public bool IsVisible => Visibility == Visibility.Visible;
 
     // Pointer press routes to the owning grid's sort handler (session 30).
@@ -34,5 +40,38 @@ public partial class DataGridColumnHeader : ContentControl, IProvideDataGridColu
             Content = Column?.DataGridOwner?.HeaderContent(Column) ?? Column?.Header;
         else if (e.Property == DataGridColumn.VisibilityProperty)
             Visibility = Column?.Visibility ?? Visibility.Visible;
+        else if (e.Property == DataGridColumn.IsFrozenProperty || e.Property == DataGrid.FrozenColumnCountProperty)
+            ApplyShimFrozenState();
+        else if (e.Property == DataGrid.ColumnHeaderStyleProperty || e.Property == DataGridColumn.HeaderStyleProperty)
+            ApplyShimColumnHeaderStyle();
+    }
+
+    internal void ApplyShimFrozenState()
+    {
+        IsFrozen = Column is { DataGridOwner: { } owner } column
+            ? column.DisplayIndex < owner.FrozenColumnCount
+            : Column?.IsFrozen == true;
+        Opacity = IsFrozen ? 0.96 : 1.0;
+    }
+
+    internal void ApplyShimColumnHeaderStyle()
+    {
+        ShimAppliedColumnHeaderStyle = Column?.HeaderStyle ?? Column?.DataGridOwner?.ColumnHeaderStyle;
+    }
+
+    internal void ApplyShimGridLines()
+    {
+        var owner = Column?.DataGridOwner;
+        var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
+        var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
+        var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;
+
+        HasShimGridLine = horizontal || vertical;
+        BorderThickness = HasShimGridLine
+            ? new Microsoft.UI.Xaml.Thickness(0, 0, vertical ? 1 : 0, horizontal ? 1 : 0)
+            : new Microsoft.UI.Xaml.Thickness(0);
+        BorderBrush = HasShimGridLine
+            ? (vertical ? owner?.VerticalGridLinesBrush : owner?.HorizontalGridLinesBrush)
+            : null;
     }
 }
