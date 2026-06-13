@@ -7,6 +7,35 @@ namespace System.Windows.Controls;
 // upstream file is compiled as a partial on HAS_UNO so both parts merge.
 public partial class DataGrid
 {
+    // Session 52: when the linked WPF CommitEdit command calls back into the
+    // current cell, let the cell run only its local value-write/validation/end
+    // logic instead of re-entering DataGrid.CommitEdit().
+    internal bool ShimExecutingCommitEditCommand { get; set; }
+
+    // Same idea for the linked WPF CancelEdit command path.
+    internal bool ShimExecutingCancelEditCommand { get; set; }
+
+    internal bool ShimValidateRowCommit(DataGridRow? row)
+    {
+        if (row is null)
+        {
+            return true;
+        }
+
+        foreach (var rule in RowValidationRules)
+        {
+            var result = rule.Validate(row.Item, System.Globalization.CultureInfo.CurrentCulture);
+            if (!result.IsValid)
+            {
+                row.SetRowError(result.ErrorContent?.ToString());
+                return false;
+            }
+        }
+
+        row.ClearRowError();
+        return true;
+    }
+
     // UpdateVisualState: the upstream calls this (0-arg) which calls the
     // virtual ChangeVisualState. Provide the 0-arg overload in the shim part.
     internal void UpdateVisualState() => ChangeVisualState(true);
@@ -379,14 +408,21 @@ public partial class DataGrid
 
     internal void BeginRowEdit(DataGridRow? row)
     {
-        if (row is null || ReferenceEquals(_editingRow, row))
+        if (row is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_editingRow, row)
+            && Items.IsEditingItem
+            && ReferenceEquals(Items.CurrentEditItem, row.Item))
         {
             return;
         }
 
         _editingRow = row;
         row.IsEditing = true;
-        (row.Item as System.ComponentModel.IEditableObject)?.BeginEdit();
+        Items.EditItem(row.Item);
     }
 
     internal bool CommitRowEdit(DataGridRow? row)
@@ -416,7 +452,7 @@ public partial class DataGrid
         }
 
         row.ClearRowError();
-        (row.Item as System.ComponentModel.IEditableObject)?.EndEdit();
+        Items.CommitEdit();
         row.IsEditing = false;
         _editingRow = null;
         return true;
@@ -431,7 +467,18 @@ public partial class DataGrid
 
         var args = new DataGridRowEditEndingEventArgs(row, DataGridEditAction.Cancel);
         OnRowEditEnding(args);
-        (row.Item as System.ComponentModel.IEditableObject)?.CancelEdit();
+        if (Items.IsEditingItem)
+        {
+            if (Items.CanCancelEdit)
+            {
+                Items.CancelEdit();
+            }
+            else
+            {
+                Items.CommitEdit();
+            }
+        }
+
         row.IsEditing = false;
         _editingRow = null;
     }

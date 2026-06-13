@@ -62,12 +62,14 @@ namespace System.Windows.Input
                     continue;
                 }
 
+                var invocationTarget = binding.ResolveInvocationTarget(target);
+
                 var args = new CanExecuteRoutedEventArgs(this, parameter)
                 {
                     Source = target,
                     OriginalSource = target,
                 };
-                binding.OnCanExecute(target, args);
+                binding.OnCanExecute(invocationTarget, args);
                 if (args.Handled)
                 {
                     anyHandled = true;
@@ -91,12 +93,14 @@ namespace System.Windows.Input
                     continue;
                 }
 
+                var invocationTarget = binding.ResolveInvocationTarget(target);
+
                 var args = new ExecutedRoutedEventArgs(this, parameter)
                 {
                     Source = target,
                     OriginalSource = target,
                 };
-                binding.OnExecuted(target, args);
+                binding.OnExecuted(invocationTarget, args);
                 if (args.Handled)
                 {
                     return;

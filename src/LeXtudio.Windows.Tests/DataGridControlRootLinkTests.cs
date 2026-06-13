@@ -368,6 +368,24 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
+    public void ClassCommandBindingMatchesByTargetType()
+    {
+        // Session 51: command routing. A binding scoped to a base type applies
+        // to an instance of that type (direct match); tree-walk routing to
+        // descendant elements is verified end-to-end by the sample probe.
+        var binding = new System.Windows.Input.CommandBinding(
+            new System.Windows.Input.RoutedCommand("t", typeof(DataGrid)));
+        System.Windows.Input.CommandManager.RegisterClassCommandBinding(typeof(DataGrid), binding);
+
+        var appliesTo = typeof(System.Windows.Input.CommandBinding)
+            .GetMethod("AppliesTo", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(appliesTo, Is.Not.Null);
+        // null target → applies; non-matching plain object → not (no tree).
+        Assert.That((bool)appliesTo!.Invoke(binding, [null])!, Is.True);
+        Assert.That((bool)appliesTo.Invoke(binding, [new object()])!, Is.False);
+    }
+
+    [Test]
     public void KeyboardNavigationSurfaceExists()
     {
         // Session 33: Up/Down move the selection. Behavior verified by probe.

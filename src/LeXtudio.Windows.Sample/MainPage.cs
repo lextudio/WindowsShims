@@ -622,9 +622,9 @@ public sealed partial class MainPage : Page
             }
 
             box.Text = "99";
-            if (!ageCell.CommitEdit())
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true))
             {
-                throw new InvalidOperationException("CommitEdit failed");
+                throw new InvalidOperationException("grid.CommitEdit(Row) failed");
             }
 
             var age = ((Person)row0!.Item!).Age;
@@ -770,15 +770,33 @@ public sealed partial class MainPage : Page
             ((TextBox)cell.Content).Text = "123";
             void Ending(object? s, System.Windows.Controls.DataGridCellEditEndingEventArgs e) => e.Cancel = true;
             _grid.CellEditEnding += Ending;
-            if (cell.CommitEdit()) throw new InvalidOperationException("commit should be vetoed");
+            var cellEnding = 0;
+            var rowEnding = 0;
+            void CountEnding(object? s, System.Windows.Controls.DataGridCellEditEndingEventArgs e) => cellEnding++;
+            void CountRowEnding(object? s, System.Windows.Controls.DataGridRowEditEndingEventArgs e) => rowEnding++;
+            _grid.CellEditEnding += CountEnding;
+            _grid.RowEditEnding += CountRowEnding;
+            if (_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("commit should be vetoed");
             if (!cell.IsEditing) throw new InvalidOperationException("should remain editing after veto");
             _grid.CellEditEnding -= Ending;
+            _grid.CellEditEnding -= CountEnding;
+            _grid.RowEditEnding -= CountRowEnding;
+            if (cellEnding != 1 || rowEnding != 0)
+            {
+                throw new InvalidOperationException($"unexpected event counts after veto (cell={cellEnding}, row={rowEnding})");
+            }
 
             // Now the commit succeeds and writes back.
-            if (!cell.CommitEdit()) throw new InvalidOperationException("commit should succeed");
+            cellEnding = 0;
+            rowEnding = 0;
+            _grid.CellEditEnding += CountEnding;
+            _grid.RowEditEnding += CountRowEnding;
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("commit should succeed");
+            _grid.CellEditEnding -= CountEnding;
+            _grid.RowEditEnding -= CountRowEnding;
             var age = ((Person)row0!.Item!).Age;
-            Console.WriteLine($"[probe]   after vetoed+committed edit: Age={age}, IsEditing={cell.IsEditing}");
-            if (age != 123 || cell.IsEditing)
+            Console.WriteLine($"[probe]   after vetoed+committed edit: Age={age}, IsEditing={cell.IsEditing}, CellEditEnding={cellEnding}, RowEditEnding={rowEnding}");
+            if (age != 123 || cell.IsEditing || cellEnding != 1 || rowEnding != 1)
             {
                 throw new InvalidOperationException($"edit not committed (Age={age})");
             }
@@ -843,7 +861,7 @@ public sealed partial class MainPage : Page
             // Invalid value (out of 0..150) → commit refused, cell flagged.
             if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin failed");
             ((TextBox)ageCell.Content).Text = "999";
-            if (ageCell.CommitEdit()) throw new InvalidOperationException("invalid commit should fail");
+            if (_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("invalid commit should fail");
             Console.WriteLine($"[probe]   invalid: HasError={ageCell.HasValidationError}, IsEditing={ageCell.IsEditing}, msg={ageCell.ValidationError}");
             if (!ageCell.HasValidationError || !ageCell.IsEditing)
             {
@@ -852,7 +870,7 @@ public sealed partial class MainPage : Page
 
             // Valid value → commits and clears the error.
             ((TextBox)ageCell.Content).Text = "42";
-            if (!ageCell.CommitEdit()) throw new InvalidOperationException("valid commit should succeed");
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("valid commit should succeed");
             if (ageCell.HasValidationError || ((Person)row0!.Item!).Age != 42)
             {
                 throw new InvalidOperationException("valid edit should clear error and write back");
@@ -887,7 +905,7 @@ public sealed partial class MainPage : Page
 
             // Commit → EndEdit + RowEditEnding(Commit), value written.
             ((TextBox)ageCell.Content).Text = "55";
-            if (!ageCell.CommitEdit()) throw new InvalidOperationException("commit failed");
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("commit failed");
             if (person.InEdit || person.EndEditCount != endBefore + 1 || person.Age != 55 || commits != 1)
             {
                 throw new InvalidOperationException($"commit transaction wrong (InEdit={person.InEdit}, EndEditΔ={person.EndEditCount - endBefore}, Age={person.Age}, commits={commits})");
@@ -895,9 +913,24 @@ public sealed partial class MainPage : Page
 
             // Begin again, then cancel → CancelEdit reverts the snapshot.
             if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin2 failed");
+            var cancelCellEnding = 0;
+            var cancelRowEnding = 0;
+            void CountCancelCellEnding(object? s, System.Windows.Controls.DataGridCellEditEndingEventArgs e)
+            {
+                if (e.EditAction == System.Windows.Controls.DataGridEditAction.Cancel) cancelCellEnding++;
+            }
+            void CountCancelRowEnding(object? s, System.Windows.Controls.DataGridRowEditEndingEventArgs e)
+            {
+                if (e.EditAction == System.Windows.Controls.DataGridEditAction.Cancel) cancelRowEnding++;
+            }
+            _grid.CellEditEnding += CountCancelCellEnding;
+            _grid.RowEditEnding += CountCancelRowEnding;
             ageCell.CancelEdit();
+            _grid.CellEditEnding -= CountCancelCellEnding;
+            _grid.RowEditEnding -= CountCancelRowEnding;
             Console.WriteLine($"[probe]   after cancel: InEdit={person.InEdit}, CancelEditΔ={person.CancelEditCount - cancelBefore}, cancels={cancels}, Age={person.Age}");
-            if (person.InEdit || person.CancelEditCount != cancelBefore + 1 || cancels != 1)
+            if (person.InEdit || person.CancelEditCount != cancelBefore + 1 || cancels != 1
+                || cancelCellEnding != 1 || cancelRowEnding != 1)
             {
                 throw new InvalidOperationException("cancel transaction wrong");
             }
@@ -918,7 +951,7 @@ public sealed partial class MainPage : Page
             // 10 passes the cell rule (0..150) but fails the row rule (>=18).
             if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin failed");
             ((TextBox)ageCell.Content).Text = "10";
-            if (ageCell.CommitEdit()) throw new InvalidOperationException("row rule should block commit");
+            if (_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("row rule should block commit");
             Console.WriteLine($"[probe]   row error after Age=10: {row0.HasRowValidationError} ({row0.RowValidationError})");
             if (!row0.HasRowValidationError || !ageCell.IsEditing)
             {
@@ -927,7 +960,7 @@ public sealed partial class MainPage : Page
 
             // 30 passes both → commits and clears the row error.
             ((TextBox)ageCell.Content).Text = "30";
-            if (!ageCell.CommitEdit()) throw new InvalidOperationException("valid row commit should succeed");
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true)) throw new InvalidOperationException("valid row commit should succeed");
             if (row0.HasRowValidationError || ((Person)row0.Item!).Age != 30)
             {
                 throw new InvalidOperationException("valid commit should clear the row error");
@@ -968,6 +1001,33 @@ public sealed partial class MainPage : Page
             }
 
             _grid.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.Column;
+        });
+
+        Step("command routing: class-scoped command reaches a descendant cell", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var cell = row0?.TryGetCell(0);
+            if (cell is null)
+            {
+                throw new InvalidOperationException("no cell to target");
+            }
+
+            // A command class-bound to DataGrid, executed against a cell that is
+            // a visual descendant of the grid, must route to the handler.
+            var ran = false;
+            var cmd = new System.Windows.Input.RoutedCommand("probeRoute", typeof(WpfDataGrid));
+            System.Windows.Input.CommandManager.RegisterClassCommandBinding(
+                typeof(WpfDataGrid),
+                new System.Windows.Input.CommandBinding(cmd,
+                    (_, e) => { ran = true; e.Handled = true; }));
+
+            cmd.Execute(null, cell);
+            Console.WriteLine($"[probe]   class command routed to descendant cell = {ran}");
+            if (!ran)
+            {
+                throw new InvalidOperationException("class-scoped command did not route to the descendant cell");
+            }
         });
 
         Step("report: grid desired size", () =>

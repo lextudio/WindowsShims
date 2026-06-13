@@ -86,7 +86,57 @@ namespace System.Windows.Input
 				return true;
 			}
 
-			return TargetType.IsInstanceOfType(target);
+			if (TargetType.IsInstanceOfType(target))
+			{
+				return true;
+			}
+
+			// WPF routes class-scoped commands up the element tree: a binding
+			// owned by an ancestor type (e.g. DataGrid) applies when executed
+			// against a descendant target (e.g. a DataGridCell). Walk the visual
+			// tree from the target looking for a TargetType ancestor.
+			if (target is Microsoft.UI.Xaml.DependencyObject node)
+			{
+				for (var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(node);
+					 parent is not null;
+					 parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent))
+				{
+					if (TargetType.IsInstanceOfType(parent))
+					{
+						return true;
+					}
+				}
+			}
+
+			return false;
+		}
+
+		internal object? ResolveInvocationTarget(object? target)
+		{
+			if (TargetType == null || target == null)
+			{
+				return target;
+			}
+
+			if (TargetType.IsInstanceOfType(target))
+			{
+				return target;
+			}
+
+			if (target is Microsoft.UI.Xaml.DependencyObject node)
+			{
+				for (var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(node);
+					 parent is not null;
+					 parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent))
+				{
+					if (TargetType.IsInstanceOfType(parent))
+					{
+						return parent;
+					}
+				}
+			}
+
+			return target;
 		}
 	}
 }

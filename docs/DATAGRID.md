@@ -174,6 +174,33 @@ coupled for the current milestone.
   columns aligned, and cells stay column-indexed. Probe: selected row shows ▶.
   121 tests green. Glyph-only, no header style/resize/drag-select (see
   `session49.md`).
+- Session 51: reuse substrate — WPF command routing. `CommandBinding.
+  AppliesTo` now walks the visual tree, so a class-scoped command (bound to
+  `DataGrid`) routes to a descendant target (a cell) as in WPF — the
+  prerequisite for editing/selection command reuse. Probe proves routing;
+  122 tests green. Investigation: `OnExecutedBeginEdit` pulls in heavy
+  unshimmed substrate (editable-items/placeholder/selected-cell regions), so
+  full editing reuse is staged, not forced (see `session51.md`).
+- Session 52: **reuse milestone — commit editing via the real WPF command
+  path.** `CurrentCellContainer` is now kept in sync when a cell begins
+  editing; cell-originated commits route through
+  `DataGrid.CommitEdit(DataGridEditingUnit.Row, true)`; the linked
+  `OnExecutedCommitEdit` now owns `CellEditEnding` / `RowEditEnding` /
+  row-commit orchestration. Added invocation-target resolution for class
+  command bindings, bridged `IEditableObject` through `ItemCollection`'s
+  editable-view surface, and wired `RowValidationRules` into the routed commit
+  path. Probe proves single event counts, `IEditableObject` commit/cancel, and
+  row-validation blocking while keeping the cell editing. 122 tests green
+  (see `session52.md`).
+- Session 53: **reuse milestone — cancel editing via the real WPF command
+  path.** `DataGridCell.CancelEdit()` now routes through
+  `DataGrid.CancelEdit(DataGridEditingUnit.Row)`; the linked
+  `OnExecutedCancelEdit` owns `CellEditEnding(Cancel)` /
+  `RowEditEnding(Cancel)` / `BindingGroup.CancelEdit` / row rollback, while a
+  new `ShimExecutingCancelEditCommand` guard keeps the cell callback to local
+  teardown only. Probe proves one cancel cell-ending event, one cancel
+  row-ending event, `IEditableObject.CancelEdit`, and clean exit from edit
+  mode. 122 tests green (see `session53.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`

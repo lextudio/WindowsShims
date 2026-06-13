@@ -66,7 +66,7 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     public bool CanRemove => true;
 
-    public bool CanCancelEdit => false;
+    public bool CanCancelEdit => CurrentEditItem is System.ComponentModel.IEditableObject;
 
     public bool IsEditingItem => CurrentEditItem is not null;
 
@@ -97,15 +97,25 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     public void EditItem(object item)
     {
         CurrentEditItem = item;
+        (item as System.ComponentModel.IEditableObject)?.BeginEdit();
     }
 
     public void CommitEdit()
     {
+        (CurrentEditItem as System.ComponentModel.IEditableObject)?.EndEdit();
         CurrentEditItem = null;
     }
 
     public void CancelEdit()
-        => throw new InvalidOperationException("CancelEdit is not supported by the bridge (CanCancelEdit is false).");
+    {
+        if (CurrentEditItem is not System.ComponentModel.IEditableObject editable)
+        {
+            throw new InvalidOperationException("CancelEdit is not supported by the bridge (CanCancelEdit is false).");
+        }
+
+        editable.CancelEdit();
+        CurrentEditItem = null;
+    }
 
     void IEditableCollectionView.Remove(object item) => Remove(item);
 
