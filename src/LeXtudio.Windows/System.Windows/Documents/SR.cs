@@ -261,6 +261,7 @@ internal static class SR
     internal const string DataGrid_HeaderNotVisible = "DataGrid_HeaderNotVisible";
     internal const string DataGrid_ColumnIndexOutOfRange = "DataGrid_ColumnIndexOutOfRange";
     internal const string DataGrid_ColumnDisplayIndexOutOfRange = "DataGrid_ColumnDisplayIndexOutOfRange";
+    internal const string DataGrid_DuplicateDisplayIndex = "DataGrid_DuplicateDisplayIndex";
     internal const string DataGrid_InvalidDataGridFrozenColumnCount = "DataGrid_InvalidDataGridFrozenColumnCount";
     internal const string DataGrid_NullColumn = "DataGrid_NullColumn";
     internal const string DataGrid_InvalidCurrentCellSet = "DataGrid_InvalidCurrentCellSet";

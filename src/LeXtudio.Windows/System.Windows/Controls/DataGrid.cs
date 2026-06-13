@@ -64,8 +64,14 @@ public partial class DataGrid
         ShimHandlingPlaceholderBeginEdit = true;
         try
         {
+            var placeholderColumn = placeholderCell.Column ?? Columns.Cast<DataGridColumn>().FirstOrDefault(column => column.IsVisible);
+            if (placeholderColumn is null)
+            {
+                return false;
+            }
+
             var newItem = Items.CurrentAddItem ?? AddNewItem();
-            SetCurrentCellToNewItem(newItem);
+            SetCurrentCellToNewItem(newItem, placeholderColumn);
             UpdateLayout();
 
             DataGridCell? newCell = null;
@@ -109,6 +115,16 @@ public partial class DataGrid
         {
             ShimHandlingPlaceholderBeginEdit = false;
         }
+    }
+
+    private void SetCurrentCellToNewItem(object newItem, DataGridColumn fallbackColumn)
+    {
+        var column = CurrentCell.Column ?? fallbackColumn;
+        var index = Items.IndexOf(newItem);
+        var info = ItemInfoFromIndex(index);
+        CurrentCell = info is not null
+            ? new DataGridCellInfo(info, column, this)
+            : new DataGridCellInfo(newItem, column, this);
     }
 
     private DataGridRow? FindShimRowForItem(object item)
@@ -181,14 +197,12 @@ public partial class DataGrid
         EnsureShimNewItemPlaceholderState();
         HookShimChangeNotifications();
 
-        _visibleColumns = Columns.Where(c => c.IsVisible).ToList();
+        InternalColumns.InitializeDisplayIndexMap();
+        _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
 
         host.Children.Clear();
         ItemContainerGenerator.ResetContainers();
         host.Children.Add(BuildHeaderRow());
-
-        var selectionStillPresent = false;
-        var cellSelectionStillPresent = false;
 
         foreach (var item in OrderedItems())
         {
@@ -199,17 +213,11 @@ public partial class DataGrid
 
             var row = new DataGridRow();
             row.PrepareRow(item, this);
-            // Re-apply selection across rebuilds (sort / reactivity) by item
-            // identity, so the highlight follows the data item(s).
-            if (_shimSelectedItems.Any(x => EqualsEx(x, item)))
+            // Re-apply selection across rebuilds (sort / reactivity) from the
+            // real engine's SelectedItems, so the highlight follows the item(s).
+            if (IsRowItemSelected(item))
             {
                 row.IsSelected = true;
-                selectionStillPresent = true;
-            }
-
-            if (_shimSelectedCellItem is not null && EqualsEx(item, _shimSelectedCellItem))
-            {
-                cellSelectionStillPresent = true;
             }
 
             // Register the row so the linked WPF code can resolve containers
@@ -218,24 +226,8 @@ public partial class DataGrid
             host.Children.Add(row);
         }
 
-        // Prune any selected items that left the collection.
-        var present = Items.Cast<object?>().ToList();
-        _shimSelectedItems.RemoveAll(x => !present.Any(p => EqualsEx(p, x)));
-        if (_shimSelectedItem is not null && !selectionStillPresent)
-        {
-            _shimSelectedItem = _shimSelectedItems.Count > 0 ? _shimSelectedItems[^1] : null;
-            SelectedItem = _shimSelectedItem;
-        }
-
-        // Same for a retained cell selection whose item is gone.
-        if (_shimSelectedCellItem is not null && !cellSelectionStillPresent)
-        {
-            _shimSelectedCell = null;
-            _shimSelectedCellItem = null;
-            _shimSelectedColumn = null;
-            CurrentCell = DataGridCellInfo.Unset;
-            SelectedCells.Clear();
-        }
+        PruneRealRowSelection();
+        PruneRealCellSelection();
 
         ItemContainerGenerator.NotifyContainersGenerated();
 
@@ -502,39 +494,55 @@ public partial class DataGrid
         _shimChangeHooked = true;
         ((System.Collections.Specialized.INotifyCollectionChanged)Items).CollectionChanged += OnShimContentChanged;
         ((System.Collections.Specialized.INotifyCollectionChanged)Columns).CollectionChanged += OnShimContentChanged;
+        // Session 62: row selection visuals are now driven by the real engine's
+        // SelectionChanged event instead of a manual visual pass.
+        SelectionChanged += OnShimSelectionChanged;
     }
+
+    // Reflect the engine's selection onto the realized row containers. This is
+    // the single source of truth for live row highlight; rebuilds re-read
+    // SelectedItems directly (containers don't exist yet when the batch runs).
+    private void OnShimSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        foreach (var removed in e.RemovedItems)
+        {
+            if (ItemContainerGenerator.ContainerFromItem(removed) is DataGridRow row)
+            {
+                row.IsSelected = false;
+            }
+        }
+
+        foreach (var added in e.AddedItems)
+        {
+            if (ItemContainerGenerator.ContainerFromItem(added) is DataGridRow row)
+            {
+                row.IsSelected = true;
+            }
+        }
+    }
+
+    // Row is selected per the real engine (Selector.SelectedItems).
+    private bool IsRowItemSelected(object? item) => item is not null && SelectedItems.Contains(item);
 
     private void OnShimContentChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         => BuildShimVisualTree();
 
-    // ── Session 28: shim selection ───────────────────────────────────────────
-    // Pointer press on a row routes here. Single-select for now: clear every
-    // generated row, select the clicked one, and reflect into SelectedItem.
-    // Retained selection, by item identity, so it survives render rebuilds.
-    private object? _shimSelectedItem;
-
-    // Cell-level selection (SelectionUnit.Cell / CellOrRowHeader). Routes a
-    // cell click to row selection in FullRow mode, otherwise selects the
-    // single cell (clearing the previously cell-selected cell). The selection
-    // is retained by (item, column) so it survives render rebuilds.
-    private DataGridCell? _shimSelectedCell;
-    private object? _shimSelectedCellItem;
-    private DataGridColumn? _shimSelectedColumn;
+    // ── Session 28/63: input-to-selection bridge ────────────────────────────
+    // Pointer press on a row routes to the linked WPF DataGrid selection engine.
+    // The engine owns SelectedItems/SelectedItem/SelectionChanged and row
+    // visuals reflect that state.
 
     // Called by a row as it (re)builds a cell, so a retained cell selection
     // re-applies to the new cell instance after a rebuild.
     internal bool TryReselectCell(DataGridCell cell)
     {
-        if (_shimSelectedCellItem is null
-            || !EqualsEx(cell.RowDataItem, _shimSelectedCellItem)
-            || !ReferenceEquals(cell.Column, _shimSelectedColumn))
+        var selected = IsCellSelectedByEngine(cell);
+        if (selected)
         {
-            return false;
+            cell.IsSelected = true;
         }
 
-        cell.IsSelected = true;
-        _shimSelectedCell = cell;
-        return true;
+        return selected;
     }
 
     // ── Session 43: editing hardening ────────────────────────────────────────
@@ -644,120 +652,144 @@ public partial class DataGrid
 
     internal void HandleShimCellClicked(DataGridCell cell)
     {
-        if (SelectionUnit == DataGridSelectionUnit.FullRow)
+        var previousModifiers = Input.Keyboard.ModifiersOverride;
+        Input.Keyboard.ModifiersOverride = Input.ModifierKeys.None;
+        try
         {
-            if (cell.RowOwner is { } row)
-            {
-                HandleShimRowClicked(row);
-            }
-
-            return;
+            CurrentCellContainer = cell;
+            HandleSelectionForCellInput(
+                cell,
+                startDragging: false,
+                allowsExtendSelect: true,
+                allowsMinimalSelect: true);
+            SyncRealizedCellSelection();
         }
-
-        // Cell mode supersedes row selection — clear any selected row.
-        foreach (var container in ItemContainerGenerator.Containers)
+        finally
         {
-            if (container is DataGridRow r && r.IsSelected)
-            {
-                r.IsSelected = false;
-            }
+            Input.Keyboard.ModifiersOverride = previousModifiers;
         }
-
-        _shimSelectedItem = null;
-        _shimSelectedItems.Clear();
-
-        if (_shimSelectedCell is { } previous && !ReferenceEquals(previous, cell))
-        {
-            previous.IsSelected = false;
-        }
-
-        cell.IsSelected = true;
-        _shimSelectedCell = cell;
-        _shimSelectedCellItem = cell.RowDataItem;
-        _shimSelectedColumn = cell.Column;
-
-        // Reflect into the WPF-facing cell-selection surface.
-        var info = new DataGridCellInfo(cell);
-        CurrentCell = info;
-        SelectedCells.Clear();
-        SelectedCells.Add(info);
-
-        cell.RowOwner?.BringIntoView();
     }
-
-    // Multi-selection set (shim-side; WPF Selector.SelectedItems is not driven).
-    private readonly List<object?> _shimSelectedItems = new();
-    private object? _shimAnchorItem;
-
-    // Read-only view of the multi-selection (display-order not guaranteed).
-    internal IReadOnlyList<object?> ShimSelectedItems => _shimSelectedItems;
 
     internal void HandleShimRowClicked(DataGridRow clicked)
         => HandleShimRowClicked(clicked, global::Windows.System.VirtualKeyModifiers.None);
 
     internal void HandleShimRowClicked(DataGridRow clicked, global::Windows.System.VirtualKeyModifiers modifiers)
     {
-        var item = clicked.Item;
-        var extended = SelectionMode == DataGridSelectionMode.Extended;
-        var ctrl = (modifiers & global::Windows.System.VirtualKeyModifiers.Control) != 0;
-        var shift = (modifiers & global::Windows.System.VirtualKeyModifiers.Shift) != 0;
-
-        if (extended && ctrl)
+        var previousModifiers = Input.Keyboard.ModifiersOverride;
+        Input.Keyboard.ModifiersOverride = ToWpfModifiers(modifiers);
+        try
         {
-            // Toggle membership; the clicked item becomes the anchor/primary.
-            if (_shimSelectedItems.Any(x => EqualsEx(x, item)))
-            {
-                _shimSelectedItems.RemoveAll(x => EqualsEx(x, item));
-            }
-            else
-            {
-                _shimSelectedItems.Add(item);
-            }
-
-            _shimAnchorItem = item;
+            HandleSelectionForRowHeaderAndDetailsInput(clicked, startDragging: false);
         }
-        else if (extended && shift && _shimAnchorItem is not null)
+        finally
         {
-            // Range select from anchor to clicked, in display order.
-            var order = OrderedItems().ToList();
-            var a = order.FindIndex(x => EqualsEx(x, _shimAnchorItem));
-            var b = order.FindIndex(x => EqualsEx(x, item));
-            if (a >= 0 && b >= 0)
-            {
-                _shimSelectedItems.Clear();
-                var (lo, hi) = a <= b ? (a, b) : (b, a);
-                for (var i = lo; i <= hi; i++)
-                {
-                    _shimSelectedItems.Add(order[i]);
-                }
-            }
-        }
-        else
-        {
-            // Plain click (or Single mode): replace selection with this item.
-            _shimSelectedItems.Clear();
-            _shimSelectedItems.Add(item);
-            _shimAnchorItem = item;
-        }
-
-        _shimSelectedItem = item; // primary
-        ApplyRowSelectionVisuals();
-        clicked.BringIntoView();
-
-        if (item is not null)
-        {
-            SelectedItem = item;
+            Input.Keyboard.ModifiersOverride = previousModifiers;
         }
     }
 
-    // Reflect the multi-selection set onto the generated rows.
-    private void ApplyRowSelectionVisuals()
+    private static Input.ModifierKeys ToWpfModifiers(global::Windows.System.VirtualKeyModifiers modifiers)
     {
-        foreach (var container in ItemContainerGenerator.Containers)
+        var result = Input.ModifierKeys.None;
+        if ((modifiers & global::Windows.System.VirtualKeyModifiers.Control) != 0)
         {
-            if (container is DataGridRow row)
+            result |= Input.ModifierKeys.Control;
+        }
+
+        if ((modifiers & global::Windows.System.VirtualKeyModifiers.Shift) != 0)
+        {
+            result |= Input.ModifierKeys.Shift;
+        }
+
+        if ((modifiers & global::Windows.System.VirtualKeyModifiers.Menu) != 0)
+        {
+            result |= Input.ModifierKeys.Alt;
+        }
+
+        return result;
+    }
+
+    private void ClearRealRowSelection()
+    {
+        BeginUpdateSelectedItems();
+        try
+        {
+            SelectedItems.Clear();
+        }
+        finally
+        {
+            EndUpdateSelectedItems();
+        }
+    }
+
+    private void PruneRealRowSelection()
+    {
+        var present = Items.Cast<object?>().ToList();
+        var removed = SelectedItems
+            .Cast<object?>()
+            .Where(selected => !present.Any(item => EqualsEx(item, selected)))
+            .ToList();
+        if (removed.Count == 0)
+        {
+            return;
+        }
+
+        BeginUpdateSelectedItems();
+        try
+        {
+            foreach (var item in removed)
             {
-                row.IsSelected = _shimSelectedItems.Any(x => EqualsEx(x, row.Item));
+                SelectedItems.Remove(item);
+            }
+        }
+        finally
+        {
+            EndUpdateSelectedItems();
+        }
+    }
+
+    private void PruneRealCellSelection()
+    {
+        var present = Items.Cast<object?>().ToList();
+        var removed = SelectedCells
+            .Cast<DataGridCellInfo>()
+            .Where(cell => !present.Any(item => EqualsEx(item, cell.Item)))
+            .ToList();
+
+        if (removed.Count > 0)
+        {
+            using (UpdateSelectedCells())
+            {
+                foreach (var cell in removed)
+                {
+                    SelectedCells.Remove(cell);
+                }
+            }
+        }
+
+        if (CurrentCell.IsValid && !present.Any(item => EqualsEx(item, CurrentCell.Item)))
+        {
+            CurrentCell = DataGridCellInfo.Unset;
+        }
+    }
+
+    private bool IsCellSelectedByEngine(DataGridCell cell)
+        => (CurrentCell.IsValid
+                && EqualsEx(CurrentCell.Item, cell.RowDataItem)
+                && ReferenceEquals(CurrentCell.Column, cell.Column))
+            || SelectedCells
+            .Cast<DataGridCellInfo>()
+            .Any(info => EqualsEx(info.Item, cell.RowDataItem) && ReferenceEquals(info.Column, cell.Column));
+
+    private void SyncRealizedCellSelection()
+    {
+        foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
+        {
+            for (var i = 0; i < Columns.Count; i++)
+            {
+                if (row.TryGetCell(i) is { } realizedCell)
+                {
+                    realizedCell.SyncIsSelected(IsCellSelectedByEngine(realizedCell));
+                }
             }
         }
     }
@@ -830,4 +862,13 @@ public partial class DataGrid
     // Items.SortDescriptions; ItemCollection.Refresh applies the sort and
     // raises Reset, which rebuilds the rendered rows in sorted order.
     internal void HandleShimHeaderClicked(DataGridColumn column) => PerformSort(column);
+
+    internal IEnumerable<DataGridColumn> ColumnsInDisplayOrder()
+    {
+        InternalColumns.InitializeDisplayIndexMap();
+        for (var displayIndex = 0; displayIndex < Columns.Count; displayIndex++)
+        {
+            yield return ColumnFromDisplayIndex(displayIndex);
+        }
+    }
 }

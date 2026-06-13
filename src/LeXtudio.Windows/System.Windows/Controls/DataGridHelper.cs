@@ -77,6 +77,30 @@ internal static class DataGridHelper
 
     internal static void TransferProperty(DependencyObject d, DependencyProperty dp) { }
 
+    internal static object? GetCoercedTransferPropertyValue(
+        DependencyObject? baseObject,
+        object? baseValue,
+        DependencyProperty baseProperty,
+        DependencyObject? parentObject,
+        DependencyProperty parentProperty)
+        => baseValue;
+
+    internal static double CoerceToMinMax(double value, double minValue, double maxValue)
+    {
+        if (double.IsNaN(value))
+        {
+            value = 0;
+        }
+
+        return Math.Max(minValue, Math.Min(maxValue, value));
+    }
+
+    internal static void UpdateTarget(FrameworkElement element) { }
+
+    internal static void UpdateTarget(FrameworkElement element, DependencyProperty property) { }
+
+    internal static bool ValidateWithoutUpdate(FrameworkElement element) => true;
+
     internal static double GetParentCellsPanelHorizontalOffset(DependencyObject element) => 0.0;
     internal static double GetParentCellsPanelHorizontalOffset(IProvideDataGridColumn element) => 0.0;
 

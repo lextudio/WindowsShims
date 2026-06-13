@@ -112,6 +112,13 @@ coupled for the current milestone.
   116 tests green. Single-selection model now coherent end-to-end; multi-
   select/range/`*Changed`/WPF `Selector` pipeline still out (see
   `session38.md`).
+- Session 62 follow-up: cell clicks now route through linked
+  `HandleSelectionForCellInput` / `MakeCellSelection` after the shim supplies
+  the missing focus/current-cell side effect. `_shimSelectedCell*` is retired;
+  realized cell visuals reconcile from `CurrentCell` / `SelectedCells` by
+  item+column across rebuilds and prune both surfaces on item removal. Add-new
+  placeholder editing keeps an explicit column fallback after current-cell
+  pruning. 126 tests green; probe `DONE failures=0`.
 - Session 39: text-cell editing. Double-click/F2 → `TextBox`; Enter commits
   (reflection write-back with type conversion), Escape cancels. Probe edits
   Age→99 and verifies write-back + display restore. 117 tests green.
@@ -220,6 +227,38 @@ coupled for the current milestone.
   add-new commit/restore behavior; tests and probe are green. The remaining
   rung is the full placeholder-cell `BeginEdit` path through upstream WPF
   `OnExecutedBeginEdit` (see `session55.md`).
+- Sessions 61-62: row selection state and visuals moved onto the linked
+  Selector/MultiSelector engine. `SelectedItems`, `SelectedItem`, and
+  `SelectionChanged` are populated by the real engine, and realized row
+  highlights are reflected from `SelectionChanged` / rebuild-time
+  `SelectedItems` state instead of a manual visual pass.
+- Session 62 follow-up: row clicks now route through the linked WPF
+  `HandleSelectionForRowHeaderAndDetailsInput` -> `MakeFullRowSelection` path.
+  Uno pointer modifiers are bridged into `Keyboard.Modifiers` for the duration
+  of the call, so plain/Ctrl/Shift clicks use WPF's row selection logic.
+  `_shimSelectedItems`, `_shimAnchorItem`, `_shimSelectedItem`, and
+  `SyncRealSelectedItems()` are retired; probes assert `SelectedItems`
+  directly. 126 tests green and probe reports `DONE failures=0` (see
+  `session62.md`).
+- Session 63: **base column source-link batch.** `DataGridColumn.cs` is now
+  linked from upstream WPF with a guarded `partial` declaration. The local
+  partial keeps only Uno bridge helpers (`BuildCellContent`,
+  `BuildEditingCellContent`, `SetValue(DependencyPropertyKey, ...)`, and a
+  no-op `CoerceValue`), while `DataGridHelper` / `DataGridColumnCollection`
+  gained narrow compatibility contracts for the upstream body. Because the Uno
+  DP layer does not run WPF coercion callbacks, linked `DefaultSort` has a
+  `HAS_UNO` fallback to `DataGridBoundColumn.EffectiveSortMemberPath`. 126
+  tests green and probe reports `DONE failures=0` (see `session63.md`).
+- Session 64: **column collection display-index batch.** The local
+  `DataGridColumnCollection` bridge now carries the WPF display-index map
+  model: add/remove/replace/move maintenance, duplicate/out-of-range
+  validation, `ColumnFromDisplayIndex`, selected-cell column-change
+  notifications, and frozen-column updates. Because Uno does not raise WPF DP
+  change callbacks for direct `column.DisplayIndex = ...`, the map refreshes
+  from current column values at render/map boundaries. The shim render path now
+  realizes headers and cells in display-index order. 126 tests green and probe
+  reports `DONE failures=0` with a new display-index reorder step (see
+  `session64.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`
@@ -272,13 +311,13 @@ spine.
 | Sizing tests | `DataGridLength` construction/conversion behavior | `LeXtudio.Windows.Tests/DataGridLengthTests.cs` | `linked-upstream` / verified | Covers pixels, star sizing, descriptive values, physical units, and invalid infinity values. |
 | Binding bridge | `System.Windows.Data.BindingBase`, `Binding`, `PropertyPath`, mode/update enums | `System.Windows/Data/Binding.cs` | `local-bridge` | Stores WPF-shaped binding state and adapts to Uno `Microsoft.UI.Xaml.Data.Binding` at runtime. Plain NUnit cannot instantiate WinUI binding without a dispatcher, so tests cover state/mapping/converter adapter only. |
 | Binding operations | `System.Windows.Data.BindingOperations` | `System.Windows/Data/Binding.cs` | `local-bridge` | WPF facade delegates `SetBinding` to Uno `Microsoft.UI.Xaml.Data.BindingOperations` and uses `ClearValue` for `ClearBinding`. |
-| Column base | `DataGridColumn` | `System.Windows/Controls/DataGridColumn.cs` | `local-shell` | Local partial shell avoids the Uno generator partial collision that blocks direct upstream source-linking. Constructor is dispatcher-bound because it derives from WinUI `DependencyObject`; plain tests verify type surface only. |
-| Bound column base | `DataGridBoundColumn`, `DataGridHelper` subset | `System.Windows/Controls/DataGridBoundColumn.cs` | `local-shell` | Adds binding/style API surface and binding/style application helpers. Property-engine coercion remains deferred because current WPF-style coercion shims are no-ops. |
+| Column base | `DataGridColumn` | Linked WPF source plus `System.Windows/Controls/DataGridColumn.cs` partial | `linked-upstream` / `local-bridge` | Session 63 links the upstream body; the local partial keeps only Uno render/edit bridges and DP-key/coerce compatibility. Width/display-index transfer callbacks compile, but Uno property coercion remains a bridge no-op. |
+| Bound column base | `DataGridBoundColumn`, `DataGridHelper` subset | Linked WPF source plus `System.Windows/Controls/DataGridBoundColumn.cs` partial | `linked-upstream` / `local-bridge` | Session 58 linked the upstream body. The local partial keeps `BindingPath` plus `EffectiveSortMemberPath` for Uno's missing sort-member coercion; style/binding application comes from WPF. |
 | Cell shell | `DataGridCell` | `System.Windows/Controls/DataGridCell.cs` | `local-shell` | Minimal `ContentControl` shell with `IsEditing`, `Column`, and `BuildVisualTree()` for bound-column refresh paths. |
 | Clipboard cell content | `DataGridClipboardCellContent` | Linked WPF source | `linked-upstream` | Enabled after the local column shell landed. |
-| Text column | `DataGridTextColumn` | `System.Windows/Controls/DataGridTextColumn.cs` | `local-shell` | Display generation binds Uno `TextBlock.Text`; editing generation uses explicit Uno `TextBox` and minimal select-all edit prep. WPF font-property syncing and caret-placement details remain deferred. |
-| Checkbox column | `DataGridCheckBoxColumn` | `System.Windows/Controls/DataGridCheckBoxColumn.cs` | `local-shell` | Generates/binds Uno `CheckBox`, exposes `IsThreeState`, and performs minimal edit prep. WPF input-triggered begin edit and hit-test toggling remain deferred. |
-| Template column | `DataGridTemplateColumn` | `System.Windows/Controls/DataGridTemplateColumn.cs` | `local-shell` | Exposes cell/editing templates and selectors over WinUI `DataTemplate`/`DataTemplateSelector`; generates a WinUI `ContentPresenter` when a template/selector exists. WPF sort coercion remains deferred. |
+| Text column | `DataGridTextColumn` | Linked WPF source | `linked-upstream` | Session 59 linked the upstream body over font-DP and input shims; display/edit generation now flows through WPF `ApplyBinding` and text-column helpers. |
+| Checkbox column | `DataGridCheckBoxColumn` | Linked WPF source | `linked-upstream` | Session 60 linked the upstream body. A binding bridge promotes WPF two-way defaults for `ToggleButton.IsChecked`, so probe toggle write-back uses the linked path. |
+| Template column | `DataGridTemplateColumn` | Linked WPF source | `linked-upstream` | Session 60 linked the upstream body. WPF sort coercion is still limited by the Uno DP layer, but sort fallback is now centralized through `EffectiveSortMemberPath` where applicable. |
 | Column event args | `DataGridColumnEventArgs`, `DataGridSortingEventArgs`, `DataGridSortingEventHandler`, `DataGridColumnReorderingEventArgs`, `DataGridAutoGeneratingColumnEventArgs`, `DataGridCellClipboardEventArgs` | Linked WPF source | `linked-upstream` | Session 11 replaced the session-8 local shells with direct links; `ItemPropertyInfo` comes from linked WindowsBase `IItemProperties.cs`. |
 | Row/edit event args | `DataGridRowEventArgs`, `DataGridBeginningEditEventArgs`, `DataGridCellEditEndingEventArgs`, `DataGridPreparingCellForEditEventArgs`, `DataGridRowDetailsEventArgs`, `DataGridRowEditEndingEventArgs`, `DataGridRowClipboardEventArgs` | Linked WPF source | `linked-upstream` | Enabled by the minimal local `DataGridRow` shell. |
 | Row shell | `DataGridRow` | `System.Windows/Controls/DataGridRow.cs` | `local-shell` | Minimal `Control` shell (`Item`, `IsEditing`, internal owner) to unblock row/edit event args. Container generation, details, headers, and visual states remain deferred. |
@@ -313,9 +352,9 @@ spine.
 | Automation stubs | `AutomationPeer`/`UIElementAutomationPeer`/`DataGrid*AutomationPeer`, `AutomationEvents`, `ValuePatternIdentifiers` | `System.Windows/Automation/Peers/` | `local-bridge` | `FromElement` null + `ListenerExists` false make every automation path unreachable; chosen over ~36 fork guards. |
 | Control root | upstream `DataGrid.cs` | Linked WPF source (fork-guarded `partial` on `HAS_UNO`) + minimal local partial (`UpdateVisualState`) | `linked-upstream` | Session 22: third link attempt succeeded; 248 → 0 sites. WPF logic compiles and runs over bridge stubs; behavior (row generation, column widths, details, templates) comes from replacing stubs against a runtime sample. |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
-| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | upstream `DataGrid.cs` (linked) + `DataGridColumnCollection.cs` | `linked-upstream` / `local-bridge` | Session 22: the local DataGrid shell's `Columns`/`SelectedCells`/owner surface is superseded by the linked control root. `DataGridColumnCollection` remains a local bridge with display-index map and a stubbed width-computation surface (`InvalidateColumnWidthsComputation` et al. are no-ops). |
-| Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
-| Hyperlink column | `DataGridHyperlinkColumn` | Not enabled | `blocked` | Needs navigation/routed-command pieces (`Hyperlink` content binding, `OnExecutedRouted` style command plumbing). |
+| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | upstream `DataGrid.cs` (linked) + `DataGridColumnCollection.cs` | `linked-upstream` / `local-bridge` | Session 22 superseded the local `Columns`/`SelectedCells` owner surface with the linked root. Session 64 ports the WPF display-index map/update subset and renders headers/cells in display order. Width computation/realization block lists remain local stubs (`InvalidateColumnWidthsComputation` et al.). |
+| Combo box column | `DataGridComboBoxColumn` | Linked WPF source | `linked-upstream` | Session 60 linked the upstream body with narrow `HAS_UNO` guards for WinUI DP ownership/style-key gaps. Probe verifies selection write-back through WPF binding application. |
+| Hyperlink column | `DataGridHyperlinkColumn` | `System.Windows/Controls/DataGridHyperlinkColumn.cs` | `local-shell` | Minimal placeholder added in session 63 so linked `DataGridColumn.CreateDefaultColumn` compiles for `Uri`. Real hyperlink rendering/navigation remains blocked on routed navigation/command plumbing. |
 | Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPanel`, presenters | Local shells only (`DataGridRow.cs`, `DataGridCell.cs`, `Primitives/DataGridPresenters.cs`, `VirtualizingPanelStubs.cs`) | `blocked` | Session 22 grew the shells to the full surface the linked control root touches (presenters, details, tracking, editing notification, virtualizing-panel stubs) — but all behavior members are no-ops. Linking the upstream row/cell/panel files still requires container generation, virtualization, and layout parity. |
 
 ## Session Ladder

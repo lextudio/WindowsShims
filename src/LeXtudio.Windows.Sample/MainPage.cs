@@ -336,6 +336,38 @@ public sealed partial class MainPage : Page
             }
         });
 
+        Step("display-index changes reorder headers and cells", () =>
+        {
+            var nameColumn = _grid!.Columns[0];
+            var ageColumn = _grid.Columns[1];
+            var cityColumn = _grid.Columns[2];
+
+            ageColumn.DisplayIndex = 0;
+            nameColumn.DisplayIndex = 1;
+            cityColumn.DisplayIndex = 2;
+            _grid.UpdateLayout();
+
+            var rebuiltHost = FindDescendant(_grid, "PART_ShimRowsHost") as Microsoft.UI.Xaml.Controls.Panel;
+            var header = rebuiltHost is null ? null : VisualTreeHelper.GetChild(rebuiltHost, 0);
+            var firstHeader = header is null ? null : VisualTreeHelper.GetChild(header, 0)
+                as System.Windows.Controls.Primitives.DataGridColumnHeader;
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var firstCellColumn = row0?.TryGetCell(0)?.Column;
+
+            Console.WriteLine($"[probe]   display[0]={_grid.ColumnFromDisplayIndex(0).Header}, header0={firstHeader?.Column?.Header}, cell0={firstCellColumn?.Header}");
+            if (!ReferenceEquals(_grid.ColumnFromDisplayIndex(0), ageColumn) ||
+                !ReferenceEquals(firstHeader?.Column, ageColumn) ||
+                !ReferenceEquals(firstCellColumn, ageColumn))
+            {
+                throw new InvalidOperationException("DisplayIndex=0 did not move Age to the first realized column");
+            }
+
+            nameColumn.DisplayIndex = 0;
+            ageColumn.DisplayIndex = 1;
+            cityColumn.DisplayIndex = 2;
+            _grid.UpdateLayout();
+        });
+
         Step("selection: single-select clears the previous row", () =>
         {
             var gen = _grid!.ItemContainerGenerator;
@@ -549,7 +581,7 @@ public sealed partial class MainPage : Page
                 throw new InvalidOperationException("cell selection did not move to the new cell");
             }
 
-            // CurrentCell / SelectedCells reflect the shim cell selection.
+            // CurrentCell / SelectedCells reflect the linked cell-selection engine.
             var current = _grid.CurrentCell;
             Console.WriteLine($"[probe]   CurrentCell column={current.Column?.Header}, SelectedCells={_grid.SelectedCells.Count}");
             if (!ReferenceEquals(current.Column, cellB.Column) || _grid.SelectedCells.Count != 1
@@ -660,26 +692,81 @@ public sealed partial class MainPage : Page
 
             _grid.HandleShimRowClicked(r0, none);
             _grid.HandleShimRowClicked(r1, ctrl);
-            Console.WriteLine($"[probe]   after Ctrl: count={_grid.ShimSelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}");
-            if (_grid.ShimSelectedItems.Count != 2 || !r0.IsSelected || !r1.IsSelected)
+            Console.WriteLine($"[probe]   after Ctrl: count={_grid.SelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}");
+            if (_grid.SelectedItems.Count != 2 || !r0.IsSelected || !r1.IsSelected)
             {
                 throw new InvalidOperationException("Ctrl did not add to the selection");
             }
 
             _grid.HandleShimRowClicked(r2, shift); // anchor r1 → range r1..r2
-            Console.WriteLine($"[probe]   after Shift: count={_grid.ShimSelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}, r2={r2.IsSelected}");
-            if (_grid.ShimSelectedItems.Count != 2 || r0.IsSelected || !r1.IsSelected || !r2.IsSelected)
+            Console.WriteLine($"[probe]   after Shift: count={_grid.SelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}, r2={r2.IsSelected}");
+            if (_grid.SelectedItems.Count != 2 || r0.IsSelected || !r1.IsSelected || !r2.IsSelected)
             {
                 throw new InvalidOperationException("Shift range incorrect");
             }
 
             _grid.HandleShimRowClicked(r0, none); // plain click resets
-            if (_grid.ShimSelectedItems.Count != 1 || !r0.IsSelected || r1.IsSelected || r2.IsSelected)
+            if (_grid.SelectedItems.Count != 1 || !r0.IsSelected || r1.IsSelected || r2.IsSelected)
             {
                 throw new InvalidOperationException("plain click did not reset to single selection");
             }
 
             _grid.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Extended;
+        });
+
+        Step("real SelectedItems + SelectionChanged are driven by the Selector engine", () =>
+        {
+            _grid!.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Extended;
+            while (_grid.Items.Count < 3)
+            {
+                _grid.Items.Add(new Person($"S{_grid.Items.Count}", 20 + _grid.Items.Count, "Town"));
+            }
+            _grid.UpdateLayout();
+
+            var added = 0;
+            var removed = 0;
+            var fired = 0;
+            void OnSel(object? s, System.Windows.Controls.SelectionChangedEventArgs e)
+            {
+                fired++;
+                added += e.AddedItems.Count;
+                removed += e.RemovedItems.Count;
+            }
+            _grid.SelectionChanged += OnSel;
+
+            var gen = _grid.ItemContainerGenerator;
+            var r0 = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            var r1 = gen.ContainerFromIndex(1) as WpfDataGridRow;
+
+            const global::Windows.System.VirtualKeyModifiers none = global::Windows.System.VirtualKeyModifiers.None;
+            const global::Windows.System.VirtualKeyModifiers ctrl = global::Windows.System.VirtualKeyModifiers.Control;
+
+            _grid.HandleShimRowClicked(r0!, none); // baseline: select just r0
+            added = removed = fired = 0; // measure from a known [r0] baseline
+
+            _grid.HandleShimRowClicked(r1!, ctrl); // add r1 → one net add, one event
+
+            // The real WPF SelectedItems collection (Selector/MultiSelector) now
+            // reflects the selection, and SelectionChanged fires on net change.
+            Console.WriteLine($"[probe]   SelectedItems={_grid.SelectedItems.Count}, SelectionChanged fired={fired}, added={added}, removed={removed}, SelectedItem set={_grid.SelectedItem is not null}");
+            if (_grid.SelectedItems.Count != 2
+                || !_grid.SelectedItems.Contains(r0!.Item) || !_grid.SelectedItems.Contains(r1!.Item)
+                || fired != 1 || added != 1 || removed != 0 || _grid.SelectedItem is null)
+            {
+                throw new InvalidOperationException(
+                    $"real SelectedItems/SelectionChanged not driven (count={_grid.SelectedItems.Count}, fired={fired}, added={added})");
+            }
+
+            // Plain click collapses to a single selection — engine removes the other.
+            removed = 0;
+            _grid.HandleShimRowClicked(r0!, none);
+            Console.WriteLine($"[probe]   after plain click: SelectedItems={_grid.SelectedItems.Count}, removed={removed}");
+            if (_grid.SelectedItems.Count != 1 || !_grid.SelectedItems.Contains(r0!.Item) || removed < 1)
+            {
+                throw new InvalidOperationException("engine did not collapse SelectedItems to one on plain click");
+            }
+
+            _grid.SelectionChanged -= OnSel;
         });
 
         Step("Auto column width sizes to content and aligns header+cells", () =>

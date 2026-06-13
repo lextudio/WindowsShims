@@ -13,17 +13,6 @@ public abstract partial class DataGridBoundColumn
     internal string? BindingPath
         => Binding is Binding { Path: { } pp } ? pp.Path : null;
 
-    // The upstream OnCoerceSortMemberPath callback can't run in the shim DP
-    // system, so derive SortMemberPath from the binding here (mirrors WPF: an
-    // empty SortMemberPath falls back to the binding path).
-    protected internal override void CoerceValue(DependencyProperty dp)
-    {
-        base.CoerceValue(dp);
-        if (dp == SortMemberPathProperty
-            && string.IsNullOrEmpty(SortMemberPath)
-            && BindingPath is { Length: > 0 } path)
-        {
-            SortMemberPath = path;
-        }
-    }
+    internal string? EffectiveSortMemberPath
+        => string.IsNullOrEmpty(SortMemberPath) ? BindingPath : SortMemberPath;
 }

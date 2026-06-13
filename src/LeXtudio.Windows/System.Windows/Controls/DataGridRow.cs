@@ -234,7 +234,7 @@ public partial class DataGridRow : Control
         host.Children.Clear();
         _cells.Clear();
 
-        foreach (var column in owner.Columns)
+        foreach (var column in owner.ColumnsInDisplayOrder())
         {
             if (!column.IsVisible)
             {

@@ -4,10 +4,21 @@ namespace System.Windows.Input
 
     public static class Keyboard
     {
+        // Session 63: the DataGrid shim routes selection through the real WPF
+        // engine, which reads Keyboard.Modifiers for Shift/Ctrl decisions. A
+        // pointer/programmatic click carries its own modifier flags, so the shim
+        // pushes them here for the duration of the engine call (live keyboard
+        // state is unavailable in headless/programmatic paths).
+        internal static ModifierKeys? ModifiersOverride { get; set; }
+
         public static ModifierKeys Modifiers
         {
             get
             {
+                if (ModifiersOverride is { } forced)
+                {
+                    return forced;
+                }
 #if HAS_UNO
                 var modifiers = ModifierKeys.None;
                 var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(

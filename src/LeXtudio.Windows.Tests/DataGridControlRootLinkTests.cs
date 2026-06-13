@@ -244,7 +244,7 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(
             typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
-            "DataGrid.HandleShimCellClicked(DataGridCell) routes cell vs row by SelectionUnit (session 35).");
+            "DataGrid.HandleShimCellClicked(DataGridCell) routes into the linked cell-selection engine.");
 
         var isSelected = typeof(DataGridRow).GetProperty(nameof(DataGridRow.IsSelected));
         Assert.That(isSelected, Is.Not.Null);
@@ -277,15 +277,15 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
-    public void RetainedSelectionFieldExists()
+    public void RetainedSelectionUsesRealSelectedItems()
     {
-        // Session 31: selection is retained by item identity so it survives
-        // render rebuilds (sort / reactivity). Behavior verified by the probe;
-        // pin the retained-selection field so the mechanism isn't dropped.
+        // Sessions 31/62/63: selection is retained by the linked Selector
+        // engine's SelectedItems, and rebuilds re-apply row visuals from that
+        // collection. Behavior is verified by the probe.
         Assert.That(
-            typeof(DataGrid).GetField("_shimSelectedItem", BindingFlags.Instance | BindingFlags.NonPublic),
+            typeof(DataGrid).GetMethod("PruneRealRowSelection", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
-            "DataGrid retains the selected item across rebuilds.");
+            "DataGrid prunes SelectedItems when the backing item leaves the collection.");
     }
 
     [Test]
@@ -331,7 +331,9 @@ public sealed class DataGridControlRootLinkTests
     [Test]
     public void MultiSelectSurfaceExists()
     {
-        // Session 40: Ctrl/Shift multi-select. Behavior verified by the probe.
+        // Session 63: Ctrl/Shift row clicks now route through the linked WPF
+        // DataGrid selection handler; the shim only bridges Uno modifier flags
+        // into Keyboard.Modifiers for the duration of the call.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         Assert.That(
             typeof(DataGrid).GetMethod("HandleShimRowClicked", flags,
@@ -339,9 +341,14 @@ public sealed class DataGridControlRootLinkTests
             Is.Not.Null,
             "DataGrid.HandleShimRowClicked(row, modifiers) drives multi-select.");
         Assert.That(
-            typeof(DataGrid).GetProperty("ShimSelectedItems", flags),
+            typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags,
+                [typeof(DataGridRow), typeof(bool)]),
             Is.Not.Null,
-            "DataGrid.ShimSelectedItems exposes the multi-selection set.");
+            "The linked WPF row-header/details selection path is reused for row clicks.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("ToWpfModifiers", BindingFlags.Static | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "Uno pointer modifiers are bridged to WPF Keyboard.Modifiers.");
     }
 
     [Test]
@@ -392,11 +399,11 @@ public sealed class DataGridControlRootLinkTests
     [Test]
     public void BoundColumnBodyIsReusedFromUpstream()
     {
-        // Session 58: the local DataGridBoundColumn shim was replaced by the
-        // linked upstream file; the local partial keeps only BindingPath + the
-        // CoerceValue hook. (DependencyObject instances need the UI thread, so
-        // the binding→SortMemberPath coercion behavior is verified by the
-        // sample probe; here we assert the reused surface exists.)
+        // Sessions 58/63: the local DataGridBoundColumn shim was replaced by the
+        // linked upstream file; DataGridColumn is linked too, so the local
+        // partial keeps only BindingPath + Uno bridge helpers. (DependencyObject
+        // instances need the UI thread, so binding/sort behavior is verified by
+        // the sample probe; here we assert the reused surface exists.)
         var instanceFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
         // Upstream-only members that prove the linked body is in the type:
@@ -406,14 +413,13 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyBinding", instanceFlags), Is.Not.Null);
         Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyStyle", instanceFlags), Is.Not.Null);
 
-        // The Uno-specific members kept in the local partial:
+        // The Uno-specific members kept in the local partials:
         Assert.That(typeof(DataGridBoundColumn).GetProperty("BindingPath", instanceFlags), Is.Not.Null,
             "BindingPath helper remains in the local partial.");
         var coerce = typeof(DataGridBoundColumn).GetMethod("CoerceValue", instanceFlags);
         Assert.That(coerce, Is.Not.Null,
-            "CoerceValue override derives SortMemberPath (shim DP system runs no coerce callbacks).");
-        // CoerceValue is declared on DataGridBoundColumn (the override), not just inherited.
-        Assert.That(coerce!.DeclaringType, Is.EqualTo(typeof(DataGridBoundColumn)));
+            "CoerceValue bridge exists because the shim DP system runs no coerce callbacks.");
+        Assert.That(coerce!.DeclaringType, Is.EqualTo(typeof(DataGridColumn)));
     }
 
     [Test]
@@ -459,6 +465,27 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(typeof(DataGrid).GetProperty("RowDetailsVisibilityMode"), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetEvent("LoadingRowDetails"), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetEvent("RowDetailsVisibilityChanged"), Is.Not.Null);
+    }
+
+    [Test]
+    public void RealSelectionEngineIsDriven()
+    {
+        // Session 61-63: row input now drives the linked Selector/MultiSelector
+        // engine for the public selection surface (SelectedItems collection +
+        // SelectionChanged event). Behavior verified by the probe; here assert
+        // the reused surface and WPF row-selection handler exist.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Assert.That(
+            typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags,
+                [typeof(DataGridRow), typeof(bool)]),
+            Is.Not.Null,
+            "DataGrid row clicks reuse the linked WPF selection engine.");
+        // The reused engine surface comes from the linked Selector/MultiSelector.
+        Assert.That(typeof(DataGrid).GetProperty("SelectedItems"), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetEvent("SelectionChanged"), Is.Not.Null);
+        Assert.That(
+            typeof(DataGrid).GetMethod("BeginUpdateSelectedItems", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null, "MultiSelector batch API is reused, not reimplemented.");
     }
 
     [Test]
