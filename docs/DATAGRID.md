@@ -41,6 +41,32 @@ coupled for the current milestone.
   4 host children, `DesiredSize=386×96` (was `0×0`). 107 tests green.
   Deliberately simple: no virtualization, no real container generation, no
   change-reactivity yet (see `session25.md`).
+- Session 26: rows became real `DataGridRow` containers that host their own
+  cells (`PART_CellsHost`; `TryGetCell` returns generated cells), and the
+  grid now re-renders on `Items`/`Columns` changes. Probe: 3 cells per row,
+  adding an item grows the host (reactivity), `DesiredSize` tracks row count.
+  109 tests green. Still no `ItemContainerGenerator` containers, no
+  `DataGridColumnHeader`, flat column widths, no virtualization/selection
+  (see `session26.md`).
+- Session 27: `ItemContainerGenerator` gained a real container registry the
+  render path populates; `ContainerFromItem`/`ContainerFromIndex`/
+  `IndexFromContainer`/`ItemFromContainer` and `ContainerFromItemInfo` now
+  resolve the rendered `DataGridRow`s, and `Status` reports
+  `ContainersGenerated`. Probe verifies the index/item round-trip. 111 tests
+  green. Resolution is wired but consumers (selection, scroll-into-view, row
+  details) are still inert — the next behavioral rungs (see `session27.md`).
+- Session 28: row selection is visible and interactive. `DataGridRow.
+  IsSelected` paints a highlight (template `Border` bound to `Background`);
+  pointer press routes to `DataGrid.HandleShimRowClicked` (shim single-select)
+  which clears other rows, highlights the clicked row, and sets `SelectedItem`.
+  Probe verifies the flip + highlight. 112 tests green. Shim-driven only — no
+  multi-select, cell-selection unit, keyboard selection, or full WPF
+  `Selector` pipeline yet (see `session28.md`).
+- Session 29: header row uses real `DataGridColumnHeader` controls and
+  explicit pixel column widths are honored (`ShimColumnWidth` reads
+  `DataGridLength.IsAbsolute`). Probe: a `Width=60` column renders 60px wide.
+  113 tests green. Only absolute widths honored — `Auto`/`Star` still fall
+  back to 120; no header sort/resize/reorder yet (see `session29.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

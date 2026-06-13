@@ -176,4 +176,85 @@ public sealed class DataGridControlRootLinkTests
             Is.Not.Null,
             "DataGridCell.BuildVisualTree() populates a cell from its column.");
     }
+
+    [Test]
+    public void DataGridRowHostsItsOwnCells()
+    {
+        // Session 26: the row is the visual container — it builds its own cells
+        // (BuildCells) and answers TryGetCell from them. Pin the surface; the
+        // runtime render gate remains the sample probe.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGridRow).GetMethod("BuildCells", flags), Is.Not.Null,
+            "DataGridRow.BuildCells() builds the row's cells from the owner columns.");
+        Assert.That(
+            typeof(DataGridRow).GetMethod("OnApplyTemplate", flags | BindingFlags.Public),
+            Is.Not.Null,
+            "DataGridRow overrides OnApplyTemplate to build its cells when templated.");
+
+        var tryGetCell = typeof(DataGridRow).GetMethod("TryGetCell", flags);
+        Assert.That(tryGetCell, Is.Not.Null, "DataGridRow.TryGetCell(int) exposes generated cells.");
+    }
+
+    [Test]
+    public void DataGridReactsToCollectionChanges()
+    {
+        // The shim subscribes to Items/Columns changes to re-render.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGrid).GetMethod("HookShimChangeNotifications", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("OnShimContentChanged", flags), Is.Not.Null);
+    }
+
+    [Test]
+    public void EmptyGeneratorReportsNotStarted()
+    {
+        // Session 27: the generator holds a container registry. A fresh,
+        // empty generator reports NotStarted and resolves nothing. (Populated
+        // round-trip resolution is verified by the sample probe, since
+        // registering a container needs a real DependencyObject / dispatcher.)
+        var generator = new System.Windows.Controls.ItemContainerGenerator();
+
+        Assert.That(generator.Status, Is.EqualTo(System.Windows.Controls.Primitives.GeneratorStatus.NotStarted));
+        Assert.That(generator.ContainerFromIndex(0), Is.Null);
+        Assert.That(generator.ContainerFromItem("anything"), Is.Null);
+        Assert.That(generator.IndexFromContainer(null!), Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void GeneratorRegistrySurfaceExists()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("ResetContainers", flags), Is.Not.Null);
+        Assert.That(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("RegisterContainer", flags), Is.Not.Null);
+    }
+
+    [Test]
+    public void ShimSelectionSurfaceExists()
+    {
+        // Session 28: pointer input routes to HandleShimRowClicked (single
+        // select). The interactive + visual behavior is verified by the
+        // sample probe; here we pin the entry point and the IsSelected setter.
+        Assert.That(
+            typeof(DataGrid).GetMethod("HandleShimRowClicked", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.HandleShimRowClicked(DataGridRow) is the selection entry point.");
+
+        var isSelected = typeof(DataGridRow).GetProperty(nameof(DataGridRow.IsSelected));
+        Assert.That(isSelected, Is.Not.Null);
+        Assert.That(isSelected!.CanWrite, Is.True, "DataGridRow.IsSelected must be settable to drive the highlight.");
+    }
+
+    [Test]
+    public void ColumnWidthResolverExists()
+    {
+        // Session 29: headers are DataGridColumnHeader controls and explicit
+        // pixel widths are honored via ShimColumnWidth. The visual behavior is
+        // verified by the sample probe; pin the resolver so it isn't dropped.
+        Assert.That(
+            typeof(DataGrid).GetMethod("ShimColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.ShimColumnWidth(DataGridColumn) resolves the per-column width.");
+    }
 }

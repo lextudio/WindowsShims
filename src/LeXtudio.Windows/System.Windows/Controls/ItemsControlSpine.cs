@@ -274,12 +274,24 @@ public partial class ItemsControl : IGeneratorHost
     public void SetBinding(DependencyProperty dp, Data.BindingBase binding)
         => Data.BindingOperations.SetBinding(this, dp, binding);
 
-    // Container/item-info lookups: no containers generated yet, so all return
-    // degenerate values. DataGrid uses these to find the focused container.
-    internal DependencyObject? ContainerFromItemInfo(ItemInfo info) => null;
+    // Container/item-info lookups resolve through the generator registry
+    // (session 27). Prefer index, fall back to item identity.
+    internal DependencyObject? ContainerFromItemInfo(ItemInfo info)
+    {
+        if (info.Index >= 0 && ItemContainerGenerator.ContainerFromIndex(info.Index) is { } byIndex)
+        {
+            return byIndex;
+        }
+
+        return info.Item is not null ? ItemContainerGenerator.ContainerFromItem(info.Item) : null;
+    }
 
     internal ItemInfo ItemInfoFromContainer(DependencyObject container)
-        => NewItemInfo(ItemContainerGenerator.ItemFromContainer(container));
+    {
+        var item = ItemContainerGenerator.ItemFromContainer(container);
+        var index = ItemContainerGenerator.IndexFromContainer(container);
+        return NewItemInfo(item == DependencyProperty.UnsetValue ? null : item, container, index);
+    }
 
     internal ItemInfo LeaseItemInfo(ItemInfo info, bool ensureIndex = false) => info;
 

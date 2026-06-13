@@ -43,12 +43,11 @@ public partial class DataGrid
         }
     }
 
-    // Session 25 — shim render path. Populates PART_ShimRowsHost with a header
-    // row plus one cell-panel per item, where each cell's content is produced
-    // by the column's real element-generation logic and bound to the item.
-    // This is intentionally simple (no virtualization, no DataGridRow visual
-    // template); it is the first-visible-artifact rung, separate from the
-    // upstream PART_RowsPresenter / ItemsHost machinery.
+    // Session 25/26 — shim render path. Populates PART_ShimRowsHost with a
+    // header row plus one DataGridRow per item. Each DataGridRow hosts its own
+    // cells (session 26), so the on-screen tree matches the WPF row/cell APIs.
+    // Still intentionally simple: no virtualization, no ItemContainerGenerator
+    // containers, separate from the upstream PART_RowsPresenter machinery.
     internal void BuildShimVisualTree()
     {
         if (GetTemplateChild("PART_ShimRowsHost") is not Microsoft.UI.Xaml.Controls.Panel host)
@@ -56,7 +55,10 @@ public partial class DataGrid
             return;
         }
 
+        HookShimChangeNotifications();
+
         host.Children.Clear();
+        ItemContainerGenerator.ResetContainers();
         host.Children.Add(BuildHeaderRow());
 
         foreach (var item in Items)
@@ -66,8 +68,15 @@ public partial class DataGrid
                 continue;
             }
 
-            host.Children.Add(BuildItemRow(item));
+            var row = new DataGridRow();
+            row.PrepareRow(item, this);
+            // Register the row so the linked WPF code can resolve containers
+            // (selection, scroll-into-view, row details) via the generator.
+            ItemContainerGenerator.RegisterContainer(item, row);
+            host.Children.Add(row);
         }
+
+        ItemContainerGenerator.NotifyContainersGenerated();
     }
 
     private Microsoft.UI.Xaml.Controls.StackPanel BuildHeaderRow()
@@ -84,9 +93,10 @@ public partial class DataGrid
                 continue;
             }
 
-            header.Children.Add(new TextBlock
+            header.Children.Add(new DataGridColumnHeader
             {
-                Text = column.Header?.ToString() ?? string.Empty,
+                Column = column,
+                Content = column.Header,
                 Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
@@ -96,39 +106,59 @@ public partial class DataGrid
         return header;
     }
 
-    private Microsoft.UI.Xaml.Controls.StackPanel BuildItemRow(object item)
+    // Column width: explicit pixel widths are honored; Auto/SizeToCells/
+    // SizeToHeader/Star are not computed yet, so they fall back to a default.
+    // ActualWidth (if a width-computation pass ever sets it) wins.
+    internal double ShimColumnWidth(DataGridColumn column)
     {
-        // The DataGridRow is the logical container the WPF code expects; the
-        // visible row is a horizontal panel of cells whose owner is that row.
-        var row = new DataGridRow();
-        row.PrepareRow(item, this);
-
-        var rowPanel = new Microsoft.UI.Xaml.Controls.StackPanel
+        if (column.ActualWidth > 0)
         {
-            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
-        };
-
-        foreach (var column in Columns)
-        {
-            if (!column.IsVisible)
-            {
-                continue;
-            }
-
-            var cell = new DataGridCell
-            {
-                Column = column,
-                RowOwner = row,
-                Width = ShimColumnWidth(column),
-                Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
-            };
-            cell.BuildVisualTree();
-            rowPanel.Children.Add(cell);
+            return column.ActualWidth;
         }
 
-        return rowPanel;
+        var width = column.Width;
+        return width.IsAbsolute && width.Value > 0 ? width.Value : 120;
     }
 
-    private static double ShimColumnWidth(DataGridColumn column)
-        => column.ActualWidth > 0 ? column.ActualWidth : 120;
+    // ── Session 26: reactivity ───────────────────────────────────────────────
+    // Re-render when Items or Columns change. Subscriptions are idempotent
+    // (hooked once); the rebuild no-ops until the template provides
+    // PART_ShimRowsHost, after which it refreshes the whole grid.
+    private bool _shimChangeHooked;
+
+    private void HookShimChangeNotifications()
+    {
+        if (_shimChangeHooked)
+        {
+            return;
+        }
+
+        _shimChangeHooked = true;
+        ((System.Collections.Specialized.INotifyCollectionChanged)Items).CollectionChanged += OnShimContentChanged;
+        ((System.Collections.Specialized.INotifyCollectionChanged)Columns).CollectionChanged += OnShimContentChanged;
+    }
+
+    private void OnShimContentChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => BuildShimVisualTree();
+
+    // ── Session 28: shim selection ───────────────────────────────────────────
+    // Pointer press on a row routes here. Single-select for now: clear every
+    // generated row, select the clicked one, and reflect into SelectedItem.
+    internal void HandleShimRowClicked(DataGridRow clicked)
+    {
+        foreach (var container in ItemContainerGenerator.Containers)
+        {
+            if (container is DataGridRow row && !ReferenceEquals(row, clicked))
+            {
+                row.IsSelected = false;
+            }
+        }
+
+        clicked.IsSelected = true;
+
+        if (clicked.Item is not null)
+        {
+            SelectedItem = clicked.Item;
+        }
+    }
 }
