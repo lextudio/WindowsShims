@@ -57,6 +57,8 @@ public partial class DataGrid
 
         HookShimChangeNotifications();
 
+        _visibleColumns = Columns.Where(c => c.IsVisible).ToList();
+
         host.Children.Clear();
         ItemContainerGenerator.ResetContainers();
         host.Children.Add(BuildHeaderRow());
@@ -74,8 +76,8 @@ public partial class DataGrid
             var row = new DataGridRow();
             row.PrepareRow(item, this);
             // Re-apply selection across rebuilds (sort / reactivity) by item
-            // identity, so the highlighted row follows its data item.
-            if (_shimSelectedItem is not null && EqualsEx(item, _shimSelectedItem))
+            // identity, so the highlight follows the data item(s).
+            if (_shimSelectedItems.Any(x => EqualsEx(x, item)))
             {
                 row.IsSelected = true;
                 selectionStillPresent = true;
@@ -92,14 +94,13 @@ public partial class DataGrid
             host.Children.Add(row);
         }
 
-        // The selected item left the collection — drop the stale selection.
+        // Prune any selected items that left the collection.
+        var present = Items.Cast<object?>().ToList();
+        _shimSelectedItems.RemoveAll(x => !present.Any(p => EqualsEx(p, x)));
         if (_shimSelectedItem is not null && !selectionStillPresent)
         {
-            _shimSelectedItem = null;
-            if (SelectedItem is not null)
-            {
-                SelectedItem = null;
-            }
+            _shimSelectedItem = _shimSelectedItems.Count > 0 ? _shimSelectedItems[^1] : null;
+            SelectedItem = _shimSelectedItem;
         }
 
         // Same for a retained cell selection whose item is gone.
@@ -113,6 +114,72 @@ public partial class DataGrid
         }
 
         ItemContainerGenerator.NotifyContainersGenerated();
+
+        // Schedule an Auto-width pass if any visible column is non-absolute.
+        if (_visibleColumns.Any(IsAutoWidth))
+        {
+            _autoWidthPending = true;
+            if (!_autoWidthHooked)
+            {
+                LayoutUpdated += OnAutoWidthLayoutUpdated;
+                _autoWidthHooked = true;
+            }
+        }
+    }
+
+    // ── Session 41: Auto column width ────────────────────────────────────────
+    // Absolute widths are honored directly (ShimColumnWidth). For Auto/Star/
+    // SizeToCells/SizeToHeader, cells/headers are left auto-sized, then a
+    // one-shot post-layout pass sets a uniform per-column width to the widest
+    // realized content so columns size to content and stay aligned.
+    private List<DataGridColumn> _visibleColumns = new();
+    private readonly List<DataGridColumnHeader> _headerCells = new();
+    private bool _autoWidthPending;
+    private bool _autoWidthHooked;
+
+    private static bool IsAutoWidth(DataGridColumn column)
+        => column.ActualWidth <= 0 && !column.Width.IsAbsolute;
+
+    private void OnAutoWidthLayoutUpdated(object? sender, object e)
+    {
+        if (!_autoWidthPending)
+        {
+            return;
+        }
+
+        _autoWidthPending = false;
+
+        var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
+        for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+        {
+            if (!IsAutoWidth(_visibleColumns[i]))
+            {
+                continue;
+            }
+
+            var max = _headerCells[i].DesiredSize.Width;
+            foreach (var row in rows)
+            {
+                if (row.TryGetCell(i) is { } cell)
+                {
+                    max = Math.Max(max, cell.DesiredSize.Width);
+                }
+            }
+
+            if (max <= 0)
+            {
+                continue;
+            }
+
+            _headerCells[i].Width = max;
+            foreach (var row in rows)
+            {
+                if (row.TryGetCell(i) is { } cell)
+                {
+                    cell.Width = max;
+                }
+            }
+        }
     }
 
     // Items in display order: sorted by the active sort column if one is set,
@@ -154,21 +221,19 @@ public partial class DataGrid
             Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
         };
 
-        foreach (var column in Columns)
+        _headerCells.Clear();
+        foreach (var column in _visibleColumns)
         {
-            if (!column.IsVisible)
-            {
-                continue;
-            }
-
-            header.Children.Add(new DataGridColumnHeader
+            var headerCell = new DataGridColumnHeader
             {
                 Column = column,
                 Content = HeaderContent(column),
                 Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
-            });
+            };
+            _headerCells.Add(headerCell);
+            header.Children.Add(headerCell);
         }
 
         return header;
@@ -198,7 +263,9 @@ public partial class DataGrid
         }
 
         var width = column.Width;
-        return width.IsAbsolute && width.Value > 0 ? width.Value : 120;
+        // Absolute → that width; otherwise NaN (auto-size to content), and the
+        // post-layout Auto pass unifies the column width.
+        return width.IsAbsolute && width.Value > 0 ? width.Value : double.NaN;
     }
 
     // ── Session 26: reactivity ───────────────────────────────────────────────
@@ -274,6 +341,7 @@ public partial class DataGrid
         }
 
         _shimSelectedItem = null;
+        _shimSelectedItems.Clear();
 
         if (_shimSelectedCell is { } previous && !ReferenceEquals(previous, cell))
         {
@@ -294,23 +362,80 @@ public partial class DataGrid
         cell.RowOwner?.BringIntoView();
     }
 
+    // Multi-selection set (shim-side; WPF Selector.SelectedItems is not driven).
+    private readonly List<object?> _shimSelectedItems = new();
+    private object? _shimAnchorItem;
+
+    // Read-only view of the multi-selection (display-order not guaranteed).
+    internal IReadOnlyList<object?> ShimSelectedItems => _shimSelectedItems;
+
     internal void HandleShimRowClicked(DataGridRow clicked)
+        => HandleShimRowClicked(clicked, global::Windows.System.VirtualKeyModifiers.None);
+
+    internal void HandleShimRowClicked(DataGridRow clicked, global::Windows.System.VirtualKeyModifiers modifiers)
+    {
+        var item = clicked.Item;
+        var extended = SelectionMode == DataGridSelectionMode.Extended;
+        var ctrl = (modifiers & global::Windows.System.VirtualKeyModifiers.Control) != 0;
+        var shift = (modifiers & global::Windows.System.VirtualKeyModifiers.Shift) != 0;
+
+        if (extended && ctrl)
+        {
+            // Toggle membership; the clicked item becomes the anchor/primary.
+            if (_shimSelectedItems.Any(x => EqualsEx(x, item)))
+            {
+                _shimSelectedItems.RemoveAll(x => EqualsEx(x, item));
+            }
+            else
+            {
+                _shimSelectedItems.Add(item);
+            }
+
+            _shimAnchorItem = item;
+        }
+        else if (extended && shift && _shimAnchorItem is not null)
+        {
+            // Range select from anchor to clicked, in display order.
+            var order = OrderedItems().ToList();
+            var a = order.FindIndex(x => EqualsEx(x, _shimAnchorItem));
+            var b = order.FindIndex(x => EqualsEx(x, item));
+            if (a >= 0 && b >= 0)
+            {
+                _shimSelectedItems.Clear();
+                var (lo, hi) = a <= b ? (a, b) : (b, a);
+                for (var i = lo; i <= hi; i++)
+                {
+                    _shimSelectedItems.Add(order[i]);
+                }
+            }
+        }
+        else
+        {
+            // Plain click (or Single mode): replace selection with this item.
+            _shimSelectedItems.Clear();
+            _shimSelectedItems.Add(item);
+            _shimAnchorItem = item;
+        }
+
+        _shimSelectedItem = item; // primary
+        ApplyRowSelectionVisuals();
+        clicked.BringIntoView();
+
+        if (item is not null)
+        {
+            SelectedItem = item;
+        }
+    }
+
+    // Reflect the multi-selection set onto the generated rows.
+    private void ApplyRowSelectionVisuals()
     {
         foreach (var container in ItemContainerGenerator.Containers)
         {
-            if (container is DataGridRow row && !ReferenceEquals(row, clicked))
+            if (container is DataGridRow row)
             {
-                row.IsSelected = false;
+                row.IsSelected = _shimSelectedItems.Any(x => EqualsEx(x, row.Item));
             }
-        }
-
-        clicked.IsSelected = true;
-        _shimSelectedItem = clicked.Item;
-        clicked.BringIntoView();
-
-        if (clicked.Item is not null)
-        {
-            SelectedItem = clicked.Item;
         }
     }
 

@@ -68,11 +68,120 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         Content = Column.BuildCellContent(this, item);
     }
 
-    internal bool BeginEdit(RoutedEventArgs? editingEventArgs) => false;
+    private Microsoft.UI.Xaml.Controls.TextBox? _editingBox;
 
-    internal void CancelEdit() { }
+    // Session 39: minimal text-cell editing. BeginEdit swaps the display
+    // element for a TextBox seeded with the current value; CommitEdit writes
+    // it back to the item property (reflection + type conversion); CancelEdit
+    // restores without writing.
+    internal bool BeginEdit(RoutedEventArgs? editingEventArgs)
+    {
+        if (IsEditing || IsReadOnly || Column is not DataGridBoundColumn bound
+            || bound.BindingPath is not { Length: > 0 } path
+            || RowDataItem is not { } item)
+        {
+            return false;
+        }
 
-    internal bool CommitEdit() => true;
+        var current = item.GetType().GetProperty(path)?.GetValue(item);
+        _editingBox = new Microsoft.UI.Xaml.Controls.TextBox { Text = current?.ToString() ?? string.Empty };
+        Content = _editingBox;
+        IsEditing = true;
+        _editingBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        _editingBox.SelectAll();
+        return true;
+    }
+
+    internal void CancelEdit()
+    {
+        if (!IsEditing)
+        {
+            return;
+        }
+
+        IsEditing = false;
+        _editingBox = null;
+        BuildVisualTree();
+    }
+
+    internal bool CommitEdit()
+    {
+        if (!IsEditing)
+        {
+            return true;
+        }
+
+        var ok = true;
+        if (_editingBox is { } box && Column is DataGridBoundColumn { BindingPath: { Length: > 0 } path }
+            && RowDataItem is { } item)
+        {
+            var prop = item.GetType().GetProperty(path);
+            if (prop is { CanWrite: true })
+            {
+                try
+                {
+                    var target = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+                    var value = target == typeof(string)
+                        ? box.Text
+                        : Convert.ChangeType(box.Text, target, System.Globalization.CultureInfo.CurrentCulture);
+                    prop.SetValue(item, value);
+                }
+                catch (Exception)
+                {
+                    ok = false; // invalid input — keep editing
+                }
+            }
+        }
+
+        if (!ok)
+        {
+            return false;
+        }
+
+        IsEditing = false;
+        _editingBox = null;
+        BuildVisualTree();
+        return true;
+    }
+
+    // Input: double-tap begins editing; Enter commits, Escape cancels.
+    protected override void OnDoubleTapped(Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        base.OnDoubleTapped(e);
+        if (BeginEdit(null))
+        {
+            e.Handled = true;
+        }
+    }
+
+    protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (IsEditing)
+        {
+            switch (e.Key)
+            {
+                case global::Windows.System.VirtualKey.Enter:
+                    CommitEdit();
+                    e.Handled = true;
+                    return;
+                case global::Windows.System.VirtualKey.Escape:
+                    CancelEdit();
+                    e.Handled = true;
+                    return;
+            }
+        }
+        else if (e.Key == global::Windows.System.VirtualKey.F2)
+        {
+            if (BeginEdit(null))
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        base.OnKeyDown(e);
+    }
 
     internal void SyncIsSelected(bool isSelected) => IsSelected = isSelected;
 

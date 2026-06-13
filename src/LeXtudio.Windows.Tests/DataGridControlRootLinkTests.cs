@@ -237,7 +237,8 @@ public sealed class DataGridControlRootLinkTests
         // select). The interactive + visual behavior is verified by the
         // sample probe; here we pin the entry point and the IsSelected setter.
         Assert.That(
-            typeof(DataGrid).GetMethod("HandleShimRowClicked", BindingFlags.Instance | BindingFlags.NonPublic),
+            typeof(DataGrid).GetMethod("HandleShimRowClicked",
+                BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataGridRow)]),
             Is.Not.Null,
             "DataGrid.HandleShimRowClicked(DataGridRow) is the selection entry point.");
         Assert.That(
@@ -285,6 +286,43 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetField("_shimSelectedItem", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid retains the selected item across rebuilds.");
+    }
+
+    [Test]
+    public void AutoWidthSurfaceExists()
+    {
+        // Session 41: Auto column width via a post-layout measure pass.
+        // Behavior verified by the probe.
+        Assert.That(
+            typeof(DataGrid).GetMethod("OnAutoWidthLayoutUpdated", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.OnAutoWidthLayoutUpdated runs the Auto-width measure pass.");
+    }
+
+    [Test]
+    public void MultiSelectSurfaceExists()
+    {
+        // Session 40: Ctrl/Shift multi-select. Behavior verified by the probe.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Assert.That(
+            typeof(DataGrid).GetMethod("HandleShimRowClicked", flags,
+                [typeof(DataGridRow), typeof(global::Windows.System.VirtualKeyModifiers)]),
+            Is.Not.Null,
+            "DataGrid.HandleShimRowClicked(row, modifiers) drives multi-select.");
+        Assert.That(
+            typeof(DataGrid).GetProperty("ShimSelectedItems", flags),
+            Is.Not.Null,
+            "DataGrid.ShimSelectedItems exposes the multi-selection set.");
+    }
+
+    [Test]
+    public void CellEditSurfaceExists()
+    {
+        // Session 39: text-cell editing. Behavior verified by the probe.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        Assert.That(typeof(DataGridCell).GetMethod("BeginEdit", flags), Is.Not.Null);
+        Assert.That(typeof(DataGridCell).GetMethod("CommitEdit", flags), Is.Not.Null);
+        Assert.That(typeof(DataGridCell).GetMethod("CancelEdit", flags), Is.Not.Null);
     }
 
     [Test]

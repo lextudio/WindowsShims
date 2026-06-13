@@ -112,6 +112,21 @@ coupled for the current milestone.
   116 tests green. Single-selection model now coherent end-to-end; multi-
   select/range/`*Changed`/WPF `Selector` pipeline still out (see
   `session38.md`).
+- Session 39: text-cell editing. Double-click/F2 → `TextBox`; Enter commits
+  (reflection write-back with type conversion), Escape cancels. Probe edits
+  Age→99 and verifies write-back + display restore. 117 tests green.
+  Reflection-based (no WPF editing-binding/`IEditableObject`/validation/edit
+  events); text columns only; no commit-on-blur (see `session39.md`).
+- Session 40: multi-row selection (Extended mode). `HandleShimRowClicked(row,
+  modifiers)` — Ctrl toggles, Shift ranges from anchor, plain click resets;
+  `ShimSelectedItems` exposes the set. Probe verifies Ctrl/Shift/plain. 118
+  tests green. Shim-side (WPF `SelectedItems`/`SelectionChanged` not driven);
+  no Shift+Arrow yet (see `session40.md`).
+- Session 41: `Auto` column width. Non-absolute columns auto-size; a one-shot
+  post-layout pass (`OnAutoWidthLayoutUpdated`) sets a uniform per-column
+  width to the widest realized content (header+cells aligned). Probe: Auto
+  Name column = 49px header==cell. 119 tests green. `Star`/`SizeToCells`
+  treated as Auto; `MinWidth`/`MaxWidth` ignored (see `session41.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

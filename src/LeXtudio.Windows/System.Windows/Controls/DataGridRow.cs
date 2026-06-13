@@ -145,7 +145,7 @@ public partial class DataGridRow : Control
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         base.OnPointerPressed(e);
-        DataGridOwner?.HandleShimRowClicked(this);
+        DataGridOwner?.HandleShimRowClicked(this, e.KeyModifiers);
     }
 
     private void BuildCells()

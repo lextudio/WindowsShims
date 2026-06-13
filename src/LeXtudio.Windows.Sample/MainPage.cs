@@ -17,7 +17,19 @@ public sealed partial class MainPage : Page
 {
     public static int ProbeFailures { get; private set; }
 
-    public sealed record Person(string Name, int Age, string City);
+    public sealed class Person
+    {
+        public Person(string name, int age, string city)
+        {
+            Name = name;
+            Age = age;
+            City = city;
+        }
+
+        public string Name { get; set; }
+        public int Age { get; set; }
+        public string City { get; set; }
+    }
 
     private readonly StackPanel _report = new() { Spacing = 4 };
 
@@ -507,6 +519,114 @@ public sealed partial class MainPage : Page
             }
 
             _grid.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.FullRow;
+        });
+
+        Step("cell editing writes back to the item (Age int)", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var ageCell = row0?.TryGetCell(1); // Age column
+            if (ageCell is null)
+            {
+                throw new InvalidOperationException("could not resolve Age cell");
+            }
+
+            if (!ageCell.BeginEdit(null))
+            {
+                throw new InvalidOperationException("BeginEdit failed");
+            }
+
+            if (ageCell.Content is not TextBox box)
+            {
+                throw new InvalidOperationException($"editing content is {ageCell.Content?.GetType().Name ?? "null"}, expected TextBox");
+            }
+
+            box.Text = "99";
+            if (!ageCell.CommitEdit())
+            {
+                throw new InvalidOperationException("CommitEdit failed");
+            }
+
+            var age = ((Person)row0!.Item!).Age;
+            Console.WriteLine($"[probe]   after edit: item.Age={age}, IsEditing={ageCell.IsEditing}");
+            if (age != 99 || ageCell.IsEditing || ageCell.Content is TextBox)
+            {
+                throw new InvalidOperationException($"edit not committed (Age={age}, IsEditing={ageCell.IsEditing})");
+            }
+        });
+
+        Step("multi-select: Ctrl adds, Shift ranges, plain click resets", () =>
+        {
+            _grid!.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Extended;
+            // Ensure at least 3 rows (earlier steps removed some items).
+            while (_grid.Items.Count < 3)
+            {
+                _grid.Items.Add(new Person($"P{_grid.Items.Count}", 20 + _grid.Items.Count, "Town"));
+            }
+
+            _grid.UpdateLayout();
+            var gen = _grid.ItemContainerGenerator;
+            var r0 = gen.ContainerFromIndex(0) as WpfDataGridRow;
+            var r1 = gen.ContainerFromIndex(1) as WpfDataGridRow;
+            var r2 = gen.ContainerFromIndex(2) as WpfDataGridRow;
+            if (r0 is null || r1 is null || r2 is null)
+            {
+                throw new InvalidOperationException("need 3 rows for multi-select test");
+            }
+
+            const global::Windows.System.VirtualKeyModifiers none = global::Windows.System.VirtualKeyModifiers.None;
+            const global::Windows.System.VirtualKeyModifiers ctrl = global::Windows.System.VirtualKeyModifiers.Control;
+            const global::Windows.System.VirtualKeyModifiers shift = global::Windows.System.VirtualKeyModifiers.Shift;
+
+            _grid.HandleShimRowClicked(r0, none);
+            _grid.HandleShimRowClicked(r1, ctrl);
+            Console.WriteLine($"[probe]   after Ctrl: count={_grid.ShimSelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}");
+            if (_grid.ShimSelectedItems.Count != 2 || !r0.IsSelected || !r1.IsSelected)
+            {
+                throw new InvalidOperationException("Ctrl did not add to the selection");
+            }
+
+            _grid.HandleShimRowClicked(r2, shift); // anchor r1 → range r1..r2
+            Console.WriteLine($"[probe]   after Shift: count={_grid.ShimSelectedItems.Count}, r0={r0.IsSelected}, r1={r1.IsSelected}, r2={r2.IsSelected}");
+            if (_grid.ShimSelectedItems.Count != 2 || r0.IsSelected || !r1.IsSelected || !r2.IsSelected)
+            {
+                throw new InvalidOperationException("Shift range incorrect");
+            }
+
+            _grid.HandleShimRowClicked(r0, none); // plain click resets
+            if (_grid.ShimSelectedItems.Count != 1 || !r0.IsSelected || r1.IsSelected || r2.IsSelected)
+            {
+                throw new InvalidOperationException("plain click did not reset to single selection");
+            }
+
+            _grid.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Extended;
+        });
+
+        Step("Auto column width sizes to content and aligns header+cells", () =>
+        {
+            // Force a rebuild then lay out so the Auto-width pass runs.
+            _grid!.HandleShimHeaderClicked(_grid.Columns[2]); // sort City → rebuild
+            _grid.UpdateLayout();
+            _grid.UpdateLayout();
+
+            var host = FindDescendant(_grid, "PART_ShimRowsHost") as Microsoft.UI.Xaml.Controls.Panel;
+            var headerPanel = host is null ? null : VisualTreeHelper.GetChild(host, 0);
+            var nameHeader = headerPanel is null ? null : VisualTreeHelper.GetChild(headerPanel, 0) as FrameworkElement;
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var nameCell = row0?.TryGetCell(0);
+
+            if (nameHeader is null || nameCell is null)
+            {
+                throw new InvalidOperationException("could not resolve Name header/cell");
+            }
+
+            Console.WriteLine($"[probe]   Name header width={nameHeader.Width}, cell width={nameCell.Width}");
+            if (double.IsNaN(nameHeader.Width) || nameHeader.Width <= 0
+                || Math.Abs(nameHeader.Width - nameCell.Width) > 0.5)
+            {
+                throw new InvalidOperationException(
+                    $"Auto width not applied/aligned (header={nameHeader.Width}, cell={nameCell.Width})");
+            }
         });
 
         Step("report: grid desired size", () =>

@@ -53,6 +53,10 @@ public abstract partial class DataGridBoundColumn : DataGridColumn
         set => base.ClipboardContentBinding = value;
     }
 
+    // Binding path used by the shim render/sort/edit paths (session 39).
+    internal string? BindingPath
+        => Binding is Data.Binding { Path: { } pp } ? pp.Path : null;
+
     internal void ApplyBinding(DependencyObject target, DependencyProperty property)
     {
         if (Binding is { } binding)
