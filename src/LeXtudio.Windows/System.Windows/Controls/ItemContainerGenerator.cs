@@ -24,6 +24,8 @@ namespace System.Windows.Controls
         public int IndexFromContainer(DependencyObject container) => -1;
 
         public object? ItemFromContainer(DependencyObject container) => DependencyProperty.UnsetValue;
+
+        internal Queue<DependencyObject> RecyclableContainers { get; } = new();
     }
 }
 

@@ -159,4 +159,28 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
             this,
             new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
     }
+
+    // CollectionView-compatible surface used by DataGrid.
+    public bool CanSort => true;
+    public bool NeedsRefresh { get; private set; }
+
+    public System.Collections.ObjectModel.ObservableCollection<System.ComponentModel.GroupDescription> GroupDescriptions
+        => _groupDescriptions ??= new();
+
+    private System.Collections.ObjectModel.ObservableCollection<System.ComponentModel.GroupDescription>? _groupDescriptions;
+
+    public void Refresh() { NeedsRefresh = false; }
+
+    public IDisposable DeferRefresh()
+    {
+        NeedsRefresh = true;
+        return new DeferToken(this);
+    }
+
+    private sealed class DeferToken : IDisposable
+    {
+        private readonly ItemCollection _owner;
+        internal DeferToken(ItemCollection owner) => _owner = owner;
+        public void Dispose() => _owner.Refresh();
+    }
 }

@@ -2,6 +2,12 @@ namespace System.Windows;
 
 public static class WinUIFrameworkElementExtensions
 {
+    extension(Microsoft.UI.Xaml.UIElement self)
+    {
+        // WPF UIElement.MoveFocus: keyboard-focus traversal. Always returns false in the shim.
+        public bool MoveFocus(Input.TraversalRequest request) => false;
+    }
+
     extension(Microsoft.UI.Xaml.FrameworkElement self)
     {
         public bool IsEnabled => true;

@@ -33,6 +33,10 @@ public static class WinUIDependencyObjectExtensions
         public void SetValue(System.Windows.DependencyPropertyKey key, object? value)
             => self.SetValue(key.DependencyProperty, value);
 
+        // WPF DependencyObject.ClearValue accepting a DependencyPropertyKey.
+        public void ClearValue(System.Windows.DependencyPropertyKey key)
+            => self.ClearValue(key.DependencyProperty);
+
         public LocalValueEnumerator GetLocalValueEnumerator() => new();
 
         // WPF DependencyObject.GetValueSource — we only differentiate "Default"

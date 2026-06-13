@@ -72,14 +72,19 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
         Options = options;
     }
 
-    public FrameworkPropertyMetadata(object? defaultValue, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback, CoerceValueCallback? coerce)
-        : base(defaultValue, propertyChangedCallback)
+    // NOTE: WinUI 3-arg (object?, WinUI.PropertyChangedCallback, CoerceValueCallback?) removed
+    // to avoid CS0121 ambiguity with (object?, WPF.PropertyChangedCallback?, CoerceValueCallback?)
+    // when callers pass null for the callback. WinUI callers needing coerce use the WPF overloads.
+
+    // WPF 2-arg coerce-only overload: new FrameworkPropertyMetadata(callback, coerce)
+    public FrameworkPropertyMetadata(PropertyChangedCallback? changed, CoerceValueCallback? coerce)
+        : base(null, Bridge(changed))
     {
-        DefaultValue = defaultValue;
+        PropertyChangedCallback = changed;
         CoerceValueCallback = coerce;
     }
 
-    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback propertyChangedCallback, CoerceValueCallback? coerce)
+    public FrameworkPropertyMetadata(object? defaultValue, FrameworkPropertyMetadataOptions options, Microsoft.UI.Xaml.PropertyChangedCallback? propertyChangedCallback, CoerceValueCallback? coerce)
         : base(defaultValue, propertyChangedCallback)
     {
         DefaultValue = defaultValue;

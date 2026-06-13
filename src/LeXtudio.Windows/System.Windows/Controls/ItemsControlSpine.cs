@@ -23,6 +23,10 @@ public partial class ItemsControl : IGeneratorHost
     {
     }
 
+    protected virtual void OnItemTemplateChanged(DataTemplate oldTemplate, DataTemplate newTemplate)
+    {
+    }
+
     protected virtual void OnIsKeyboardFocusWithinChanged(DependencyPropertyChangedEventArgs e)
     {
     }
@@ -143,6 +147,9 @@ public partial class ItemsControl : IGeneratorHost
     // WPF inherits these from DispatcherObject/DependencyObject. They live on
     // the shim because upstream code calls them without a receiver, where C#
     // does not consider extension members.
+    // Shadow the WinUI CoreDispatcher Dispatcher property with our WPF-compatible shim.
+    public new Threading.Dispatcher Dispatcher => Threading.Dispatcher.CurrentDispatcher;
+
     public bool CheckAccess() => true;
 
     public void VerifyAccess()
@@ -191,4 +198,126 @@ public partial class ItemsControl : IGeneratorHost
     // The shim has no ISupportInitialize phase, so elements are always
     // considered initialized.
     public bool IsInitialized => true;
+
+    // ── DataGrid-required ItemsControl surface ────────────────────────────
+
+    // AutoScrollTimeout: WPF ItemsControl static used by DataGrid's drag-scroll timer.
+    internal static TimeSpan AutoScrollTimeout { get; } = TimeSpan.FromMilliseconds(200);
+
+    // ItemsHost: the panel that lays out item containers.
+    internal Panel? ItemsHost => null;
+
+    // IsEnabled / IsEnabledProperty: not on our FrameworkElement base, so
+    // expose them here for DataGrid's static ctor.
+    public static readonly DependencyProperty IsEnabledProperty =
+        DependencyProperty.Register("IsEnabled", typeof(bool), typeof(ItemsControl),
+            new PropertyMetadata(true));
+
+    public bool IsEnabled
+    {
+        get => (bool)GetValue(IsEnabledProperty);
+        set => SetValue(IsEnabledProperty, value);
+    }
+
+    public static readonly DependencyProperty DefaultStyleKeyProperty =
+        DependencyProperty.Register("DefaultStyleKey", typeof(object), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsTabStopProperty =
+        DependencyProperty.Register("IsTabStop", typeof(bool), typeof(ItemsControl),
+            new PropertyMetadata(true));
+
+    public static readonly DependencyProperty ItemContainerStyleProperty =
+        DependencyProperty.Register("ItemContainerStyle", typeof(Style), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ItemContainerStyleSelectorProperty =
+        DependencyProperty.Register("ItemContainerStyleSelector", typeof(StyleSelector), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ItemsPanelProperty =
+        DependencyProperty.Register("ItemsPanel", typeof(ItemsPanelTemplate), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ItemsSourceProperty =
+        DependencyProperty.Register("ItemsSourceDP", typeof(IEnumerable), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty AlternationCountProperty =
+        DependencyProperty.Register("AlternationCount", typeof(int), typeof(ItemsControl),
+            new PropertyMetadata(0));
+
+    public static readonly DependencyProperty IsTextSearchEnabledProperty =
+        DependencyProperty.Register("IsTextSearchEnabled", typeof(bool), typeof(ItemsControl),
+            new PropertyMetadata(false));
+
+    public bool IsTextSearchEnabled
+    {
+        get => (bool)GetValue(IsTextSearchEnabledProperty);
+        set => SetValue(IsTextSearchEnabledProperty, value);
+    }
+
+    public static readonly DependencyProperty ItemBindingGroupProperty =
+        DependencyProperty.Register("ItemBindingGroup", typeof(Data.BindingGroup), typeof(ItemsControl),
+            new PropertyMetadata(null));
+
+    public Data.BindingGroup? ItemBindingGroup
+    {
+        get => (Data.BindingGroup?)GetValue(ItemBindingGroupProperty);
+        set => SetValue(ItemBindingGroupProperty, value);
+    }
+
+    // IsMouseCaptured / mouse capture: not bridged at the UIElement level;
+    // DataGrid reads it during selection drag-scroll.
+    public bool IsMouseCaptured => false;
+
+    public void ReleaseMouseCapture() { }
+
+    public static readonly RoutedEvent MouseUpEvent = new();
+
+    // IsKeyboardFocusWithinPropertyKey: WPF read-only DP for focus-within.
+    internal static readonly DependencyPropertyKey IsKeyboardFocusWithinPropertyKey =
+        DependencyProperty.RegisterReadOnly("IsKeyboardFocusWithin_Shim", typeof(bool),
+            typeof(ItemsControl), new PropertyMetadata(false));
+
+    // SetCurrentValue: WPF method that sets local value without triggering
+    // expression coercion; maps to SetValue on Uno.
+    public void SetCurrentValue(DependencyProperty dp, object? value) => SetValue(dp, value);
+
+    // SetBinding override: routes our BindingBase through BindingOperations so
+    // the caller does not have to convert to WinUI's BindingBase.
+    public void SetBinding(DependencyProperty dp, Data.BindingBase binding)
+        => Data.BindingOperations.SetBinding(this, dp, binding);
+
+    // Container/item-info lookups: no containers generated yet, so all return
+    // degenerate values. DataGrid uses these to find the focused container.
+    internal DependencyObject? ContainerFromItemInfo(ItemInfo info) => null;
+
+    internal ItemInfo ItemInfoFromContainer(DependencyObject container)
+        => NewItemInfo(ItemContainerGenerator.ItemFromContainer(container));
+
+    internal ItemInfo LeaseItemInfo(ItemInfo info, bool ensureIndex = false) => info;
+
+    // Navigation by line/page: no-op until a real scroll host exists.
+    internal virtual object? OnBringItemIntoView(object arg) => null;
+    internal virtual object? OnBringItemIntoView(ItemInfo info) => null;
+
+    internal virtual void PrepareNavigateByLine(
+        ItemInfo startingInfo,
+        FrameworkElement startingElement,
+        Input.FocusNavigationDirection direction,
+        ItemNavigateArgs args,
+        out FrameworkElement? targetElement) { targetElement = null; }
+
+    internal virtual void PrepareToNavigateByPage(
+        ItemInfo startingInfo,
+        FrameworkElement startingElement,
+        Input.FocusNavigationDirection direction,
+        ItemNavigateArgs args,
+        out FrameworkElement? targetElement) { targetElement = null; }
+
+    // WPF UIElement.PredictFocus returns the element that would receive focus
+    // in the given direction. The shim always returns null.
+    public DependencyObject? PredictFocus(Input.FocusNavigationDirection direction) => null;
+
 }

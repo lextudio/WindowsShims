@@ -12,18 +12,20 @@ coupled for the current milestone.
 - Upstream WPF source root:
   `ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls`
 - First build target: `net10.0-desktop`
-- Session 21 build/test status: green with the keyboard-focus and automation
-  clusters — linked `TraversalRequest` (replacing the local
-  `FocusNavigationDirection` shim), `KeyboardNavigationMode`,
-  `KeyboardNavigation` traversal members, `Keyboard.Focus`, zero-argument
-  `Focus()` members, and the automation peer stub layer — plus everything
-  from prior sessions.
+- Session 22 build/test status: green with the upstream `DataGrid.cs`
+  control root linked and compiling (`linked-upstream`, fork-guarded
+  partial on `HAS_UNO`). The session-12 local shell is reduced to a minimal
+  partial (`UpdateVisualState`); presenters, virtualizing-panel stubs, a
+  WPF-shaped `Dispatcher` shadow on the spine, and the remaining helper
+  internals were added as bridges. See `session22.md` for the inventory.
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
-  21 (focus + automation). Remaining: helper/visual internals
-  (`DataGridHelper.FindVisualParent`/`IsDefaultValue`, `VisualStates`,
-  `Panel.Children`, `ContentElement`) and row/cell/presenter/column-collection
-  internals — the final two clusters.
+  21 (focus + automation), 0 after session 22 (helper/visual +
+  row/cell/presenter/column-collection internals; third link attempt
+  succeeded and the link is now permanent). The compile milestone is
+  complete; the next phase is behavior — replacing the no-op bridge stubs
+  (row generation, column widths, details, templates) driven by a runtime
+  sample.
 - Mechanism note (discovered in session 15): `ext/wpf` is a patched fork that
   uses `#if !HAS_UNO` guards inside upstream files (for example `Window.cs`,
   `AdornerLayer`, `TextBoxBase`). Fork-patching is an established third
@@ -99,12 +101,12 @@ spine.
 | View/grouping stubs | `CollectionView.NewItemPlaceholder`, `CollectionViewGroupInternal`, `GroupItem`, `IsGrouping` | `System.Windows/Data/CollectionViewShims.cs`, `GroupItem.cs`, spine | `local-bridge` | Placeholder is a stable sentinel never produced by the shim view; grouping paths are unreachable while `IsGrouping` is false. |
 | Focus traversal | `TraversalRequest`/`FocusNavigationDirection` (linked WindowsBase), `KeyboardNavigationMode`, `KeyboardNavigation` traversal members, `Keyboard.Focus`, zero-argument `Focus()` | linked + input shims | `linked-upstream` / `local-bridge` | Prediction returns null and ancestry checks false (traversal falls back to `MoveFocus`, which reports no movement); cell/row `Focus()` routes to WinUI programmatic focus for real. |
 | Automation stubs | `AutomationPeer`/`UIElementAutomationPeer`/`DataGrid*AutomationPeer`, `AutomationEvents`, `ValuePatternIdentifiers` | `System.Windows/Automation/Peers/` | `local-bridge` | `FromElement` null + `ListenerExists` false make every automation path unreachable; chosen over ~36 fork guards. |
-| Control root | upstream `DataGrid.cs` | Not enabled (local shell active) | `blocked` | Session 18 probe with all type prerequisites resolved: 386 unique member-level sites (see probe results). Needs a staged enablement plan, not a single session. |
+| Control root | upstream `DataGrid.cs` | Linked WPF source (fork-guarded `partial` on `HAS_UNO`) + minimal local partial (`UpdateVisualState`) | `linked-upstream` | Session 22: third link attempt succeeded; 248 → 0 sites. WPF logic compiles and runs over bridge stubs; behavior (row generation, column widths, details, templates) comes from replacing stubs against a runtime sample. |
 | Cell selection collections | `SelectedCellsCollection`, `VirtualizedCellInfoCollection`, `SelectedCellsChangedEventArgs`/`Handler` | Linked WPF source | `linked-upstream` | Compiles over guarded `DataGrid` internals (`Items` item list, `ItemInfoFromIndex`, subset `OnSelectedCellsChanged`), four new SR strings, and `CoreDispatcher.VerifyAccess`/`CheckAccess` extensions. `DataGrid.SelectedCells` and `SelectedCellsChanged` are exposed on the shell. |
-| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | `System.Windows/Controls/DataGrid.cs`, `DataGridColumnCollection.cs` | `local-shell` | Session 17 rebased the shell onto linked `MultiSelector`, so `Items`, item-info helpers, and the selection surface are inherited from the spine. Adds WPF-shaped `Columns`, owner tracking, display-index lookup, `SelectedCells`, and notification stubs. Width redistribution, virtualization maps, and sorting remain deferred. |
+| Column owner/collection | `DataGrid`, `DataGridColumnCollection` | upstream `DataGrid.cs` (linked) + `DataGridColumnCollection.cs` | `linked-upstream` / `local-bridge` | Session 22: the local DataGrid shell's `Columns`/`SelectedCells`/owner surface is superseded by the linked control root. `DataGridColumnCollection` remains a local bridge with display-index map and a stubbed width-computation surface (`InvalidateColumnWidthsComputation` et al. are no-ops). |
 | Combo box column | `DataGridComboBoxColumn` | `System.Windows/Controls/DataGridComboBoxColumn.cs` | `local-shell` | Exposes `SelectedItemBinding`/`SelectedValueBinding`/`TextBinding` with WPF effective-binding precedence and maps `ItemsSource`/`DisplayMemberPath`/`SelectedValuePath` onto Uno `ComboBox`. WPF `OnInput` drop-down opening, flow-direction caching, style keys, and sort-member coercion remain deferred. |
 | Hyperlink column | `DataGridHyperlinkColumn` | Not enabled | `blocked` | Needs navigation/routed-command pieces (`Hyperlink` content binding, `OnExecutedRouted` style command plumbing). |
-| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPanel`, presenters | Not enabled (local shells only) | `blocked` | Requires item container generation, virtualization, layout override parity, visual states, and automation support. |
+| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPanel`, presenters | Local shells only (`DataGridRow.cs`, `DataGridCell.cs`, `Primitives/DataGridPresenters.cs`, `VirtualizingPanelStubs.cs`) | `blocked` | Session 22 grew the shells to the full surface the linked control root touches (presenters, details, tracking, editing notification, virtualizing-panel stubs) — but all behavior members are no-ops. Linking the upstream row/cell/panel files still requires container generation, virtualization, and layout parity. |
 
 ## Session Ladder
 
@@ -148,8 +150,9 @@ spine.
    session-18 catalog: command system and metadata friction (completed in
    session 19; 386 → 355 sites), sorting/view (completed in session 20;
    355 → 320), keyboard-focus traversal and automation stubs (completed in
-   session 21; 320 → 248), helper/visual internals, row/cell/presenter
-   internals — then repeat the `DataGrid.cs` link attempt.
+   session 21; 320 → 248), helper/visual internals plus row/cell/presenter
+   internals and the successful link attempt (completed in session 22;
+   248 → 0 — the control root is now `linked-upstream`).
 15. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts; a
    runtime sample with static items and explicit columns gates behavior

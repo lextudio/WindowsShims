@@ -17,6 +17,9 @@ internal static class DoubleUtil
     }
 
     internal static bool IsOne(double value) => Math.Abs(value - 1.0) < 10.0 * Epsilon;
+
+    internal static bool AreClose(Windows.Foundation.Point point1, Windows.Foundation.Point point2)
+        => AreClose(point1.X, point2.X) && AreClose(point1.Y, point2.Y);
 }
 
 internal readonly struct PixelUnit

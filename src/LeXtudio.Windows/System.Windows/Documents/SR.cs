@@ -252,4 +252,21 @@ internal static class SR
     {
         return string.Format(format, args);
     }
+
+    // DataGrid resource strings (new entries — earlier entries are at lines 52-62)
+    internal const string DataGrid_DisplayIndexOutOfRange = "DataGrid_DisplayIndexOutOfRange";
+    internal const string DataGrid_CannotSelectCell = "DataGrid_CannotSelectCell";
+    internal const string DataGrid_ProbableInvalidSortDescription = "DataGrid_ProbableInvalidSortDescription";
+    internal const string ClipboardCopyMode_Disabled = "ClipboardCopyMode_Disabled";
+    internal const string DataGrid_HeaderNotVisible = "DataGrid_HeaderNotVisible";
+    internal const string DataGrid_ColumnIndexOutOfRange = "DataGrid_ColumnIndexOutOfRange";
+    internal const string DataGrid_ColumnDisplayIndexOutOfRange = "DataGrid_ColumnDisplayIndexOutOfRange";
+    internal const string DataGrid_InvalidDataGridFrozenColumnCount = "DataGrid_InvalidDataGridFrozenColumnCount";
+    internal const string DataGrid_NullColumn = "DataGrid_NullColumn";
+    internal const string DataGrid_InvalidCurrentCellSet = "DataGrid_InvalidCurrentCellSet";
+    internal const string DataGrid_EditingCellTemplateIsNotSupported = "DataGrid_EditingCellTemplateIsNotSupported";
+    internal const string DataGridLength_Auto = "DataGridLength_Auto";
+    internal const string DataGridLength_SizeToCells = "DataGridLength_SizeToCells";
+    internal const string DataGridLength_SizeToHeader = "DataGridLength_SizeToHeader";
+    internal const string DataGrid_ReadOnlyCellsCannotBeEdited = "DataGrid_ReadOnlyCellsCannotBeEdited";
 }

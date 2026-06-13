@@ -12,6 +12,8 @@ namespace System.Windows.Data;
 public abstract class BindingBase
 {
     internal abstract WinUIBindingBase ToWinUIBindingBase();
+
+    public virtual BindingBase Clone(BindingMode mode) => this;
 }
 
 public static class BindingOperations

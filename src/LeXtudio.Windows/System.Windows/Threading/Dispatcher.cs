@@ -2,6 +2,8 @@ using System.ComponentModel;
 
 namespace System.Windows.Threading;
 
+// DispatcherOperationCallback is defined in DispatcherPriority.cs
+
 public sealed class DispatcherOperation
 {
     internal DispatcherOperation(Task task) => Task = task;
@@ -159,6 +161,22 @@ public sealed class Dispatcher
     {
         ArgumentNullException.ThrowIfNull(method);
         var op = InvokeAsync<object?>(() => method.DynamicInvoke(args), DispatcherPriority.Normal);
+        return new DispatcherOperation(op.Task);
+    }
+
+    // WPF-style BeginInvoke(DispatcherOperationCallback, DispatcherPriority, object) overload (delegate first).
+    public DispatcherOperation BeginInvoke(DispatcherOperationCallback callback, DispatcherPriority priority, object? arg)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        var op = InvokeAsync<object?>(() => callback(arg), priority);
+        return new DispatcherOperation(op.Task);
+    }
+
+    // WPF-style BeginInvoke(DispatcherPriority, Delegate, object) overload (priority first).
+    public DispatcherOperation BeginInvoke(DispatcherPriority priority, Delegate method, object? arg)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var op = InvokeAsync<object?>(() => method.DynamicInvoke(arg), priority);
         return new DispatcherOperation(op.Task);
     }
 }

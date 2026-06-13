@@ -14,15 +14,37 @@ namespace System.Windows.Input
         public static readonly System.Windows.RoutedEvent MouseLeaveEvent = new();
         public static readonly System.Windows.RoutedEvent MouseEnterEvent = new();
 
-        public static void Capture(IInputElement element)
+        public static bool Capture(IInputElement element)
         {
-            if (element is Microsoft.UI.Xaml.DependencyObject dependencyObject)
+            if (element is Microsoft.UI.Xaml.UIElement uie)
             {
-                dependencyObject.CaptureMouse();
+                uie.CaptureMouse();
+                return true;
             }
+            return false;
+        }
+
+        public static bool Capture(IInputElement element, CaptureMode captureMode) => Capture(element);
+
+        public static bool Capture(Microsoft.UI.Xaml.UIElement element, CaptureMode captureMode)
+        {
+            element.CaptureMouse();
+            return true;
         }
 
         public static Point GetPosition(Microsoft.UI.Xaml.UIElement element) => default;
         public static void UpdateCursor() { }
+
+        public static IInputElement? Captured => null;
+        public static IInputElement? DirectlyOver => null;
+        public static MouseButtonState LeftButton => MouseButtonState.Released;
+        public static MouseButtonState RightButton => MouseButtonState.Released;
+    }
+
+    public enum CaptureMode
+    {
+        None     = 0,
+        Element  = 1,
+        SubTree  = 2,
     }
 }

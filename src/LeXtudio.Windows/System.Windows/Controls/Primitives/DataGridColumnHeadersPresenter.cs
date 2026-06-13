@@ -6,6 +6,8 @@ public partial class DataGridColumnHeadersPresenter : ItemsControl
 {
     internal DataGrid? ParentDataGrid { get; set; }
 
+    internal ContainerTracking<DataGridColumnHeader>? HeaderTrackingRoot { get; set; }
+
     internal void NotifyPropertyChanged(
         DependencyObject d,
         string propertyName,

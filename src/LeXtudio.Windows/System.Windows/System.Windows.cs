@@ -43,6 +43,8 @@ namespace System.Windows
             Y = y;
         }
 
+        public double Length => Math.Sqrt(X * X + Y * Y);
+
         public bool Equals(Vector other) => X.Equals(other.X) && Y.Equals(other.Y);
         public override bool Equals(object? obj) => obj is Vector other && Equals(other);
         public override int GetHashCode() => HashCode.Combine(X, Y);

@@ -40,6 +40,10 @@ public static class WinUIDependencyPropertyExtensions
             => Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata);
 
         public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
+            string name, System.Type propertyType, System.Type ownerType)
+            => Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null));
+
+        public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
             => Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata);

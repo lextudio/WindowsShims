@@ -15,7 +15,7 @@ namespace System.Windows.Input
 
 namespace System.Windows
 {
-    public class KeyEventArgs : EventArgs
+    public class KeyEventArgs : RoutedEventArgs
     {
         public bool Handled { get; set; }
         public System.Windows.Input.Key Key { get; set; }

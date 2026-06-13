@@ -133,6 +133,36 @@ internal sealed class DataGridColumnCollection : ObservableCollection<DataGridCo
         column.DisplayIndex = -1;
     }
 
+    // Width/realization internals: stubs until the column-width computation
+    // milestone; all return safe degenerate values.
+    internal bool ColumnWidthsComputationPending { get; set; }
+    internal bool DisplayIndexMapInitialized { get; private set; }
+    internal bool HasVisibleStarColumns => this.Any(c => c.IsVisible && c.Width.IsStar);
+    internal int FirstVisibleDisplayIndex => this.FirstOrDefault(c => c.IsVisible)?.DisplayIndex ?? 0;
+    internal int LastVisibleDisplayIndex
+    {
+        get
+        {
+            var last = this.LastOrDefault(c => c.IsVisible);
+            return last?.DisplayIndex ?? -1;
+        }
+    }
+    internal List<int> DisplayIndexMap { get; } = new();
+
+    internal void InitializeDisplayIndexMap()
+    {
+        DisplayIndexMap.Clear();
+        for (int i = 0; i < Count; i++)
+            DisplayIndexMap.Add(i);
+        DisplayIndexMapInitialized = true;
+    }
+
+    internal void InvalidateColumnRealization(bool invalidateAll) { }
+    internal void InvalidateColumnWidthsComputation() { }
+    internal void RedistributeColumnWidthsOnAvailableSpaceChange(double oldAvailable, double newAvailable) { }
+    internal bool RefreshAutoWidthColumns { get; set; }
+    internal void ValidateDisplayIndex(DataGridColumn column, int displayIndex) { }
+
     private void NormalizeDisplayIndexes()
     {
         for (var i = 0; i < Count; i++)

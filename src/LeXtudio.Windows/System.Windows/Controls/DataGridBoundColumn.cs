@@ -111,4 +111,46 @@ internal static class DataGridHelper
 
     public static string? GetPathFromBinding(Binding? binding)
         => binding?.Path?.Path;
+
+    internal static T? FindVisualParent<T>(UIElement element) where T : UIElement
+    {
+        DependencyObject? current = element;
+        while (current is not null)
+        {
+            if (current is T target)
+                return target;
+            current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+        }
+        return null;
+    }
+
+    internal static bool IsDefaultValue(DependencyObject d, DependencyProperty dp)
+        => d.ReadLocalValue(dp) == DependencyProperty.UnsetValue;
+
+    internal static bool IsPropertyTransferEnabled(DependencyObject d, DependencyProperty dp) => true;
+
+    internal static void TransferProperty(DependencyObject d, DependencyProperty dp) { }
+
+    internal static double GetParentCellsPanelHorizontalOffset(DependencyObject element) => 0.0;
+    internal static double GetParentCellsPanelHorizontalOffset(IProvideDataGridColumn element) => 0.0;
+
+    internal static bool ShouldNotifyDataGrid(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.DataGrid) != 0;
+
+    internal static bool ShouldNotifyColumns(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.Columns) != 0;
+
+    internal static bool ShouldNotifyColumnCollection(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.ColumnCollection) != 0;
+
+    internal static bool ShouldNotifyColumnHeaders(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.ColumnHeaders) != 0;
+
+    internal static bool ShouldNotifyColumnHeadersPresenter(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.ColumnHeadersPresenter) != 0;
+
+    internal static bool ShouldNotifyRowSubtree(DataGridNotificationTarget target)
+        => (target & (DataGridNotificationTarget.Rows | DataGridNotificationTarget.RowHeaders |
+                      DataGridNotificationTarget.CellsPresenter | DataGridNotificationTarget.Cells |
+                      DataGridNotificationTarget.DetailsPresenter)) != 0;
 }
