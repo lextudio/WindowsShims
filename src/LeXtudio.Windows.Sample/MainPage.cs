@@ -382,6 +382,16 @@ public sealed partial class MainPage : Page
                 throw new InvalidOperationException($"ages not ascending: [{string.Join(",", asc)}]");
             }
 
+            // Reuse evidence: the real WPF PerformSort/DefaultSort path ran —
+            // Items.SortDescriptions populated and the column direction set by it.
+            Console.WriteLine($"[probe]   SortDescriptions={_grid.Items.SortDescriptions.Count}, dir={ageColumn.SortDirection}");
+            if (_grid.Items.SortDescriptions.Count != 1
+                || _grid.Items.SortDescriptions[0].PropertyName != "Age"
+                || ageColumn.SortDirection != System.ComponentModel.ListSortDirection.Ascending)
+            {
+                throw new InvalidOperationException("WPF sort path did not populate SortDescriptions / direction");
+            }
+
             _grid.HandleShimHeaderClicked(ageColumn);
             var desc = RowAges();
             Console.WriteLine($"[probe]   ages descending = [{string.Join(",", desc)}]");

@@ -79,7 +79,16 @@ public abstract partial class DataGridBoundColumn : DataGridColumn
     }
 
     protected virtual void OnBindingChanged(BindingBase? oldBinding, BindingBase? newBinding)
-        => NotifyPropertyChanged(nameof(Binding));
+    {
+        // Derive SortMemberPath from the binding (as WPF does) so the real
+        // DataGrid sort path (PerformSort) has a property to sort on.
+        if (string.IsNullOrEmpty(SortMemberPath) && BindingPath is { Length: > 0 } path)
+        {
+            SortMemberPath = path;
+        }
+
+        NotifyPropertyChanged(nameof(Binding));
+    }
 
     protected override bool OnCoerceIsReadOnly(bool baseValue)
         => DataGridHelper.IsOneWay(Binding) || base.OnCoerceIsReadOnly(baseValue);

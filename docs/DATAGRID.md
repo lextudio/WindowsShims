@@ -174,6 +174,14 @@ coupled for the current milestone.
   columns aligned, and cells stay column-indexed. Probe: selected row shows ▶.
   121 tests green. Glyph-only, no header style/resize/drag-select (see
   `session49.md`).
+- Session 50: **reuse milestone — sorting via the real WPF path.** Header
+  click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
+  `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`
+  applies the sort descriptions (stable multi-key) and the reactivity rebuild
+  renders sorted order. Deleted the shim reflection sort (`_activeSortColumn`/
+  `GetSortValue`). Probe proves `Items.SortDescriptions`/`SortDirection` set by
+  WPF. 121 tests green. Comparison still reflection-based; single-key (see
+  `session50.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

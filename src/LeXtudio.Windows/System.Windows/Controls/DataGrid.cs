@@ -226,35 +226,10 @@ public partial class DataGrid
 
     // Items in display order: sorted by the active sort column if one is set,
     // otherwise the collection's own order.
-    private IEnumerable<object?> OrderedItems()
-    {
-        var items = Items.Cast<object?>();
-        if (_activeSortColumn is { } col && col.SortDirection is { } dir)
-        {
-            object? KeySelector(object? item) => item is null ? null : GetSortValue(col, item);
-            items = dir == System.ComponentModel.ListSortDirection.Ascending
-                ? items.OrderBy(KeySelector, Comparer<object?>.Default)
-                : items.OrderByDescending(KeySelector, Comparer<object?>.Default);
-        }
-
-        return items.ToList();
-    }
-
-    private static object? GetSortValue(DataGridColumn column, object item)
-    {
-        var path = column.SortMemberPath;
-        if (string.IsNullOrEmpty(path)
-            && column is DataGridBoundColumn bound
-            && bound.Binding is Data.Binding binding
-            && binding.Path is { } propertyPath)
-        {
-            path = propertyPath.Path;
-        }
-
-        return string.IsNullOrEmpty(path)
-            ? null
-            : item.GetType().GetProperty(path)?.GetValue(item);
-    }
+    // Display order is now the collection-view order: sorting is applied by
+    // ItemCollection.SortDescriptions (driven by the WPF PerformSort path),
+    // so Items already enumerates in sorted order. (Session 50 reuse.)
+    private IEnumerable<object?> OrderedItems() => Items.Cast<object?>().ToList();
 
     private Microsoft.UI.Xaml.Controls.StackPanel BuildHeaderRow()
     {
@@ -292,7 +267,7 @@ public partial class DataGrid
     // active sort.
     private object? HeaderContent(DataGridColumn column)
     {
-        if (ReferenceEquals(column, _activeSortColumn) && column.SortDirection is { } dir)
+        if (column.SortDirection is { } dir)
         {
             var glyph = dir == System.ComponentModel.ListSortDirection.Ascending ? " ▲" : " ▼";
             return (column.Header?.ToString() ?? string.Empty) + glyph;
@@ -581,12 +556,6 @@ public partial class DataGrid
         }
     }
 
-    // ── Session 30: header-click sort ────────────────────────────────────────
-    // Toggle the clicked column's sort: none → Ascending → Descending →
-    // Ascending. Clears the other columns' direction (single sort key), then
-    // re-renders in sorted order.
-    private DataGridColumn? _activeSortColumn;
-
     // ── Session 33: keyboard navigation ──────────────────────────────────────
     // Up/Down arrows move the single selection between rows.
     private const int ShimPageSize = 5;
@@ -650,27 +619,9 @@ public partial class DataGrid
         HandleShimRowClicked(rows[Math.Clamp(index, 0, rows.Count - 1)]);
     }
 
-    internal void HandleShimHeaderClicked(DataGridColumn column)
-    {
-        if (!column.CanUserSort)
-        {
-            return;
-        }
-
-        var next = column.SortDirection == System.ComponentModel.ListSortDirection.Ascending
-            ? System.ComponentModel.ListSortDirection.Descending
-            : System.ComponentModel.ListSortDirection.Ascending;
-
-        foreach (var other in Columns)
-        {
-            if (!ReferenceEquals(other, column))
-            {
-                other.SortDirection = null;
-            }
-        }
-
-        column.SortDirection = next;
-        _activeSortColumn = column;
-        BuildShimVisualTree();
-    }
+    // Session 50 reuse: header click drives the real WPF sort path. PerformSort
+    // raises the Sorting event, toggles direction, and updates
+    // Items.SortDescriptions; ItemCollection.Refresh applies the sort and
+    // raises Reset, which rebuilds the rendered rows in sorted order.
+    internal void HandleShimHeaderClicked(DataGridColumn column) => PerformSort(column);
 }

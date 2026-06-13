@@ -17,7 +17,21 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     private int _currentPosition = -1;
     private SortDescriptionCollection? _sortDescriptions;
 
-    public SortDescriptionCollection SortDescriptions => _sortDescriptions ??= [];
+    public SortDescriptionCollection SortDescriptions
+    {
+        get
+        {
+            if (_sortDescriptions is null)
+            {
+                _sortDescriptions = [];
+                // Changing sort descriptions marks the view as needing a refresh
+                // (the WPF DataGrid sort path checks Items.NeedsRefresh).
+                ((INotifyCollectionChanged)_sortDescriptions).CollectionChanged += (_, _) => NeedsRefresh = true;
+            }
+
+            return _sortDescriptions;
+        }
+    }
 
     public event NotifyCollectionChangedEventHandler? CollectionChanged;
 
@@ -169,7 +183,41 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     private System.Collections.ObjectModel.ObservableCollection<System.ComponentModel.GroupDescription>? _groupDescriptions;
 
-    public void Refresh() { NeedsRefresh = false; }
+    // Session 50: apply SortDescriptions to the underlying items (real
+    // collection-view sort), so the WPF DataGrid sort path (PerformSort →
+    // Items.SortDescriptions → Refresh) drives ordering instead of a shim.
+    public void Refresh()
+    {
+        NeedsRefresh = false;
+
+        if (_sortDescriptions is { Count: > 0 } && Items is List<object?> backing && backing.Count > 1)
+        {
+            var ordered = ApplySortDescriptions(backing);
+            backing.Clear();
+            backing.AddRange(ordered);
+            _currentPosition = -1;
+            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        }
+    }
+
+    private List<object?> ApplySortDescriptions(IEnumerable<object?> items)
+    {
+        IOrderedEnumerable<object?>? ordered = null;
+        foreach (var sd in _sortDescriptions!)
+        {
+            var path = sd.PropertyName;
+            object? Key(object? item) => item is null || string.IsNullOrEmpty(path)
+                ? null
+                : item.GetType().GetProperty(path)?.GetValue(item);
+
+            var ascending = sd.Direction == System.ComponentModel.ListSortDirection.Ascending;
+            ordered = ordered is null
+                ? (ascending ? items.OrderBy(Key, Comparer<object?>.Default) : items.OrderByDescending(Key, Comparer<object?>.Default))
+                : (ascending ? ordered.ThenBy(Key, Comparer<object?>.Default) : ordered.ThenByDescending(Key, Comparer<object?>.Default));
+        }
+
+        return ordered?.ToList() ?? items.ToList();
+    }
 
     public IDisposable DeferRefresh()
     {
