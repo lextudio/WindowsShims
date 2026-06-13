@@ -263,6 +263,13 @@ public partial class DataGrid
             Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
         };
 
+        // Top-left corner placeholder when row headers are visible, so column
+        // headers line up with the row-header-indented cells.
+        if (AreRowHeadersVisible)
+        {
+            header.Children.Add(new Microsoft.UI.Xaml.Controls.Border { Width = RowHeaderShimWidth });
+        }
+
         _headerCells.Clear();
         foreach (var column in _visibleColumns)
         {
@@ -297,6 +304,12 @@ public partial class DataGrid
     // Column width: explicit pixel widths are honored; Auto/SizeToCells/
     // SizeToHeader/Star are not computed yet, so they fall back to a default.
     // ActualWidth (if a width-computation pass ever sets it) wins.
+    // ── Session 49: row headers ──────────────────────────────────────────────
+    internal bool AreRowHeadersVisible
+        => (HeadersVisibility & DataGridHeadersVisibility.Row) == DataGridHeadersVisibility.Row;
+
+    internal double RowHeaderShimWidth => RowHeaderWidth > 0 ? RowHeaderWidth : 24;
+
     internal double ShimColumnWidth(DataGridColumn column)
     {
         if (column.ActualWidth > 0)
@@ -382,6 +395,70 @@ public partial class DataGrid
         var args = new DataGridCellEditEndingEventArgs(column, row, editingElement!, action);
         OnCellEditEnding(args);
         return args;
+    }
+
+    // ── Session 47: row edit transactions ───────────────────────────────────
+    // A cell entering edit begins the row's edit transaction; committing /
+    // canceling the cell ends it, driving IEditableObject and RowEditEnding.
+    private DataGridRow? _editingRow;
+
+    internal void BeginRowEdit(DataGridRow? row)
+    {
+        if (row is null || ReferenceEquals(_editingRow, row))
+        {
+            return;
+        }
+
+        _editingRow = row;
+        row.IsEditing = true;
+        (row.Item as System.ComponentModel.IEditableObject)?.BeginEdit();
+    }
+
+    internal bool CommitRowEdit(DataGridRow? row)
+    {
+        if (row is null || !ReferenceEquals(_editingRow, row))
+        {
+            return true;
+        }
+
+        // Row-level validation (session 48): run RowValidationRules against the
+        // item; any failure flags the row and keeps it in edit.
+        foreach (var rule in RowValidationRules)
+        {
+            var result = rule.Validate(row.Item, System.Globalization.CultureInfo.CurrentCulture);
+            if (!result.IsValid)
+            {
+                row.SetRowError(result.ErrorContent?.ToString());
+                return false;
+            }
+        }
+
+        var args = new DataGridRowEditEndingEventArgs(row, DataGridEditAction.Commit);
+        OnRowEditEnding(args);
+        if (args.Cancel)
+        {
+            return false;
+        }
+
+        row.ClearRowError();
+        (row.Item as System.ComponentModel.IEditableObject)?.EndEdit();
+        row.IsEditing = false;
+        _editingRow = null;
+        return true;
+    }
+
+    internal void CancelRowEdit(DataGridRow? row)
+    {
+        if (row is null || !ReferenceEquals(_editingRow, row))
+        {
+            return;
+        }
+
+        var args = new DataGridRowEditEndingEventArgs(row, DataGridEditAction.Cancel);
+        OnRowEditEnding(args);
+        (row.Item as System.ComponentModel.IEditableObject)?.CancelEdit();
+        row.IsEditing = false;
+        _editingRow = null;
     }
 
     internal void HandleShimCellClicked(DataGridCell cell)

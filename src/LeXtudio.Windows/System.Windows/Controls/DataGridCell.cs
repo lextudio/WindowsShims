@@ -98,6 +98,8 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             {
                 return false;
             }
+
+            owner.BeginRowEdit(row); // start the row transaction (IEditableObject)
         }
 
         var current = item.GetType().GetProperty(path)?.GetValue(item);
@@ -122,8 +124,10 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         if (DataGridOwner is { } owner && Column is { } column && RowOwner is { } row)
         {
             owner.RaiseCellEditEnding(column, row, _editingBox, DataGridEditAction.Cancel);
+            owner.CancelRowEdit(row); // roll back the row transaction
         }
 
+        ClearValidationError();
         EndEdit();
     }
 
@@ -162,11 +166,60 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
                 {
                     return false; // invalid input — keep editing
                 }
+
+                // Business-rule validation via IDataErrorInfo (session 46):
+                // value is written, then validated; on error stay in edit mode.
+                if (item is System.ComponentModel.IDataErrorInfo dataError)
+                {
+                    var error = dataError[path];
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        SetValidationError(error);
+                        return false;
+                    }
+                }
             }
         }
 
+        // Cell value is valid — commit the row transaction (RowEditEnding +
+        // IEditableObject.EndEdit). A RowEditEnding veto keeps editing.
+        if (DataGridOwner is { } commitOwner && RowOwner is { } commitRow && !commitOwner.CommitRowEdit(commitRow))
+        {
+            return false;
+        }
+
+        ClearValidationError();
         EndEdit();
         return true;
+    }
+
+    // ── Session 46: validation surface ───────────────────────────────────────
+    internal bool HasValidationError { get; private set; }
+
+    internal string? ValidationError { get; private set; }
+
+    private void SetValidationError(string error)
+    {
+        HasValidationError = true;
+        ValidationError = error;
+        BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0x00, 0x00));
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(this, error);
+    }
+
+    private void ClearValidationError()
+    {
+        if (!HasValidationError)
+        {
+            return;
+        }
+
+        HasValidationError = false;
+        ValidationError = null;
+        BorderBrush = null;
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(this, null);
     }
 
     private void EndEdit()

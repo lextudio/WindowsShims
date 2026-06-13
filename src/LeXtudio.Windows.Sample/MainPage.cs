@@ -17,8 +17,21 @@ public sealed partial class MainPage : Page
 {
     public static int ProbeFailures { get; private set; }
 
-    public sealed class Person
+    // Row-level rule: a person must be at least 18 (distinct from the
+    // cell-level 0..150 IDataErrorInfo check).
+    private sealed class MinAgeRule : System.Windows.Controls.ValidationRule
     {
+        public override System.Windows.Controls.ValidationResult Validate(
+            object value, System.Globalization.CultureInfo cultureInfo)
+            => value is Person { Age: >= 18 }
+                ? System.Windows.Controls.ValidationResult.ValidResult
+                : new System.Windows.Controls.ValidationResult(false, "Age must be at least 18");
+    }
+
+    public sealed class Person : System.ComponentModel.IDataErrorInfo, System.ComponentModel.IEditableObject
+    {
+        private int _ageBackup;
+
         public Person(string name, int age, string city, bool isActive = false)
         {
             Name = name;
@@ -31,6 +44,46 @@ public sealed partial class MainPage : Page
         public int Age { get; set; }
         public string City { get; set; }
         public bool IsActive { get; set; }
+
+        // IEditableObject transaction tracking (for the probe).
+        public bool InEdit { get; private set; }
+        public int EndEditCount { get; private set; }
+        public int CancelEditCount { get; private set; }
+
+        public void BeginEdit()
+        {
+            if (!InEdit)
+            {
+                InEdit = true;
+                _ageBackup = Age;
+            }
+        }
+
+        public void EndEdit()
+        {
+            if (InEdit)
+            {
+                InEdit = false;
+                EndEditCount++;
+            }
+        }
+
+        public void CancelEdit()
+        {
+            if (InEdit)
+            {
+                Age = _ageBackup;
+                InEdit = false;
+                CancelEditCount++;
+            }
+        }
+
+        public string Error => string.Empty;
+
+        public string this[string columnName]
+            => columnName == nameof(Age) && (Age < 0 || Age > 150)
+                ? "Age must be between 0 and 150"
+                : string.Empty;
     }
 
     private readonly StackPanel _report = new() { Spacing = 4 };
@@ -104,10 +157,20 @@ public sealed partial class MainPage : Page
                 Header = "Active",
                 Binding = new WpfBinding("IsActive"),
             });
-            if (grid.Columns.Count != 4)
+            grid.Columns.Add(new System.Windows.Controls.DataGridComboBoxColumn
             {
-                throw new InvalidOperationException($"expected 4 columns, found {grid.Columns.Count}");
+                Header = "CityPick",
+                SelectedValueBinding = new WpfBinding("City"),
+                ItemsSource = new[] { "London", "Arlington", "Seattle", "Hampton", "Town", "Paris" },
+            });
+            if (grid.Columns.Count != 5)
+            {
+                throw new InvalidOperationException($"expected 5 columns, found {grid.Columns.Count}");
             }
+
+            grid.RowValidationRules.Add(new MinAgeRule());
+            // Column headers only by default; the row-header step toggles to All.
+            grid.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.Column;
         });
 
         Step("populate Items directly", () =>
@@ -203,9 +266,9 @@ public sealed partial class MainPage : Page
 
             var cellCount = VisualTreeHelper.GetChildrenCount(cellsHost);
             Console.WriteLine($"[probe]   first row cell count = {cellCount}");
-            if (cellCount != 4)
+            if (cellCount != 5)
             {
-                throw new InvalidOperationException($"expected 4 cells (one per column), found {cellCount}");
+                throw new InvalidOperationException($"expected 5 cells (one per column), found {cellCount}");
             }
         });
 
@@ -735,6 +798,166 @@ public sealed partial class MainPage : Page
             {
                 throw new InvalidOperationException("checkbox toggle did not write back");
             }
+        });
+
+        Step("combobox column renders + selection writes back", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var pickCell = row0?.TryGetCell(4); // CityPick (combo) column
+            if (pickCell?.Content is not Microsoft.UI.Xaml.Controls.ComboBox combo)
+            {
+                throw new InvalidOperationException(
+                    $"CityPick cell content is {pickCell?.Content?.GetType().Name ?? "null"}, expected ComboBox");
+            }
+
+            var person = (Person)row0!.Item!;
+            combo.SelectedValue = "Paris"; // fires SelectionChanged → write-back
+            Console.WriteLine($"[probe]   combo selected Paris → City={person.City}");
+            if (person.City != "Paris")
+            {
+                throw new InvalidOperationException($"combo selection did not write back (City={person.City})");
+            }
+        });
+
+        Step("validation: invalid edit keeps editing + flags cell, valid clears", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var ageCell = row0?.TryGetCell(1); // Age
+            if (ageCell is null)
+            {
+                throw new InvalidOperationException("no Age cell");
+            }
+
+            // Invalid value (out of 0..150) → commit refused, cell flagged.
+            if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin failed");
+            ((TextBox)ageCell.Content).Text = "999";
+            if (ageCell.CommitEdit()) throw new InvalidOperationException("invalid commit should fail");
+            Console.WriteLine($"[probe]   invalid: HasError={ageCell.HasValidationError}, IsEditing={ageCell.IsEditing}, msg={ageCell.ValidationError}");
+            if (!ageCell.HasValidationError || !ageCell.IsEditing)
+            {
+                throw new InvalidOperationException("invalid edit should flag the cell and stay editing");
+            }
+
+            // Valid value → commits and clears the error.
+            ((TextBox)ageCell.Content).Text = "42";
+            if (!ageCell.CommitEdit()) throw new InvalidOperationException("valid commit should succeed");
+            if (ageCell.HasValidationError || ((Person)row0!.Item!).Age != 42)
+            {
+                throw new InvalidOperationException("valid edit should clear error and write back");
+            }
+        });
+
+        Step("row edit transaction: IEditableObject + RowEditEnding", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var ageCell = row0?.TryGetCell(1);
+            var person = row0?.Item as Person;
+            if (ageCell is null || person is null)
+            {
+                throw new InvalidOperationException("no Age cell / person");
+            }
+
+            var commits = 0;
+            var cancels = 0;
+            void OnRowEnding(object? s, System.Windows.Controls.DataGridRowEditEndingEventArgs e)
+            {
+                if (e.EditAction == System.Windows.Controls.DataGridEditAction.Commit) commits++;
+                else cancels++;
+            }
+            _grid.RowEditEnding += OnRowEnding;
+            var endBefore = person.EndEditCount;
+            var cancelBefore = person.CancelEditCount;
+
+            // Begin → transaction open.
+            if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin failed");
+            if (!person.InEdit) throw new InvalidOperationException("IEditableObject.BeginEdit not called");
+
+            // Commit → EndEdit + RowEditEnding(Commit), value written.
+            ((TextBox)ageCell.Content).Text = "55";
+            if (!ageCell.CommitEdit()) throw new InvalidOperationException("commit failed");
+            if (person.InEdit || person.EndEditCount != endBefore + 1 || person.Age != 55 || commits != 1)
+            {
+                throw new InvalidOperationException($"commit transaction wrong (InEdit={person.InEdit}, EndEditΔ={person.EndEditCount - endBefore}, Age={person.Age}, commits={commits})");
+            }
+
+            // Begin again, then cancel → CancelEdit reverts the snapshot.
+            if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin2 failed");
+            ageCell.CancelEdit();
+            Console.WriteLine($"[probe]   after cancel: InEdit={person.InEdit}, CancelEditΔ={person.CancelEditCount - cancelBefore}, cancels={cancels}, Age={person.Age}");
+            if (person.InEdit || person.CancelEditCount != cancelBefore + 1 || cancels != 1)
+            {
+                throw new InvalidOperationException("cancel transaction wrong");
+            }
+
+            _grid.RowEditEnding -= OnRowEnding;
+        });
+
+        Step("row validation rule flags the row and blocks commit", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var ageCell = row0?.TryGetCell(1);
+            if (ageCell is null || row0 is null)
+            {
+                throw new InvalidOperationException("no Age cell");
+            }
+
+            // 10 passes the cell rule (0..150) but fails the row rule (>=18).
+            if (!ageCell.BeginEdit(null)) throw new InvalidOperationException("begin failed");
+            ((TextBox)ageCell.Content).Text = "10";
+            if (ageCell.CommitEdit()) throw new InvalidOperationException("row rule should block commit");
+            Console.WriteLine($"[probe]   row error after Age=10: {row0.HasRowValidationError} ({row0.RowValidationError})");
+            if (!row0.HasRowValidationError || !ageCell.IsEditing)
+            {
+                throw new InvalidOperationException("row rule should flag the row and keep editing");
+            }
+
+            // 30 passes both → commits and clears the row error.
+            ((TextBox)ageCell.Content).Text = "30";
+            if (!ageCell.CommitEdit()) throw new InvalidOperationException("valid row commit should succeed");
+            if (row0.HasRowValidationError || ((Person)row0.Item!).Age != 30)
+            {
+                throw new InvalidOperationException("valid commit should clear the row error");
+            }
+        });
+
+        Step("row headers render with a current-row glyph (HeadersVisibility.All)", () =>
+        {
+            _grid!.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.All;
+            _grid.BuildShimVisualTree();
+            _grid.UpdateLayout();
+
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            if (row0 is null)
+            {
+                throw new InvalidOperationException("no row0");
+            }
+
+            _grid.HandleShimRowClicked(row0); // select → ▶ glyph
+
+            var headerHost = FindDescendant(row0, "PART_RowHeader") as Microsoft.UI.Xaml.Controls.ContentControl;
+            if (headerHost?.Content is not System.Windows.Controls.Primitives.DataGridRowHeader rowHeader)
+            {
+                throw new InvalidOperationException(
+                    $"PART_RowHeader content is {headerHost?.Content?.GetType().Name ?? "null"}, expected DataGridRowHeader");
+            }
+
+            Console.WriteLine($"[probe]   row0 header glyph = '{rowHeader.Content}', cell0 col matches = {ReferenceEquals(row0.TryGetCell(0)?.Column, _grid.Columns[0])}");
+            if (rowHeader.Content as string != "▶")
+            {
+                throw new InvalidOperationException($"expected current-row glyph, got '{rowHeader.Content}'");
+            }
+
+            // Cells stay column-indexed (row header is a separate element).
+            if (!ReferenceEquals(row0.TryGetCell(0)?.Column, _grid.Columns[0]))
+            {
+                throw new InvalidOperationException("row header shifted the cell indices");
+            }
+
+            _grid.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.Column;
         });
 
         Step("report: grid desired size", () =>

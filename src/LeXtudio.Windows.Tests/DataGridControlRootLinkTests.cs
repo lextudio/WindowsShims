@@ -289,6 +289,16 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
+    public void ComboBoxColumnHasWriteBackSurface()
+    {
+        // Session 45: combo column write-back. Behavior verified by the probe.
+        Assert.That(
+            typeof(DataGridComboBoxColumn).GetMethod("EffectiveWriteTarget", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGridComboBoxColumn resolves the effective write-back target.");
+    }
+
+    [Test]
     public void CheckBoxColumnGeneratesCheckBox()
     {
         // Session 44: checkbox column type. Toggle write-back verified by the
@@ -342,6 +352,19 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(typeof(DataGrid).GetMethod("IsCellEffectivelyReadOnly", flags), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetMethod("RaiseBeginningEdit", flags), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetMethod("RaiseCellEditEnding", flags), Is.Not.Null);
+        // Session 46: validation surface.
+        Assert.That(typeof(DataGridCell).GetProperty("HasValidationError", flags), Is.Not.Null);
+        Assert.That(typeof(DataGridCell).GetProperty("ValidationError", flags), Is.Not.Null);
+        // Session 47: row edit transactions.
+        Assert.That(typeof(DataGrid).GetMethod("BeginRowEdit", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("CommitRowEdit", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("CancelRowEdit", flags), Is.Not.Null);
+        // Session 48: row-level validation indicator.
+        Assert.That(typeof(DataGridRow).GetMethod("SetRowError", flags), Is.Not.Null);
+        Assert.That(typeof(DataGridRow).GetProperty("HasRowValidationError", flags), Is.Not.Null);
+        // Session 49: row headers.
+        Assert.That(typeof(DataGrid).GetProperty("AreRowHeadersVisible", flags), Is.Not.Null);
+        Assert.That(typeof(DataGridRow).GetMethod("BuildRowHeader", flags), Is.Not.Null);
     }
 
     [Test]

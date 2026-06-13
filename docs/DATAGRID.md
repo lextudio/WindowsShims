@@ -144,6 +144,36 @@ coupled for the current milestone.
   Probe: 4 cells/row, toggle flips `IsActive`. 120 tests green. Checkbox
   edits in place (bypasses edit-lifecycle events); other column types still
   display-only (see `session44.md`).
+- Session 45: `DataGridComboBoxColumn` render + selection write-back. Keeps
+  the display bindings and writes the chosen value back via the effective
+  binding target (SelectedItem→SelectedValue→Text), read-only-aware. Probe:
+  5 cells/row, selecting "Paris" writes `City`. 121 tests green. Edits in
+  place (bypasses edit-lifecycle); free-text combo entry not written (see
+  `session45.md`).
+- Session 46: validation surface. `DataGridCell.CommitEdit` validates the
+  written value via `IDataErrorInfo`; an error keeps the cell editing, paints
+  a red border + tooltip, and exposes `HasValidationError`/`ValidationError`;
+  a valid value clears it. Probe: Age 999 flags, 42 clears. 121 tests green.
+  `IDataErrorInfo` only; no row validation / `ValidationRule` / error template;
+  checkbox/combo writes unvalidated (see `session46.md`).
+- Session 47: row edit transactions. `BeginRowEdit`/`CommitRowEdit`/
+  `CancelRowEdit` drive `IEditableObject` (snapshot/commit/revert) + the
+  cancelable `RowEditEnding` event, tied into the cell edit lifecycle. Probe:
+  commit fires EndEdit+RowEditEnding(Commit); cancel fires CancelEdit+revert.
+  121 tests green. Single-cell transaction span; no `RowValidationRules` yet
+  (see `session47.md`).
+- Session 48: row-level validation. `CommitRowEdit` runs
+  `DataGrid.RowValidationRules`; a failing rule flags the row (red border,
+  `HasRowValidationError`/`RowValidationError`) and blocks the commit; a clean
+  pass clears it. Probe: Age=10 fails (≥18 rule), Age=30 passes. 121 tests
+  green. Border indicator only; no row-header glyph / `Validation.Errors`
+  (see `session48.md`).
+- Session 49: row headers. A separate `PART_RowHeader` renders a
+  `DataGridRowHeader` (honoring `HeadersVisibility`, width `RowHeaderWidth`)
+  with a current/editing/error glyph (▶/✎/⚠); a corner placeholder keeps
+  columns aligned, and cells stay column-indexed. Probe: selected row shows ▶.
+  121 tests green. Glyph-only, no header style/resize/drag-select (see
+  `session49.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

@@ -18,7 +18,22 @@ public partial class DataGridRow : Control
 
     public object? Item { get; set; }
 
-    public bool IsEditing { get; internal set; }
+    private bool _isEditing;
+
+    public bool IsEditing
+    {
+        get => _isEditing;
+        internal set
+        {
+            if (_isEditing == value)
+            {
+                return;
+            }
+
+            _isEditing = value;
+            RefreshRowHeaderGlyph();
+        }
+    }
 
     private bool _isSelected;
 
@@ -94,9 +109,41 @@ public partial class DataGridRow : Control
     private const string RowTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
-        "<Border Background='{TemplateBinding Background}'>" +
+        "<Border Background='{TemplateBinding Background}' " +
+        "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
+        "<StackPanel Orientation='Horizontal'>" +
+        "<ContentControl x:Name='PART_RowHeader' />" +
         "<StackPanel x:Name='PART_CellsHost' Orientation='Horizontal' />" +
-        "</Border></ControlTemplate>";
+        "</StackPanel></Border></ControlTemplate>";
+
+    // ── Session 48: row-level validation indicator ──────────────────────────
+    internal bool HasRowValidationError { get; private set; }
+
+    internal string? RowValidationError { get; private set; }
+
+    internal void SetRowError(string? error)
+    {
+        HasRowValidationError = true;
+        RowValidationError = error;
+        BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0x00, 0x00));
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+        RefreshRowHeaderGlyph();
+    }
+
+    internal void ClearRowError()
+    {
+        if (!HasRowValidationError)
+        {
+            return;
+        }
+
+        HasRowValidationError = false;
+        RowValidationError = null;
+        BorderBrush = null;
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+        RefreshRowHeaderGlyph();
+    }
 
     // Selection highlight (WinUI list-accent-ish light blue).
     private static readonly Microsoft.UI.Xaml.Media.Brush _selectedBrush =
@@ -109,6 +156,7 @@ public partial class DataGridRow : Control
         // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
         // the cell itself and is managed separately on DataGridCell.
         Background = _isSelected ? _selectedBrush : null;
+        RefreshRowHeaderGlyph();
     }
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _rowTemplate;
@@ -183,6 +231,52 @@ public partial class DataGridRow : Control
             _cells.Add(cell);
             host.Children.Add(cell);
         }
+
+        BuildRowHeader(owner);
+    }
+
+    // ── Session 49: row header ───────────────────────────────────────────────
+    private DataGridRowHeader? _rowHeaderElement;
+
+    private void BuildRowHeader(DataGrid owner)
+    {
+        if (GetTemplateChild("PART_RowHeader") is not Microsoft.UI.Xaml.Controls.ContentControl host)
+        {
+            return;
+        }
+
+        if (!owner.AreRowHeadersVisible)
+        {
+            host.Content = null;
+            host.Width = 0;
+            _rowHeaderElement = null;
+            return;
+        }
+
+        host.Width = owner.RowHeaderShimWidth;
+        _rowHeaderElement = new DataGridRowHeader
+        {
+            ParentRow = this,
+            Width = owner.RowHeaderShimWidth,
+            HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
+        };
+        host.Content = _rowHeaderElement;
+        RefreshRowHeaderGlyph();
+    }
+
+    // Glyph priority: validation error > editing > current/selected row.
+    private void RefreshRowHeaderGlyph()
+    {
+        if (_rowHeaderElement is null)
+        {
+            return;
+        }
+
+        _rowHeaderElement.Content =
+            HasRowValidationError ? "⚠" :  // ⚠
+            _isEditing ? "✎" :             // ✎
+            _isSelected ? "▶" :            // ▶
+            string.Empty;
     }
 
     internal void OnColumnsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) { }
