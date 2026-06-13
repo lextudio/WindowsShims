@@ -62,6 +62,7 @@ public partial class DataGrid
         host.Children.Add(BuildHeaderRow());
 
         var selectionStillPresent = false;
+        var cellSelectionStillPresent = false;
 
         foreach (var item in OrderedItems())
         {
@@ -80,6 +81,11 @@ public partial class DataGrid
                 selectionStillPresent = true;
             }
 
+            if (_shimSelectedCellItem is not null && EqualsEx(item, _shimSelectedCellItem))
+            {
+                cellSelectionStillPresent = true;
+            }
+
             // Register the row so the linked WPF code can resolve containers
             // (selection, scroll-into-view, row details) via the generator.
             ItemContainerGenerator.RegisterContainer(item, row);
@@ -94,6 +100,16 @@ public partial class DataGrid
             {
                 SelectedItem = null;
             }
+        }
+
+        // Same for a retained cell selection whose item is gone.
+        if (_shimSelectedCellItem is not null && !cellSelectionStillPresent)
+        {
+            _shimSelectedCell = null;
+            _shimSelectedCellItem = null;
+            _shimSelectedColumn = null;
+            CurrentCell = DataGridCellInfo.Unset;
+            SelectedCells.Clear();
         }
 
         ItemContainerGenerator.NotifyContainersGenerated();
@@ -211,6 +227,72 @@ public partial class DataGrid
     // generated row, select the clicked one, and reflect into SelectedItem.
     // Retained selection, by item identity, so it survives render rebuilds.
     private object? _shimSelectedItem;
+
+    // Cell-level selection (SelectionUnit.Cell / CellOrRowHeader). Routes a
+    // cell click to row selection in FullRow mode, otherwise selects the
+    // single cell (clearing the previously cell-selected cell). The selection
+    // is retained by (item, column) so it survives render rebuilds.
+    private DataGridCell? _shimSelectedCell;
+    private object? _shimSelectedCellItem;
+    private DataGridColumn? _shimSelectedColumn;
+
+    // Called by a row as it (re)builds a cell, so a retained cell selection
+    // re-applies to the new cell instance after a rebuild.
+    internal bool TryReselectCell(DataGridCell cell)
+    {
+        if (_shimSelectedCellItem is null
+            || !EqualsEx(cell.RowDataItem, _shimSelectedCellItem)
+            || !ReferenceEquals(cell.Column, _shimSelectedColumn))
+        {
+            return false;
+        }
+
+        cell.IsSelected = true;
+        _shimSelectedCell = cell;
+        return true;
+    }
+
+    internal void HandleShimCellClicked(DataGridCell cell)
+    {
+        if (SelectionUnit == DataGridSelectionUnit.FullRow)
+        {
+            if (cell.RowOwner is { } row)
+            {
+                HandleShimRowClicked(row);
+            }
+
+            return;
+        }
+
+        // Cell mode supersedes row selection — clear any selected row.
+        foreach (var container in ItemContainerGenerator.Containers)
+        {
+            if (container is DataGridRow r && r.IsSelected)
+            {
+                r.IsSelected = false;
+            }
+        }
+
+        _shimSelectedItem = null;
+
+        if (_shimSelectedCell is { } previous && !ReferenceEquals(previous, cell))
+        {
+            previous.IsSelected = false;
+        }
+
+        cell.IsSelected = true;
+        _shimSelectedCell = cell;
+        _shimSelectedCellItem = cell.RowDataItem;
+        _shimSelectedColumn = cell.Column;
+
+        // Reflect into the WPF-facing cell-selection surface.
+        var info = new DataGridCellInfo(cell);
+        CurrentCell = info;
+        SelectedCells.Clear();
+        SelectedCells.Add(info);
+
+        cell.RowOwner?.BringIntoView();
+    }
 
     internal void HandleShimRowClicked(DataGridRow clicked)
     {

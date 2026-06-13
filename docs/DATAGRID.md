@@ -93,6 +93,25 @@ coupled for the current milestone.
   navigation added (`MoveSelectionToIndex`, page=5). Probe verifies Home/End.
   116 tests green (18 probe steps). Fixed page size, no viewport measure (see
   `session34.md`).
+- Session 35: cell-level selection honoring `SelectionUnit`. Cell pointer
+  press → `HandleShimCellClicked`: FullRow routes to row selection, Cell
+  selects the single cell (own highlight) and clears row selection. Probe
+  verifies single-cell highlight under `SelectionUnit.Cell`. 116 tests green
+  (19 probe steps). Cell selection not retained across rebuilds (see
+  `session35.md`).
+- Session 36: shim cell selection now writes `CurrentCell` and `SelectedCells`
+  (single `DataGridCellInfo`). Probe verifies `CurrentCell.Column` and a
+  one-entry `SelectedCells`. 116 tests green. Single-cell only; FullRow
+  doesn't populate cells; `*Changed` events not raised (see `session36.md`).
+- Session 37: cell selection retained across rebuilds by (item, column).
+  `TryReselectCell` re-applies the highlight as rows rebuild their cells.
+  Probe verifies the cell stays selected after a sort. 116 tests green. Stale
+  retention not cleared on item removal yet (see `session37.md`).
+- Session 38: retained cell selection clears when its item leaves the
+  collection (`CurrentCell`→Unset, `SelectedCells` cleared). Probe verifies.
+  116 tests green. Single-selection model now coherent end-to-end; multi-
+  select/range/`*Changed`/WPF `Selector` pipeline still out (see
+  `session38.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

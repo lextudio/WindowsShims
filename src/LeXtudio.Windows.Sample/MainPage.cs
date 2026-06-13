@@ -429,6 +429,86 @@ public sealed partial class MainPage : Page
             }
         });
 
+        Step("cell-level selection honors SelectionUnit.Cell", () =>
+        {
+            _grid!.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.Cell;
+            _grid.UpdateLayout(); // realize rows' cells after prior rebuilds
+
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var row1 = _grid.ItemContainerGenerator.ContainerFromIndex(1) as WpfDataGridRow;
+            var cellA = row0?.TryGetCell(0);
+            var cellB = row1?.TryGetCell(2);
+            if (cellA is null || cellB is null)
+            {
+                throw new InvalidOperationException("could not resolve cells for cell-selection test");
+            }
+
+            Console.WriteLine($"[probe]   SelectionUnit = {_grid.SelectionUnit}");
+            _grid.HandleShimCellClicked(cellA);
+            if (!cellA.IsSelected || row0!.IsSelected)
+            {
+                throw new InvalidOperationException(
+                    $"cell click did not select only the cell (cellA.IsSelected={cellA.IsSelected}, row0.IsSelected={row0!.IsSelected})");
+            }
+
+            _grid.HandleShimCellClicked(cellB);
+            if (cellA.IsSelected || !cellB.IsSelected)
+            {
+                throw new InvalidOperationException("cell selection did not move to the new cell");
+            }
+
+            // CurrentCell / SelectedCells reflect the shim cell selection.
+            var current = _grid.CurrentCell;
+            Console.WriteLine($"[probe]   CurrentCell column={current.Column?.Header}, SelectedCells={_grid.SelectedCells.Count}");
+            if (!ReferenceEquals(current.Column, cellB.Column) || _grid.SelectedCells.Count != 1
+                || !ReferenceEquals(_grid.SelectedCells[0].Column, cellB.Column))
+            {
+                throw new InvalidOperationException("CurrentCell/SelectedCells not updated from cell selection");
+            }
+
+            // Retain across a rebuild: sort, then the same (item, column) cell
+            // should be re-selected on the rebuilt row.
+            var selItem = cellB.RowOwner!.Item;
+            var selColumn = cellB.Column;
+            _grid.HandleShimHeaderClicked(_grid.Columns[0]); // sort by Name → rebuild
+            _grid.UpdateLayout();
+
+            var reselected = false;
+            for (var i = 0; _grid.ItemContainerGenerator.ContainerFromIndex(i) is WpfDataGridRow r; i++)
+            {
+                if (!ReferenceEquals(r.Item, selItem))
+                {
+                    continue;
+                }
+
+                for (var c = 0; c < _grid.Columns.Count; c++)
+                {
+                    var cc = r.TryGetCell(c);
+                    if (cc is not null && ReferenceEquals(cc.Column, selColumn))
+                    {
+                        reselected = cc.IsSelected;
+                    }
+                }
+            }
+
+            Console.WriteLine($"[probe]   cell reselected after sort = {reselected}");
+            if (!reselected)
+            {
+                throw new InvalidOperationException("cell selection was lost across the rebuild");
+            }
+
+            // Removing the cell-selected item clears the cell selection surface.
+            _grid.Items.Remove(selItem);
+            _grid.UpdateLayout();
+            Console.WriteLine($"[probe]   after remove: SelectedCells={_grid.SelectedCells.Count}, CurrentCell.IsValid={_grid.CurrentCell.IsValid}");
+            if (_grid.SelectedCells.Count != 0 || _grid.CurrentCell.IsValid)
+            {
+                throw new InvalidOperationException("cell selection not cleared after removing its item");
+            }
+
+            _grid.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.FullRow;
+        });
+
         Step("report: grid desired size", () =>
         {
             Console.WriteLine($"[probe]   DesiredSize={_grid!.DesiredSize}");

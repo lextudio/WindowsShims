@@ -240,6 +240,10 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("HandleShimRowClicked", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.HandleShimRowClicked(DataGridRow) is the selection entry point.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.HandleShimCellClicked(DataGridCell) routes cell vs row by SelectionUnit (session 35).");
 
         var isSelected = typeof(DataGridRow).GetProperty(nameof(DataGridRow.IsSelected));
         Assert.That(isSelected, Is.Not.Null);

@@ -105,11 +105,10 @@ public partial class DataGridRow : Control
 
     private void UpdateSelectionVisual()
     {
+        // Row-level selection tints the row; cells stay transparent so the
+        // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
+        // the cell itself and is managed separately on DataGridCell.
         Background = _isSelected ? _selectedBrush : null;
-        foreach (var cell in _cells)
-        {
-            cell.SyncIsSelected(_isSelected);
-        }
     }
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _rowTemplate;
@@ -179,6 +178,8 @@ public partial class DataGridRow : Control
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
             cell.BuildVisualTree();
+            // Re-apply a retained cell selection to the rebuilt cell instance.
+            owner.TryReselectCell(cell);
             _cells.Add(cell);
             host.Children.Add(cell);
         }
