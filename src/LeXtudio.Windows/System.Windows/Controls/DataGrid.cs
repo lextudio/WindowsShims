@@ -137,8 +137,12 @@ public partial class DataGrid
     private bool _autoWidthPending;
     private bool _autoWidthHooked;
 
+    // Non-absolute columns (Auto/SizeTo*/Star) need the post-layout pass.
     private static bool IsAutoWidth(DataGridColumn column)
         => column.ActualWidth <= 0 && !column.Width.IsAbsolute;
+
+    private static double Clamp(DataGridColumn column, double width)
+        => Math.Clamp(width, column.MinWidth, column.MaxWidth);
 
     private void OnAutoWidthLayoutUpdated(object? sender, object e)
     {
@@ -150,33 +154,71 @@ public partial class DataGrid
         _autoWidthPending = false;
 
         var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
+        var widths = new double[_visibleColumns.Count];
+        var starWeights = new double[_visibleColumns.Count];
+        var fixedTotal = 0.0;
+        var totalStar = 0.0;
+
+        // Pass 1: fixed (absolute) + auto (measured) widths, clamped.
         for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
         {
-            if (!IsAutoWidth(_visibleColumns[i]))
+            var column = _visibleColumns[i];
+            if (column.Width.IsStar)
             {
+                starWeights[i] = column.Width.Value > 0 ? column.Width.Value : 1;
+                totalStar += starWeights[i];
                 continue;
             }
 
-            var max = _headerCells[i].DesiredSize.Width;
-            foreach (var row in rows)
+            double w;
+            if (!IsAutoWidth(column))
             {
-                if (row.TryGetCell(i) is { } cell)
+                w = column.ActualWidth > 0 ? column.ActualWidth : column.Width.Value;
+            }
+            else
+            {
+                w = _headerCells[i].DesiredSize.Width;
+                foreach (var row in rows)
                 {
-                    max = Math.Max(max, cell.DesiredSize.Width);
+                    if (row.TryGetCell(i) is { } cell)
+                    {
+                        w = Math.Max(w, cell.DesiredSize.Width);
+                    }
                 }
             }
 
-            if (max <= 0)
+            widths[i] = Clamp(column, w);
+            fixedTotal += widths[i];
+        }
+
+        // Pass 2: distribute remaining viewport width among star columns.
+        if (totalStar > 0)
+        {
+            var available = ActualWidth - 2; // border chrome
+            var remaining = Math.Max(0, available - fixedTotal);
+            for (var i = 0; i < _visibleColumns.Count; i++)
+            {
+                if (starWeights[i] > 0)
+                {
+                    widths[i] = Clamp(_visibleColumns[i], remaining * (starWeights[i] / totalStar));
+                }
+            }
+        }
+
+        // Apply.
+        for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+        {
+            if (widths[i] <= 0)
             {
                 continue;
             }
 
-            _headerCells[i].Width = max;
+            _headerCells[i].Width = widths[i];
             foreach (var row in rows)
             {
                 if (row.TryGetCell(i) is { } cell)
                 {
-                    cell.Width = max;
+                    cell.Width = widths[i];
                 }
             }
         }
@@ -263,9 +305,9 @@ public partial class DataGrid
         }
 
         var width = column.Width;
-        // Absolute → that width; otherwise NaN (auto-size to content), and the
-        // post-layout Auto pass unifies the column width.
-        return width.IsAbsolute && width.Value > 0 ? width.Value : double.NaN;
+        // Absolute → that width (clamped to Min/Max); otherwise NaN (auto-size
+        // to content), and the post-layout pass unifies the column width.
+        return width.IsAbsolute && width.Value > 0 ? Clamp(column, width.Value) : double.NaN;
     }
 
     // ── Session 26: reactivity ───────────────────────────────────────────────

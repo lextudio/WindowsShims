@@ -629,6 +629,35 @@ public sealed partial class MainPage : Page
             }
         });
 
+        Step("Star column expands to fill; MinWidth clamps", () =>
+        {
+            // City → Star, with a MinWidth floor; Name stays Auto.
+            _grid!.Columns[2].Width = new System.Windows.Controls.DataGridLength(
+                1, System.Windows.Controls.DataGridLengthUnitType.Star);
+            _grid.Columns[2].MinWidth = 80;
+            _grid.HandleShimHeaderClicked(_grid.Columns[0]); // rebuild
+            _grid.UpdateLayout();
+            _grid.UpdateLayout();
+
+            var host = FindDescendant(_grid, "PART_ShimRowsHost") as Microsoft.UI.Xaml.Controls.Panel;
+            var headerPanel = host is null ? null : VisualTreeHelper.GetChild(host, 0);
+            var nameHeader = headerPanel is null ? null : VisualTreeHelper.GetChild(headerPanel, 0) as FrameworkElement;
+            var cityHeader = headerPanel is null ? null : VisualTreeHelper.GetChild(headerPanel, 2) as FrameworkElement;
+            if (nameHeader is null || cityHeader is null)
+            {
+                throw new InvalidOperationException("could not resolve headers for star test");
+            }
+
+            Console.WriteLine($"[probe]   Name(auto)={nameHeader.Width}, City(star)={cityHeader.Width}, grid={_grid.ActualWidth}");
+            // Star column should consume remaining space → much wider than the
+            // auto Name column, and at least its 80px MinWidth.
+            if (cityHeader.Width < 80 || cityHeader.Width <= nameHeader.Width)
+            {
+                throw new InvalidOperationException(
+                    $"Star did not expand (City={cityHeader.Width}, Name={nameHeader.Width})");
+            }
+        });
+
         Step("report: grid desired size", () =>
         {
             Console.WriteLine($"[probe]   DesiredSize={_grid!.DesiredSize}");

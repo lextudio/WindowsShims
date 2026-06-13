@@ -125,8 +125,13 @@ coupled for the current milestone.
 - Session 41: `Auto` column width. Non-absolute columns auto-size; a one-shot
   post-layout pass (`OnAutoWidthLayoutUpdated`) sets a uniform per-column
   width to the widest realized content (header+cells aligned). Probe: Auto
-  Name column = 49px header==cell. 119 tests green. `Star`/`SizeToCells`
-  treated as Auto; `MinWidth`/`MaxWidth` ignored (see `session41.md`).
+  Name column = 49px header==cell. 119 tests green (see `session41.md`).
+- Session 42: `Star` width distribution + `MinWidth`/`MaxWidth` clamping. The
+  width pass distributes remaining viewport width among star columns by
+  weight and clamps all widths. Probe: a `*` City column fills (357/486),
+  honoring an 80px floor. 119 tests green. Star budget is a proxy
+  (`ActualWidth-2`); no reflow on resize; `SizeToCells/Header` ≈ Auto (see
+  `session42.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +

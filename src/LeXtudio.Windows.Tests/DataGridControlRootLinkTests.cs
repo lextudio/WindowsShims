@@ -296,7 +296,11 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(
             typeof(DataGrid).GetMethod("OnAutoWidthLayoutUpdated", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
-            "DataGrid.OnAutoWidthLayoutUpdated runs the Auto-width measure pass.");
+            "DataGrid.OnAutoWidthLayoutUpdated runs the Auto/Star/clamp width pass.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("Clamp", BindingFlags.Static | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.Clamp applies MinWidth/MaxWidth (session 42).");
     }
 
     [Test]
