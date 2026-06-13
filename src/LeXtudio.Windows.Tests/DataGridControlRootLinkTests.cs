@@ -127,4 +127,53 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(delegateFirst, Is.Not.Null);
         Assert.That(priorityFirst, Is.Not.Null);
     }
+
+    [Test]
+    public void ItemsControlSpineRebasesOntoWinUiControl()
+    {
+        // Session 24: the shim ItemsControl (foundation of the whole
+        // DataGrid → MultiSelector → Selector → ItemsControl tower) derives
+        // from WinUI Control, which unlocks the template pipeline. Pinned so
+        // a revert to FrameworkElement is caught.
+        var winuiControl = typeof(Microsoft.UI.Xaml.Controls.Control);
+
+        Assert.That(winuiControl.IsAssignableFrom(typeof(System.Windows.Controls.ItemsControl)), Is.True);
+        Assert.That(winuiControl.IsAssignableFrom(typeof(DataGrid)), Is.True);
+    }
+
+    [Test]
+    public void IsEnabledComesFromWinUiControlAfterRebase()
+    {
+        // The spine no longer declares its own IsEnabled DP; it must resolve
+        // to the real WinUI Control property so the WPF logic sees real state.
+        var isEnabled = typeof(DataGrid).GetProperty(nameof(DataGrid.IsEnabled));
+
+        Assert.That(isEnabled, Is.Not.Null);
+        Assert.That(
+            typeof(Microsoft.UI.Xaml.Controls.Control).IsAssignableFrom(isEnabled!.DeclaringType),
+            Is.True,
+            "IsEnabled should be inherited from WinUI Control, not redeclared on the shim spine.");
+    }
+
+    // Session 25: shim render-path API. The runtime render gate is the sample
+    // probe (`dotnet run -- --probe`); UI construction needs a dispatcher, so
+    // here we only pin the method surface so a refactor that drops it is caught.
+    [Test]
+    public void ShimRenderPathSurfaceExists()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGrid).GetMethod("BuildShimVisualTree", flags), Is.Not.Null,
+            "DataGrid.BuildShimVisualTree() drives the shim render path.");
+        Assert.That(typeof(DataGrid).GetMethod("EnsureShimStyleKey", flags), Is.Not.Null,
+            "DataGrid.EnsureShimStyleKey() assigns the code-built template.");
+        Assert.That(
+            typeof(DataGridColumn).GetMethod("BuildCellContent", flags),
+            Is.Not.Null,
+            "DataGridColumn.BuildCellContent() exposes element generation to the render path.");
+        Assert.That(
+            typeof(DataGridCell).GetMethod("BuildVisualTree", flags),
+            Is.Not.Null,
+            "DataGridCell.BuildVisualTree() populates a cell from its column.");
+    }
 }

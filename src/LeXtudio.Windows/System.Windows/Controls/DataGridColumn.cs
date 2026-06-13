@@ -152,6 +152,11 @@ public partial class DataGridColumn : DependencyObject
 
     protected virtual FrameworkElement? GenerateElement(DataGridCell cell, object dataItem) => null;
 
+    // Internal accessor so the shim DataGrid render path can build a cell's
+    // display element through the column's real element-generation logic.
+    internal FrameworkElement? BuildCellContent(DataGridCell cell, object dataItem)
+        => GenerateElement(cell, dataItem);
+
     protected virtual FrameworkElement? GenerateEditingElement(DataGridCell cell, object dataItem) => null;
 
     protected virtual object? PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs editingEventArgs)

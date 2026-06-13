@@ -28,7 +28,25 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     public bool IsVisible => Visibility == Visibility.Visible;
 
-    internal void BuildVisualTree() { }
+    // Populate the cell's content from its column, binding against the row
+    // item. The generated element (e.g. a bound TextBlock for a text column)
+    // inherits DataContext from this cell, so its WinUI binding resolves.
+    internal void BuildVisualTree()
+    {
+        if (Column is null)
+        {
+            return;
+        }
+
+        var item = RowOwner?.Item ?? DataContext;
+        if (item is null)
+        {
+            return;
+        }
+
+        DataContext = item;
+        Content = Column.BuildCellContent(this, item);
+    }
 
     internal bool BeginEdit(RoutedEventArgs? editingEventArgs) => false;
 

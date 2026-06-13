@@ -18,6 +18,29 @@ coupled for the current milestone.
   partial (`UpdateVisualState`); presenters, virtualizing-panel stubs, a
   WPF-shaped `Dispatcher` shadow on the spine, and the remaining helper
   internals were added as bridges. See `session22.md` for the inventory.
+- Session 23 runtime status: new sample head
+  `src/LeXtudio.Windows.Sample` with a `--probe` headless gate. All probe
+  steps pass — the WPF static/instance constructors, column collection,
+  items, selection/command surface, visual-tree attach, and measure all
+  survive on Uno. Characterization: `DesiredSize=0,0`, zero visual
+  children, no row containers — the next rungs are row generation and a
+  visual pipeline (see `session23.md`).
+- Session 24: rebased the foundational shim `ItemsControl` (and thus the
+  whole `DataGrid → MultiSelector → Selector → ItemsControl` tower) from
+  WinUI `FrameworkElement` onto WinUI `Control`, unlocking the template
+  pipeline. Cost was 4 cleanable hiding warnings (redundant `IsEnabled`/
+  `DefaultStyleKey`/`IsTabStop` DPs, now inherited from `Control`); the
+  hand-built-visual alternative is dropped. 106 tests green; probe
+  unchanged. Next rung: a default template/style + row container
+  generation (see `session24.md`).
+- Session 25: **the DataGrid renders.** A code-built `ControlTemplate`
+  (assigned directly via `XamlReader`, sidestepping unresolved library
+  generic.xaml packaging) hosts `PART_ShimRowsHost`, which the shim fills
+  with a header row + one data row per item; cells are produced by the
+  column's real element-generation path and data-bound to each item. Probe:
+  4 host children, `DesiredSize=386×96` (was `0×0`). 107 tests green.
+  Deliberately simple: no virtualization, no real container generation, no
+  change-reactivity yet (see `session25.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +
@@ -156,7 +179,10 @@ spine.
 15. Bring row/cell container behavior and presenters online only when the
    control shell has tests proving the owner/column/item contracts; a
    runtime sample with static items and explicit columns gates behavior
-   work.
+   work. The sample head landed in session 23
+   (`src/LeXtudio.Windows.Sample`, `--probe` headless gate, all steps
+   green); the identified rungs are row container generation and a visual
+   pipeline (template rebase or code-built visuals).
 
 ## Test Plan
 

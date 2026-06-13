@@ -3,6 +3,34 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:swc="using:System.Windows.Controls">
 
+    <!-- Session 25: minimal DataGrid template. The shim populates
+         PART_ShimRowsHost in code (header + data rows) — this is the shim's
+         own render path, distinct from the upstream PART_RowsPresenter /
+         ItemsHost virtualization machinery, which is not yet bridged. -->
+    <Style TargetType="swc:DataGrid">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="#CCCCCC" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="MinWidth" Value="120" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="swc:DataGrid">
+                    <Border
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer
+                            HorizontalScrollBarVisibility="Auto"
+                            VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="PART_ShimRowsHost" />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="swc:RichTextBox">
         <Setter Property="FontFamily" Value="Open Sans" />
         <Setter Property="Background" Value="White" />

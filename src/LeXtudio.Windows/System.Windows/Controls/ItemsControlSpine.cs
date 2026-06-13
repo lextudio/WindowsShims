@@ -207,25 +207,10 @@ public partial class ItemsControl : IGeneratorHost
     // ItemsHost: the panel that lays out item containers.
     internal Panel? ItemsHost => null;
 
-    // IsEnabled / IsEnabledProperty: not on our FrameworkElement base, so
-    // expose them here for DataGrid's static ctor.
-    public static readonly DependencyProperty IsEnabledProperty =
-        DependencyProperty.Register("IsEnabled", typeof(bool), typeof(ItemsControl),
-            new PropertyMetadata(true));
-
-    public bool IsEnabled
-    {
-        get => (bool)GetValue(IsEnabledProperty);
-        set => SetValue(IsEnabledProperty, value);
-    }
-
-    public static readonly DependencyProperty DefaultStyleKeyProperty =
-        DependencyProperty.Register("DefaultStyleKey", typeof(object), typeof(ItemsControl),
-            new PropertyMetadata(null));
-
-    public static readonly DependencyProperty IsTabStopProperty =
-        DependencyProperty.Register("IsTabStop", typeof(bool), typeof(ItemsControl),
-            new PropertyMetadata(true));
+    // IsEnabled / IsEnabledProperty, DefaultStyleKeyProperty, and
+    // IsTabStopProperty now come from the WinUI Control base (session 24
+    // rebase). DataGrid's static ctor OverrideMetadata calls resolve to the
+    // Control DPs via the no-op shim extension.
 
     public static readonly DependencyProperty ItemContainerStyleProperty =
         DependencyProperty.Register("ItemContainerStyle", typeof(Style), typeof(ItemsControl),

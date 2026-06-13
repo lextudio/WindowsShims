@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="LeXtudio.Windows/LeXtudio.Windows.csproj" />
+  <Project Path="LeXtudio.Windows.Sample/LeXtudio.Windows.Sample.csproj" />
   <Project Path="LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj" />
 </Solution>
