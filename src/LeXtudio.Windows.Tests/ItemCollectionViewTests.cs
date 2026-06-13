@@ -42,15 +42,17 @@ public sealed class ItemCollectionViewTests
     }
 
     [Test]
-    public void EditableViewRejectsUnsupportedOperations()
+    public void EditableViewExposesAddNewBridge()
     {
         IEditableCollectionView view = new WpfItemCollection();
 
-        Assert.That(view.CanAddNew, Is.False);
+        Assert.That(view.CanAddNew, Is.True);
         Assert.That(view.CanCancelEdit, Is.False);
         Assert.That(view.NewItemPlaceholderPosition, Is.EqualTo(NewItemPlaceholderPosition.None));
         Assert.Throws<InvalidOperationException>(() => view.AddNew());
-        Assert.Throws<NotSupportedException>(() => view.NewItemPlaceholderPosition = NewItemPlaceholderPosition.AtBeginning);
+
+        view.NewItemPlaceholderPosition = NewItemPlaceholderPosition.AtBeginning;
+        Assert.That(view.NewItemPlaceholderPosition, Is.EqualTo(NewItemPlaceholderPosition.AtBeginning));
     }
 
     [Test]

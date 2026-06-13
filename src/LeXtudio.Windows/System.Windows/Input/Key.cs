@@ -42,5 +42,7 @@ namespace System.Windows.Input
         RightAlt    = 165,
         // IME
         ImeProcessed = 229,
+        // Sentinel WPF uses when the real key is in SystemKey (ALT combos).
+        System = 156,
 	}
 }

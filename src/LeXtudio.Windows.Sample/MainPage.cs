@@ -765,8 +765,13 @@ public sealed partial class MainPage : Page
             if (cell.BeginEdit(null)) throw new InvalidOperationException("BeginningEdit cancel should block");
             _grid.BeginningEdit -= Begin;
 
+            var beginning = 0;
+            void CountBeginning(object? s, System.Windows.Controls.DataGridBeginningEditEventArgs e) => beginning++;
+
             // CellEditEnding veto keeps editing and discards the change.
+            _grid.BeginningEdit += CountBeginning;
             if (!cell.BeginEdit(null)) throw new InvalidOperationException("begin should succeed");
+            _grid.BeginningEdit -= CountBeginning;
             ((TextBox)cell.Content).Text = "123";
             void Ending(object? s, System.Windows.Controls.DataGridCellEditEndingEventArgs e) => e.Cancel = true;
             _grid.CellEditEnding += Ending;
@@ -781,9 +786,9 @@ public sealed partial class MainPage : Page
             _grid.CellEditEnding -= Ending;
             _grid.CellEditEnding -= CountEnding;
             _grid.RowEditEnding -= CountRowEnding;
-            if (cellEnding != 1 || rowEnding != 0)
+            if (beginning != 1 || cellEnding != 1 || rowEnding != 0)
             {
-                throw new InvalidOperationException($"unexpected event counts after veto (cell={cellEnding}, row={rowEnding})");
+                throw new InvalidOperationException($"unexpected event counts after veto (begin={beginning}, cell={cellEnding}, row={rowEnding})");
             }
 
             // Now the commit succeeds and writes back.
@@ -1028,6 +1033,150 @@ public sealed partial class MainPage : Page
             {
                 throw new InvalidOperationException("class-scoped command did not route to the descendant cell");
             }
+        });
+
+        Step("add-new row: placeholder edit enters routed WPF add-new path", () =>
+        {
+            _grid!.CanUserAddRows = true;
+            _grid.UpdateLayout();
+            var rowsBefore = _grid.Items.Count;
+            Console.WriteLine($"[probe]   add-new setup: CanUserAddRows={_grid.CanUserAddRows}, PlaceholderPos={_grid.Items.NewItemPlaceholderPosition}, Items={rowsBefore}");
+            if (_grid.Items.NewItemPlaceholderPosition != System.ComponentModel.NewItemPlaceholderPosition.AtEnd
+                || rowsBefore < 1)
+            {
+                throw new InvalidOperationException("placeholder row was not surfaced when CanUserAddRows became true");
+            }
+
+            var adding = 0;
+            var initializing = 0;
+            void OnAdding(object? s, System.Windows.Controls.AddingNewItemEventArgs e)
+            {
+                adding++;
+                e.NewItem = new Person("New", 22, "Town");
+            }
+            void OnInitializing(object? s, System.Windows.Controls.InitializingNewItemEventArgs e) => initializing++;
+            _grid.AddingNewItem += OnAdding;
+            _grid.InitializingNewItem += OnInitializing;
+
+            var placeholderRow = _grid.ItemContainerGenerator.ContainerFromIndex(rowsBefore - 1) as WpfDataGridRow;
+            var placeholderCell = placeholderRow?.TryGetCell(1);
+            if (placeholderCell is null)
+            {
+                throw new InvalidOperationException("placeholder row/cell not realized");
+            }
+
+            if (!placeholderCell.BeginEdit(null))
+            {
+                throw new InvalidOperationException("placeholder BeginEdit failed");
+            }
+
+            _grid.UpdateLayout();
+            if (!_grid.Items.IsAddingNew || _grid.Items.CurrentAddItem is not Person person)
+            {
+                throw new InvalidOperationException("placeholder begin did not start an add transaction");
+            }
+
+            if (adding != 1 || initializing != 1)
+            {
+                throw new InvalidOperationException($"unexpected add-new event counts (adding={adding}, initializing={initializing})");
+            }
+
+            var newRow = _grid.ItemContainerGenerator.ContainerFromItem(person) as WpfDataGridRow;
+            var ageCell = newRow?.TryGetCell(1);
+            if (ageCell?.Content is not TextBox box)
+            {
+                throw new InvalidOperationException("new row/cell was not realized after placeholder begin");
+            }
+
+            box.Text = "28";
+            person.Age = 28;
+            if (!_grid.CommitEdit(System.Windows.Controls.DataGridEditingUnit.Row, true))
+            {
+                throw new InvalidOperationException("placeholder-created row commit failed");
+            }
+
+            _grid.UpdateLayout();
+            Console.WriteLine($"[probe]   add-new: AddingNewItem={adding}, InitializingNewItem={initializing}, Items={_grid.Items.Count}, CurrentAddItem={_grid.Items.CurrentAddItem is null}, Age={person.Age}");
+            if (_grid.Items.IsAddingNew || _grid.Items.Count != rowsBefore + 1 || person.Age != 28)
+            {
+                throw new InvalidOperationException("routed add-new flow did not keep the item and restore the placeholder");
+            }
+
+            _grid.AddingNewItem -= OnAdding;
+            _grid.InitializingNewItem -= OnInitializing;
+            _grid.CanUserAddRows = false;
+        });
+
+        Step("row details: template expands per RowDetailsVisibilityMode + selection", () =>
+        {
+            // A details template that shows the person's city.
+            var template = (Microsoft.UI.Xaml.DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+                "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+                "<TextBlock x:Name='PART_DetailText' Text='{Binding City}' />" +
+                "</DataTemplate>");
+            _grid!.RowDetailsTemplate = template;
+
+            var loading = 0;
+            var unloading = 0;
+            var visChanged = 0;
+            void OnLoading(object? s, System.Windows.Controls.DataGridRowDetailsEventArgs e) => loading++;
+            void OnUnloading(object? s, System.Windows.Controls.DataGridRowDetailsEventArgs e) => unloading++;
+            void OnVisChanged(object? s, System.Windows.Controls.DataGridRowDetailsEventArgs e) => visChanged++;
+            _grid.LoadingRowDetails += OnLoading;
+            _grid.UnloadingRowDetails += OnUnloading;
+            _grid.RowDetailsVisibilityChanged += OnVisChanged;
+
+            // Mode = Visible → every real row's details host expands now.
+            _grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.Visible;
+            _grid.BuildShimVisualTree();
+            _grid.UpdateLayout();
+
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            row0!.ApplyTemplate();
+            var detailsHost = FindDescendant(row0, "PART_DetailsHost") as Microsoft.UI.Xaml.Controls.ContentControl;
+            var detailText = FindDescendant(row0, "PART_DetailText") as TextBlock;
+            Console.WriteLine($"[probe]   Visible mode: host.Visibility={detailsHost?.Visibility}, text='{detailText?.Text}', loading={loading}");
+            if (detailsHost?.Visibility != Visibility.Visible || detailText is null
+                || detailText.Text != ((Person)row0.Item!).City || loading < 1)
+            {
+                throw new InvalidOperationException(
+                    $"Visible mode did not expand details (vis={detailsHost?.Visibility}, text='{detailText?.Text}', loading={loading})");
+            }
+
+            // Mode = VisibleWhenSelected → details collapse until the row is selected.
+            // Move selection to row1 so row0 is unselected for the precondition.
+            _grid.SelectionMode = System.Windows.Controls.DataGridSelectionMode.Single;
+            var row1 = _grid.ItemContainerGenerator.ContainerFromIndex(1) as WpfDataGridRow;
+            _grid.HandleShimRowClicked(row1!);
+            loading = 0;
+            _grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.VisibleWhenSelected;
+            _grid.BuildShimVisualTree();
+            _grid.UpdateLayout();
+            row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            row0!.ApplyTemplate();
+            detailsHost = FindDescendant(row0, "PART_DetailsHost") as Microsoft.UI.Xaml.Controls.ContentControl;
+            if (detailsHost?.Visibility != Visibility.Collapsed)
+            {
+                throw new InvalidOperationException(
+                    $"VisibleWhenSelected should collapse details for the unselected row (vis={detailsHost?.Visibility})");
+            }
+
+            visChanged = 0;
+            _grid.HandleShimRowClicked(row0); // select → details expand
+            detailsHost = FindDescendant(row0, "PART_DetailsHost") as Microsoft.UI.Xaml.Controls.ContentControl;
+            Console.WriteLine($"[probe]   after select: host.Visibility={detailsHost?.Visibility}, visChanged={visChanged}");
+            if (detailsHost?.Visibility != Visibility.Visible || visChanged < 1)
+            {
+                throw new InvalidOperationException(
+                    $"selecting the row should expand details (vis={detailsHost?.Visibility}, visChanged={visChanged})");
+            }
+
+            _grid.LoadingRowDetails -= OnLoading;
+            _grid.UnloadingRowDetails -= OnUnloading;
+            _grid.RowDetailsVisibilityChanged -= OnVisChanged;
+            _grid.RowDetailsTemplate = null;
+            _grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.VisibleWhenSelected;
         });
 
         Step("report: grid desired size", () =>

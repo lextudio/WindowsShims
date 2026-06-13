@@ -18,13 +18,34 @@ public abstract class BindingBase
 
 public static class BindingOperations
 {
+    // Properties that are two-way-by-default in WPF (BindsTwoWayByDefault). WinUI
+    // bindings default to OneWay, so a Default-mode binding applied to one of
+    // these (as the DataGrid editable columns do) must be promoted to TwoWay for
+    // write-back to reach the source — matching WPF behavior.
+    private static readonly System.Collections.Generic.HashSet<DependencyProperty> _twoWayByDefault = new()
+    {
+        Microsoft.UI.Xaml.Controls.TextBox.TextProperty,
+        Microsoft.UI.Xaml.Controls.Primitives.ToggleButton.IsCheckedProperty,
+        Microsoft.UI.Xaml.Controls.Primitives.Selector.SelectedValueProperty,
+        Microsoft.UI.Xaml.Controls.Primitives.Selector.SelectedItemProperty,
+        Microsoft.UI.Xaml.Controls.ComboBox.TextProperty,
+    };
+
     public static void SetBinding(DependencyObject target, DependencyProperty property, BindingBase binding)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(property);
         ArgumentNullException.ThrowIfNull(binding);
 
-        WinUIBindingOperations.SetBinding(target, property, binding.ToWinUIBindingBase());
+        var winui = binding.ToWinUIBindingBase();
+        if (winui is WinUIBinding wb
+            && binding is Binding { Mode: BindingMode.Default }
+            && _twoWayByDefault.Contains(property))
+        {
+            wb.Mode = WinUIBindingMode.TwoWay;
+        }
+
+        WinUIBindingOperations.SetBinding(target, property, winui);
     }
 
     public static void ClearBinding(DependencyObject target, DependencyProperty property)

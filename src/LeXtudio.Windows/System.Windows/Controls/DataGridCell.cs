@@ -90,17 +90,21 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             return false;
         }
 
-        // BeginningEdit is cancelable.
-        if (DataGridOwner is { } owner && RowOwner is { } row)
+        if (DataGridOwner is { ShimExecutingBeginEditCommand: false } owner)
         {
             owner.CurrentCellContainer = this;
-            var args = owner.RaiseBeginningEdit(Column, row, editingEventArgs);
-            if (args.Cancel)
+            if (ReferenceEquals(RowDataItem, System.Windows.Data.CollectionView.NewItemPlaceholder)
+                || ReferenceEquals(RowDataItem, DataGrid.NewItemPlaceholder))
             {
-                return false;
+                return owner.ShimBeginEditPlaceholder(this, editingEventArgs);
             }
 
-            owner.BeginRowEdit(row); // start the row transaction (IEditableObject)
+            if (owner.BeginEdit(editingEventArgs))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         var current = item.GetType().GetProperty(path)?.GetValue(item);
@@ -128,13 +132,6 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             owner.CurrentCellContainer = this;
             owner.CancelEdit(DataGridEditingUnit.Row);
             return;
-        }
-
-        if (DataGridOwner is { ShimExecutingCancelEditCommand: false } cancelOwner
-            && Column is { } column && RowOwner is { } row)
-        {
-            cancelOwner.RaiseCellEditEnding(column, row, _editingBox, DataGridEditAction.Cancel);
-            cancelOwner.CancelRowEdit(row); // roll back the row transaction
         }
 
         ClearValidationError();

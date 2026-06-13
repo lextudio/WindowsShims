@@ -289,13 +289,17 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
-    public void ComboBoxColumnHasWriteBackSurface()
+    public void ComboBoxColumnBodyIsReusedFromUpstream()
     {
-        // Session 45: combo column write-back. Behavior verified by the probe.
-        Assert.That(
-            typeof(DataGridComboBoxColumn).GetMethod("EffectiveWriteTarget", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGridComboBoxColumn resolves the effective write-back target.");
+        // Session 60: the local combo shim was replaced by the linked upstream
+        // body. Evidence: the three real WPF binding properties + ItemsSource/
+        // SelectedValuePath/DisplayMemberPath are present (write-back behavior
+        // verified by the probe via the TwoWay-by-default binding bridge).
+        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedItemBinding"), Is.Not.Null);
+        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedValueBinding"), Is.Not.Null);
+        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("TextBinding"), Is.Not.Null);
+        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("ItemsSource"), Is.Not.Null);
+        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedValuePath"), Is.Not.Null);
     }
 
     [Test]
@@ -383,6 +387,78 @@ public sealed class DataGridControlRootLinkTests
         // null target → applies; non-matching plain object → not (no tree).
         Assert.That((bool)appliesTo!.Invoke(binding, [null])!, Is.True);
         Assert.That((bool)appliesTo.Invoke(binding, [new object()])!, Is.False);
+    }
+
+    [Test]
+    public void BoundColumnBodyIsReusedFromUpstream()
+    {
+        // Session 58: the local DataGridBoundColumn shim was replaced by the
+        // linked upstream file; the local partial keeps only BindingPath + the
+        // CoerceValue hook. (DependencyObject instances need the UI thread, so
+        // the binding→SortMemberPath coercion behavior is verified by the
+        // sample probe; here we assert the reused surface exists.)
+        var instanceFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+
+        // Upstream-only members that prove the linked body is in the type:
+        Assert.That(typeof(DataGridBoundColumn).GetProperty("ElementStyle"), Is.Not.Null);
+        Assert.That(typeof(DataGridBoundColumn).GetProperty("EditingElementStyle"), Is.Not.Null);
+        Assert.That(typeof(DataGridBoundColumn).GetField("ElementStyleProperty"), Is.Not.Null);
+        Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyBinding", instanceFlags), Is.Not.Null);
+        Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyStyle", instanceFlags), Is.Not.Null);
+
+        // The Uno-specific members kept in the local partial:
+        Assert.That(typeof(DataGridBoundColumn).GetProperty("BindingPath", instanceFlags), Is.Not.Null,
+            "BindingPath helper remains in the local partial.");
+        var coerce = typeof(DataGridBoundColumn).GetMethod("CoerceValue", instanceFlags);
+        Assert.That(coerce, Is.Not.Null,
+            "CoerceValue override derives SortMemberPath (shim DP system runs no coerce callbacks).");
+        // CoerceValue is declared on DataGridBoundColumn (the override), not just inherited.
+        Assert.That(coerce!.DeclaringType, Is.EqualTo(typeof(DataGridBoundColumn)));
+    }
+
+    [Test]
+    public void TextColumnBodyIsReusedFromUpstream()
+    {
+        // Session 59: the local DataGridTextColumn shim was deleted and the
+        // upstream file linked. Evidence the upstream body is in the type: the
+        // Font*/Foreground DPs and DefaultElementStyle (none of which existed in
+        // the old 47-line local shim) are now present.
+        Assert.That(typeof(DataGridTextColumn).GetProperty("FontFamily"), Is.Not.Null);
+        Assert.That(typeof(DataGridTextColumn).GetProperty("FontSize"), Is.Not.Null);
+        Assert.That(typeof(DataGridTextColumn).GetProperty("FontWeight"), Is.Not.Null);
+        Assert.That(typeof(DataGridTextColumn).GetProperty("Foreground"), Is.Not.Null);
+        Assert.That(typeof(DataGridTextColumn).GetField("FontFamilyProperty"), Is.Not.Null);
+        Assert.That(typeof(DataGridTextColumn).GetProperty("DefaultElementStyle"), Is.Not.Null);
+
+        // The input substrate that lets concrete columns link: InputEventArgs is
+        // the shared base of the input arg shims, and the column base exposes
+        // OnInput/BeginEdit.
+        Assert.That(typeof(System.Windows.KeyEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)), Is.True);
+        Assert.That(typeof(System.Windows.Input.MouseEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)), Is.True);
+        var onInput = typeof(DataGridColumn).GetMethod("OnInput", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(onInput, Is.Not.Null);
+    }
+
+    [Test]
+    public void RowDetailsSurfaceExists()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        // Session 57: row details. The row computes effective visibility and
+        // materializes the grid's RowDetailsTemplate into PART_DetailsHost;
+        // behavior (Visible vs VisibleWhenSelected + selection) is verified by
+        // the sample probe.
+        Assert.That(typeof(DataGridRow).GetMethod("ComputeDetailsVisibility", flags), Is.Not.Null,
+            "DataGridRow.ComputeDetailsVisibility mirrors OnCoerceDetailsVisibility.");
+        Assert.That(typeof(DataGridRow).GetMethod("BuildRowDetails", flags), Is.Not.Null,
+            "DataGridRow.BuildRowDetails materializes the details template.");
+        // The linked WPF Loading/Unloading wrappers are reused (not reimplemented).
+        Assert.That(typeof(DataGrid).GetMethod("OnLoadingRowDetailsWrapper", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("OnUnloadingRowDetailsWrapper", flags), Is.Not.Null);
+        // Public RowDetails surface from the linked control root.
+        Assert.That(typeof(DataGrid).GetProperty("RowDetailsTemplate"), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetProperty("RowDetailsVisibilityMode"), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetEvent("LoadingRowDetails"), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetEvent("RowDetailsVisibilityChanged"), Is.Not.Null);
     }
 
     [Test]

@@ -15,6 +15,11 @@ public partial class DataGrid
     // Same idea for the linked WPF CancelEdit command path.
     internal bool ShimExecutingCancelEditCommand { get; set; }
 
+    // Same idea for the linked WPF BeginEdit command path.
+    internal bool ShimExecutingBeginEditCommand { get; set; }
+
+    internal bool ShimHandlingPlaceholderBeginEdit { get; set; }
+
     internal bool ShimValidateRowCommit(DataGridRow? row)
     {
         if (row is null)
@@ -39,6 +44,90 @@ public partial class DataGrid
     // UpdateVisualState: the upstream calls this (0-arg) which calls the
     // virtual ChangeVisualState. Provide the 0-arg overload in the shim part.
     internal void UpdateVisualState() => ChangeVisualState(true);
+
+    // The shim render path is code-built rather than presenter-driven, so
+    // option changes like CanUserAddRows need an explicit rebuild before the
+    // normal layout pass if the visual tree is already realized.
+    public new void UpdateLayout()
+    {
+        BuildShimVisualTree();
+        base.UpdateLayout();
+    }
+
+    internal bool ShimBeginEditPlaceholder(DataGridCell placeholderCell, RoutedEventArgs? editingEventArgs)
+    {
+        if (ShimHandlingPlaceholderBeginEdit)
+        {
+            return false;
+        }
+
+        ShimHandlingPlaceholderBeginEdit = true;
+        try
+        {
+            var newItem = Items.CurrentAddItem ?? AddNewItem();
+            SetCurrentCellToNewItem(newItem);
+            UpdateLayout();
+
+            DataGridCell? newCell = null;
+            var row =
+                ItemContainerGenerator.ContainerFromItem(newItem) as DataGridRow ??
+                FindShimRowForItem(newItem);
+
+            row?.UpdateLayout();
+
+            if (row is not null && placeholderCell.Column is { } column)
+            {
+                for (var i = 0; i < Columns.Count; i++)
+                {
+                    if (ReferenceEquals(Columns[i], column))
+                    {
+                        newCell = row.TryGetCell(i);
+                        break;
+                    }
+                }
+            }
+
+            newCell ??= CurrentCellContainer;
+            if (newCell is not null && !ReferenceEquals(newCell, placeholderCell))
+            {
+                CurrentCellContainer = newCell;
+                var wasExecuting = ShimExecutingBeginEditCommand;
+                ShimExecutingBeginEditCommand = true;
+                try
+                {
+                    return newCell.BeginEdit(editingEventArgs);
+                }
+                finally
+                {
+                    ShimExecutingBeginEditCommand = wasExecuting;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            ShimHandlingPlaceholderBeginEdit = false;
+        }
+    }
+
+    private DataGridRow? FindShimRowForItem(object item)
+    {
+        if (GetTemplateChild("PART_ShimRowsHost") is not Microsoft.UI.Xaml.Controls.Panel host)
+        {
+            return null;
+        }
+
+        foreach (var child in host.Children)
+        {
+            if (child is DataGridRow row && ReferenceEquals(row.Item, item))
+            {
+                return row;
+            }
+        }
+
+        return null;
+    }
 
     // The WPF static-ctor OverrideMetadata(typeof(DataGrid)) call is a no-op
     // under the shim, and the library's Themes/Generic.xaml is not reliably in
@@ -84,6 +173,12 @@ public partial class DataGrid
             return;
         }
 
+        var editingItem = CurrentCellContainer is { IsEditing: true } editingCell
+            ? editingCell.RowDataItem
+            : null;
+        var editingColumn = CurrentCellContainer is { IsEditing: true } ? CurrentCellContainer.Column : null;
+
+        EnsureShimNewItemPlaceholderState();
         HookShimChangeNotifications();
 
         _visibleColumns = Columns.Where(c => c.IsVisible).ToList();
@@ -144,6 +239,11 @@ public partial class DataGrid
 
         ItemContainerGenerator.NotifyContainersGenerated();
 
+        if (editingItem is not null && editingColumn is not null)
+        {
+            RestoreEditingCellAfterRebuild(editingItem, editingColumn);
+        }
+
         // Schedule an Auto-width pass if any visible column is non-absolute.
         if (_visibleColumns.Any(IsAutoWidth))
         {
@@ -153,6 +253,65 @@ public partial class DataGrid
                 LayoutUpdated += OnAutoWidthLayoutUpdated;
                 _autoWidthHooked = true;
             }
+        }
+    }
+
+    private void RestoreEditingCellAfterRebuild(object editingItem, DataGridColumn editingColumn)
+    {
+        if (ItemContainerGenerator.ContainerFromItem(editingItem) is not DataGridRow row)
+        {
+            return;
+        }
+
+        // Template may not be applied yet (OnApplyTemplate fires after the layout pass).
+        // Force it now so TryGetCell can access the realized cells.
+        row.ApplyTemplate();
+
+        for (var i = 0; i < Columns.Count; i++)
+        {
+            if (!ReferenceEquals(Columns[i], editingColumn))
+            {
+                continue;
+            }
+
+            if (row.TryGetCell(i) is not { IsEditing: false } cell)
+            {
+                return;
+            }
+
+            CurrentCellContainer = cell;
+            var wasExecuting = ShimExecutingBeginEditCommand;
+            ShimExecutingBeginEditCommand = true;
+            try
+            {
+                cell.BeginEdit(null);
+            }
+            finally
+            {
+                ShimExecutingBeginEditCommand = wasExecuting;
+            }
+
+            return;
+        }
+    }
+
+    private void EnsureShimNewItemPlaceholderState()
+    {
+        if (Items.IsAddingNew)
+        {
+            return;
+        }
+
+        if (CanUserAddRows)
+        {
+            if (Items.NewItemPlaceholderPosition == System.ComponentModel.NewItemPlaceholderPosition.None)
+            {
+                Items.NewItemPlaceholderPosition = System.ComponentModel.NewItemPlaceholderPosition.AtEnd;
+            }
+        }
+        else if (Items.NewItemPlaceholderPosition != System.ComponentModel.NewItemPlaceholderPosition.None)
+        {
+            Items.NewItemPlaceholderPosition = System.ComponentModel.NewItemPlaceholderPosition.None;
         }
     }
 

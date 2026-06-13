@@ -12,10 +12,12 @@ namespace System.Windows.Controls;
 // implementation supports direct-list item editing bookkeeping but cannot
 // construct new items. Filtering, grouping, and deferred refresh are not
 // supported.
-public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView
+public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView, IEditableCollectionViewAddNewItem
 {
     private int _currentPosition = -1;
     private SortDescriptionCollection? _sortDescriptions;
+    private NewItemPlaceholderPosition _newItemPlaceholderPosition;
+    private object? _currentAddItem;
 
     public SortDescriptionCollection SortDescriptions
     {
@@ -46,7 +48,7 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     internal bool IsChanging => false;
 
-    internal object? GetRepresentativeItem() => Count > 0 ? this[0] : null;
+    internal object? GetRepresentativeItem() => this.FirstOrDefault(item => !IsPlaceholder(item));
 
     // WPF exposes the inner CollectionView; the shim is its own (degenerate)
     // view, and item hash codes are never assumed reliable.
@@ -54,15 +56,18 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     internal bool HasReliableHashCodes() => false;
 
-    // ── IEditableCollectionView (degenerate direct-list semantics) ─────────
-    // New-item construction needs an item type/factory the shim does not
-    // have, so adding is unsupported; edit tracking is bookkeeping only.
+    // ── IEditableCollectionView (direct-list semantics) ────────────────────
+    // The shim supports editable-item bookkeeping plus a narrow direct-list
+    // add-new flow, including a placeholder sentinel and user-supplied new
+    // items through IEditableCollectionViewAddNewItem.
 
-    public bool CanAddNew => false;
+    public bool CanAddNew => CanAddNewItem || CanConstructNewItem();
 
-    public bool IsAddingNew => false;
+    public bool IsAddingNew => _currentAddItem is not null;
 
-    public object? CurrentAddItem => null;
+    public object? CurrentAddItem => _currentAddItem;
+
+    public bool CanAddNewItem => true;
 
     public bool CanRemove => true;
 
@@ -74,24 +79,77 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     public NewItemPlaceholderPosition NewItemPlaceholderPosition
     {
-        get => NewItemPlaceholderPosition.None;
+        get => _newItemPlaceholderPosition;
         set
         {
-            if (value != NewItemPlaceholderPosition.None)
+            if (value is not (NewItemPlaceholderPosition.None
+                or NewItemPlaceholderPosition.AtBeginning
+                or NewItemPlaceholderPosition.AtEnd))
             {
-                throw new NotSupportedException("New-item placeholders are not supported by the bridge.");
+                throw new ArgumentOutOfRangeException(nameof(value));
             }
+
+            _newItemPlaceholderPosition = value;
+            SyncPlaceholderVisibility();
         }
     }
 
-    public object AddNew() => throw new InvalidOperationException("AddNew is not supported by the bridge.");
+    public object AddNew()
+    {
+        var type = GetRepresentativeItem()?.GetType();
+        if (type is null)
+        {
+            throw new InvalidOperationException("AddNew is not supported by the bridge without an item type.");
+        }
+
+        var ctor = type.GetConstructor(Type.EmptyTypes);
+        if (ctor is null)
+        {
+            throw new InvalidOperationException($"AddNew is not supported by the bridge for type '{type.Name}' without a parameterless constructor.");
+        }
+
+        return AddNewItem(ctor.Invoke(null));
+    }
+
+    public object AddNewItem(object newItem)
+    {
+        if (_currentAddItem is not null)
+        {
+            throw new InvalidOperationException("A new-item transaction is already active.");
+        }
+
+        RemovePlaceholderIfPresent();
+
+        var index = _newItemPlaceholderPosition == NewItemPlaceholderPosition.AtBeginning ? 0 : Count;
+        InsertItem(index, newItem);
+        _currentAddItem = newItem;
+        (newItem as IEditableObject)?.BeginEdit();
+        return newItem;
+    }
 
     public void CommitNew()
     {
+        (_currentAddItem as IEditableObject)?.EndEdit();
+        _currentAddItem = null;
+        SyncPlaceholderVisibility();
     }
 
     public void CancelNew()
     {
+        if (_currentAddItem is null)
+        {
+            return;
+        }
+
+        (_currentAddItem as IEditableObject)?.CancelEdit();
+        var index = IndexOf(_currentAddItem);
+        _currentAddItem = null;
+        if (index >= 0)
+        {
+            RemoveItem(index);
+        }
+
+        SyncPlaceholderVisibility();
     }
 
     public void EditItem(object item)
@@ -202,9 +260,22 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
         if (_sortDescriptions is { Count: > 0 } && Items is List<object?> backing && backing.Count > 1)
         {
-            var ordered = ApplySortDescriptions(backing);
+            var placeholder = backing.FirstOrDefault(IsPlaceholder);
+            var ordered = ApplySortDescriptions(backing.Where(item => !IsPlaceholder(item)));
             backing.Clear();
             backing.AddRange(ordered);
+            if (placeholder is not null)
+            {
+                if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtBeginning)
+                {
+                    backing.Insert(0, placeholder);
+                }
+                else if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtEnd)
+                {
+                    backing.Add(placeholder);
+                }
+            }
+
             _currentPosition = -1;
             CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
         }
@@ -227,6 +298,33 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
         }
 
         return ordered?.ToList() ?? items.ToList();
+    }
+
+    private static bool IsPlaceholder(object? item)
+        => ReferenceEquals(item, System.Windows.Data.CollectionView.NewItemPlaceholder);
+
+    private bool CanConstructNewItem()
+        => GetRepresentativeItem()?.GetType().GetConstructor(Type.EmptyTypes) is not null;
+
+    private void SyncPlaceholderVisibility()
+    {
+        RemovePlaceholderIfPresent();
+        if (IsAddingNew || _newItemPlaceholderPosition == NewItemPlaceholderPosition.None)
+        {
+            return;
+        }
+
+        var index = _newItemPlaceholderPosition == NewItemPlaceholderPosition.AtBeginning ? 0 : Count;
+        InsertItem(index, System.Windows.Data.CollectionView.NewItemPlaceholder);
+    }
+
+    private void RemovePlaceholderIfPresent()
+    {
+        var index = IndexOf(System.Windows.Data.CollectionView.NewItemPlaceholder);
+        if (index >= 0)
+        {
+            RemoveItem(index);
+        }
     }
 
     public IDisposable DeferRefresh()

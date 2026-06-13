@@ -13,6 +13,10 @@ public partial class FrameworkContentElement : DependencyObject
 {
     public DependencyObject? Parent { get; internal set; }
 
+    // Session 60: the linked DataGridComboBoxColumn has an ApplyStyle overload
+    // targeting a FrameworkContentElement; WinUI's Style is the effective type.
+    public Microsoft.UI.Xaml.Style? Style { get; set; }
+
     // See WinUIFrameworkElementExtensions for the FrameworkElement counterpart.
     public bool IsLogicalChildrenIterationInProgress => false;
 

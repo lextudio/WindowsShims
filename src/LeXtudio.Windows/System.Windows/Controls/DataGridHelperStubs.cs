@@ -80,6 +80,8 @@ public sealed class SystemResourceKey : System.Windows.ComponentResourceKey
 {
     private SystemResourceKey() : base(typeof(SystemResourceKey), "DataGridFocusBorderBrush") { }
     public static SystemResourceKey DataGridFocusBorderBrushKey { get; } = new SystemResourceKey();
+    // Session 60: style key for the linked DataGridComboBoxColumn.TextBlockComboBox.
+    public static SystemResourceKey DataGridComboBoxColumnTextBlockComboBoxStyleKey { get; } = new SystemResourceKey();
 }
 
 // TextSearch: WPF attached-property based incremental-search support on

@@ -15,7 +15,7 @@ namespace System.Windows.Input
 
 namespace System.Windows
 {
-    public class KeyEventArgs : RoutedEventArgs
+    public class KeyEventArgs : System.Windows.Input.InputEventArgs
     {
         public bool Handled { get; set; }
         public System.Windows.Input.Key Key { get; set; }
@@ -23,5 +23,8 @@ namespace System.Windows
         public System.Windows.Input.KeyboardDevice KeyboardDevice { get; set; } = System.Windows.Input.KeyboardDevice.Empty;
         public object? OriginalSource { get; set; }
         public bool IsRepeat { get; set; }
+        // Session 60: referenced by linked column OnInput edit-trigger logic.
+        public System.Windows.Input.KeyStates KeyStates { get; set; }
+        public System.Windows.Input.Key SystemKey { get; set; }
     }
 }

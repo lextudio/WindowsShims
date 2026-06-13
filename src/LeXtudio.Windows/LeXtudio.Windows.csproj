@@ -464,6 +464,16 @@
              Link="System.Windows.Controls\TextChangedEventArgs.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGrid.cs"
              Link="System.Windows.Controls\DataGrid_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridBoundColumn.cs"
+             Link="System.Windows.Controls\DataGridBoundColumn_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridTextColumn.cs"
+             Link="System.Windows.Controls\DataGridTextColumn_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridCheckBoxColumn.cs"
+             Link="System.Windows.Controls\DataGridCheckBoxColumn_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridComboBoxColumn.cs"
+             Link="System.Windows.Controls\DataGridComboBoxColumn_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridTemplateColumn.cs"
+             Link="System.Windows.Controls\DataGridTemplateColumn_upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridClipboardCopyMode.cs"
              Link="System.Windows.Controls\DataGridClipboardCopyMode.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridClipboardCellContent.cs"

@@ -43,7 +43,7 @@ namespace System.Windows.Input
 	/// Portable shim for System.Windows.Input.TextCompositionEventArgs.
 	/// Carries the text that was entered by the user via IME or direct keyboard input.
 	/// </summary>
-	public class TextCompositionEventArgs : System.Windows.RoutedEventArgs
+	public class TextCompositionEventArgs : System.Windows.Input.InputEventArgs
 	{
 		readonly string _systemText;
 

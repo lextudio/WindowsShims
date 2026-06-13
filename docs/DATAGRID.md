@@ -201,6 +201,25 @@ coupled for the current milestone.
   teardown only. Probe proves one cancel cell-ending event, one cancel
   row-ending event, `IEditableObject.CancelEdit`, and clean exit from edit
   mode. 122 tests green (see `session53.md`).
+- Session 54: **reuse milestone — begin editing via the real WPF command
+  path.** `DataGridCell.BeginEdit()` now delegates to
+  `DataGrid.BeginEdit(...)`, so the linked `OnExecutedBeginEdit` owns
+  `BeginningEdit`, row-edit startup (`EditRowItem`), `BindingGroup.BeginEdit`,
+  and row editing state; a new `ShimExecutingBeginEditCommand` guard keeps the
+  cell callback to local editor creation only. This completes routed WPF
+  ownership for begin/commit/cancel on the common non-placeholder path. Probe
+  now asserts one successful `BeginningEdit`. 122 tests green; probe green
+  (`DONE failures=0`) (see `session54.md`).
+- Session 55: **add-new substrate batch.** `ItemCollection` now implements
+  `IEditableCollectionViewAddNewItem` and owns placeholder/add-new state:
+  `NewItemPlaceholderPosition`, `AddNewItem`, `AddNew`, `CommitNew`,
+  `CancelNew`, `CurrentAddItem`, and placeholder preservation across sort.
+  The shim render path re-synchronizes placeholder visibility before rebuilds,
+  and `UpdateLayout()` now forces a shim rebuild first so `CanUserAddRows`
+  changes surface visually. Probe verifies placeholder appearance plus direct
+  add-new commit/restore behavior; tests and probe are green. The remaining
+  rung is the full placeholder-cell `BeginEdit` path through upstream WPF
+  `OnExecutedBeginEdit` (see `session55.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`

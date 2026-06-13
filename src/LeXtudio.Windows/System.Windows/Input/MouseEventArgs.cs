@@ -1,8 +1,10 @@
 namespace System.Windows.Input
 {
-    public class MouseEventArgs : EventArgs
+    // Faithful to WPF's hierarchy (MouseEventArgs : InputEventArgs : RoutedEventArgs)
+    // so the linked DataGrid column bodies can downcast a RoutedEventArgs to a
+    // MouseButtonEventArgs. Handled/Source/RoutedEvent come from RoutedEventArgs.
+    public class MouseEventArgs : InputEventArgs
     {
-        public bool Handled { get; set; }
         public bool UserInitiated { get; set; } = true;
         public MouseButtonState LeftButton { get; set; }
         public MouseButtonState RightButton { get; set; }

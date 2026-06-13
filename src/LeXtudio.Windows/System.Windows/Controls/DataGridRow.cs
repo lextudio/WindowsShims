@@ -88,6 +88,10 @@ public partial class DataGridRow : Control
         Item = item;
         DataGridOwner = dataGrid;
         DataContext = item;
+        IsNewItem =
+            ReferenceEquals(item, System.Windows.Data.CollectionView.NewItemPlaceholder) ||
+            ReferenceEquals(item, DataGrid.NewItemPlaceholder) ||
+            ReferenceEquals(item, dataGrid.Items.CurrentAddItem);
         // If the template is already applied (row reused), rebuild now.
         BuildCells();
     }
@@ -106,14 +110,19 @@ public partial class DataGridRow : Control
     // PART_CellsHost panel, and the row builds one DataGridCell per visible
     // column (each cell's content produced by the column, bound to the item).
 
+    // Session 57: the row template is now vertical — the cells row sits above a
+    // PART_DetailsHost that expands to host the materialized RowDetailsTemplate.
     private const string RowTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
+        "<StackPanel Orientation='Vertical'>" +
         "<StackPanel Orientation='Horizontal'>" +
         "<ContentControl x:Name='PART_RowHeader' />" +
         "<StackPanel x:Name='PART_CellsHost' Orientation='Horizontal' />" +
+        "</StackPanel>" +
+        "<ContentControl x:Name='PART_DetailsHost' Visibility='Collapsed' />" +
         "</StackPanel></Border></ControlTemplate>";
 
     // ── Session 48: row-level validation indicator ──────────────────────────
@@ -157,6 +166,20 @@ public partial class DataGridRow : Control
         // the cell itself and is managed separately on DataGridCell.
         Background = _isSelected ? _selectedBrush : null;
         RefreshRowHeaderGlyph();
+
+        // VisibleWhenSelected: selection toggles the details section. Recompute
+        // and, if the effective visibility changed, raise RowDetailsVisibilityChanged.
+        if (DataGridOwner is { } owner
+            && owner.RowDetailsVisibilityMode == DataGridRowDetailsVisibilityMode.VisibleWhenSelected)
+        {
+            var before = DetailsVisibility;
+            BuildRowDetails(owner);
+            if (DetailsVisibility != before)
+            {
+                owner.OnRowDetailsVisibilityChanged(
+                    new DataGridRowDetailsEventArgs(this, _detailsPresenter?.DetailsElement!));
+            }
+        }
     }
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _rowTemplate;
@@ -233,6 +256,74 @@ public partial class DataGridRow : Control
         }
 
         BuildRowHeader(owner);
+        BuildRowDetails(owner);
+    }
+
+    // ── Session 57: row details ──────────────────────────────────────────────
+    // The row materializes the grid's RowDetailsTemplate into PART_DetailsHost
+    // when the effective visibility (mode + selection + template + real item)
+    // resolves to Visible, reusing the linked WPF Loading/Unloading wrappers.
+    private DataGridDetailsPresenter? _detailsPresenter;
+
+    // Effective details visibility, mirroring the upstream
+    // OnCoerceDetailsVisibility switch over RowDetailsVisibilityMode.
+    private Visibility ComputeDetailsVisibility(DataGrid owner)
+    {
+        var hasTemplate = owner.RowDetailsTemplate is not null || owner.RowDetailsTemplateSelector is not null;
+        var isRealItem =
+            !ReferenceEquals(Item, System.Windows.Data.CollectionView.NewItemPlaceholder) &&
+            !ReferenceEquals(Item, DataGrid.NewItemPlaceholder);
+
+        return owner.RowDetailsVisibilityMode switch
+        {
+            DataGridRowDetailsVisibilityMode.Collapsed => Visibility.Collapsed,
+            DataGridRowDetailsVisibilityMode.Visible =>
+                hasTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed,
+            DataGridRowDetailsVisibilityMode.VisibleWhenSelected =>
+                _isSelected && hasTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed,
+            _ => Visibility.Collapsed,
+        };
+    }
+
+    private void BuildRowDetails(DataGrid owner)
+    {
+        if (GetTemplateChild("PART_DetailsHost") is not Microsoft.UI.Xaml.Controls.ContentControl host)
+        {
+            return;
+        }
+
+        var visibility = ComputeDetailsVisibility(owner);
+        DetailsVisibility = visibility;
+
+        if (visibility != Visibility.Visible)
+        {
+            // Tearing down a previously-loaded details section raises Unloading.
+            if (_detailsPresenter is not null && DetailsLoaded)
+            {
+                owner.OnUnloadingRowDetailsWrapper(this);
+            }
+
+            host.Content = null;
+            host.Visibility = Visibility.Collapsed;
+            _detailsPresenter = null;
+            DetailsPresenter = null;
+            return;
+        }
+
+        var content = owner.RowDetailsTemplate?.LoadContent() as FrameworkElement;
+        _detailsPresenter = new DataGridDetailsPresenter
+        {
+            ParentDataGrid = owner,
+            DataContext = Item,
+            Content = content,
+        };
+        DetailsPresenter = _detailsPresenter;
+        host.Content = _detailsPresenter;
+        host.Visibility = Visibility.Visible;
+
+        // The template just expanded, so DetailsElement is available — reuse the
+        // linked WPF wrapper to raise LoadingRowDetails exactly once.
+        owner.OnLoadingRowDetailsWrapper(this);
     }
 
     // ── Session 49: row header ───────────────────────────────────────────────

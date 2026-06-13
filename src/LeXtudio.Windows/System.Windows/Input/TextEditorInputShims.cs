@@ -58,6 +58,13 @@ namespace System.Windows.Input
                 "TabNavigation", typeof(int), typeof(KeyboardNavigation),
                 new Microsoft.UI.Xaml.PropertyMetadata(0));
 
+        // Session 60: the linked DataGridComboBoxColumn's TextBlockComboBox helper
+        // overrides this attached DP's metadata.
+        public static readonly Microsoft.UI.Xaml.DependencyProperty IsTabStopProperty =
+            Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
+                "IsTabStop", typeof(bool), typeof(KeyboardNavigation),
+                new Microsoft.UI.Xaml.PropertyMetadata(true));
+
         public static readonly Microsoft.UI.Xaml.DependencyProperty AcceptsReturnProperty =
             Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(
                 "AcceptsReturn", typeof(bool), typeof(KeyboardNavigation),
