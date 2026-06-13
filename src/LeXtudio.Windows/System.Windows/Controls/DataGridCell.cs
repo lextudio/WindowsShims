@@ -76,21 +76,41 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     // restores without writing.
     internal bool BeginEdit(RoutedEventArgs? editingEventArgs)
     {
-        if (IsEditing || IsReadOnly || Column is not DataGridBoundColumn bound
+        if (IsEditing || IsReadOnly
+            || Column is not DataGridBoundColumn bound
             || bound.BindingPath is not { Length: > 0 } path
             || RowDataItem is not { } item)
         {
             return false;
         }
 
+        // Read-only is coerced from the grid and the column.
+        if (DataGridOwner?.IsCellEffectivelyReadOnly(Column) == true)
+        {
+            return false;
+        }
+
+        // BeginningEdit is cancelable.
+        if (DataGridOwner is { } owner && RowOwner is { } row)
+        {
+            var args = owner.RaiseBeginningEdit(Column, row, editingEventArgs);
+            if (args.Cancel)
+            {
+                return false;
+            }
+        }
+
         var current = item.GetType().GetProperty(path)?.GetValue(item);
         _editingBox = new Microsoft.UI.Xaml.Controls.TextBox { Text = current?.ToString() ?? string.Empty };
+        _editingBox.LostFocus += OnEditingBoxLostFocus; // commit-on-blur
         Content = _editingBox;
         IsEditing = true;
         _editingBox.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         _editingBox.SelectAll();
         return true;
     }
+
+    private void OnEditingBoxLostFocus(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) => CommitEdit();
 
     internal void CancelEdit()
     {
@@ -99,9 +119,12 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             return;
         }
 
-        IsEditing = false;
-        _editingBox = null;
-        BuildVisualTree();
+        if (DataGridOwner is { } owner && Column is { } column && RowOwner is { } row)
+        {
+            owner.RaiseCellEditEnding(column, row, _editingBox, DataGridEditAction.Cancel);
+        }
+
+        EndEdit();
     }
 
     internal bool CommitEdit()
@@ -111,7 +134,16 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             return true;
         }
 
-        var ok = true;
+        // CellEditEnding (Commit) is cancelable — a handler can veto the commit.
+        if (DataGridOwner is { } owner && Column is { } column && RowOwner is { } row)
+        {
+            var args = owner.RaiseCellEditEnding(column, row, _editingBox, DataGridEditAction.Commit);
+            if (args.Cancel)
+            {
+                return false;
+            }
+        }
+
         if (_editingBox is { } box && Column is DataGridBoundColumn { BindingPath: { Length: > 0 } path }
             && RowDataItem is { } item)
         {
@@ -128,20 +160,25 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
                 }
                 catch (Exception)
                 {
-                    ok = false; // invalid input — keep editing
+                    return false; // invalid input — keep editing
                 }
             }
         }
 
-        if (!ok)
+        EndEdit();
+        return true;
+    }
+
+    private void EndEdit()
+    {
+        if (_editingBox is { } box)
         {
-            return false;
+            box.LostFocus -= OnEditingBoxLostFocus;
         }
 
         IsEditing = false;
         _editingBox = null;
         BuildVisualTree();
-        return true;
     }
 
     // Input: double-tap begins editing; Enter commits, Escape cancels.

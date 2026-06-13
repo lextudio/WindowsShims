@@ -1,3 +1,4 @@
+using System.Reflection;
 using WinUICheckBox = Microsoft.UI.Xaml.Controls.CheckBox;
 
 namespace System.Windows.Controls;
@@ -57,12 +58,48 @@ public partial class DataGridCheckBoxColumn : DataGridBoundColumn
 
     private WinUICheckBox GenerateCheckBox(bool isEditing, DataGridCell cell)
     {
-        var checkBox = cell.Content as WinUICheckBox ?? new WinUICheckBox();
-
-        checkBox.IsThreeState = IsThreeState;
+        var checkBox = new WinUICheckBox { IsThreeState = IsThreeState };
         ApplyStyle(isEditing, defaultToElementStyle: true, checkBox);
-        ApplyBinding(checkBox, WinUICheckBox.IsCheckedProperty);
+
+        var item = cell.RowDataItem;
+        var path = BindingPath;
+        var prop = item is not null && path is { Length: > 0 } ? item.GetType().GetProperty(path) : null;
+
+        if (item is null || prop is null)
+        {
+            // No resolvable source — fall back to the (display-only) binding.
+            ApplyBinding(checkBox, WinUICheckBox.IsCheckedProperty);
+            return checkBox;
+        }
+
+        checkBox.IsChecked = prop.GetValue(item) as bool?;
+
+        // The checkbox edits in place; toggling writes back unless read-only.
+        var readOnly = cell.DataGridOwner?.IsCellEffectivelyReadOnly(this) ?? false;
+        var writable = !readOnly && prop.CanWrite;
+        checkBox.IsEnabled = writable;
+        if (writable)
+        {
+            checkBox.Checked += (_, _) => WriteBack(prop, item, true);
+            checkBox.Unchecked += (_, _) => WriteBack(prop, item, false);
+            checkBox.Indeterminate += (_, _) => WriteBack(prop, item, null);
+        }
 
         return checkBox;
+    }
+
+    private static void WriteBack(PropertyInfo prop, object item, bool? value)
+    {
+        try
+        {
+            object? toSet = Nullable.GetUnderlyingType(prop.PropertyType) is not null
+                ? value
+                : value ?? false;
+            prop.SetValue(item, toSet);
+        }
+        catch (Exception)
+        {
+            // Ignore write failures (type mismatch / setter throw).
+        }
     }
 }

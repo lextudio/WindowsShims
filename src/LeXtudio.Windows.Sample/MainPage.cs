@@ -19,16 +19,18 @@ public sealed partial class MainPage : Page
 
     public sealed class Person
     {
-        public Person(string name, int age, string city)
+        public Person(string name, int age, string city, bool isActive = false)
         {
             Name = name;
             Age = age;
             City = city;
+            IsActive = isActive;
         }
 
         public string Name { get; set; }
         public int Age { get; set; }
         public string City { get; set; }
+        public bool IsActive { get; set; }
     }
 
     private readonly StackPanel _report = new() { Spacing = 4 };
@@ -97,9 +99,14 @@ public sealed partial class MainPage : Page
                 Width = new System.Windows.Controls.DataGridLength(60),
             });
             grid.Columns.Add(new WpfDataGridTextColumn { Header = "City", Binding = new WpfBinding("City") });
-            if (grid.Columns.Count != 3)
+            grid.Columns.Add(new System.Windows.Controls.DataGridCheckBoxColumn
             {
-                throw new InvalidOperationException($"expected 3 columns, found {grid.Columns.Count}");
+                Header = "Active",
+                Binding = new WpfBinding("IsActive"),
+            });
+            if (grid.Columns.Count != 4)
+            {
+                throw new InvalidOperationException($"expected 4 columns, found {grid.Columns.Count}");
             }
         });
 
@@ -196,9 +203,9 @@ public sealed partial class MainPage : Page
 
             var cellCount = VisualTreeHelper.GetChildrenCount(cellsHost);
             Console.WriteLine($"[probe]   first row cell count = {cellCount}");
-            if (cellCount != 3)
+            if (cellCount != 4)
             {
-                throw new InvalidOperationException($"expected 3 cells (one per column), found {cellCount}");
+                throw new InvalidOperationException($"expected 4 cells (one per column), found {cellCount}");
             }
         });
 
@@ -655,6 +662,78 @@ public sealed partial class MainPage : Page
             {
                 throw new InvalidOperationException(
                     $"Star did not expand (City={cityHeader.Width}, Name={nameHeader.Width})");
+            }
+        });
+
+        Step("editing: read-only coercion + cancelable edit events", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var cell = row0?.TryGetCell(1); // Age
+            var ageCol = _grid.Columns[1];
+            if (cell is null)
+            {
+                throw new InvalidOperationException("no Age cell");
+            }
+
+            // DataGrid.IsReadOnly blocks editing.
+            _grid.IsReadOnly = true;
+            if (cell.BeginEdit(null)) throw new InvalidOperationException("grid read-only should block edit");
+            _grid.IsReadOnly = false;
+
+            // Column.IsReadOnly blocks editing.
+            ageCol.IsReadOnly = true;
+            if (cell.BeginEdit(null)) throw new InvalidOperationException("column read-only should block edit");
+            ageCol.IsReadOnly = false;
+
+            // BeginningEdit cancellation.
+            void Begin(object? s, System.Windows.Controls.DataGridBeginningEditEventArgs e) => e.Cancel = true;
+            _grid.BeginningEdit += Begin;
+            if (cell.BeginEdit(null)) throw new InvalidOperationException("BeginningEdit cancel should block");
+            _grid.BeginningEdit -= Begin;
+
+            // CellEditEnding veto keeps editing and discards the change.
+            if (!cell.BeginEdit(null)) throw new InvalidOperationException("begin should succeed");
+            ((TextBox)cell.Content).Text = "123";
+            void Ending(object? s, System.Windows.Controls.DataGridCellEditEndingEventArgs e) => e.Cancel = true;
+            _grid.CellEditEnding += Ending;
+            if (cell.CommitEdit()) throw new InvalidOperationException("commit should be vetoed");
+            if (!cell.IsEditing) throw new InvalidOperationException("should remain editing after veto");
+            _grid.CellEditEnding -= Ending;
+
+            // Now the commit succeeds and writes back.
+            if (!cell.CommitEdit()) throw new InvalidOperationException("commit should succeed");
+            var age = ((Person)row0!.Item!).Age;
+            Console.WriteLine($"[probe]   after vetoed+committed edit: Age={age}, IsEditing={cell.IsEditing}");
+            if (age != 123 || cell.IsEditing)
+            {
+                throw new InvalidOperationException($"edit not committed (Age={age})");
+            }
+        });
+
+        Step("checkbox column renders + toggles write back", () =>
+        {
+            _grid!.UpdateLayout();
+            var row0 = _grid.ItemContainerGenerator.ContainerFromIndex(0) as WpfDataGridRow;
+            var activeCell = row0?.TryGetCell(3); // Active (checkbox) column
+            if (activeCell?.Content is not Microsoft.UI.Xaml.Controls.CheckBox box)
+            {
+                throw new InvalidOperationException(
+                    $"Active cell content is {activeCell?.Content?.GetType().Name ?? "null"}, expected CheckBox");
+            }
+
+            var person = (Person)row0!.Item!;
+            var before = person.IsActive;
+            if (box.IsChecked != before)
+            {
+                throw new InvalidOperationException($"checkbox not bound (IsChecked={box.IsChecked}, IsActive={before})");
+            }
+
+            box.IsChecked = !before; // fires Checked/Unchecked → write-back
+            Console.WriteLine($"[probe]   toggled IsActive {before} → {person.IsActive}");
+            if (person.IsActive == before)
+            {
+                throw new InvalidOperationException("checkbox toggle did not write back");
             }
         });
 

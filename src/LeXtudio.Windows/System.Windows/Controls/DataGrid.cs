@@ -361,6 +361,29 @@ public partial class DataGrid
         return true;
     }
 
+    // ── Session 43: editing hardening ────────────────────────────────────────
+    // Effective read-only: the grid or the column being read-only blocks edits.
+    internal bool IsCellEffectivelyReadOnly(DataGridColumn? column)
+        => IsReadOnly || (column?.IsReadOnly ?? false);
+
+    // Forwarders so DataGridCell (a different class) can raise the protected
+    // edit-lifecycle events on the linked control root and read cancellation.
+    internal DataGridBeginningEditEventArgs RaiseBeginningEdit(
+        DataGridColumn column, DataGridRow row, RoutedEventArgs? editingEventArgs)
+    {
+        var args = new DataGridBeginningEditEventArgs(column, row, editingEventArgs ?? new RoutedEventArgs());
+        OnBeginningEdit(args);
+        return args;
+    }
+
+    internal DataGridCellEditEndingEventArgs RaiseCellEditEnding(
+        DataGridColumn column, DataGridRow row, FrameworkElement? editingElement, DataGridEditAction action)
+    {
+        var args = new DataGridCellEditEndingEventArgs(column, row, editingElement!, action);
+        OnCellEditEnding(args);
+        return args;
+    }
+
     internal void HandleShimCellClicked(DataGridCell cell)
     {
         if (SelectionUnit == DataGridSelectionUnit.FullRow)

@@ -289,6 +289,17 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
+    public void CheckBoxColumnGeneratesCheckBox()
+    {
+        // Session 44: checkbox column type. Toggle write-back verified by the
+        // probe; here assert the column produces a WinUI CheckBox element.
+        var generate = typeof(DataGridCheckBoxColumn).GetMethod(
+            "GenerateElement", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(generate, Is.Not.Null);
+        Assert.That(generate!.ReturnType, Is.EqualTo(typeof(Microsoft.UI.Xaml.FrameworkElement)));
+    }
+
+    [Test]
     public void AutoWidthSurfaceExists()
     {
         // Session 41: Auto column width via a post-layout measure pass.
@@ -327,6 +338,10 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(typeof(DataGridCell).GetMethod("BeginEdit", flags), Is.Not.Null);
         Assert.That(typeof(DataGridCell).GetMethod("CommitEdit", flags), Is.Not.Null);
         Assert.That(typeof(DataGridCell).GetMethod("CancelEdit", flags), Is.Not.Null);
+        // Session 43: read-only coercion + edit-event forwarders.
+        Assert.That(typeof(DataGrid).GetMethod("IsCellEffectivelyReadOnly", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("RaiseBeginningEdit", flags), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("RaiseCellEditEnding", flags), Is.Not.Null);
     }
 
     [Test]

@@ -132,6 +132,18 @@ coupled for the current milestone.
   honoring an 80px floor. 119 tests green. Star budget is a proxy
   (`ActualWidth-2`); no reflow on resize; `SizeToCells/Header` ≈ Auto (see
   `session42.md`).
+- Session 43: editing hardening (themed batch). Read-only coercion
+  (`DataGrid`/column `IsReadOnly` block edits), cancelable `BeginningEdit` /
+  `CellEditEnding` events (shim raises the linked events; veto blocks/keeps
+  editing), and commit-on-blur (`LostFocus`). Probe verifies read-only +
+  both event cancellations + clean commit. 119 tests green. No
+  `RowEditEnding`/`IEditableObject`/validation; text columns only (see
+  `session43.md`).
+- Session 44: first non-text column type. `DataGridCheckBoxColumn` renders a
+  bound `CheckBox` (read-only-aware) and toggling writes back via reflection.
+  Probe: 4 cells/row, toggle flips `IsActive`. 120 tests green. Checkbox
+  edits in place (bypasses edit-lifecycle events); other column types still
+  display-only (see `session44.md`).
 - Control-root member catalog: 386 sites at session 18, 355 after session 19
   (command/metadata), 320 after session 20 (sorting/view), 248 after session
   21 (focus + automation), 0 after session 22 (helper/visual +
