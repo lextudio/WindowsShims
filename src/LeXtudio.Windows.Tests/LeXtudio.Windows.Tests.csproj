@@ -53,6 +53,8 @@
     <Compile Include="DataGridSpineLeafTests.cs" />
     <Compile Include="ItemCollectionViewTests.cs" />
     <Compile Include="SelectorSpineTests.cs" />
+    <Compile Include="DataGridNotificationChainTests.cs" />
+    <Compile Include="DataGridColumnHeaderNotificationTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

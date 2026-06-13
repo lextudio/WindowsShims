@@ -197,13 +197,19 @@ public partial class DataGrid
         EnsureShimNewItemPlaceholderState();
         HookShimChangeNotifications();
 
-        InternalColumns.InitializeDisplayIndexMap();
+        InternalColumns.RefreshDisplayIndexMap();
         _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
 
         host.Children.Clear();
         ItemContainerGenerator.ResetContainers();
+        // Reset the tracker chain before rebuilding so the upstream
+        // DataGrid.NotifyPropertyChanged → _rowTrackingRoot iteration always
+        // reflects the live set of realized rows. (Partial class shares the
+        // private _rowTrackingRoot field with the upstream DataGrid.cs.)
+        _rowTrackingRoot = null;
         host.Children.Add(BuildHeaderRow());
 
+        var rowIndex = 0;
         foreach (var item in OrderedItems())
         {
             if (item is null)
@@ -212,7 +218,10 @@ public partial class DataGrid
             }
 
             var row = new DataGridRow();
-            row.PrepareRow(item, this);
+            row.PrepareRow(item, this); // also initializes row.Tracker
+            row.ShimRowIndex = rowIndex++;
+            row.ApplyShimRowBackground();
+            row.Tracker!.StartTracking(ref _rowTrackingRoot);
             // Re-apply selection across rebuilds (sort / reactivity) from the
             // real engine's SelectedItems, so the highlight follows the item(s).
             if (IsRowItemSelected(item))
@@ -445,7 +454,7 @@ public partial class DataGrid
 
     // Header content with a sort-direction glyph when this column is the
     // active sort.
-    private object? HeaderContent(DataGridColumn column)
+    internal object? HeaderContent(DataGridColumn column)
     {
         if (column.SortDirection is { } dir)
         {
@@ -455,6 +464,12 @@ public partial class DataGrid
 
         return column.Header;
     }
+
+    // Session 69: row background for alternating rows.
+    // WPF alternation: index 0 = RowBackground, index 1 = AlternatingRowBackground
+    // (AlternationCount coerced to 2 when AlternatingRowBackground is set).
+    internal Microsoft.UI.Xaml.Media.Brush? ShimRowBackground(int rowIndex)
+        => rowIndex % 2 == 1 && AlternatingRowBackground is { } alt ? alt : RowBackground;
 
     // Column width: explicit pixel widths are honored; Auto/SizeToCells/
     // SizeToHeader/Star are not computed yet, so they fall back to a default.
@@ -467,15 +482,15 @@ public partial class DataGrid
 
     internal double ShimColumnWidth(DataGridColumn column)
     {
-        if (column.ActualWidth > 0)
-        {
-            return column.ActualWidth;
-        }
-
         var width = column.Width;
-        // Absolute → that width (clamped to Min/Max); otherwise NaN (auto-size
-        // to content), and the post-layout pass unifies the column width.
-        return width.IsAbsolute && width.Value > 0 ? Clamp(column, width.Value) : double.NaN;
+        // Absolute widths take priority: the notification chain may deliver a
+        // width change before the post-layout pass re-runs, so trust the new
+        // Width.Value rather than the stale ActualWidth from the previous pass.
+        if (width.IsAbsolute && width.Value > 0)
+            return Clamp(column, width.Value);
+        // Non-absolute (Auto/Star/SizeTo*): use the ActualWidth set by the
+        // post-layout pass, or NaN to let Uno auto-size to content.
+        return column.ActualWidth > 0 ? column.ActualWidth : double.NaN;
     }
 
     // ── Session 26: reactivity ───────────────────────────────────────────────
@@ -656,6 +671,7 @@ public partial class DataGrid
         Input.Keyboard.ModifiersOverride = Input.ModifierKeys.None;
         try
         {
+            var oldCurrentCell = CurrentCellContainer;
             CurrentCellContainer = cell;
             HandleSelectionForCellInput(
                 cell,
@@ -663,6 +679,13 @@ public partial class DataGrid
                 allowsExtendSelect: true,
                 allowsMinimalSelect: true);
             SyncRealizedCellSelection();
+            // The upstream setter's IsKeyboardFocusWithin guard skips
+            // NotifyCurrentCellContainerChanged in headless/non-focused
+            // scenarios. Drive the focus-border visual explicitly so that
+            // the current cell always shows a visual indicator.
+            if (oldCurrentCell is not null && !ReferenceEquals(oldCurrentCell, cell))
+                oldCurrentCell.NotifyCurrentCellContainerChanged();
+            cell.NotifyCurrentCellContainerChanged();
         }
         finally
         {
@@ -863,9 +886,19 @@ public partial class DataGrid
     // raises Reset, which rebuilds the rendered rows in sorted order.
     internal void HandleShimHeaderClicked(DataGridColumn column) => PerformSort(column);
 
+    // Session 67: column-header notification chain — mirrors the row-cell chain
+    // from session 66. The upstream DataGrid.NotifyPropertyChanged would route
+    // through ColumnHeadersPresenter (null in the shim) to headers; this shim
+    // dispatch iterates _headerCells directly instead.
+    private void ShimNotifyColumnHeaders(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        foreach (var header in _headerCells)
+            header.NotifyPropertyChanged(d, e);
+    }
+
     internal IEnumerable<DataGridColumn> ColumnsInDisplayOrder()
     {
-        InternalColumns.InitializeDisplayIndexMap();
+        InternalColumns.RefreshDisplayIndexMap();
         for (var displayIndex = 0; displayIndex < Columns.Count; displayIndex++)
         {
             yield return ColumnFromDisplayIndex(displayIndex);

@@ -284,5 +284,58 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         }
     }
 
-    internal void NotifyCurrentCellContainerChanged(DataGridCell? oldCell = null, DataGridCellInfo currentCell = default) { }
+    // Called by the upstream DataGrid.CurrentCellContainer setter whenever the
+    // current cell changes; add/remove a focus-border so the current cell is
+    // visually distinct from merely selected cells.
+    internal void NotifyCurrentCellContainerChanged(DataGridCell? oldCell = null, DataGridCellInfo currentCell = default)
+    {
+        var isCurrent = DataGridOwner?.CurrentCellContainer == this;
+        if (isCurrent)
+        {
+            // WinUI system accent — blue focus ring distinguishes current from selected.
+            BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                global::Windows.UI.Color.FromArgb(0xFF, 0x00, 0x78, 0xD4));
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
+        }
+        else if (!HasValidationError)
+        {
+            BorderBrush = null;
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+        }
+    }
+
+    // Called from DataGridRow.NotifyPropertyChanged when the upstream DataGrid
+    // notification chain forwards a property change down to cells. Handles the
+    // subset meaningful in the shim render path:
+    //   • WidthProperty  — update cell width to match the new column width
+    //   • IsReadOnlyProperty — re-evaluate effective read-only from grid + column
+    //   • RefreshCellContent — rebuild visual content (template column change etc.)
+    internal void NotifyPropertyChanged(
+        DependencyObject dependencyObject,
+        string propertyName,
+        DependencyPropertyChangedEventArgs args,
+        DataGridNotificationTarget target)
+    {
+        // Skip notifications from a different column — not ours.
+        if (dependencyObject is DataGridColumn col && !ReferenceEquals(col, Column))
+            return;
+
+        if (DataGridHelper.ShouldNotifyCells(target))
+        {
+            if (args.Property == DataGridColumn.WidthProperty)
+            {
+                Width = DataGridOwner?.ShimColumnWidth(Column) ?? double.NaN;
+            }
+            else if (args.Property == DataGrid.IsReadOnlyProperty
+                     || args.Property == DataGridColumn.IsReadOnlyProperty)
+            {
+                IsReadOnly = DataGridOwner?.IsCellEffectivelyReadOnly(Column) ?? false;
+            }
+        }
+
+        if (DataGridHelper.ShouldRefreshCellContent(target))
+        {
+            BuildVisualTree();
+        }
+    }
 }

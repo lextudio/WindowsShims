@@ -98,11 +98,12 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
     public CoerceValueCallback? CoerceValueCallback { get; }
 
     // WPF PropertyChangedCallback signature uses (DependencyObject d, DependencyPropertyChangedEventArgs e)
-    // where DependencyObject is now Microsoft.UI.Xaml.DependencyObject. WinUI fires its own
-    // PropertyChangedCallback with the same sender/args types, but the delegate types differ
-    // (System.Windows.PropertyChangedCallback vs Microsoft.UI.Xaml.PropertyChangedCallback).
-    // A proper bridge would adapt the delegate; for now it is not wired so WPF callbacks stored
-    // here are not invoked from WinUI's property change path.
+    // where DependencyObject is Microsoft.UI.Xaml.DependencyObject. WinUI fires its own
+    // PropertyChangedCallback with Microsoft.UI.Xaml.DependencyPropertyChangedEventArgs.
+    // An implicit conversion (PropertySystem.cs) adapts the WinUI args struct to the WPF struct,
+    // so the WPF callback can be invoked directly. Session 67: this bridge is now live so that
+    // WPF notification chains (e.g. DataGridColumn.OnWidthPropertyChanged) reach the shim's
+    // _rowTrackingRoot iteration and column-header notification dispatch.
     private static Microsoft.UI.Xaml.PropertyChangedCallback? Bridge(PropertyChangedCallback? wpf)
-        => null;
+        => wpf == null ? null : (d, e) => wpf(d, e);
 }

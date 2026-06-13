@@ -76,6 +76,10 @@ public partial class DataGridRow : Control
 
     internal ContainerTracking<DataGridRow>? Tracker { get; set; }
 
+    // Session 69: row index within the rendered set (0-based), used to stripe
+    // alternating row backgrounds without the WPF AlternationIndex attached property.
+    internal int ShimRowIndex { get; set; }
+
     internal bool DetailsLoaded { get; set; }
 
     // WPF UIElement.Focus() has no FocusState; route to programmatic focus.
@@ -92,6 +96,10 @@ public partial class DataGridRow : Control
             ReferenceEquals(item, System.Windows.Data.CollectionView.NewItemPlaceholder) ||
             ReferenceEquals(item, DataGrid.NewItemPlaceholder) ||
             ReferenceEquals(item, dataGrid.Items.CurrentAddItem);
+        // Initialize the tracker so the upstream DataGrid notification chain
+        // (DataGrid.NotifyPropertyChanged → _rowTrackingRoot → row) can reach
+        // this container. BuildShimVisualTree calls StartTracking after PrepareRow.
+        Tracker ??= new ContainerTracking<DataGridRow>(this);
         // If the template is already applied (row reused), rebuild now.
         BuildCells();
     }
@@ -159,12 +167,21 @@ public partial class DataGridRow : Control
         new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0xE8, 0xFF));
 
+    // Session 69: apply the stripe background (RowBackground or AlternatingRowBackground).
+    // Called from BuildShimVisualTree after ShimRowIndex is set, and from
+    // DataGridRow.NotifyPropertyChanged when grid.RowBackground / AlternatingRowBackground changes.
+    internal void ApplyShimRowBackground()
+    {
+        if (!_isSelected)
+            Background = DataGridOwner?.ShimRowBackground(ShimRowIndex);
+    }
+
     private void UpdateSelectionVisual()
     {
         // Row-level selection tints the row; cells stay transparent so the
         // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
         // the cell itself and is managed separately on DataGridCell.
-        Background = _isSelected ? _selectedBrush : null;
+        Background = _isSelected ? _selectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
         RefreshRowHeaderGlyph();
 
         // VisibleWhenSelected: selection toggles the details section. Recompute
@@ -370,13 +387,42 @@ public partial class DataGridRow : Control
             string.Empty;
     }
 
-    internal void OnColumnsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) { }
+    // The upstream DataGrid.UpdateColumnsOnRows calls this signature; the shim
+    // lets BuildShimVisualTree (triggered by Columns.CollectionChanged) own the
+    // full rebuild so a per-row cells-only rebuild is unnecessary here.
+    protected internal virtual void OnColumnsChanged(
+        System.Collections.ObjectModel.ObservableCollection<DataGridColumn> columns,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e) { }
 
     internal void NotifyPropertyChanged(
         DependencyObject dependencyObject,
         string propertyName,
         DependencyPropertyChangedEventArgs args,
-        DataGridNotificationTarget target) { }
+        DataGridNotificationTarget target)
+    {
+        // Session 69: row-level property changes (background striping).
+        if (DataGridHelper.ShouldNotifyRows(target))
+        {
+            if (args.Property == DataGrid.RowBackgroundProperty
+                || args.Property == DataGrid.AlternatingRowBackgroundProperty)
+            {
+                ApplyShimRowBackground();
+            }
+        }
+
+        // Forward cell-targeting notifications to each realized cell. The
+        // upstream would route through DataGridCellsPresenter; the shim routes
+        // directly through the _cells backing list.
+        if (DataGridHelper.ShouldNotifyCells(target)
+            || DataGridHelper.ShouldNotifyCellsPresenter(target)
+            || DataGridHelper.ShouldRefreshCellContent(target))
+        {
+            foreach (var cell in _cells)
+            {
+                cell.NotifyPropertyChanged(dependencyObject, propertyName, args, target);
+            }
+        }
+    }
 
     // WPF UIElement.MoveFocus; routes to keyboard navigation.
     public bool MoveFocus(Input.TraversalRequest request) => false;

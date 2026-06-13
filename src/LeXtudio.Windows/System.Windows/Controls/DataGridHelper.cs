@@ -119,8 +119,27 @@ internal static class DataGridHelper
     internal static bool ShouldNotifyColumnHeadersPresenter(DataGridNotificationTarget target)
         => (target & DataGridNotificationTarget.ColumnHeadersPresenter) != 0;
 
+    internal static bool ShouldNotifyRows(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.Rows) != 0;
+
+    internal static bool ShouldNotifyRowHeaders(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.RowHeaders) != 0;
+
+    internal static bool ShouldNotifyCells(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.Cells) != 0;
+
+    internal static bool ShouldNotifyCellsPresenter(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.CellsPresenter) != 0;
+
+    internal static bool ShouldNotifyDetailsPresenter(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.DetailsPresenter) != 0;
+
+    internal static bool ShouldRefreshCellContent(DataGridNotificationTarget target)
+        => (target & DataGridNotificationTarget.RefreshCellContent) != 0;
+
     internal static bool ShouldNotifyRowSubtree(DataGridNotificationTarget target)
         => (target & (DataGridNotificationTarget.Rows | DataGridNotificationTarget.RowHeaders |
                       DataGridNotificationTarget.CellsPresenter | DataGridNotificationTarget.Cells |
+                      DataGridNotificationTarget.RefreshCellContent |
                       DataGridNotificationTarget.DetailsPresenter)) != 0;
 }

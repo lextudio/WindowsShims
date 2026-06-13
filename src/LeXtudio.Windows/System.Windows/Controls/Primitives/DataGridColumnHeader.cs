@@ -19,4 +19,20 @@ public partial class DataGridColumnHeader : ContentControl, IProvideDataGridColu
             owner.HandleShimHeaderClicked(column);
         }
     }
+
+    // Session 67: column-header notification chain. The upstream
+    // DataGridColumnHeadersPresenter routes column-property changes here via the
+    // ContainerTracking<DataGridColumnHeader> linked list; the shim routes
+    // directly from DataGrid.ShimNotifyColumnHeaders.
+    internal void NotifyPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is DataGridColumn col && !ReferenceEquals(col, Column))
+            return;
+        if (e.Property == DataGridColumn.WidthProperty)
+            Width = Column?.DataGridOwner?.ShimColumnWidth(Column) ?? double.NaN;
+        else if (e.Property == DataGridColumn.HeaderProperty || e.Property == DataGridColumn.SortDirectionProperty)
+            Content = Column?.DataGridOwner?.HeaderContent(Column) ?? Column?.Header;
+        else if (e.Property == DataGridColumn.VisibilityProperty)
+            Visibility = Column?.Visibility ?? Visibility.Visible;
+    }
 }

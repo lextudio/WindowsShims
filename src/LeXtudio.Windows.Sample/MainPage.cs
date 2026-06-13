@@ -1266,6 +1266,231 @@ public sealed partial class MainPage : Page
             _grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.VisibleWhenSelected;
         });
 
+        Step("current-cell visual: NotifyCurrentCellContainerChanged paints focus border", () =>
+        {
+            // Session 66: NotifyCurrentCellContainerChanged is now real. Click a
+            // cell via HandleShimCellClicked — CurrentCellContainer is set and the
+            // upstream setter fires NotifyCurrentCellContainerChanged on that cell.
+            _grid!.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.Cell;
+            _grid.UpdateLayout();
+
+            var gen = _grid.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow r0)
+            {
+                throw new InvalidOperationException("no row 0");
+            }
+
+            var cell0 = r0.TryGetCell(0);
+            if (cell0 is null)
+            {
+                throw new InvalidOperationException("no cell 0 in row 0");
+            }
+
+            _grid.HandleShimCellClicked(cell0);
+
+            var borderThick = cell0.BorderThickness;
+            var hasBorder = borderThick.Left > 0 || borderThick.Top > 0;
+            Console.WriteLine($"[probe]   cell0 BorderThickness={borderThick}, BorderBrush={cell0.BorderBrush is not null}");
+            if (!hasBorder)
+            {
+                throw new InvalidOperationException("current-cell has no focus border after HandleShimCellClicked");
+            }
+
+            // Clicking a different cell should clear the first cell's border.
+            var cell1 = r0.TryGetCell(1);
+            if (cell1 is not null)
+            {
+                _grid.HandleShimCellClicked(cell1);
+                var oldBorder = cell0.BorderThickness;
+                Console.WriteLine($"[probe]   cell0 border after moving to cell1: {oldBorder}");
+                if (oldBorder.Left > 0 || oldBorder.Top > 0)
+                {
+                    throw new InvalidOperationException("old current-cell border was not cleared");
+                }
+            }
+
+            _grid.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.FullRow;
+        });
+
+        Step("column-header notification: width change propagates to header without rebuild", () =>
+        {
+            // Session 67: FrameworkPropertyMetadata.Bridge now wires WPF property-changed
+            // callbacks to the WinUI DP system. When column.Width is set, the upstream
+            // OnWidthPropertyChanged fires → DataGridColumn.NotifyPropertyChanged →
+            // DataGrid.NotifyPropertyChanged → _rowTrackingRoot iteration (cells) +
+            // ShimNotifyColumnHeaders (headers). No full rebuild is needed.
+            var col = _grid!.Columns[0];
+            var oldWidth = col.Width;
+
+            _grid.Columns[0].Width = new System.Windows.Controls.DataGridLength(111);
+
+            var gen = _grid.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            var cell0 = row0.TryGetCell(0);
+            Console.WriteLine($"[probe]   col[0] Width after set=111 → cell.Width={cell0?.Width}");
+
+            if (cell0?.Width is not double cellW || cellW < 100)
+                throw new InvalidOperationException($"cell width not updated via notification chain (cell.Width={cell0?.Width})");
+
+            // Restore.
+            _grid.Columns[0].Width = oldWidth;
+        });
+
+        Step("column-header notification: Header rename propagates without rebuild", () =>
+        {
+            // Session 68: DataGridColumn.HeaderProperty change fires via Bridge →
+            // DataGridColumn.NotifyPropertyChanged → ShimNotifyColumnHeaders →
+            // DataGridColumnHeader.NotifyPropertyChanged updates Content live.
+            var col = _grid!.Columns[0];
+            var oldHeader = col.Header;
+            col.Header = "RenamedName";
+
+            var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .GetValue(_grid)!;
+            var header0 = headerCells.Count > 0 ? headerCells[0] : null;
+            Console.WriteLine($"[probe]   col[0] Header after set='RenamedName' → header.Content={header0?.Content}");
+
+            // Content may include a sort glyph appended from a prior step; check Contains.
+            if (header0?.Content?.ToString()?.Contains("RenamedName") != true)
+                throw new InvalidOperationException($"header content not updated live (Content={header0?.Content})");
+
+            col.Header = oldHeader;
+        });
+
+        Step("column-header notification: SortDirection glyph updates live", () =>
+        {
+            // Session 68: DataGridColumn.SortDirectionProperty change fires via Bridge →
+            // DataGridColumn.NotifyPropertyChanged (target=ColumnHeaders) → ShimNotifyColumnHeaders →
+            // DataGridColumnHeader.NotifyPropertyChanged refreshes Content with glyph.
+            var col = _grid!.Columns[0];
+            var oldDir = col.SortDirection;
+            col.SortDirection = System.ComponentModel.ListSortDirection.Ascending;
+
+            var headerCells = (System.Collections.Generic.List<System.Windows.Controls.Primitives.DataGridColumnHeader>)
+                typeof(WpfDataGrid).GetField("_headerCells", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .GetValue(_grid)!;
+            var header0 = headerCells.Count > 0 ? headerCells[0] : null;
+            Console.WriteLine($"[probe]   col[0] SortDirection=Ascending → header.Content={header0?.Content}");
+
+            if (header0?.Content?.ToString()?.Contains("▲") != true)
+                throw new InvalidOperationException($"sort glyph not present in header (Content={header0?.Content})");
+
+            col.SortDirection = oldDir;
+        });
+
+        Step("grid IsReadOnly live update propagates to cells", () =>
+        {
+            // Session 68: DataGrid.IsReadOnlyProperty fires via Bridge →
+            // OnIsReadOnlyChanged → OnNotifyColumnAndCellPropertyChanged (target Columns|Cells) →
+            // DataGrid.NotifyPropertyChanged → _rowTrackingRoot → row → cell.NotifyPropertyChanged
+            // → cell.IsReadOnly = DataGridOwner.IsCellEffectivelyReadOnly(Column).
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+            var cell0 = row0.TryGetCell(0) ?? throw new InvalidOperationException("no cell 0");
+
+            _grid.IsReadOnly = true;
+            Console.WriteLine($"[probe]   cell[0].IsReadOnly after grid.IsReadOnly=true = {cell0.IsReadOnly}");
+            if (!cell0.IsReadOnly)
+                throw new InvalidOperationException($"cell did not pick up grid.IsReadOnly=true (cell.IsReadOnly={cell0.IsReadOnly})");
+
+            _grid.IsReadOnly = false;
+            Console.WriteLine($"[probe]   cell[0].IsReadOnly after grid.IsReadOnly=false = {cell0.IsReadOnly}");
+            if (cell0.IsReadOnly)
+                throw new InvalidOperationException($"cell did not pick up grid.IsReadOnly=false (cell.IsReadOnly={cell0.IsReadOnly})");
+        });
+
+        Step("column IsReadOnly live update propagates to cells", () =>
+        {
+            // Session 69: DataGridColumn.IsReadOnlyProperty fires via Bridge →
+            // DataGridColumn.OnNotifyCellPropertyChanged (target=Columns|Cells) →
+            // DataGrid.NotifyPropertyChanged → _rowTrackingRoot → row → cell.NotifyPropertyChanged
+            // → cell.IsReadOnly = DataGridOwner.IsCellEffectivelyReadOnly(Column).
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+            var cell1 = row0.TryGetCell(1) ?? throw new InvalidOperationException("no cell 1");
+
+            var col1 = _grid.Columns[1];
+            var wasReadOnly = col1.IsReadOnly;
+            col1.IsReadOnly = true;
+            Console.WriteLine($"[probe]   cell[1].IsReadOnly after col[1].IsReadOnly=true = {cell1.IsReadOnly}");
+            if (!cell1.IsReadOnly)
+                throw new InvalidOperationException($"cell did not pick up column.IsReadOnly=true");
+
+            col1.IsReadOnly = wasReadOnly;
+            Console.WriteLine($"[probe]   cell[1].IsReadOnly after col[1].IsReadOnly restored = {cell1.IsReadOnly}");
+            if (cell1.IsReadOnly)
+                throw new InvalidOperationException($"cell did not pick up column.IsReadOnly=false");
+        });
+
+        Step("column visibility: collapse hides column; restore rebuilds", () =>
+        {
+            // Session 68: DataGridColumn.VisibilityProperty → OnVisibilityPropertyChanged fires
+            // via Bridge → NotifyPropertyChanged(target includes DataGrid | ColumnHeaders) →
+            // DataGrid.NotifyPropertyChanged #if HAS_UNO calls BuildShimVisualTree() for Visibility,
+            // and ShimNotifyColumnHeaders hides the header.
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0)
+                throw new InvalidOperationException("no row 0");
+
+            int cellsBefore = 0;
+            while (row0.TryGetCell(cellsBefore) != null) cellsBefore++;
+            Console.WriteLine($"[probe]   visible cells per row before collapse = {cellsBefore}");
+
+            _grid.Columns[1].Visibility = Visibility.Collapsed;
+
+            // After visibility change, BuildShimVisualTree rebuilds rows — get fresh container.
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0b)
+                throw new InvalidOperationException("no row 0 after collapse");
+            int cellsAfter = 0;
+            while (row0b.TryGetCell(cellsAfter) != null) cellsAfter++;
+            Console.WriteLine($"[probe]   visible cells per row after col[1].Visibility=Collapsed = {cellsAfter}");
+
+            if (cellsAfter >= cellsBefore)
+                throw new InvalidOperationException($"column collapse did not reduce cells (before={cellsBefore} after={cellsAfter})");
+
+            // Restore.
+            _grid.Columns[1].Visibility = Visibility.Visible;
+        });
+
+        Step("alternating row background: initial stripe + live update", () =>
+        {
+            // Session 69: grid.AlternatingRowBackground stripes odd-indexed rows.
+            // BuildShimVisualTree assigns ShimRowIndex and calls ApplyShimRowBackground.
+            // Live update: grid.AlternatingRowBackground change fires
+            // OnNotifyDataGridAndRowPropertyChanged (target=Rows|DataGrid) →
+            // ShouldNotifyRowSubtree → each row.NotifyPropertyChanged →
+            // ShouldNotifyRows → ApplyShimRowBackground().
+            var gen = _grid!.ItemContainerGenerator;
+            if (gen.ContainerFromIndex(0) is not WpfDataGridRow row0 ||
+                gen.ContainerFromIndex(1) is not WpfDataGridRow row1)
+                throw new InvalidOperationException("need at least 2 rows");
+
+            var altBrush = new SolidColorBrush(Colors.LightBlue);
+            _grid.AlternatingRowBackground = altBrush;
+
+            Console.WriteLine($"[probe]   row0 (index=0) Background after set = {row0.Background}");
+            Console.WriteLine($"[probe]   row1 (index=1) Background after set = {row1.Background}");
+
+            // Row 1 (odd index) should have the alternating brush.
+            if (!ReferenceEquals(row1.Background, altBrush))
+                throw new InvalidOperationException($"row1 did not pick up AlternatingRowBackground (Background={row1.Background})");
+
+            // Row 0 (even index) should NOT have the alternating brush.
+            if (ReferenceEquals(row0.Background, altBrush))
+                throw new InvalidOperationException("row0 incorrectly received AlternatingRowBackground");
+
+            // Clear the brush and verify rows revert.
+            _grid.AlternatingRowBackground = null;
+            Console.WriteLine($"[probe]   row1 Background after clear = {row1.Background}");
+            if (ReferenceEquals(row1.Background, altBrush))
+                throw new InvalidOperationException("row1 did not revert when AlternatingRowBackground cleared");
+        });
+
         Step("report: grid desired size", () =>
         {
             Console.WriteLine($"[probe]   DesiredSize={_grid!.DesiredSize}");
