@@ -199,11 +199,8 @@ public partial class DataGridRow : Control
             if (column.Visibility != Visibility.Visible)
                 continue;
 
-            var cell = new DataGridCell
-            {
-                Column = column,
-                RowOwner = this,
-            };
+            var cell = new DataGridCell { Column = column };
+            cell.SetOwnerRow(this);
             cell.BuildVisualTree();
             DataGridOwner.TryReselectCell(cell);
             cell.Width = DataGridOwner.ShimColumnWidth(column);

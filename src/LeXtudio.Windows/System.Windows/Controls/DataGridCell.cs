@@ -4,17 +4,22 @@ namespace System.Windows.Controls;
 
 public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 {
-    // ── Backing fields for upstream properties ────────────────────────────────
-
-    // Assigned in the upstream instance ctor; read by upstream Tracker property (guarded).
-    private ContainerTracking<DataGridCell> _tracker;
-
-    // Used by upstream SyncIsSelected to suppress CellIsSelectedChanged notifications.
-    private bool _syncingIsSelected;
-
     // ── Local-only properties ─────────────────────────────────────────────────
 
-    public bool IsReadOnly { get; set; }
+    // Shim IsReadOnly as a plain settable DP so that upstream code can reference
+    // IsReadOnlyProperty (e.g. in OnColumnChanged, NotifyPropertyChanged comparisons)
+    // without needing the full WPF read-only-key + coercion infrastructure.
+    // The guarded upstream block (#if !HAS_UNO) provides the PropertyKey + coerce
+    // version for WPF; this plain DP is the Uno variant.
+    public static readonly DependencyProperty IsReadOnlyProperty =
+        DependencyProperty.Register("IsReadOnly", typeof(bool), typeof(DataGridCell),
+            new PropertyMetadata(false));
+
+    public bool IsReadOnly
+    {
+        get => (bool)GetValue(IsReadOnlyProperty);
+        set => SetValue(IsReadOnlyProperty, value);
+    }
 
     public bool IsFrozen { get; private set; }
 
@@ -22,11 +27,21 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     public Style? ShimAppliedCellStyle { get; private set; }
 
-    internal DataGridRow? RowOwner { get; set; }
+    internal void SetOwnerRow(DataGridRow? row) => _owner = row;
 
-    internal DataGrid? DataGridOwner => RowOwner?.DataGridOwner ?? Column?.DataGridOwner;
-
-    internal object? RowDataItem => RowOwner?.Item;
+    // Uno construction hook (called from the upstream ctor). Tints the cell
+    // background to reflect selection, using WinUI's RegisterPropertyChangedCallback.
+    partial void OnInitializedShim()
+    {
+        RegisterPropertyChangedCallback(IsSelectedProperty, (sender, dp) =>
+        {
+            var cell = (DataGridCell)sender;
+            cell.Background = cell.IsSelected
+                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    global::Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xC9, 0xF5))
+                : null;
+        });
+    }
 
     internal FrameworkElement? EditingElement { get; set; }
 
@@ -40,7 +55,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             return;
         }
 
-        var item = RowOwner?.Item ?? DataContext;
+        var item = _owner?.Item ?? DataContext;
         if (item is null)
         {
             return;
@@ -264,10 +279,10 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         }
     }
 
-    // Called by the upstream DataGrid.CurrentCellContainer setter whenever the
+    // Called from the upstream NotifyCurrentCellContainerChanged whenever the
     // current cell changes; add/remove a focus-border so the current cell is
     // visually distinct from merely selected cells.
-    internal void NotifyCurrentCellContainerChanged(DataGridCell? oldCell = null, DataGridCellInfo currentCell = default)
+    partial void OnCurrentCellContainerChangedShim()
     {
         var isCurrent = DataGridOwner?.CurrentCellContainer == this;
         if (isCurrent)
@@ -280,60 +295,6 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         else if (!HasValidationError)
         {
             ApplyShimGridLines();
-        }
-    }
-
-    // Called from DataGridRow.NotifyPropertyChanged when the upstream DataGrid
-    // notification chain forwards a property change down to cells. Handles the
-    // subset meaningful in the shim render path:
-    //   • WidthProperty  — update cell width to match the new column width
-    //   • IsReadOnlyProperty — re-evaluate effective read-only from grid + column
-    //   • RefreshCellContent — rebuild visual content (template column change etc.)
-    internal void NotifyPropertyChanged(
-        DependencyObject dependencyObject,
-        string propertyName,
-        DependencyPropertyChangedEventArgs args,
-        DataGridNotificationTarget target)
-    {
-        // Skip notifications from a different column — not ours.
-        if (dependencyObject is DataGridColumn col && !ReferenceEquals(col, Column))
-            return;
-
-        if (DataGridHelper.ShouldNotifyCells(target))
-        {
-            if (args.Property == DataGridColumn.WidthProperty)
-            {
-                Width = DataGridOwner?.ShimColumnWidth(Column) ?? double.NaN;
-            }
-            else if (args.Property == DataGrid.IsReadOnlyProperty
-                     || args.Property == DataGridColumn.IsReadOnlyProperty)
-            {
-                IsReadOnly = DataGridOwner?.IsCellEffectivelyReadOnly(Column) ?? false;
-            }
-            else if (args.Property == DataGrid.FrozenColumnCountProperty
-                     || args.Property == DataGridColumn.IsFrozenProperty)
-            {
-                ApplyShimFrozenState();
-            }
-            else if (args.Property == DataGrid.CellStyleProperty)
-            {
-                ApplyShimCellStyle();
-            }
-            else if (args.Property == DataGridColumn.CellStyleProperty)
-            {
-                ApplyShimCellStyle();
-            }
-        }
-
-        if (DataGridHelper.ShouldNotifyCellsPresenter(target)
-            && args.Property == DataGrid.FrozenColumnCountProperty)
-        {
-            ApplyShimFrozenState();
-        }
-
-        if (DataGridHelper.ShouldRefreshCellContent(target))
-        {
-            BuildVisualTree();
         }
     }
 

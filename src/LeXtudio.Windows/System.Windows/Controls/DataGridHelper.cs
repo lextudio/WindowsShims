@@ -121,6 +121,17 @@ internal static class DataGridHelper
                 };
             }
         }
+        else if (d is DataGridCell cell)
+        {
+            if (dp == DataGridCell.IsReadOnlyProperty)
+            {
+                cell.IsReadOnly = cell.DataGridOwner?.IsCellEffectivelyReadOnly(cell.Column) ?? false;
+            }
+            else if (dp == FrameworkElement.StyleProperty)
+            {
+                cell.ApplyShimCellStyle();
+            }
+        }
     }
 
     internal static object? GetCoercedTransferPropertyValue(

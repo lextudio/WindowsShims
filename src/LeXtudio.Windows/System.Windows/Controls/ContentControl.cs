@@ -87,4 +87,37 @@ public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
     internal void UpdateVisualState() => UpdateVisualState(true);
     internal virtual void UpdateVisualState(bool useTransitions) => ChangeVisualState(useTransitions);
     internal virtual void ChangeVisualState(bool useTransitions) { }
+
+    // WPF Control.OnVisualStatePropertyChanged — DP-changed callback that triggers
+    // a VSM update on the element. OverrideMetadata in upstream static ctors
+    // registers this for IsMouseOver and similar properties; under Uno the VSM
+    // transition is driven by pointer events, so this is a no-op.
+    internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
+
+    // WPF input virtuals that upstream DataGridCell overrides. They sit on WPF's
+    // UIElement/Control class hierarchy; exposed here so the overrides compile.
+    // In WinUI, these are never called by the framework (WinUI dispatches key/text
+    // input via the KeyRoutedEventArgs-based virtuals); they are dead code under Uno.
+    protected virtual void OnTextInput(Input.TextCompositionEventArgs e) { }
+    protected virtual void OnPreviewKeyDown(System.Windows.KeyEventArgs e) { }
+    protected virtual void OnKeyDown(System.Windows.KeyEventArgs e) { }
+
+    // WPF UIElement routed events accessed unqualified by upstream static ctors.
+    // EventManager.RegisterClassHandler is a no-op, so these only need to exist.
+    public static readonly RoutedEvent MouseLeftButtonDownEvent = new();
+    public static readonly RoutedEvent LostFocusEvent = new();
+    public static readonly RoutedEvent GotFocusEvent = new();
+
+    // WPF FrameworkElement DPs accessed unqualified in upstream static ctors via
+    // the UIElement/FrameworkElement inheritance chain. In the shim, DataGridCell
+    // extends ContentControl (not our Control shim), so these must live here.
+    protected static readonly DependencyProperty SnapsToDevicePixelsProperty =
+        DependencyProperty.Register("SnapsToDevicePixels_CC", typeof(bool), typeof(ContentControl),
+            new PropertyMetadata(false));
+
+    protected static readonly DependencyPropertyKey IsMouseOverPropertyKey =
+        new(DependencyProperty.Register("IsMouseOver_CC", typeof(bool), typeof(ContentControl),
+            new PropertyMetadata(false)));
+
+    public static readonly DependencyProperty IsMouseOverProperty = IsMouseOverPropertyKey.DependencyProperty;
 }
