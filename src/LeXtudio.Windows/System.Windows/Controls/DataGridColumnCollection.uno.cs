@@ -39,6 +39,15 @@ internal partial class DataGridColumnCollection
         set { }
     }
 
+    internal double AverageColumnWidth
+    {
+        get
+        {
+            var visible = this.Where(c => c.IsVisible).ToArray();
+            return visible.Length == 0 ? 0.0 : visible.Average(c => c.ActualWidth > 0 ? c.ActualWidth : c.Width.DisplayValue);
+        }
+    }
+
     internal void InvalidateAverageColumnWidth() { }
 
     internal void InvalidateHasVisibleStarColumns() { }
@@ -71,15 +80,15 @@ internal partial class DataGridColumnCollection
         DataGridColumn changedColumn, double oldMaxWidth) { }
 
     // ── Realized-column block lists (virtualization not bridged) ─────────────
-    // Kept regions only null/flag these to request a rebuild; typed as object so
-    // the shim need not pull in the RealizedColumnsBlock virtualization type.
-    internal object? RealizedColumnsBlockListForNonVirtualizedRows { get; set; }
+    // The linked cells panel owns the typed block model. These lists are still
+    // only populated if that panel becomes the live items host.
+    internal List<RealizedColumnsBlock>? RealizedColumnsBlockListForNonVirtualizedRows { get; set; }
 
-    internal object? RealizedColumnsDisplayIndexBlockListForNonVirtualizedRows { get; set; }
+    internal List<RealizedColumnsBlock>? RealizedColumnsDisplayIndexBlockListForNonVirtualizedRows { get; set; }
 
-    internal object? RealizedColumnsBlockListForVirtualizedRows { get; set; }
+    internal List<RealizedColumnsBlock>? RealizedColumnsBlockListForVirtualizedRows { get; set; }
 
-    internal object? RealizedColumnsDisplayIndexBlockListForVirtualizedRows { get; set; }
+    internal List<RealizedColumnsBlock>? RealizedColumnsDisplayIndexBlockListForVirtualizedRows { get; set; }
 
     internal bool RebuildRealizedColumnsBlockListForNonVirtualizedRows { get; set; }
 

@@ -10,14 +10,19 @@ namespace System.Windows.Controls;
 // hooks until item-container generation exists.
 public partial class ItemsControl : IGeneratorHost
 {
+    protected static readonly DependencyProperty FocusableProperty =
+        DependencyProperty.Register("Focusable", typeof(bool), typeof(ItemsControl), new PropertyMetadata(true));
+
     private ItemContainerGenerator? _itemContainerGenerator;
 
-    public ItemContainerGenerator ItemContainerGenerator => _itemContainerGenerator ??= new ItemContainerGenerator();
+    public ItemContainerGenerator ItemContainerGenerator => _itemContainerGenerator ??= new ItemContainerGenerator(this);
 
     bool IGeneratorHost.IsItemItsOwnContainer(object item) => IsItemItsOwnContainerOverride(item);
 
     // No container generation, so containers never resolve to their owner.
     public static ItemsControl? ItemsControlFromItemContainer(DependencyObject container) => null;
+
+    public static ItemsControl? GetItemsOwner(DependencyObject element) => null;
 
     protected virtual void OnInitialized(EventArgs e)
     {
@@ -96,7 +101,42 @@ public partial class ItemsControl : IGeneratorHost
 
     protected virtual DependencyObject? GetContainerForItemOverride() => null;
 
+    internal DependencyObject? CreateContainerForItem(object? item)
+        => IsItemItsOwnContainerOverride(item!) && item is DependencyObject dependencyObject
+            ? dependencyObject
+            : GetContainerForItemOverride();
+
+    internal void PrepareContainerForItem(DependencyObject container, object? item)
+    {
+        if (item is not null)
+        {
+            PrepareContainerForItemOverride(container, item);
+        }
+    }
+
+    internal void ClearContainerForItem(DependencyObject container, object? item)
+    {
+        if (item is not null)
+        {
+            ClearContainerForItemOverride(container, item);
+        }
+    }
+
     internal virtual void ChangeVisualState(bool useTransitions)
+    {
+    }
+
+    protected virtual Geometry GetLayoutClip(Size layoutSlotSize) => null;
+
+    protected virtual int VisualChildrenCount => 0;
+
+    protected virtual Visual GetVisualChild(int index) => null;
+
+    protected void AddVisualChild(UIElement child)
+    {
+    }
+
+    protected void RemoveVisualChild(UIElement child)
     {
     }
 

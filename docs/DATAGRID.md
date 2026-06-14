@@ -310,6 +310,84 @@ coupled for the current milestone.
   ItemContainerStyleSelector)?.SelectStyle(...)`. Setter application remains
   deferred, but selector invocation and explicit-style override are verified.
   136 tests green; probe reports `DONE failures=0` (see `session76.md`).
+- Session 91: **cells-presenter reuse batch.** Linked upstream WPF
+  `DataGridCellsPresenter.cs` plus its `MultipleCopiesCollection` item-source
+  helper. The local presenter stub is gone; the linked presenter now owns item
+  mirroring, column-change sync, cell tracking, and notification propagation.
+  Narrow Uno bridges provide direct-hosted-row owner fallback, cells-panel
+  invalidation hooks, and `DataGridCell.PrepareCell`/`ClearCell` glue back to
+  the existing shim visual path. WPF `DrawingContext` grid-line rendering is
+  still guarded because the shim draws grid lines through border thickness.
+  Build, 136 tests, and probe are green (see `session91.md`).
+- Session 92: **rows-presenter reuse batch.** Linked upstream WPF
+  `DataGridRowsPresenter.cs` and deleted the last local presenter stub file.
+  Added narrow `VirtualizingStackPanel`/`CleanUpVirtualizedItemEventArgs`,
+  `IItemContainerGenerator.GetItemContainerGeneratorForPanel`,
+  `ItemsControl.GetItemsOwner`, and `Validation.GetHasError` bridges. The
+  linked presenter now owns the WPF row-host surface for `InternalItemsHost`,
+  viewport-size notification, bring-index-into-view, and validation cleanup
+  policy. Current templates still use the direct shim rows host, so this is
+  compile/runtime substrate for the later panel/template swap. Build, 136
+  tests, and probe are green (see `session92.md`).
+- Session 93: **header-drag visual dependency batch.** Linked upstream WPF
+  `DataGridColumnDropSeparator.cs` and `DataGridColumnFloatingHeader.cs`,
+  with a minimal `VisualBrush`/`BrushMappingMode` shim and
+  `VisualTreeHelper.GetOffset` compatibility. These types are not used by the
+  current shim-native reorder path, but they remove two dependencies blocking
+  future `DataGridColumnHeadersPresenter` reuse. Build, 136 tests, and probe
+  are green (see `session93.md`).
+- Session 94: **column-headers-presenter source-link batch.** Linked upstream
+  WPF `DataGridColumnHeadersPresenter.cs` plus
+  `DataGridColumnHeaderCollection.cs`, deleting the local presenter shell.
+  Added narrow visual-child/layout-clip hooks on `ItemsControl`, a presenter
+  automation peer shim, `DoubleUtil` close-comparison helpers, and
+  `DataGridColumnCollection.AverageColumnWidth` on the Uno partial. The linked
+  presenter compiles and owns the WPF header-generation/notification/drag
+  surface, but the live template still uses the manual shim header row until
+  the row/header host architecture is swapped. Build, 136 tests, and probe are
+  green (see `session94.md`).
+- Session 95: **cells-panel guarded source-link batch.** Linked upstream WPF
+  `DataGridCellsPanel.cs` and removed the last local `DataGridCellsPanel`
+  shell from `DataGridHelperStubs.cs`. The deep WPF measure/arrange,
+  generator, recycling, scrolling, and frozen-column layout body remains under
+  `#if !HAS_UNO`; the Uno path keeps the minimal surface currently consumed by
+  linked presenters (`HasCorrectRealizedColumns`, `InternalBringIndexIntoView`)
+  plus typed realized-column block substrate. Build, 136 tests, and probe are
+  green (see `session95.md`).
+- Session 96: **cells-panel host/validation reuse batch.** Replaced the fake
+  Uno `HasCorrectRealizedColumns` path with the real WPF realized-column check
+  and ported the light-weight `DataGridCellsPanel` host logic into a Uno
+  partial: items-host attach/detach, items-changed child cleanup, parent
+  presenter/DataGrid resolution, and realized-children bookkeeping. Added the
+  missing `Panel.IsItemsHost` / `InternalChildren` and `VirtualizingPanel`
+  internal-child helpers needed by that slice. The heavy WPF measure/generator
+  body is still deferred. Build, 136 tests, and probe are green (see
+  `session96.md`).
+- Session 97: **cells-panel realized-state helper batch.** Ported the linked
+  WPF realized-column state accessors and helper methods into the Uno partial:
+  block-list getters/setters, rebuild flags, `UpdateRealizedBlockLists`, and
+  `BuildRealizedColumnsBlockList`. Also added the panel helpers already queried
+  through linked `DataGridHelper` (`ComputeCellsPanelHorizontalOffset`,
+  `GetFrozenClipForChild`). This is still below the full panel layout/generator
+  layer, but it removes more fake state from the Uno surface. Build, 136
+  tests, and probe are green (see `session97.md`).
+- Session 98: **cells-panel measure-helper batch.** Ported the next WPF
+  helper layer into the Uno partial: estimated column width summation,
+  viewport-width discovery, parent-rows-presenter resolution, and the real
+  `MeasureChild(UIElement, Size)` routine that drives DataGrid cell/header
+  auto-sizing. The full `MeasureOverride` / generator / virtualization path is
+  still guarded out on Uno, but this removes another local delta before that
+  enablement step. Build, 136 tests, and probe are green (see `session98.md`).
+- Session 99: **cells-panel child-generation substrate batch.** Reworked the
+  local `ItemContainerGenerator` into a minimal WPF-shaped sequential generator
+  (cursor session, `StartAt`, `GenerateNext`, `GeneratorPositionFromIndex`,
+  `PrepareItemContainer`, `Remove`, basic recycle queue) and bound it to the
+  owning `ItemsControl`. Ported the next `DataGridCellsPanel` helper slice into
+  the Uno partial: generator-position mapping, child generation, block
+  generation, and realized-child insertion/index translation. The guarded WPF
+  `MeasureOverride` body is still off, but the panel now has the generator
+  substrate that path expects. Build, 136 tests, and probe are green (see
+  `session99.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`
@@ -394,7 +472,7 @@ spine.
 | Validation layer | `ValidationRule`, `ValidationResult`, `ValidationStep`, `IEditableCollectionView`, `IEditableCollectionViewAddNewItem` | Linked WPF source | `linked-upstream` | Session 18; rule/result/step compile clean, the editable-view interfaces come from WindowsBase. |
 | Row validation bridge | `BindingGroup` | `System.Windows/Data/BindingGroup.cs` | `local-bridge` | Stores rules/items and reports edits committable; transactional proposed-value semantics need the WPF property engine. Dispatcher-bound construction. |
 | Grouping bridge | `GroupDescription`, `PropertyGroupDescription` | `System.Windows/Data/GroupDescriptions.cs` | `local-bridge` | Group-name extraction reuses the untargeted binding-expression path walker; upstream files drag `SortDescriptionCollection`/XML helpers. |
-| Header shells | `DataGridColumnHeader`, `DataGridColumnHeadersPresenter` | `System.Windows/Controls/Primitives/` | `local-shell` | Column identity and owner-notification entry points only; visual states, gripper resize, and header generation deferred. |
+| Header shell/presenter | `DataGridColumnHeader`, `DataGridColumnHeadersPresenter`, `DataGridColumnHeaderCollection`, `DataGridColumnFloatingHeader`, `DataGridColumnDropSeparator` | Linked WPF sources plus current manual shim header row | `linked-upstream` / `local-bridge` | Sessions 87, 90, and 93-94 link the header container, presenter, header collection, and drag visuals. The linked presenter is not yet the live header host because `DataGrid.BuildHeaderRow` still manually creates headers for the shim template. |
 | Command system | `CommandManager`, `InputBinding` over existing `RoutedCommand`/`CommandBinding`/`KeyGesture` shims | `System.Windows/Input/CommandManager.cs` | `local-bridge` | Class command bindings dispatch through the RoutedCommand registry with owner-type scoping; class input bindings recorded but not yet fired from input events; requery notifications direct rather than dispatcher-batched. |
 | Sort descriptions | `SortDescription`, `SortDescriptionCollection` | Linked WPF source (WindowsBase) | `linked-upstream` | Needed one SR string (`CannotChangeAfterSealed`); `ItemCollection.SortDescriptions` stores them but sorting is not applied to the view. |
 | Editable view | `ItemCollection : IEditableCollectionView` | `System.Windows/Controls/ItemCollection.cs` | `local-bridge` | Direct-list semantics: edit-item bookkeeping and removal work; `AddNew`/placeholders/cancel-edit unsupported (reported honestly via `CanAddNew`/`CanCancelEdit`). |
@@ -406,7 +484,7 @@ spine.
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | upstream `DataGrid.cs` (linked) + `DataGridColumnCollection.cs` | `linked-upstream` / `local-bridge` | Session 22 superseded the local `Columns`/`SelectedCells` owner surface with the linked root. Session 64 ports the WPF display-index map/update subset and renders headers/cells in display order. Width computation/realization block lists remain local stubs (`InvalidateColumnWidthsComputation` et al.). |
 | Combo box column | `DataGridComboBoxColumn` | Linked WPF source | `linked-upstream` | Session 60 linked the upstream body with narrow `HAS_UNO` guards for WinUI DP ownership/style-key gaps. Probe verifies selection write-back through WPF binding application. |
 | Hyperlink column | `DataGridHyperlinkColumn` | `System.Windows/Controls/DataGridHyperlinkColumn.cs` | `local-shell` | Minimal placeholder added in session 63 so linked `DataGridColumn.CreateDefaultColumn` compiles for `Uri`. Real hyperlink rendering/navigation remains blocked on routed navigation/command plumbing. |
-| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPanel`, presenters | Local shells only (`DataGridRow.cs`, `DataGridCell.cs`, `Primitives/DataGridPresenters.cs`, `VirtualizingPanelStubs.cs`) | `blocked` | Session 22 grew the shells to the full surface the linked control root touches (presenters, details, tracking, editing notification, virtualizing-panel stubs) — but all behavior members are no-ops. Linking the upstream row/cell/panel files still requires container generation, virtualization, and layout parity. |
+| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPresenter`, `DataGridRowsPresenter`, `DataGridCellsPanel` | Linked WPF sources plus local direct-host visual partials and guarded Uno cells-panel path | `linked-upstream` / `local-bridge` / `blocked` | Sessions 88-95 moved `DataGridRow`, presenters, and most `DataGridCell` behavior onto WPF source. `DataGridCellsPanel` is linked, but its real WPF layout/virtualization body is guarded out on Uno; replacing the manual rows/header host with WPF item-hosted layout remains the major blocker. |
 
 ## Session Ladder
 

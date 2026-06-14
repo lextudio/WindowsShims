@@ -2,6 +2,12 @@ namespace System.Windows.Media;
 
 public static class WinUIMediaExtensions
 {
+    extension(Microsoft.UI.Xaml.Media.VisualTreeHelper)
+    {
+        public static Vector GetOffset(UIElement reference)
+            => new(0, 0);
+    }
+
     extension(Color)
     {
         public static Color FromRgb(byte r, byte g, byte b) => Color.FromArgb(0xFF, r, g, b);

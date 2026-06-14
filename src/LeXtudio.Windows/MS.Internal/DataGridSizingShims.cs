@@ -24,6 +24,12 @@ internal static class DoubleUtil
     internal static bool GreaterThan(double value1, double value2)
         => value1 > value2 && !AreClose(value1, value2);
 
+    internal static bool LessThanOrClose(double value1, double value2)
+        => value1 < value2 || AreClose(value1, value2);
+
+    internal static bool GreaterThanOrClose(double value1, double value2)
+        => value1 > value2 || AreClose(value1, value2);
+
     internal static bool AreClose(Windows.Foundation.Point point1, Windows.Foundation.Point point2)
         => AreClose(point1.X, point2.X) && AreClose(point1.Y, point2.Y);
 }

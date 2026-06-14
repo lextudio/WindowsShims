@@ -14,10 +14,6 @@ public sealed class FrameworkElementFactory
     public void AppendChild(FrameworkElementFactory child) { }
 }
 
-public sealed class DataGridCellsPanel : Panel
-{
-}
-
 // ItemsPanelTemplate: wraps a FrameworkElementFactory. Uno resolves the
 // DataGrid row-panel from XAML so this stub only needs to exist for
 // compilation.

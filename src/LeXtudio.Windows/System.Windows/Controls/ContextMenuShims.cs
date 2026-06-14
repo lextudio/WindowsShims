@@ -59,7 +59,7 @@ namespace System.Windows.Controls
         internal virtual void OnClickImpl(bool userInitiated) { }
     }
 
-    public class Separator : ItemsControl
+    public class Separator : Control
     {
     }
 

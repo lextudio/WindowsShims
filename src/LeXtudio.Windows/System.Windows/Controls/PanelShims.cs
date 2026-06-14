@@ -6,9 +6,34 @@ public class Panel : FrameworkElement
 
     public Panel() => _children = new UIElementCollection(this);
 
+    public static readonly DependencyProperty IsItemsHostProperty =
+        DependencyProperty.Register(
+            "IsItemsHost",
+            typeof(bool),
+            typeof(Panel),
+            new PropertyMetadata(false, (d, e) =>
+            {
+                if (d is Panel panel)
+                {
+                    panel.OnIsItemsHostChanged((bool)e.OldValue, (bool)e.NewValue);
+                }
+            }));
+
     public static DependencyProperty BackgroundProperty { get; internal set; }
 
     public UIElementCollection Children => _children;
+
+    protected internal UIElementCollection InternalChildren => _children;
+
+    public bool IsItemsHost
+    {
+        get => (bool)GetValue(IsItemsHostProperty);
+        set => SetValue(IsItemsHostProperty, value);
+    }
+
+    protected virtual void OnIsItemsHostChanged(bool oldIsItemsHost, bool newIsItemsHost)
+    {
+    }
 }
 
 // Minimal UIElementCollection shim: DataGrid accesses Panel.Children to

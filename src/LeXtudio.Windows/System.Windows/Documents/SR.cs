@@ -53,6 +53,7 @@ internal static class SR
     internal const string DataGridLength_InvalidType = "Invalid type.";
     internal const string DataGrid_InvalidColumnReuse = "The column '{0}' already belongs to another DataGrid.";
     internal const string SelectedCellsCollection_InvalidItem = "The DataGridCellInfo is not valid for this DataGrid.";
+    internal const string DataGrid_ReadonlyCellsItemsSource = "The DataGrid cells item source is read-only.";
     internal const string SelectedCellsCollection_DuplicateItem = "The cell is already selected.";
     internal const string VirtualizedCellInfoCollection_DoesNotSupportIndexChanges = "This collection does not support changes at a specific index.";
     internal const string VirtualizedCellInfoCollection_IsReadOnly = "This collection is read-only.";

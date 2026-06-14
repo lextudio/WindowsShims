@@ -4,6 +4,8 @@ namespace System.Windows.Controls;
 
 public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 {
+    internal ContainerTracking<DataGridCell> Tracker => _tracker;
+
     // ── Local-only properties ─────────────────────────────────────────────────
 
     // Shim IsReadOnly as a plain settable DP so that upstream code can reference
@@ -28,6 +30,25 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     public Style? ShimAppliedCellStyle { get; private set; }
 
     internal void SetOwnerRow(DataGridRow? row) => _owner = row;
+
+    internal void PrepareCell(object item, Primitives.DataGridCellsPresenter cellsPresenter, DataGridRow rowOwner)
+    {
+        SetOwnerRow(rowOwner);
+        DataContext = item;
+        Column = rowOwner?.DataGridOwner?.ColumnFromDisplayIndex(cellsPresenter.ItemContainerGenerator.IndexFromContainer(this));
+        BuildVisualTree();
+    }
+
+    internal void ClearCell(DataGridRow rowOwner)
+    {
+        if (ReferenceEquals(_owner, rowOwner))
+        {
+            SetOwnerRow(null);
+        }
+
+        Content = null;
+        DataContext = null;
+    }
 
     // Uno construction hook (called from the upstream ctor). Tints the cell
     // background to reflect selection, using WinUI's RegisterPropertyChangedCallback.
