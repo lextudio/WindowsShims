@@ -80,6 +80,9 @@ namespace System.Windows.Input
                 "ControlTabNavigation", typeof(KeyboardNavigationMode), typeof(KeyboardNavigation),
                 new Microsoft.UI.Xaml.PropertyMetadata(KeyboardNavigationMode.Continue));
 
+        public static bool GetIsTabStop(Microsoft.UI.Xaml.DependencyObject element)
+            => (bool)element.GetValue(IsTabStopProperty);
+
         public static KeyboardNavigationMode GetDirectionalNavigation(Microsoft.UI.Xaml.DependencyObject element)
             => (KeyboardNavigationMode)element.GetValue(DirectionalNavigationProperty);
 

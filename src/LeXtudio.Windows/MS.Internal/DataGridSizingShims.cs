@@ -32,6 +32,9 @@ internal static class DoubleUtil
 
     internal static bool AreClose(Windows.Foundation.Point point1, Windows.Foundation.Point point2)
         => AreClose(point1.X, point2.X) && AreClose(point1.Y, point2.Y);
+
+    internal static bool AreClose(Windows.Foundation.Size size1, Windows.Foundation.Size size2)
+        => AreClose(size1.Width, size2.Width) && AreClose(size1.Height, size2.Height);
 }
 
 internal readonly struct PixelUnit

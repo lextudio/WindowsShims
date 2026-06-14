@@ -87,6 +87,15 @@ public static class WinUIFrameworkElementExtensions
         public static System.Windows.RoutedEvent ContextMenuClosingEvent => s_contextMenuClosingEvent;
     }
 
+    extension(Microsoft.UI.Xaml.UIElement self)
+    {
+        // WPF UIElement.Focusable. WinUI has no equivalent (it uses
+        // IsTabStop/FocusState), so the shim reports focusable; placed on
+        // UIElement so the linked DataGridHelper.TreeHasFocusAndTabStop resolves
+        // it for any UIElement, and FrameworkElement inherits it.
+        public bool Focusable { get => true; set { } }
+    }
+
     extension(Microsoft.UI.Xaml.FrameworkElement self)
     {
         public System.Windows.Controls.ContextMenu? ContextMenu
@@ -94,8 +103,6 @@ public static class WinUIFrameworkElementExtensions
             get => self.GetValue(s_contextMenuProperty) as System.Windows.Controls.ContextMenu;
             set => self.SetValue(s_contextMenuProperty, value);
         }
-
-        public bool Focusable { get => true; set { } }
 
         public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
             => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));

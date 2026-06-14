@@ -74,13 +74,37 @@ public readonly struct ValueSource
     public bool IsExpression { get; init; }
 }
 
+// Mirrors the member order/values of WPF System.Windows.BaseValueSource so the
+// precedence comparisons in linked DataGrid code (e.g. GetCoercedTransferProperty-
+// Value) are meaningful. The Uno bridge only ever reports Default or Local — it
+// cannot observe styles/inheritance — but the full set keeps the type faithful.
 public enum BaseValueSource
 {
-    Local = 0,
-    Inherited = 1,
+    Unknown = 0,
+    Default = 1,
+    Inherited = 2,
+    DefaultStyle = 3,
+    DefaultStyleTrigger = 4,
+    Style = 5,
+    TemplateTrigger = 6,
+    StyleTrigger = 7,
+    ImplicitStyleReference = 8,
+    ParentTemplate = 9,
+    ParentTemplateTrigger = 10,
+    Local = 11,
 }
 
 public static class DependencyPropertyHelper
 {
-    public static ValueSource GetValueSource(DependencyObject obj, Microsoft.UI.Xaml.DependencyProperty dp) => new() { BaseValueSource = BaseValueSource.Local, IsExpression = false };
+    // Distinguish a locally-set value from the default, the only precedence
+    // levels the Uno bridge can observe (via ReadLocalValue). Styles and
+    // inheritance are reported as Default.
+    public static ValueSource GetValueSource(DependencyObject obj, Microsoft.UI.Xaml.DependencyProperty dp)
+        => new()
+        {
+            BaseValueSource = obj.ReadLocalValue(dp) == Microsoft.UI.Xaml.DependencyProperty.UnsetValue
+                ? BaseValueSource.Default
+                : BaseValueSource.Local,
+            IsExpression = false,
+        };
 }

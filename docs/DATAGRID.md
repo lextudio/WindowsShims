@@ -388,6 +388,70 @@ coupled for the current milestone.
   `MeasureOverride` body is still off, but the panel now has the generator
   substrate that path expects. Build, 136 tests, and probe are green (see
   `session99.md`).
+- Session 100: **cells-panel virtualization/cleanup substrate batch.** Ported
+  the linked WPF child-cleanup layer into the Uno partial: `InBlockOrNextBlock`,
+  `VirtualizeChildren` (block-list walk batching contiguous cleanup ranges while
+  pinning editing/focused/own-container children), `CleanupRange`
+  (recycle-or-remove through the session-99 generator), and
+  `DisconnectRecycledContainers`. Added the narrow
+  `ItemsControl.IsItemItsOwnContainerInternal` bridge the virtualization walk
+  needs. This completes the generate (session 99) + cleanup pair as substrate;
+  the guarded `MeasureOverride` body is still off. Build, 136 tests, and probe
+  are green (see `session100.md`).
+- Session 101: **cells-panel full-source reuse milestone.** Removed the outer
+  `#if HAS_UNO` fork guard so the entire upstream `DataGridCellsPanel.cs`
+  (measure, arrange, generation, virtualization, frozen-column layout) compiles
+  on `HAS_UNO`, and deleted the ~750-line sessions 96-101 `DataGridCellsPanel.uno.cs`
+  hand-port. Four narrow `#if HAS_UNO` fork-patches cover genuine WinUI gaps
+  (cells-panel offset via `VisualTreeHelper.GetOffset`, viewport width via
+  `ScrollContentPresenter.ActualWidth`, `Rect` construction, and deferring
+  `BringIndexIntoView` scroll plumbing). Added `VirtualizingPanel.ItemContainerGenerator`/
+  `MeasureDirty`/`MeasureDuringArrange`, `DoubleUtil.AreClose(Size,Size)`, and a
+  local `DataGridHelper.TreeHasFocusAndTabStop`/`KeyboardNavigation.GetIsTabStop`
+  bridge. The panel body is now the real WPF source; wiring it as the live
+  layout host (vs. the manual shim rows host) remains the next step. Build (129
+  warnings), 136 tests, and probe are green (see `session101.md`).
+- Session 102: **DataGridHelper link start.** Linked the upstream
+  `DataGridHelper.cs` (previously a fully local 327-line shim) as a partial and
+  migrated its pure, platform-independent regions — **GridLines**
+  (`SubtractFromSize`, `IsGridLineVisible`) and **Notification Propagation**
+  (`ShouldNotify*`/`TestTarget`) — to the real WPF source, removing the matching
+  local duplicates (verified byte-equivalent). The engine-coupled regions (tree/
+  cells-panel helpers, property-transfer/coercion, binding-expression internals,
+  flow-direction caching) stay under `#if !HAS_UNO` with the local shim, notably
+  `TransferProperty`/`OnColumnWidthChanged` which carry real Uno render behavior.
+  Build (129 warnings), 136 tests, and probe are green (see `session102.md`).
+- Session 103: **DataGridHelper link continued.** Replaced the region-wide
+  guard with per-method `#if !HAS_UNO` and migrated `FindVisualParent` plus the
+  cells-panel accessors (`GetParentPanelForCell`, `GetFrozenClipForCell`,
+  `GetParentCellsPanelHorizontalOffset`) to the linked upstream — the latter now
+  genuine reuse since session 101 fully linked `DataGridCellsPanel`
+  (behavior-equivalent to the prior `null`/`0` shims). `FindParent`
+  (templated-parent vs visual-tree walk), `TreeHasFocusAndTabStop`
+  (`UIElement.Focusable`/`ContentElement` deps), `OnColumnWidthChanged` (Uno
+  render behavior), and the property-transfer/binding engine stay guarded with
+  the local shim. Build (129 warnings), 136 tests, and probe are green (see
+  `session103.md`).
+- Session 104: **DataGridHelper link continued.** Moved the `Focusable` shim
+  extension from `FrameworkElement` to `UIElement` and migrated
+  `TreeHasFocusAndTabStop` (only its `ContentElement` branch stays inline
+  `#if !HAS_UNO`), plus the Other Helpers `AreRowHeadersVisible`,
+  `HasNonEscapeCharacters`, `IsImeProcessed`, and `_escapeChar`, to the linked
+  upstream; removed the matching local shims (incl. the session-101
+  `TreeHasFocusAndTabStop`). `CoerceToMinMax` stays local (upstream returns NaN
+  vs the shim's NaN→0 clamp), alongside `FindParent`, `OnColumnWidthChanged`, and
+  the property-transfer/binding engine. Build (129 warnings), 136 tests, and
+  probe are green (see `session104.md`).
+- Session 105: **DataGridHelper link — property-source substrate.** Fixed the
+  `DependencyPropertyHelper.GetValueSource` bridge (was hardcoded to `Local`) to
+  report `Default` vs `Local` from `ReadLocalValue`, and expanded
+  `BaseValueSource` to the full WPF enum. Migrated `IsDefaultValue` to the linked
+  upstream (removing the equivalent local shim); the value-source bridge is now
+  truthful, also making linked `DataGridRow.PersistAttachedItemValue` accurate.
+  The property-transfer/coercion engine and Binding regions stay `#if !HAS_UNO`
+  (Uno `CoerceValue` is a no-op; local `TransferProperty` carries real render
+  behavior). Build (129 warnings), 136 tests, and probe are green (see
+  `session105.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`
@@ -484,7 +548,7 @@ spine.
 | Column owner/collection | `DataGrid`, `DataGridColumnCollection` | upstream `DataGrid.cs` (linked) + `DataGridColumnCollection.cs` | `linked-upstream` / `local-bridge` | Session 22 superseded the local `Columns`/`SelectedCells` owner surface with the linked root. Session 64 ports the WPF display-index map/update subset and renders headers/cells in display order. Width computation/realization block lists remain local stubs (`InvalidateColumnWidthsComputation` et al.). |
 | Combo box column | `DataGridComboBoxColumn` | Linked WPF source | `linked-upstream` | Session 60 linked the upstream body with narrow `HAS_UNO` guards for WinUI DP ownership/style-key gaps. Probe verifies selection write-back through WPF binding application. |
 | Hyperlink column | `DataGridHyperlinkColumn` | `System.Windows/Controls/DataGridHyperlinkColumn.cs` | `local-shell` | Minimal placeholder added in session 63 so linked `DataGridColumn.CreateDefaultColumn` compiles for `Uri`. Real hyperlink rendering/navigation remains blocked on routed navigation/command plumbing. |
-| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPresenter`, `DataGridRowsPresenter`, `DataGridCellsPanel` | Linked WPF sources plus local direct-host visual partials and guarded Uno cells-panel path | `linked-upstream` / `local-bridge` / `blocked` | Sessions 88-95 moved `DataGridRow`, presenters, and most `DataGridCell` behavior onto WPF source. `DataGridCellsPanel` is linked, but its real WPF layout/virtualization body is guarded out on Uno; replacing the manual rows/header host with WPF item-hosted layout remains the major blocker. |
+| Row/cell container behavior | upstream `DataGridRow.cs`, `DataGridCell.cs`, `DataGridCellsPresenter`, `DataGridRowsPresenter`, `DataGridCellsPanel` | Linked WPF sources plus local direct-host visual partials and guarded Uno cells-panel path | `linked-upstream` / `local-bridge` / `blocked` | Sessions 88-95 moved `DataGridRow`, presenters, and most `DataGridCell` behavior onto WPF source. Session 101 removed the `DataGridCellsPanel` fork guard so its full WPF measure/arrange/generation/virtualization body compiles on Uno (four narrow `#if HAS_UNO` patches for scroll/`Rect` gaps; `BringIndexIntoView` scroll plumbing still deferred). Replacing the manual rows/header host with the WPF item-hosted layout remains the major blocker. |
 
 ## Session Ladder
 

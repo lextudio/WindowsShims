@@ -101,6 +101,8 @@ public partial class ItemsControl : IGeneratorHost
 
     protected virtual DependencyObject? GetContainerForItemOverride() => null;
 
+    internal bool IsItemItsOwnContainerInternal(object? item) => IsItemItsOwnContainerOverride(item!);
+
     internal DependencyObject? CreateContainerForItem(object? item)
         => IsItemItsOwnContainerOverride(item!) && item is DependencyObject dependencyObject
             ? dependencyObject

@@ -1,3 +1,5 @@
+using System.Windows.Controls.Primitives;
+
 namespace System.Windows.Controls;
 
 // ScrollUnit: controls whether scroll offsets are in pixels or logical items.
@@ -40,13 +42,26 @@ public abstract class VirtualizingPanel : Panel
     public static void SetIsVirtualizing(DependencyObject element, bool value)
         => element.SetValue(IsVirtualizingProperty, value);
 
-    protected bool IsVirtualizing
-    {
-        get => GetIsVirtualizing(this);
-        set => SetIsVirtualizing(this, value);
-    }
+    // IsVirtualizing / InRecyclingMode instance flags live on the linked
+    // VirtualizingPanel subclasses (e.g. DataGridCellsPanel) themselves, matching
+    // upstream WPF; the attached-DP getters above remain the shared source.
 
-    protected bool InRecyclingMode { get; set; }
+    // WPF VirtualizingPanel.ItemContainerGenerator: the generator scoped to this
+    // panel, obtained from the items owner. The linked DataGridCellsPanel measure
+    // path drives generation through it.
+    protected IItemContainerGenerator? ItemContainerGenerator
+        => ItemsControl.GetItemsOwner(this)?.ItemContainerGenerator is IItemContainerGenerator generator
+            ? generator.GetItemContainerGeneratorForPanel(this)
+            : null;
+
+    // WPF UIElement.MeasureDirty flag, used by BringIndexIntoView retry timing.
+    // The Uno layout pass does not expose it; reporting clean keeps the
+    // single-pass behavior.
+    internal bool MeasureDirty => false;
+
+    // WPF UIElement.MeasureDuringArrange flag. The Uno measure/arrange split does
+    // not re-enter measure during arrange, so this is always false.
+    internal bool MeasureDuringArrange => false;
 
     protected override void OnIsItemsHostChanged(bool oldIsItemsHost, bool newIsItemsHost)
     {
