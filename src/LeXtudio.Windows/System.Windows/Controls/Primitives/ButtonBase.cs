@@ -7,7 +7,11 @@ namespace System.Windows.Controls.Primitives;
 /// </summary>
 public abstract partial class ButtonBase : ContentControl
 {
+    protected static readonly DependencyProperty FocusableProperty =
+        DependencyProperty.Register("Focusable", typeof(bool), typeof(ButtonBase), new PropertyMetadata(true));
+
     public static readonly RoutedEvent ClickEvent = new();
+    private bool _isPressed;
 
     // ── ClickMode ────────────────────────────────────────────────────────────
     public static readonly DependencyProperty ClickModeProperty =
@@ -67,6 +71,8 @@ public abstract partial class ButtonBase : ContentControl
     public void CaptureMouse() { }
     public void ReleaseMouseCapture() { }
 
+    public bool IsPressed => _isPressed;
+
     // ── WinUI pointer bridges ─────────────────────────────────────────────────
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
@@ -74,6 +80,8 @@ public abstract partial class ButtonBase : ContentControl
         var pt = e.GetCurrentPoint(this);
         if (pt.Properties.IsLeftButtonPressed)
         {
+            _isPressed = true;
+            UpdateVisualState();
             var args = new Input.MouseButtonEventArgs();
             OnMouseLeftButtonDown(args);
             if (!args.Handled && ClickMode == Controls.ClickMode.Press)
@@ -93,6 +101,8 @@ public abstract partial class ButtonBase : ContentControl
         var pt = e.GetCurrentPoint(this);
         if (!pt.Properties.IsLeftButtonPressed)
         {
+            _isPressed = false;
+            UpdateVisualState();
             var args = new Input.MouseButtonEventArgs();
             OnMouseLeftButtonUp(args);
             if (!args.Handled && ClickMode == Controls.ClickMode.Release)
@@ -103,10 +113,19 @@ public abstract partial class ButtonBase : ContentControl
     protected override void OnPointerCaptureLost(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        _isPressed = false;
+        UpdateVisualState();
         OnLostMouseCapture(new Input.MouseEventArgs());
     }
 
     // ChangeVisualState stub — upstream DataGridColumnHeader calls this on
     // base but explicitly skips the button state changes.
     internal virtual void ChangeVisualState(bool useTransitions) { }
+
+    internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
+
+    internal void ChangeValidationVisualState(bool useTransitions)
+    {
+        Microsoft.UI.Xaml.VisualStateManager.GoToState(this, VisualStates.StateValid, useTransitions);
+    }
 }

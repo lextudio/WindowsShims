@@ -13,6 +13,10 @@ public partial class DataGridCellsPresenter : Panel
 
     internal DataGrid? DataGridOwner { get; set; }
 
+    internal object? Item { get; set; }
+
+    internal ItemContainerGenerator ItemContainerGenerator { get; } = new();
+
     internal void InvalidateDataGridCellsPanelMeasureAndArrange() { }
     internal void InvalidateDataGridCellsPanelMeasureAndArrange(bool withColumnVirtualization) { }
 
@@ -22,9 +26,19 @@ public partial class DataGridCellsPresenter : Panel
         DependencyPropertyChangedEventArgs e,
         DataGridNotificationTarget target)
     {
+        DataGridRowOwner?.ShimNotifyCells(d, propertyName, e, target);
     }
 
     internal DataGridCell? TryGetCell(int displayIndex) => null;
+
+    internal void SyncProperties(bool forcePrepareCells) { }
+
+    internal void OnColumnsChanged(
+        System.Collections.ObjectModel.ObservableCollection<DataGridColumn> columns,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => DataGridRowOwner?.BuildCells();
+
+    internal void ScrollCellIntoView(int index) { }
 }
 
 // DataGridRowsPresenter: minimal shell used in the static ctor template.
@@ -37,6 +51,10 @@ public partial class DataGridDetailsPresenter : ContentControl
 {
     internal DataGrid? ParentDataGrid { get; set; }
     internal FrameworkElement? DetailsElement => Content as FrameworkElement;
+
+    internal void NotifyPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
+
+    internal void SyncProperties() { }
 }
 
 // DataGridRowHeader: left-edge row-state glyph. Stubs out notification and
@@ -55,6 +73,12 @@ public partial class DataGridRowHeader : ContentControl
         DataGridNotificationTarget target)
     {
     }
+
+    internal void NotifyPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+    }
+
+    internal void SyncProperties() { }
 
     internal void ApplyShimGridLines()
     {

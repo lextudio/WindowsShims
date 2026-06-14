@@ -23,14 +23,6 @@ public partial class DataGridRow : Control
         DependencyProperty.Register(nameof(DetailsVisibility), typeof(Visibility),
             typeof(DataGridRow), new PropertyMetadata(Visibility.Collapsed));
 
-    // ── Backing fields for upstream properties ────────────────────────────────
-
-    // _owner is accessed by upstream DataGridOwner { get { return _owner; } }
-    private DataGrid? _owner;
-
-    // _tracker is assigned in the upstream instance ctor and read by upstream Tracker property
-    private ContainerTracking<DataGridRow> _tracker;
-
     // ── Local-only properties ─────────────────────────────────────────────────
 
     public Visibility DetailsVisibility
@@ -39,15 +31,7 @@ public partial class DataGridRow : Control
         set => SetValue(DetailsVisibilityProperty, value);
     }
 
-    internal bool DetailsLoaded { get; set; }
-
     public Style? ShimAppliedRowStyle { get; private set; }
-
-    internal DataGridCellsPresenter? CellsPresenter { get; set; }
-
-    internal DataGridDetailsPresenter? DetailsPresenter { get; set; }
-
-    internal DataGridRowHeader? RowHeader { get; set; }
 
     internal BindingGroup? BindingGroup { get; set; }
 
@@ -59,27 +43,7 @@ public partial class DataGridRow : Control
 
     public void BringIntoView() => StartBringIntoView();
 
-    internal void PrepareRow(object item, DataGrid dataGrid)
-    {
-        Item = item;
-        _owner = dataGrid;
-        DataContext = item;
-        IsNewItem =
-            ReferenceEquals(item, System.Windows.Data.CollectionView.NewItemPlaceholder) ||
-            ReferenceEquals(item, DataGrid.NewItemPlaceholder) ||
-            ReferenceEquals(item, dataGrid.Items.CurrentAddItem);
-        // If the template is already applied (row reused), rebuild now.
-        BuildCells();
-    }
-
-    internal void ClearRow(DataGridRow oldContainer, DataGrid dataGrid) { }
-    internal void ClearRow(DataGrid dataGrid) { }
-
     internal void ScrollCellIntoView(DataGridColumn column) { }
-    internal void ScrollCellIntoView(int columnIndex) { }
-
-    internal DataGridCell? TryGetCell(int index)
-        => index >= 0 && index < _cells.Count ? _cells[index] : null;
 
     // ── Session 26: the row hosts its own cells ──────────────────────────────
     // DataGridRow is the real visual container: its template hosts a
@@ -176,7 +140,7 @@ public partial class DataGridRow : Control
             if (DetailsVisibility != before)
             {
                 owner.OnRowDetailsVisibilityChanged(
-                    new DataGridRowDetailsEventArgs(this, _detailsPresenter?.DetailsElement!));
+                    new DataGridRowDetailsEventArgs(this, DetailsPresenter?.DetailsElement!));
             }
         }
     }
@@ -220,7 +184,7 @@ public partial class DataGridRow : Control
 
     private List<DataGridCell> _cells = new();
 
-    private void BuildCells()
+    internal void BuildCells()
     {
         if (DataGridOwner == null || Item == null)
             return;
@@ -253,6 +217,21 @@ public partial class DataGridRow : Control
         BuildRowHeader(DataGridOwner);
     }
 
+    internal void ShimNotifyCells(
+        DependencyObject dependencyObject,
+        string propertyName,
+        DependencyPropertyChangedEventArgs args,
+        DataGridNotificationTarget target)
+    {
+        foreach (var cell in _cells)
+        {
+            cell.NotifyPropertyChanged(dependencyObject, propertyName, args, target);
+        }
+    }
+
+    internal DataGridCell? ShimTryGetCell(int index)
+        => (uint)index < (uint)_cells.Count ? _cells[index] : null;
+
     private Visibility ComputeDetailsVisibility(DataGrid owner)
     {
         return owner.RowDetailsVisibilityMode switch
@@ -262,8 +241,6 @@ public partial class DataGridRow : Control
             _ => Visibility.Collapsed,
         };
     }
-
-    private DataGridDetailsPresenter? _detailsPresenter;
 
     private void BuildRowDetails(DataGrid owner)
     {
@@ -279,7 +256,6 @@ public partial class DataGridRow : Control
         {
             var presenter = new DataGridDetailsPresenter { ParentDataGrid = owner };
             presenter.Content = owner.RowDetailsTemplate.LoadContent() as Microsoft.UI.Xaml.FrameworkElement;
-            _detailsPresenter = presenter;
             DetailsPresenter = presenter;
             host.Content = presenter;
             DetailsLoaded = false;
@@ -287,7 +263,6 @@ public partial class DataGridRow : Control
         }
         else
         {
-            _detailsPresenter = null;
             DetailsPresenter = null;
             host.Content = null;
         }
@@ -335,55 +310,6 @@ public partial class DataGridRow : Control
             _rowHeaderElement.Content = "▶";
         else
             _rowHeaderElement.Content = null;
-    }
-
-    protected internal virtual void OnColumnsChanged(
-        System.Collections.ObjectModel.ObservableCollection<DataGridColumn> columns,
-        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
-        BuildCells();
-    }
-
-    // 3-arg overload matching upstream's signature; delegates to the 4-arg version.
-    internal void NotifyPropertyChanged(
-        DependencyObject d,
-        DependencyPropertyChangedEventArgs e,
-        DataGridNotificationTarget target)
-        => NotifyPropertyChanged(d, string.Empty, e, target);
-
-    internal void NotifyPropertyChanged(
-        DependencyObject dependencyObject,
-        string propertyName,
-        DependencyPropertyChangedEventArgs args,
-        DataGridNotificationTarget target)
-    {
-        // Session 69: row-level property changes (background striping).
-        if (DataGridHelper.ShouldNotifyRows(target))
-        {
-            if (args.Property == DataGrid.RowBackgroundProperty
-                || args.Property == DataGrid.AlternatingRowBackgroundProperty)
-            {
-                ApplyShimRowBackground();
-            }
-            else if (args.Property == DataGrid.RowStyleProperty
-                || args.Property == DataGrid.RowStyleSelectorProperty)
-            {
-                ApplyShimRowStyle();
-            }
-        }
-
-        // Forward cell-targeting notifications to each realized cell. The
-        // upstream would route through DataGridCellsPresenter; the shim routes
-        // directly through the _cells backing list.
-        if (DataGridHelper.ShouldNotifyCells(target)
-            || DataGridHelper.ShouldNotifyCellsPresenter(target)
-            || DataGridHelper.ShouldRefreshCellContent(target))
-        {
-            foreach (var cell in _cells)
-            {
-                cell.NotifyPropertyChanged(dependencyObject, propertyName, args, target);
-            }
-        }
     }
 
     // WPF UIElement.MoveFocus; routes to keyboard navigation.

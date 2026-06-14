@@ -51,6 +51,10 @@ internal partial class DataGridColumnCollection
     private void OnCellsPanelHorizontalOffsetChanged(DependencyPropertyChangedEventArgs e) { }
 
     // ── Column-resize / redistribution (shim width pass owns the real math) ──
+    internal void OnColumnResizeStarted() { }
+
+    internal void OnColumnResizeCompleted(bool cancel) { }
+
     internal void RecomputeColumnWidthsOnColumnResize(
         DataGridColumn resizingColumn, double horizontalChange, bool retainAuto) { }
 

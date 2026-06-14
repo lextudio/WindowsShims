@@ -33,10 +33,21 @@ namespace System.Windows.Automation.Peers
 
     public class DataGridItemAutomationPeer : AutomationPeer
     {
+        public void RaisePropertyChangedEvent(System.Windows.Automation.AutomationProperty property, object? oldValue, object? newValue)
+        {
+        }
+
         internal DataGridCellItemAutomationPeer? GetOrCreateCellItemPeer(DataGridColumn column) => null;
     }
 
     public class DataGridCellItemAutomationPeer : AutomationPeer
     {
+    }
+
+    public class DataGridRowAutomationPeer : AutomationPeer
+    {
+        public DataGridRowAutomationPeer(DataGridRow owner)
+        {
+        }
     }
 }

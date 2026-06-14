@@ -19,6 +19,13 @@ public abstract class VirtualizingPanel : Panel
         DependencyProperty.RegisterAttached("VirtualizationMode", typeof(VirtualizationMode),
             typeof(VirtualizingPanel), new PropertyMetadata(VirtualizationMode.Standard));
 
+    internal static readonly DependencyProperty ShouldCacheContainerSizeProperty =
+        DependencyProperty.RegisterAttached(
+            "ShouldCacheContainerSize",
+            typeof(bool),
+            typeof(VirtualizingPanel),
+            new FrameworkPropertyMetadata(true));
+
     public static ScrollUnit GetScrollUnit(UIElement element) => ScrollUnit.Item;
 
     public static bool GetIsVirtualizing(DependencyObject element)

@@ -1,4 +1,5 @@
 using System.Windows.Data;
+using System.Windows.Controls.Primitives;
 
 namespace System.Windows.Controls;
 
@@ -75,7 +76,52 @@ internal static class DataGridHelper
 
     internal static bool IsPropertyTransferEnabled(DependencyObject d, DependencyProperty dp) => true;
 
-    internal static void TransferProperty(DependencyObject d, DependencyProperty dp) { }
+    internal static void OnColumnWidthChanged(IProvideDataGridColumn owner, DependencyPropertyChangedEventArgs e)
+    {
+        if (owner is DataGridColumnHeader header)
+        {
+            header.Width = header.Column?.DataGridOwner?.ShimColumnWidth(header.Column) ?? double.NaN;
+        }
+        else if (owner is DataGridCell cell)
+        {
+            cell.Width = cell.Column?.DataGridOwner?.ShimColumnWidth(cell.Column) ?? double.NaN;
+        }
+    }
+
+    internal static void TransferProperty(DependencyObject d, DependencyProperty dp)
+    {
+        if (d is DataGridColumnHeader header)
+        {
+            if (dp == DataGridColumnHeader.ContentProperty)
+            {
+                header.Content = header.Column?.DataGridOwner?.HeaderContent(header.Column) ?? header.Column?.Header;
+            }
+            else if (dp == DataGridColumnHeader.StyleProperty)
+            {
+                header.ApplyShimColumnHeaderStyle();
+            }
+        }
+        else if (d is DataGridRow row)
+        {
+            if (dp == DataGridRow.BackgroundProperty)
+            {
+                row.ApplyShimRowBackground();
+            }
+            else if (dp == DataGridRow.StyleProperty)
+            {
+                row.ApplyShimRowStyle();
+            }
+            else if (dp == DataGridRow.DetailsVisibilityProperty && row.DataGridOwner is { } owner)
+            {
+                row.DetailsVisibility = owner.RowDetailsVisibilityMode switch
+                {
+                    DataGridRowDetailsVisibilityMode.Visible => Visibility.Visible,
+                    DataGridRowDetailsVisibilityMode.VisibleWhenSelected => row.IsSelected ? Visibility.Visible : Visibility.Collapsed,
+                    _ => Visibility.Collapsed,
+                };
+            }
+        }
+    }
 
     internal static object? GetCoercedTransferPropertyValue(
         DependencyObject? baseObject,
@@ -117,7 +163,7 @@ internal static class DataGridHelper
     // WPF DataGridHelper.GetFrozenClipForCell — returns a clipping geometry for
     // cells that overlap the frozen/scrolling boundary. Returns null (no clip)
     // in the shim because frozen-column clipping is not yet implemented.
-    internal static Geometry? GetFrozenClipForCell(DataGridCell cell) => null;
+    internal static Geometry? GetFrozenClipForCell(IProvideDataGridColumn cell) => null;
 
     // WPF DataGridHelper.BindingExpressionBelongsToElement — whether a binding
     // expression targets an element of type T. Returns false in the shim.

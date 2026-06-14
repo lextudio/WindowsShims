@@ -11,6 +11,20 @@ namespace System.Windows.Controls;
 /// </summary>
 public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 {
+    protected static readonly DependencyProperty FocusableProperty =
+        DependencyProperty.Register("Focusable", typeof(bool), typeof(Control), new PropertyMetadata(true));
+
+    protected static readonly DependencyProperty BindingGroupProperty =
+        DependencyProperty.Register("BindingGroup", typeof(System.Windows.Data.BindingGroup), typeof(Control), new PropertyMetadata(null));
+
+    protected static readonly DependencyProperty SnapsToDevicePixelsProperty =
+        DependencyProperty.Register("SnapsToDevicePixels", typeof(bool), typeof(Control), new PropertyMetadata(false));
+
+    protected static readonly DependencyPropertyKey IsMouseOverPropertyKey =
+        new(DependencyProperty.Register("IsMouseOver", typeof(bool), typeof(Control), new PropertyMetadata(false)));
+
+    public static readonly DependencyProperty IsMouseOverProperty = IsMouseOverPropertyKey.DependencyProperty;
+
     protected Control()
     {
         InitializeDefaultStyleKey();
@@ -120,6 +134,8 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
     protected virtual void OnDpiChanged(DpiScale oldDpiScaleInfo, DpiScale newDpiScaleInfo) { }
 
     protected virtual System.Windows.Automation.Peers.AutomationPeer? OnCreateAutomationPeer() => null;
+
+    protected virtual void OnPropertyChanged(DependencyPropertyChangedEventArgs e) { }
 }
 
 /// <summary>Stub for WPF ControlTemplate — WinUI uses DataTemplate/ControlTemplate via Style.</summary>

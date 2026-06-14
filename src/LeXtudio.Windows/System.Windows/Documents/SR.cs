@@ -65,6 +65,7 @@ internal static class SR
     internal const string MultiSelectorSelectAll = "Can only call SelectAll when SelectionMode is Multiple or Extended.";
     internal const string ChangingCollectionNotSupported = "Cannot modify the items collection while a change is in progress.";
     internal const string CannotSelectNotSelectableItem = "The item cannot be selected because it is not selectable.";
+    internal const string DataGridRow_CannotSelectRowWhenCells = "Cannot select a row when the DataGrid selection unit is Cell.";
     internal const string DeferSelectionActive = "Deferred selection is already active.";
     internal const string DeferSelectionNotActive = "Deferred selection is not active.";
     internal const string InsertInDeferSelectionActive = "Cannot insert while deferred selection is active.";

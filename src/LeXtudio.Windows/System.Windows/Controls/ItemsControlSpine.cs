@@ -281,6 +281,9 @@ public partial class ItemsControl : IGeneratorHost
         DependencyProperty.RegisterReadOnly("IsKeyboardFocusWithin_Shim", typeof(bool),
             typeof(ItemsControl), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsKeyboardFocusWithinProperty =
+        IsKeyboardFocusWithinPropertyKey.DependencyProperty;
+
     // SetCurrentValue: WPF method that sets local value without triggering
     // expression coercion; maps to SetValue on Uno.
     public void SetCurrentValue(DependencyProperty dp, object? value) => SetValue(dp, value);

@@ -440,12 +440,13 @@ public partial class DataGrid
         {
             var headerCell = new DataGridColumnHeader
             {
-                Column = column,
                 Content = HeaderContent(column),
                 Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
+            headerCell.PrepareColumnHeader(column.Header, column);
+            headerCell.Content = HeaderContent(column);
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();

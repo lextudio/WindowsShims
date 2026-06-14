@@ -14,6 +14,10 @@ public sealed class FrameworkElementFactory
     public void AppendChild(FrameworkElementFactory child) { }
 }
 
+public sealed class DataGridCellsPanel : Panel
+{
+}
+
 // ItemsPanelTemplate: wraps a FrameworkElementFactory. Uno resolves the
 // DataGrid row-panel from XAML so this stub only needs to exist for
 // compilation.
@@ -60,6 +64,10 @@ internal static class VisualStates
     public const string StateDisplay  = "Display";
     public const string StateEditing  = "Editing";
     public const string StateMouseOver = "MouseOver";
+    public const string StatePressed  = "Pressed";
+    public const string StateUnsorted = "Unsorted";
+    public const string StateSortAscending = "SortAscending";
+    public const string StateSortDescending = "SortDescending";
 
     // DataGridRow visual state names (used by DataGridRow.ChangeVisualState state machine)
     public const string DATAGRIDROW_stateAlternate              = "Normal_AlternatingRow";
@@ -94,9 +102,12 @@ internal static class VisualStates
 public sealed class SystemResourceKey : System.Windows.ComponentResourceKey
 {
     private SystemResourceKey() : base(typeof(SystemResourceKey), "DataGridFocusBorderBrush") { }
+    private SystemResourceKey(object resourceId) : base(typeof(SystemResourceKey), resourceId) { }
     public static SystemResourceKey DataGridFocusBorderBrushKey { get; } = new SystemResourceKey();
     // Session 60: style key for the linked DataGridComboBoxColumn.TextBlockComboBox.
     public static SystemResourceKey DataGridComboBoxColumnTextBlockComboBoxStyleKey { get; } = new SystemResourceKey();
+    public static SystemResourceKey DataGridColumnHeaderColumnHeaderDropSeparatorStyleKey { get; } = new(nameof(DataGridColumnHeaderColumnHeaderDropSeparatorStyleKey));
+    public static SystemResourceKey DataGridColumnHeaderColumnFloatingHeaderStyleKey { get; } = new(nameof(DataGridColumnHeaderColumnFloatingHeaderStyleKey));
 }
 
 // TextSearch: WPF attached-property based incremental-search support on

@@ -15,4 +15,12 @@ public partial class DataGridColumnHeadersPresenter : ItemsControl
         DataGridNotificationTarget target)
     {
     }
+
+    internal void OnHeaderMouseLeftButtonDown(Input.MouseButtonEventArgs e) { }
+
+    internal void OnHeaderMouseMove(Input.MouseEventArgs e) { }
+
+    internal void OnHeaderMouseLeftButtonUp(Input.MouseButtonEventArgs e) { }
+
+    internal void OnHeaderLostMouseCapture(Input.MouseEventArgs e) { }
 }

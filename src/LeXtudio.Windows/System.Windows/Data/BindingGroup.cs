@@ -26,6 +26,8 @@ public partial class BindingGroup : DependencyObject
 
     public bool CommitEdit() => true;
 
+    public bool ValidateWithoutUpdate() => true;
+
     public void CancelEdit()
     {
     }

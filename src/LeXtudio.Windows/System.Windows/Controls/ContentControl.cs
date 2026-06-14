@@ -8,6 +8,10 @@ namespace System.Windows.Controls;
 /// </summary>
 public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
 {
+    public static readonly DependencyProperty ContentStringFormatProperty =
+        DependencyProperty.Register(nameof(ContentStringFormat), typeof(string), typeof(ContentControl),
+            new PropertyMetadata(null));
+
     public ContentControl()
     {
         PointerEntered += (_, _) => { _isMouseOver = true;  UpdateVisualState(); };
@@ -60,6 +64,12 @@ public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
     public bool IsKeyboardFocusWithin => false;
     public bool IsKeyboardFocused => false;
     public bool IsMouseOver => _isMouseOver;
+
+    public string? ContentStringFormat
+    {
+        get => (string?)GetValue(ContentStringFormatProperty);
+        set => SetValue(ContentStringFormatProperty, value);
+    }
 
     // ── Logical tree no-ops (ported WPF code calls these) ────────────────────
 

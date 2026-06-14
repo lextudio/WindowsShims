@@ -17,7 +17,7 @@ namespace System.Windows.Automation.Peers
     // peers are created, and raise calls are no-ops. WPF callers gate their
     // automation work on ListenerExists/FromElement, so these stubs make
     // those paths honestly unreachable.
-    public class AutomationPeer
+    public class AutomationPeer : Microsoft.UI.Xaml.Automation.Peers.AutomationPeer
     {
         public static bool ListenerExists(AutomationEvents events) => false;
 
@@ -35,5 +35,7 @@ namespace System.Windows.Automation.Peers
     public class UIElementAutomationPeer : AutomationPeer
     {
         public static new AutomationPeer? FromElement(Microsoft.UI.Xaml.UIElement element) => null;
+
+        public static AutomationPeer? CreatePeerForElement(Microsoft.UI.Xaml.UIElement element) => null;
     }
 }
