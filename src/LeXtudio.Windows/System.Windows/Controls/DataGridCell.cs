@@ -4,29 +4,15 @@ namespace System.Windows.Controls;
 
 public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 {
-    public bool IsEditing { get; set; }
+    // ── Backing fields for upstream properties ────────────────────────────────
 
-    private bool _isSelected;
+    // Assigned in the upstream instance ctor; read by upstream Tracker property (guarded).
+    private ContainerTracking<DataGridCell> _tracker;
 
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set
-        {
-            if (_isSelected == value)
-            {
-                return;
-            }
+    // Used by upstream SyncIsSelected to suppress CellIsSelectedChanged notifications.
+    private bool _syncingIsSelected;
 
-            _isSelected = value;
-            // Cell highlight (slightly stronger than the row tint) for
-            // cell-level selection; transparent when not cell-selected.
-            Background = _isSelected
-                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    global::Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xC9, 0xF5))
-                : null;
-        }
-    }
+    // ── Local-only properties ─────────────────────────────────────────────────
 
     public bool IsReadOnly { get; set; }
 
@@ -35,8 +21,6 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     public bool HasShimGridLine { get; private set; }
 
     public Style? ShimAppliedCellStyle { get; private set; }
-
-    public DataGridColumn? Column { get; set; }
 
     internal DataGridRow? RowOwner { get; set; }
 
@@ -59,7 +43,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     // inherits DataContext from this cell, so its WinUI binding resolves.
     internal void BuildVisualTree()
     {
-        if (Column is null)
+        if (Column is null || IsEditing)
         {
             return;
         }
@@ -275,8 +259,6 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
         base.OnKeyDown(e);
     }
-
-    internal void SyncIsSelected(bool isSelected) => IsSelected = isSelected;
 
     // Pointer press routes to the owner; the grid applies SelectionUnit
     // (row vs cell). Marking handled stops the parent row from also selecting.

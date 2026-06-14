@@ -4,59 +4,34 @@ using System.Windows.Data;
 
 namespace System.Windows.Controls;
 
+// Session 78: DataGridRow upstream partial linked. The upstream file provides:
+//   - IsSelected DP (Selector.IsSelectedProperty.AddOwner) + Selected/Unselected events
+//   - IsEditing read-only DP
+//   - IsNewItem read-only DP
+//   - DataGridOwner property (backed by _owner)
+//   - Tracker property (backed by _tracker)
+//   - GetRowContainingElement static helper
+//   - Instance constructor: _tracker = new ContainerTracking<DataGridRow>(this)
+// This partial provides HAS_UNO-specific implementation: manual cell/detail building,
+// shim styling helpers, and local DP registrations that the upstream version can't
+// compile under Uno (callbacks referencing Dispatcher, coerce infrastructure, etc.).
 public partial class DataGridRow : Control
 {
+    // ── DPs not brought from upstream (callbacks reference WPF-only APIs) ────
+
     public static readonly DependencyProperty DetailsVisibilityProperty =
         DependencyProperty.Register(nameof(DetailsVisibility), typeof(Visibility),
             typeof(DataGridRow), new PropertyMetadata(Visibility.Collapsed));
 
-    internal static readonly DependencyPropertyKey IsNewItemPropertyKey =
-        DependencyProperty.RegisterReadOnly("IsNewItem", typeof(bool), typeof(DataGridRow),
-            new PropertyMetadata(false));
+    // ── Backing fields for upstream properties ────────────────────────────────
 
-    public static readonly DependencyProperty IsNewItemProperty = IsNewItemPropertyKey.DependencyProperty;
+    // _owner is accessed by upstream DataGridOwner { get { return _owner; } }
+    private DataGrid? _owner;
 
-    public object? Item { get; set; }
+    // _tracker is assigned in the upstream instance ctor and read by upstream Tracker property
+    private ContainerTracking<DataGridRow> _tracker;
 
-    private bool _isEditing;
-
-    public bool IsEditing
-    {
-        get => _isEditing;
-        internal set
-        {
-            if (_isEditing == value)
-            {
-                return;
-            }
-
-            _isEditing = value;
-            RefreshRowHeaderGlyph();
-        }
-    }
-
-    private bool _isSelected;
-
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set
-        {
-            if (_isSelected == value)
-            {
-                return;
-            }
-
-            _isSelected = value;
-            UpdateSelectionVisual();
-        }
-    }
-
-    public bool IsNewItem
-    {
-        get => (bool)GetValue(IsNewItemProperty);
-        internal set => SetValue(IsNewItemPropertyKey, value);
-    }
+    // ── Local-only properties ─────────────────────────────────────────────────
 
     public Visibility DetailsVisibility
     {
@@ -64,7 +39,7 @@ public partial class DataGridRow : Control
         set => SetValue(DetailsVisibilityProperty, value);
     }
 
-    internal DataGrid? DataGridOwner { get; set; }
+    internal bool DetailsLoaded { get; set; }
 
     public Style? ShimAppliedRowStyle { get; private set; }
 
@@ -76,15 +51,10 @@ public partial class DataGridRow : Control
 
     internal BindingGroup? BindingGroup { get; set; }
 
-    internal ContainerTracking<DataGridRow>? Tracker { get; set; }
-
-    // Session 69: row index within the rendered set (0-based), used to stripe
-    // alternating row backgrounds without the WPF AlternationIndex attached property.
+    // Session 69: row index within the rendered set (0-based), for striping.
     internal int ShimRowIndex { get; set; }
 
-    internal bool DetailsLoaded { get; set; }
-
-    // WPF UIElement.Focus() has no FocusState; route to programmatic focus.
+    // WPF UIElement.Focus() — route to programmatic focus.
     public bool Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
 
     public void BringIntoView() => StartBringIntoView();
@@ -92,16 +62,12 @@ public partial class DataGridRow : Control
     internal void PrepareRow(object item, DataGrid dataGrid)
     {
         Item = item;
-        DataGridOwner = dataGrid;
+        _owner = dataGrid;
         DataContext = item;
         IsNewItem =
             ReferenceEquals(item, System.Windows.Data.CollectionView.NewItemPlaceholder) ||
             ReferenceEquals(item, DataGrid.NewItemPlaceholder) ||
             ReferenceEquals(item, dataGrid.Items.CurrentAddItem);
-        // Initialize the tracker so the upstream DataGrid notification chain
-        // (DataGrid.NotifyPropertyChanged → _rowTrackingRoot → row) can reach
-        // this container. BuildShimVisualTree calls StartTracking after PrepareRow.
-        Tracker ??= new ContainerTracking<DataGridRow>(this);
         // If the template is already applied (row reused), rebuild now.
         BuildCells();
     }
@@ -174,7 +140,7 @@ public partial class DataGridRow : Control
     // DataGridRow.NotifyPropertyChanged when grid.RowBackground / AlternatingRowBackground changes.
     internal void ApplyShimRowBackground()
     {
-        if (!_isSelected)
+        if (!IsSelected)
             Background = DataGridOwner?.ShimRowBackground(ShimRowIndex);
     }
 
@@ -197,7 +163,7 @@ public partial class DataGridRow : Control
         // Row-level selection tints the row; cells stay transparent so the
         // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
         // the cell itself and is managed separately on DataGridCell.
-        Background = _isSelected ? _selectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
+        Background = IsSelected ? _selectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
         RefreshRowHeaderGlyph();
 
         // VisibleWhenSelected: selection toggles the details section. Recompute
@@ -217,203 +183,173 @@ public partial class DataGridRow : Control
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _rowTemplate;
 
-    private readonly List<DataGridCell> _cells = new();
-
     protected override void InitializeDefaultStyleKey()
     {
-        if (Template is not null)
+        if (_rowTemplate == null)
         {
-            return;
+            _rowTemplate = (Microsoft.UI.Xaml.Controls.ControlTemplate)
+                Microsoft.UI.Xaml.Markup.XamlReader.Load(RowTemplateXaml);
         }
 
-        try
+        Template = _rowTemplate;
+
+        // WinUI DP change hooks for IsSelected and IsEditing.
+        // AddOwner is a no-op shim so upstream OnIsSelectedChanged never fires;
+        // replicate its two effects here: update visuals + raise Selected/Unselected.
+        RegisterPropertyChangedCallback(IsSelectedProperty, (sender, dp) =>
         {
-            _rowTemplate ??= (Microsoft.UI.Xaml.Controls.ControlTemplate)
-                Microsoft.UI.Xaml.Markup.XamlReader.Load(RowTemplateXaml);
-            Template = _rowTemplate;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DataGridRow] template load failed: {ex.GetType().Name}: {ex.Message}");
-        }
+            UpdateSelectionVisual();
+            var row = (DataGridRow)sender;
+            bool sel = row.IsSelected;
+            row.RaiseEvent(new RoutedEventArgs(sel ? SelectedEvent : UnselectedEvent, row));
+        });
+        RegisterPropertyChangedCallback(IsEditingProperty, (_, __) => RefreshRowHeaderGlyph());
     }
 
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
         BuildCells();
-        UpdateSelectionVisual();
     }
 
-    // Pointer press selects this row through the owner (shim single-select).
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         base.OnPointerPressed(e);
-        DataGridOwner?.HandleShimRowClicked(this, e.KeyModifiers);
+        // Row-level click is handled by cells; no additional routing needed here.
     }
+
+    private List<DataGridCell> _cells = new();
 
     private void BuildCells()
     {
-        if (GetTemplateChild("PART_CellsHost") is not Microsoft.UI.Xaml.Controls.Panel host)
-        {
+        if (DataGridOwner == null || Item == null)
             return;
-        }
-
-        if (DataGridOwner is not { } owner || Item is not { } item)
-        {
+        if (GetTemplateChild("PART_CellsHost") is not Microsoft.UI.Xaml.Controls.StackPanel host)
             return;
-        }
 
         host.Children.Clear();
         _cells.Clear();
 
-        foreach (var column in owner.ColumnsInDisplayOrder())
+        foreach (var column in DataGridOwner.ColumnsInDisplayOrder())
         {
-            if (!column.IsVisible)
-            {
+            if (column.Visibility != Visibility.Visible)
                 continue;
-            }
 
             var cell = new DataGridCell
             {
                 Column = column,
                 RowOwner = this,
-                Width = owner.ShimColumnWidth(column),
-                Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
             cell.BuildVisualTree();
-            cell.ApplyShimFrozenState();
-            cell.ApplyShimCellStyle();
+            DataGridOwner.TryReselectCell(cell);
+            cell.Width = DataGridOwner.ShimColumnWidth(column);
             cell.ApplyShimGridLines();
-            // Re-apply a retained cell selection to the rebuilt cell instance.
-            owner.TryReselectCell(cell);
-            _cells.Add(cell);
+
             host.Children.Add(cell);
+            _cells.Add(cell);
         }
 
-        BuildRowHeader(owner);
-        BuildRowDetails(owner);
+        BuildRowDetails(DataGridOwner);
+        BuildRowHeader(DataGridOwner);
     }
 
-    // ── Session 57: row details ──────────────────────────────────────────────
-    // The row materializes the grid's RowDetailsTemplate into PART_DetailsHost
-    // when the effective visibility (mode + selection + template + real item)
-    // resolves to Visible, reusing the linked WPF Loading/Unloading wrappers.
-    private DataGridDetailsPresenter? _detailsPresenter;
-
-    // Effective details visibility, mirroring the upstream
-    // OnCoerceDetailsVisibility switch over RowDetailsVisibilityMode.
     private Visibility ComputeDetailsVisibility(DataGrid owner)
     {
-        var hasTemplate = owner.RowDetailsTemplate is not null || owner.RowDetailsTemplateSelector is not null;
-        var isRealItem =
-            !ReferenceEquals(Item, System.Windows.Data.CollectionView.NewItemPlaceholder) &&
-            !ReferenceEquals(Item, DataGrid.NewItemPlaceholder);
-
         return owner.RowDetailsVisibilityMode switch
         {
-            DataGridRowDetailsVisibilityMode.Collapsed => Visibility.Collapsed,
-            DataGridRowDetailsVisibilityMode.Visible =>
-                hasTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed,
-            DataGridRowDetailsVisibilityMode.VisibleWhenSelected =>
-                _isSelected && hasTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed,
+            DataGridRowDetailsVisibilityMode.Visible => Visibility.Visible,
+            DataGridRowDetailsVisibilityMode.VisibleWhenSelected => IsSelected ? Visibility.Visible : Visibility.Collapsed,
             _ => Visibility.Collapsed,
         };
     }
 
+    private DataGridDetailsPresenter? _detailsPresenter;
+
     private void BuildRowDetails(DataGrid owner)
     {
+        DetailsVisibility = ComputeDetailsVisibility(owner);
+
         if (GetTemplateChild("PART_DetailsHost") is not Microsoft.UI.Xaml.Controls.ContentControl host)
-        {
             return;
-        }
 
-        var visibility = ComputeDetailsVisibility(owner);
-        DetailsVisibility = visibility;
+        var visibility = DetailsVisibility;
+        host.Visibility = visibility;
 
-        if (visibility != Visibility.Visible)
+        if (visibility == Visibility.Visible && owner.RowDetailsTemplate != null)
         {
-            // Tearing down a previously-loaded details section raises Unloading.
-            if (_detailsPresenter is not null && DetailsLoaded)
-            {
-                owner.OnUnloadingRowDetailsWrapper(this);
-            }
-
-            host.Content = null;
-            host.Visibility = Visibility.Collapsed;
+            var presenter = new DataGridDetailsPresenter { ParentDataGrid = owner };
+            presenter.Content = owner.RowDetailsTemplate.LoadContent() as Microsoft.UI.Xaml.FrameworkElement;
+            _detailsPresenter = presenter;
+            DetailsPresenter = presenter;
+            host.Content = presenter;
+            DetailsLoaded = false;
+            owner.OnLoadingRowDetailsWrapper(this);
+        }
+        else
+        {
             _detailsPresenter = null;
             DetailsPresenter = null;
-            return;
+            host.Content = null;
         }
-
-        var content = owner.RowDetailsTemplate?.LoadContent() as FrameworkElement;
-        _detailsPresenter = new DataGridDetailsPresenter
-        {
-            ParentDataGrid = owner,
-            DataContext = Item,
-            Content = content,
-        };
-        DetailsPresenter = _detailsPresenter;
-        host.Content = _detailsPresenter;
-        host.Visibility = Visibility.Visible;
-
-        // The template just expanded, so DetailsElement is available — reuse the
-        // linked WPF wrapper to raise LoadingRowDetails exactly once.
-        owner.OnLoadingRowDetailsWrapper(this);
     }
 
-    // ── Session 49: row header ───────────────────────────────────────────────
     private DataGridRowHeader? _rowHeaderElement;
 
     private void BuildRowHeader(DataGrid owner)
     {
         if (GetTemplateChild("PART_RowHeader") is not Microsoft.UI.Xaml.Controls.ContentControl host)
-        {
             return;
-        }
 
-        if (!owner.AreRowHeadersVisible)
+        if (owner.HeadersVisibility.HasFlag(DataGridHeadersVisibility.Row))
         {
-            host.Content = null;
-            host.Width = 0;
+            _rowHeaderElement = new DataGridRowHeader
+            {
+                ParentRow = this,
+            };
+            _rowHeaderElement.ApplyShimGridLines();
+            RowHeader = _rowHeaderElement;
+            host.Content = _rowHeaderElement;
+            host.Visibility = Visibility.Visible;
+        }
+        else
+        {
             _rowHeaderElement = null;
-            return;
+            RowHeader = null;
+            host.Content = null;
+            host.Visibility = Visibility.Collapsed;
         }
 
-        host.Width = owner.RowHeaderShimWidth;
-        _rowHeaderElement = new DataGridRowHeader
-        {
-            ParentDataGrid = owner,
-            ParentRow = this,
-            Width = owner.RowHeaderShimWidth,
-            HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
-        };
-        _rowHeaderElement.ApplyShimGridLines();
-        host.Content = _rowHeaderElement;
         RefreshRowHeaderGlyph();
     }
 
-    // Glyph priority: validation error > editing > current/selected row.
     private void RefreshRowHeaderGlyph()
     {
-        if (_rowHeaderElement is null)
-        {
+        if (_rowHeaderElement == null)
             return;
-        }
 
-        _rowHeaderElement.Content =
-            HasRowValidationError ? "⚠" :  // ⚠
-            _isEditing ? "✎" :             // ✎
-            _isSelected ? "▶" :            // ▶
-            string.Empty;
+        if (HasRowValidationError)
+            _rowHeaderElement.Content = "⚠";
+        else if (IsEditing)
+            _rowHeaderElement.Content = "✎";
+        else if (IsSelected)
+            _rowHeaderElement.Content = "▶";
+        else
+            _rowHeaderElement.Content = null;
     }
 
-    // The upstream DataGrid.UpdateColumnsOnRows calls this signature; the shim
-    // lets BuildShimVisualTree (triggered by Columns.CollectionChanged) own the
-    // full rebuild so a per-row cells-only rebuild is unnecessary here.
     protected internal virtual void OnColumnsChanged(
         System.Collections.ObjectModel.ObservableCollection<DataGridColumn> columns,
-        System.Collections.Specialized.NotifyCollectionChangedEventArgs e) { }
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        BuildCells();
+    }
+
+    // 3-arg overload matching upstream's signature; delegates to the 4-arg version.
+    internal void NotifyPropertyChanged(
+        DependencyObject d,
+        DependencyPropertyChangedEventArgs e,
+        DataGridNotificationTarget target)
+        => NotifyPropertyChanged(d, string.Empty, e, target);
 
     internal void NotifyPropertyChanged(
         DependencyObject dependencyObject,

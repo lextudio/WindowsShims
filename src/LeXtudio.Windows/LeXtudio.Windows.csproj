@@ -598,6 +598,12 @@
              Link="System.Windows.Controls.Primitives\Selector.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\MultiSelector.cs"
              Link="System.Windows.Controls.Primitives\MultiSelector.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\DataGridColumnHeader.cs"
+             Link="System.Windows.Controls.Primitives\DataGridColumnHeader.upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridRow.cs"
+             Link="System.Windows.Controls\DataGridRow.upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridCell.cs"
+             Link="System.Windows.Controls\DataGridCell.upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttribute.cs"
              Link="System.Windows.Documents\TextServicesDisplayAttribute.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextServicesDisplayAttributePropertyRanges.cs"
