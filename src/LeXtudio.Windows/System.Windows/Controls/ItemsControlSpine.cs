@@ -244,6 +244,10 @@ public partial class ItemsControl : IGeneratorHost
         DependencyProperty.Register("AlternationCount", typeof(int), typeof(ItemsControl),
             new PropertyMetadata(0));
 
+    public static readonly DependencyProperty AlternationIndexProperty =
+        DependencyProperty.RegisterAttached("AlternationIndex", typeof(int), typeof(ItemsControl),
+            new PropertyMetadata(0));
+
     public static readonly DependencyProperty IsTextSearchEnabledProperty =
         DependencyProperty.Register("IsTextSearchEnabled", typeof(bool), typeof(ItemsControl),
             new PropertyMetadata(false));

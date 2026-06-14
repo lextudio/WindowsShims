@@ -55,9 +55,24 @@ internal static class VisualStates
     public const string StateSelectedInactive = "SelectedInactive";
     public const string StateCurrentCell = "CurrentCell";
     public const string StateRegularCell = "RegularCell";
-    public const string StateDisplay = "Display";
+    public const string StateCurrent  = "Current";
+    public const string StateRegular  = "Regular";
+    public const string StateDisplay  = "Display";
     public const string StateEditing  = "Editing";
     public const string StateMouseOver = "MouseOver";
+
+    // DataGridRow visual state names (used by DataGridRow.ChangeVisualState state machine)
+    public const string DATAGRIDROW_stateAlternate              = "Normal_AlternatingRow";
+    public const string DATAGRIDROW_stateMouseOver              = "MouseOver";
+    public const string DATAGRIDROW_stateMouseOverEditing       = "MouseOver_Unfocused_Editing";
+    public const string DATAGRIDROW_stateMouseOverEditingFocused = "MouseOver_Editing";
+    public const string DATAGRIDROW_stateMouseOverSelected      = "MouseOver_Unfocused_Selected";
+    public const string DATAGRIDROW_stateMouseOverSelectedFocused = "MouseOver_Selected";
+    public const string DATAGRIDROW_stateNormal                 = "Normal";
+    public const string DATAGRIDROW_stateNormalEditing          = "Unfocused_Editing";
+    public const string DATAGRIDROW_stateNormalEditingFocused   = "Normal_Editing";
+    public const string DATAGRIDROW_stateSelected               = "Unfocused_Selected";
+    public const string DATAGRIDROW_stateSelectedFocused        = "Normal_Selected";
 
     public static bool GoToState(Microsoft.UI.Xaml.FrameworkElement element, bool useTransitions, params string[] states)
     {

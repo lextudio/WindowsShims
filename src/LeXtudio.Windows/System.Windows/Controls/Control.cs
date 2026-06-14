@@ -14,7 +14,11 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
     protected Control()
     {
         InitializeDefaultStyleKey();
+        PointerEntered += (_, _) => { _isMouseOver = true;  UpdateVisualState(); };
+        PointerExited  += (_, _) => { _isMouseOver = false; UpdateVisualState(); };
     }
+
+    private bool _isMouseOver;
 
     // Subclasses override this to set DefaultStyleKey = typeof(TheirType) before the
     // first Measure pass. Required because WPF's OverrideMetadata is a no-op on Uno.
@@ -28,7 +32,13 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 
     // ── WPF-only overrideable event methods ──────────────────────────────────
 
+    internal void UpdateVisualState() => UpdateVisualState(true);
+    internal virtual void UpdateVisualState(bool useTransitions) => ChangeVisualState(useTransitions);
     internal virtual void ChangeVisualState(bool useTransitions) { }
+
+    public bool IsKeyboardFocusWithin => false;
+    public bool IsKeyboardFocused => false;
+    public bool IsMouseOver => _isMouseOver;
 
     protected virtual void OnTemplateChanged(ControlTemplate oldTemplate, ControlTemplate newTemplate) { }
 

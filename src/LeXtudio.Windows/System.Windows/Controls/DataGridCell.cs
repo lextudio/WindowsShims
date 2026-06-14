@@ -30,14 +30,6 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     internal FrameworkElement? EditingElement { get; set; }
 
-    // WPF UIElement.Focus() has no FocusState; route to programmatic focus.
-    public bool Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-
-    // WPF UIElement.MoveFocus; routes to keyboard navigation.
-    public bool MoveFocus(Input.TraversalRequest request) => false;
-
-    public bool IsVisible => Visibility == Visibility.Visible;
-
     // Populate the cell's content from its column, binding against the row
     // item. The generated element (e.g. a bound TextBlock for a text column)
     // inherits DataContext from this cell, so its WinUI binding resolves.

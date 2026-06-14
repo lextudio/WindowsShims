@@ -12,7 +12,7 @@ public sealed class DataGridBoundColumnTests
     [Test]
     public void DataGridCellProvidesExpectedShellSurface()
     {
-        Assert.That(typeof(DataGridCell).IsSubclassOf(typeof(ContentControl)), Is.True);
+        Assert.That(typeof(DataGridCell).IsSubclassOf(typeof(System.Windows.Controls.ContentControl)), Is.True);
         Assert.That(typeof(DataGridCell).GetProperty(nameof(DataGridCell.IsEditing)), Is.Not.Null);
         Assert.That(typeof(DataGridCell).GetProperty(nameof(DataGridCell.Column)), Is.Not.Null);
     }

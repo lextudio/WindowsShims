@@ -26,6 +26,11 @@ global using Rect                      = Windows.Foundation.Rect;
 global using Size                      = Windows.Foundation.Size;
 global using Point                     = Windows.Foundation.Point;
 global using Color                     = Windows.UI.Color;
+// WPF System.Windows.Media.Geometry maps to the WinUI XAML geometry base.
+// CombinedGeometry lives in System/Windows/Media/CombinedGeometry.cs as a standalone
+// shim with an implicit conversion operator (not a subclass — WinUI Geometry has no
+// accessible constructor for external subclassing).
+global using Geometry                  = Microsoft.UI.Xaml.Media.Geometry;
 
 // ============ Xaml Framework Types ============
 global using FlowDirection             = Microsoft.UI.Xaml.FlowDirection;

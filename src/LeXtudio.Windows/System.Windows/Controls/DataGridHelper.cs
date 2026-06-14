@@ -85,6 +85,47 @@ internal static class DataGridHelper
         DependencyProperty parentProperty)
         => baseValue;
 
+    // 7-arg overload used by style coercion (column + grid both contribute).
+    internal static object? GetCoercedTransferPropertyValue(
+        DependencyObject? baseObject,
+        object? baseValue,
+        DependencyProperty baseProperty,
+        DependencyObject? firstParent,
+        DependencyProperty firstParentProperty,
+        DependencyObject? secondParent,
+        DependencyProperty secondParentProperty)
+        => baseValue;
+
+    // WPF DataGridHelper.IsGridLineVisible — whether the given orientation of
+    // grid lines is active on the owner DataGrid.
+    internal static bool IsGridLineVisible(DataGrid? dataGrid, bool isHorizontal)
+    {
+        if (dataGrid == null) return false;
+        var v = dataGrid.GridLinesVisibility;
+        return isHorizontal
+            ? v is DataGridGridLinesVisibility.Horizontal or DataGridGridLinesVisibility.All
+            : v is DataGridGridLinesVisibility.Vertical   or DataGridGridLinesVisibility.All;
+    }
+
+    // WPF DataGridHelper.SubtractFromSize — shrinks a Size by a thickness along
+    // one axis to reserve space for a grid line.
+    internal static Size SubtractFromSize(Size size, double thickness, bool height)
+        => height
+            ? new Size(size.Width, Math.Max(0, size.Height - thickness))
+            : new Size(Math.Max(0, size.Width - thickness), size.Height);
+
+    // WPF DataGridHelper.GetFrozenClipForCell — returns a clipping geometry for
+    // cells that overlap the frozen/scrolling boundary. Returns null (no clip)
+    // in the shim because frozen-column clipping is not yet implemented.
+    internal static Geometry? GetFrozenClipForCell(DataGridCell cell) => null;
+
+    // WPF DataGridHelper.BindingExpressionBelongsToElement — whether a binding
+    // expression targets an element of type T. Returns false in the shim.
+    internal static bool BindingExpressionBelongsToElement<T>(
+        System.Windows.Data.BindingExpressionBase expr, T element)
+        where T : DependencyObject
+        => false;
+
     internal static double CoerceToMinMax(double value, double minValue, double maxValue)
     {
         if (double.IsNaN(value))
