@@ -600,6 +600,10 @@
              Link="System.Windows.Controls.Primitives\MultiSelector.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\DataGridColumnHeader.cs"
              Link="System.Windows.Controls.Primitives\DataGridColumnHeader.upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\DataGridRowHeader.cs"
+             Link="System.Windows.Controls.Primitives\DataGridRowHeader.upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\DataGridDetailsPresenter.cs"
+             Link="System.Windows.Controls.Primitives\DataGridDetailsPresenter.upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridRow.cs"
              Link="System.Windows.Controls\DataGridRow.upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridCell.cs"

@@ -1823,6 +1823,76 @@ public sealed partial class MainPage : Page
             _grid.CanUserReorderColumns = oldReorder;
         });
 
+        Step("column header drag reorder fires events and changes DisplayIndex", () =>
+        {
+            // Drive the same begin→ColumnReordering→commit→ColumnReordered path the
+            // pointer handlers use (real pointer injection isn't available headless).
+            // Normalize to Name/Age/City at display 0/1/2 first.
+            var nameColumn = _grid!.Columns[0];
+            var ageColumn = _grid.Columns[1];
+            var cityColumn = _grid.Columns[2];
+            nameColumn.DisplayIndex = 0;
+            ageColumn.DisplayIndex = 1;
+            cityColumn.DisplayIndex = 2;
+            _grid.UpdateLayout();
+
+            int reordering = 0, reordered = 0;
+            System.Windows.Controls.DataGridColumn? reorderingCol = null, reorderedCol = null;
+            EventHandler<System.Windows.Controls.DataGridColumnReorderingEventArgs> onReordering =
+                (_, e) => { reordering++; reorderingCol = e.Column; };
+            EventHandler<System.Windows.Controls.DataGridColumnEventArgs> onReordered =
+                (_, e) => { reordered++; reorderedCol = e.Column; };
+            _grid.ColumnReordering += onReordering;
+            _grid.ColumnReordered += onReordered;
+
+            // Drag Name (display 0) to display index 2.
+            var moved = _grid.ShimTryReorderColumn(nameColumn, 2);
+            _grid.UpdateLayout();
+
+            var rebuiltHost = FindDescendant(_grid, "PART_ShimRowsHost") as Microsoft.UI.Xaml.Controls.Panel;
+            var header = rebuiltHost is null ? null : VisualTreeHelper.GetChild(rebuiltHost, 0);
+            var firstHeader = header is null ? null : VisualTreeHelper.GetChild(header, 0)
+                as System.Windows.Controls.Primitives.DataGridColumnHeader;
+
+            Console.WriteLine($"[probe]   moved={moved}, reordering={reordering}, reordered={reordered}, " +
+                $"Name.DisplayIndex={nameColumn.DisplayIndex}, display[2]={_grid.ColumnFromDisplayIndex(2).Header}, header0={firstHeader?.Column?.Header}");
+            if (!moved || reordering != 1 || reordered != 1
+                || !ReferenceEquals(reorderingCol, nameColumn) || !ReferenceEquals(reorderedCol, nameColumn)
+                || nameColumn.DisplayIndex != 2
+                || !ReferenceEquals(_grid.ColumnFromDisplayIndex(2), nameColumn)
+                || !ReferenceEquals(firstHeader?.Column, ageColumn))
+            {
+                throw new InvalidOperationException(
+                    $"drag reorder did not move Name to display 2 (moved={moved}, reordering={reordering}, " +
+                    $"reordered={reordered}, Name.DisplayIndex={nameColumn.DisplayIndex}, header0={firstHeader?.Column?.Header})");
+            }
+
+            // Cancelling in ColumnReordering must leave order unchanged and not fire ColumnReordered.
+            int reordering2 = 0, reordered2 = 0;
+            EventHandler<System.Windows.Controls.DataGridColumnReorderingEventArgs> onCancel =
+                (_, e) => { reordering2++; e.Cancel = true; };
+            EventHandler<System.Windows.Controls.DataGridColumnEventArgs> onReordered2 =
+                (_, _2) => reordered2++;
+            _grid.ColumnReordering += onCancel;
+            _grid.ColumnReordered += onReordered2;
+            var before = cityColumn.DisplayIndex;
+            var movedCancelled = _grid.ShimTryReorderColumn(cityColumn, 0);
+            Console.WriteLine($"[probe]   cancel: moved={movedCancelled}, reordering2={reordering2}, reordered2={reordered2}, City.DisplayIndex={cityColumn.DisplayIndex}");
+            if (movedCancelled || reordering2 != 1 || reordered2 != 0 || cityColumn.DisplayIndex != before)
+                throw new InvalidOperationException("cancelled reorder still moved the column or fired ColumnReordered");
+
+            _grid.ColumnReordering -= onReordering;
+            _grid.ColumnReordered -= onReordered;
+            _grid.ColumnReordering -= onCancel;
+            _grid.ColumnReordered -= onReordered2;
+
+            // Restore canonical order.
+            nameColumn.DisplayIndex = 0;
+            ageColumn.DisplayIndex = 1;
+            cityColumn.DisplayIndex = 2;
+            _grid.UpdateLayout();
+        });
+
         Step("report: grid desired size", () =>
         {
             Console.WriteLine($"[probe]   DesiredSize={_grid!.DesiredSize}");

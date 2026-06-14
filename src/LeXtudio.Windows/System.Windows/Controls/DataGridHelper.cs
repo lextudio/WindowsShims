@@ -71,6 +71,22 @@ internal static class DataGridHelper
         return null;
     }
 
+    // WPF DataGridHelper.FindParent<T> — walks the visual ancestor chain looking
+    // for an element of type T. Upstream DataGridRowHeader.ParentRow relies on it
+    // to discover its owning DataGridRow. Mirrors FindVisualParent but starts from
+    // the element's parent and accepts any DependencyObject start.
+    internal static T? FindParent<T>(DependencyObject element) where T : class
+    {
+        DependencyObject? current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+        while (current is not null)
+        {
+            if (current is T target)
+                return target;
+            current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+        }
+        return null;
+    }
+
     internal static bool IsDefaultValue(DependencyObject d, DependencyProperty dp)
         => d.ReadLocalValue(dp) == DependencyProperty.UnsetValue;
 
@@ -131,6 +147,39 @@ internal static class DataGridHelper
             {
                 cell.ApplyShimCellStyle();
             }
+        }
+        else if (d is DataGridRowHeader rowHeader)
+        {
+            var headerRow = rowHeader.EffectiveRow;
+            if (dp == ContentControl.ContentProperty)
+            {
+                // Pull the per-row Header content down; fall back to the row's
+                // glyph (set by DataGridRow.RefreshRowHeaderGlyph) when unset.
+                if (headerRow?.Header is { } rowHeaderContent)
+                {
+                    rowHeader.Content = rowHeaderContent;
+                }
+            }
+            else if (dp == FrameworkElement.WidthProperty)
+            {
+                rowHeader.Width = headerRow?.DataGridOwner?.RowHeaderShimWidth ?? double.NaN;
+            }
+            // Style / ContentTemplate / ContentTemplateSelector transfer is a
+            // no-op in the shim: there is no WPF default row-header template to
+            // coerce against, and styles are applied from XAML resources.
+        }
+        else if (d is DataGridDetailsPresenter details)
+        {
+            var detailsRow = details.EffectiveRow;
+            // The upstream presenter is a ContentPresenter, so ContentTemplateProperty
+            // here is WinUI ContentPresenter.ContentTemplateProperty (not ContentControl's).
+            if (dp == Microsoft.UI.Xaml.Controls.ContentPresenter.ContentTemplateProperty)
+            {
+                details.ContentTemplate = detailsRow?.DetailsTemplate
+                    ?? detailsRow?.DataGridOwner?.RowDetailsTemplate;
+            }
+            // ContentTemplateSelector transfer is a no-op: the shim resolves the
+            // details template directly above.
         }
     }
 

@@ -450,11 +450,151 @@ public partial class DataGrid
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();
+            headerCell.PointerPressed += OnHeaderPointerPressed;
+            headerCell.PointerMoved += OnHeaderPointerMoved;
+            headerCell.PointerReleased += OnHeaderPointerReleased;
+            headerCell.PointerCaptureLost += OnHeaderPointerCaptureLost;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
         }
 
+        _headerHostPanel = header;
         return header;
+    }
+
+    // ── Column reorder by drag ────────────────────────────────────────────────
+    // Reuses the upstream reorder event sequence (CanUserReorderColumns gate →
+    // ColumnReordering → move DisplayIndex → ColumnReordered) from
+    // DataGridColumnHeadersPresenter, but driven by WinUI pointer events on the
+    // manually-built header row instead of the (unused) ItemsControl presenter.
+    private Microsoft.UI.Xaml.Controls.StackPanel? _headerHostPanel;
+    private DataGridColumn? _reorderColumn;
+    private DataGridColumnHeader? _reorderHeader;
+    private double _reorderStartX;
+    private bool _reorderActive;
+    private Microsoft.UI.Xaml.Controls.Border? _reorderIndicator;
+    private const double ReorderDragThreshold = 4.0;
+
+    private void OnHeaderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!CanUserReorderColumns || _headerHostPanel is null)
+            return;
+        if (sender is not DataGridColumnHeader hdr || hdr.Column is not { CanUserReorder: true } col)
+            return;
+
+        // Record the candidate; do NOT capture yet so a plain click still sorts.
+        _reorderHeader = hdr;
+        _reorderColumn = col;
+        _reorderStartX = e.GetCurrentPoint(_headerHostPanel).Position.X;
+        _reorderActive = false;
+    }
+
+    private void OnHeaderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_reorderColumn is null || _reorderHeader is null || _headerHostPanel is null)
+            return;
+
+        var x = e.GetCurrentPoint(_headerHostPanel).Position.X;
+        if (!_reorderActive)
+        {
+            if (Math.Abs(x - _reorderStartX) <= ReorderDragThreshold)
+                return; // below the drag threshold — still a potential click
+            _reorderActive = true;
+            _reorderHeader.CapturePointer(e.Pointer);
+            _reorderHeader.Opacity = 0.5;
+        }
+
+        UpdateReorderIndicator(ComputeDropSlot(x));
+    }
+
+    private void OnHeaderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_reorderColumn is { } col && _reorderActive && _headerHostPanel is not null)
+        {
+            var slot = ComputeDropSlot(e.GetCurrentPoint(_headerHostPanel).Position.X);
+            var target = _visibleColumns[Math.Clamp(slot, 0, _visibleColumns.Count - 1)].DisplayIndex;
+            if (sender is DataGridColumnHeader hdr)
+                hdr.ReleasePointerCapture(e.Pointer);
+            EndReorder();
+            ShimTryReorderColumn(col, target);
+            e.Handled = true; // suppress the click-to-sort that would otherwise fire
+        }
+        else
+        {
+            EndReorder();
+        }
+    }
+
+    private void OnHeaderPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        => EndReorder();
+
+    // Walk the realized headers (display order) accumulating widths; return the
+    // index of the slot whose left half the pointer is over (drop-before), or the
+    // count for drop-after-last.
+    private int ComputeDropSlot(double x)
+    {
+        double offset = AreRowHeadersVisible ? RowHeaderShimWidth : 0;
+        for (var i = 0; i < _headerCells.Count; i++)
+        {
+            var w = _headerCells[i].ActualWidth > 0 ? _headerCells[i].ActualWidth : ShimColumnWidth(_visibleColumns[i]);
+            if (x < offset + w / 2)
+                return i;
+            offset += w;
+        }
+        return Math.Max(0, _visibleColumns.Count - 1);
+    }
+
+    private void UpdateReorderIndicator(int slot)
+    {
+        if (_headerHostPanel is null)
+            return;
+
+        _reorderIndicator ??= new Microsoft.UI.Xaml.Controls.Border
+        {
+            Width = 2,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                global::Windows.UI.Color.FromArgb(0xFF, 0x00, 0x78, 0xD4)),
+        };
+
+        _headerHostPanel.Children.Remove(_reorderIndicator);
+        var panelIndex = (AreRowHeadersVisible ? 1 : 0) + Math.Clamp(slot, 0, _headerCells.Count);
+        panelIndex = Math.Clamp(panelIndex, 0, _headerHostPanel.Children.Count);
+        _headerHostPanel.Children.Insert(panelIndex, _reorderIndicator);
+    }
+
+    private void EndReorder()
+    {
+        if (_reorderHeader is not null)
+            _reorderHeader.Opacity = 1.0;
+        if (_reorderIndicator is not null)
+            _headerHostPanel?.Children.Remove(_reorderIndicator);
+        _reorderIndicator = null;
+        _reorderHeader = null;
+        _reorderColumn = null;
+        _reorderActive = false;
+    }
+
+    // Core reorder commit, reusing the upstream event sequence + DisplayIndex
+    // semantics. Used by the pointer handlers and exposed for probe simulation.
+    // Returns true if the column actually moved.
+    internal bool ShimTryReorderColumn(DataGridColumn column, int targetDisplayIndex)
+    {
+        if (column is null || !CanUserReorderColumns || !column.CanUserReorder)
+            return false;
+
+        targetDisplayIndex = Math.Clamp(targetDisplayIndex, 0, Columns.Count - 1);
+        if (targetDisplayIndex == column.DisplayIndex)
+            return false;
+
+        var reordering = new DataGridColumnReorderingEventArgs(column);
+        OnColumnReordering(reordering);
+        if (reordering.Cancel)
+            return false;
+
+        column.DisplayIndex = targetDisplayIndex;
+        BuildShimVisualTree();
+        OnColumnReordered(new DataGridColumnEventArgs(column));
+        return true;
     }
 
     // Header content with a sort-direction glyph when this column is the

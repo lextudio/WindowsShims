@@ -3,16 +3,6 @@ using TraceEventType = System.Diagnostics.TraceEventType;
 
 namespace MS.Internal;
 
-internal static class ControlsTraceLogger
-{
-    internal static void AddControl(TelemetryControls control) { }
-}
-
-internal enum TelemetryControls
-{
-    DataGrid,
-}
-
 internal static class TraceData
 {
     internal static void TraceAndNotify(TraceEventType type, object message, object? details = null) { }

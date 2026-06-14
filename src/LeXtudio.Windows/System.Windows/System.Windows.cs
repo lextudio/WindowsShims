@@ -226,6 +226,11 @@ namespace System.Windows
         public static PresentationSource CriticalFromVisual(object visual) => visual is global::System.Windows.Media.Visual v ? v.PresentationSource : null;
         public static void AddSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
         public static void RemoveSourceChangedHandler(object element, SourceChangedEventHandler handler) { }
+
+        // WPF guards routed-input handlers against events arriving from a foreign
+        // presentation source. The shim is single-window, so treat all elements as
+        // belonging to the same source.
+        public static bool IsUnderSamePresentationSource(params DependencyObject?[] elements) => true;
     }
 
     /// <summary>Portable shim for System.Windows.FontStretches.</summary>

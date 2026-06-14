@@ -251,10 +251,16 @@ public partial class DataGridRow : Control
 
         if (visibility == Visibility.Visible && owner.RowDetailsTemplate != null)
         {
-            var presenter = new DataGridDetailsPresenter { ParentDataGrid = owner };
-            presenter.Content = owner.RowDetailsTemplate.LoadContent() as Microsoft.UI.Xaml.FrameworkElement;
+            var presenter = new DataGridDetailsPresenter();
+            presenter.SetShimOwnerRow(this);
             DetailsPresenter = presenter;
             host.Content = presenter;
+            // SyncProperties sets Content = Item and transfers the details template;
+            // the ContentPresenter then renders the item through RowDetailsTemplate.
+            presenter.SyncProperties();
+            // WinUI's ContentPresenter doesn't flow Content to the templated child's
+            // DataContext the way WPF does, so set it explicitly for {Binding} to resolve.
+            presenter.DataContext = Item;
             DetailsLoaded = false;
             owner.OnLoadingRowDetailsWrapper(this);
         }
@@ -274,14 +280,17 @@ public partial class DataGridRow : Control
 
         if (owner.HeadersVisibility.HasFlag(DataGridHeadersVisibility.Row))
         {
-            _rowHeaderElement = new DataGridRowHeader
-            {
-                ParentRow = this,
-            };
-            _rowHeaderElement.ApplyShimGridLines();
+            // ParentRow is resolved from the visual tree by the upstream header
+            // (DataGridHelper.FindParent), so the header must be parented first.
+            _rowHeaderElement = new DataGridRowHeader();
+            _rowHeaderElement.SetShimOwnerRow(this);
             RowHeader = _rowHeaderElement;
             host.Content = _rowHeaderElement;
             host.Visibility = Visibility.Visible;
+            _rowHeaderElement.ApplyShimGridLines();
+            // Pull Header content/width down from the row + grid (the upstream
+            // OnApplyTemplate path doesn't run without a default header template).
+            _rowHeaderElement.SyncProperties();
         }
         else
         {

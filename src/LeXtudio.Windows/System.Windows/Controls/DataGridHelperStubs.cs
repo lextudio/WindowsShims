@@ -82,6 +82,24 @@ internal static class VisualStates
     public const string DATAGRIDROW_stateSelected               = "Unfocused_Selected";
     public const string DATAGRIDROW_stateSelectedFocused        = "Normal_Selected";
 
+    // DataGridRowHeader visual state names (used by DataGridRowHeader.ChangeVisualState state machine)
+    public const string DATAGRIDROWHEADER_stateMouseOver = "MouseOver";
+    public const string DATAGRIDROWHEADER_stateMouseOverCurrentRow = "MouseOver_CurrentRow";
+    public const string DATAGRIDROWHEADER_stateMouseOverEditingRow = "MouseOver_Unfocused_EditingRow";
+    public const string DATAGRIDROWHEADER_stateMouseOverEditingRowFocused = "MouseOver_EditingRow";
+    public const string DATAGRIDROWHEADER_stateMouseOverSelected = "MouseOver_Unfocused_Selected";
+    public const string DATAGRIDROWHEADER_stateMouseOverSelectedCurrentRow = "MouseOver_Unfocused_CurrentRow_Selected";
+    public const string DATAGRIDROWHEADER_stateMouseOverSelectedCurrentRowFocused = "MouseOver_CurrentRow_Selected";
+    public const string DATAGRIDROWHEADER_stateMouseOverSelectedFocused = "MouseOver_Selected";
+    public const string DATAGRIDROWHEADER_stateNormal = "Normal";
+    public const string DATAGRIDROWHEADER_stateNormalCurrentRow = "Normal_CurrentRow";
+    public const string DATAGRIDROWHEADER_stateNormalEditingRow = "Unfocused_EditingRow";
+    public const string DATAGRIDROWHEADER_stateNormalEditingRowFocused = "Normal_EditingRow";
+    public const string DATAGRIDROWHEADER_stateSelected = "Unfocused_Selected";
+    public const string DATAGRIDROWHEADER_stateSelectedCurrentRow = "Unfocused_CurrentRow_Selected";
+    public const string DATAGRIDROWHEADER_stateSelectedCurrentRowFocused = "Normal_CurrentRow_Selected";
+    public const string DATAGRIDROWHEADER_stateSelectedFocused = "Normal_Selected";
+
     public static bool GoToState(Microsoft.UI.Xaml.FrameworkElement element, bool useTransitions, params string[] states)
     {
         if (element is Control control)

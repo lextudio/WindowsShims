@@ -9,4 +9,5 @@ internal enum TelemetryControls
 {
     RichTextBox,
     TextBox,
+    DataGrid,
 }
