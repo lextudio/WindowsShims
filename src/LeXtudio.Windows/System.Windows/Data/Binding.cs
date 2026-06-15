@@ -92,6 +92,8 @@ public class Binding : BindingBase
 
     public UpdateSourceTrigger UpdateSourceTrigger { get; set; } = UpdateSourceTrigger.Default;
 
+    public string? StringFormat { get; set; }
+
     public Microsoft.UI.Xaml.Data.Binding ToWinUIBinding()
     {
         var binding = new WinUIBinding();

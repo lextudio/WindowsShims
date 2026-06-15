@@ -47,6 +47,11 @@ public sealed class Dispatcher
 
     public void Invoke(Action callback) => Invoke(callback, DispatcherPriority.Send);
 
+    // WPF priority-first signatures: Invoke(priority, delegate) / BeginInvoke(priority, delegate).
+    public void Invoke(DispatcherPriority priority, Delegate method) => Invoke(method);
+
+    public object? Invoke(DispatcherPriority priority, Delegate method, object? arg) => Invoke(method, arg);
+
     public void Invoke(Action callback, DispatcherPriority priority)
     {
         ArgumentNullException.ThrowIfNull(callback);
@@ -169,6 +174,14 @@ public sealed class Dispatcher
     {
         ArgumentNullException.ThrowIfNull(callback);
         var op = InvokeAsync<object?>(() => callback(arg), priority);
+        return new DispatcherOperation(op.Task);
+    }
+
+    // WPF-style BeginInvoke(DispatcherPriority, Delegate) overload (priority first, no args).
+    public DispatcherOperation BeginInvoke(DispatcherPriority priority, Delegate method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var op = InvokeAsync<object?>(() => method.DynamicInvoke(), priority);
         return new DispatcherOperation(op.Task);
     }
 

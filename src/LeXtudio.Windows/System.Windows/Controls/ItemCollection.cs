@@ -12,7 +12,7 @@ namespace System.Windows.Controls;
 // implementation supports direct-list item editing bookkeeping but cannot
 // construct new items. Filtering, grouping, and deferred refresh are not
 // supported.
-public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView, IEditableCollectionViewAddNewItem
+public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView, IEditableCollectionViewAddNewItem, IItemProperties
 {
     private int _currentPosition = -1;
     private SortDescriptionCollection? _sortDescriptions;
@@ -338,5 +338,31 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
         private readonly ItemCollection _owner;
         internal DeferToken(ItemCollection owner) => _owner = owner;
         public void Dispose() => _owner.Refresh();
+    }
+
+    // ── IItemProperties ───────────────────────────────────────────────────
+    // WPF's DataGrid.AddAutoColumns() casts Items to IItemProperties to
+    // discover column names from the bound data type. Reflect the first
+    // non-placeholder item's TypeDescriptor properties.
+    ReadOnlyCollection<ItemPropertyInfo>? IItemProperties.ItemProperties
+    {
+        get
+        {
+            var representative = GetRepresentativeItem();
+            DbgLog($"IItemProperties.ItemProperties: Count={Count} representative={representative?.GetType().Name ?? "null"}");
+            if (representative is null)
+                return null;
+            var props = TypeDescriptor.GetProperties(representative)
+                .Cast<PropertyDescriptor>()
+                .Select(pd => new ItemPropertyInfo(pd.Name, pd.PropertyType, pd))
+                .ToList();
+            DbgLog($"  → {props.Count} props: {string.Join(", ", props.Take(5).Select(p => p.Name))}");
+            return new ReadOnlyCollection<ItemPropertyInfo>(props);
+        }
+    }
+
+    private static void DbgLog(string msg)
+    {
+        try { System.IO.File.AppendAllText("/tmp/roma-debug.log", $"[IC {DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch { }
     }
 }

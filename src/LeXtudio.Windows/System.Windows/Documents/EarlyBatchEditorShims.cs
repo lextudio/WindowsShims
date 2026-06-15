@@ -44,6 +44,12 @@ namespace System.Windows
 
     public class ResourceDictionary : System.Collections.Generic.Dictionary<object, object?>
     {
+        // WPF ResourceDictionary returns null for missing keys; Dictionary throws KeyNotFoundException.
+        public new object? this[object key]
+        {
+            get => TryGetValue(key, out var v) ? v : null;
+            set => base[key] = value;
+        }
     }
 
     public delegate void DragEventHandler(object sender, DragEventArgs e);

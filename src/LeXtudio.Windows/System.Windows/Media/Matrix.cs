@@ -10,5 +10,8 @@ namespace System.Windows.Media
         public double OffsetY { get; set; }
 
         public static Matrix Identity => new Matrix { M11 = 1, M22 = 1 };
+
+        public readonly global::Windows.Foundation.Point Transform(global::Windows.Foundation.Point point)
+            => new(point.X * M11 + point.Y * M21 + OffsetX, point.X * M12 + point.Y * M22 + OffsetY);
     }
 }

@@ -56,7 +56,6 @@ internal static partial class DataGridHelper
         return null;
     }
 
-    internal static bool IsPropertyTransferEnabled(DependencyObject d, DependencyProperty dp) => true;
 
     internal static void OnColumnWidthChanged(IProvideDataGridColumn owner, DependencyPropertyChangedEventArgs e)
     {
@@ -148,25 +147,6 @@ internal static partial class DataGridHelper
             // details template directly above.
         }
     }
-
-    internal static object? GetCoercedTransferPropertyValue(
-        DependencyObject? baseObject,
-        object? baseValue,
-        DependencyProperty baseProperty,
-        DependencyObject? parentObject,
-        DependencyProperty parentProperty)
-        => baseValue;
-
-    // 7-arg overload used by style coercion (column + grid both contribute).
-    internal static object? GetCoercedTransferPropertyValue(
-        DependencyObject? baseObject,
-        object? baseValue,
-        DependencyProperty baseProperty,
-        DependencyObject? firstParent,
-        DependencyProperty firstParentProperty,
-        DependencyObject? secondParent,
-        DependencyProperty secondParentProperty)
-        => baseValue;
 
     // WPF DataGridHelper.BindingExpressionBelongsToElement — whether a binding
     // expression targets an element of type T. Returns false in the shim.

@@ -452,6 +452,62 @@ coupled for the current milestone.
   (Uno `CoerceValue` is a no-op; local `TransferProperty` carries real render
   behavior). Build (129 warnings), 136 tests, and probe are green (see
   `session105.md`).
+- Session 106: **DataGridHelper link — property-transfer engine.** Migrated the
+  transfer-engine computation (`GetCoercedTransferPropertyValue` x2,
+  `IsPropertyTransferEnabled`, `_propertyTransferEnabledMap`) to the linked
+  upstream — now real WPF source over the session-105 `GetValueSource` bridge,
+  behavior-neutral (only reachable via dormant `OnCoerce*` callbacks; map empty
+  → returns baseValue as the stubs did). Investigation established that a real
+  global `CoerceValue` is unsafe: 21 dormant `CoerceValue` callers (width/frozen/
+  placeholder) would fire at once and fight the shim's asserted width logic, and
+  the shim applies styles manually (not via DP setters) so coercion wouldn't
+  produce visuals. So `TransferProperty` (visual) + `GetPropertyTransferEnabled-
+  MapForObject` stay local/guarded and `CoerceValue` stays a no-op; activation is
+  deferred to per-property work. Build (129 warnings), 136 tests, probe green
+  (see `session106.md`).
+- Session 107: **live-host milestone — catalog (no code).** Mapped the current
+  shim render path (code-built `PART_ShimRowsHost` + `BuildShimVisualTree` manual
+  header/rows + `ItemContainerGenerator.RegisterContainer`) against the WPF
+  item-hosting target (`PART_RowsPresenter` → `DataGridRowsPresenter` →
+  generator-driven `DataGridRow`s → `DataGridCellsPresenter`/`DataGridCellsPanel`
+  → `DataGridColumnHeadersPresenter`). Proposed a 6-rung, probe-gated, flag-
+  guarded sequence (R1 rows-presenter host → R2 drive generation → R3 cells via
+  panel → R4 headers → R5 reconcile selection/editing/placeholder/styles → R6
+  scroll/measure). Biggest risk: whether Uno drives the generator/VirtualizingPanel
+  callbacks the linked presenters expect. Baseline unchanged (see `session107.md`).
+- Session 108: **live-host milestone — R1 investigation (no code).** Found two
+  decisive blockers: (1) the shim `ItemsControl` derives from WinUI `Control`,
+  not WinUI `ItemsControl`, so there is **no items-generation pipeline** and
+  nothing sets `IsItemsHost` — `DataGridRowsPresenter` can only attach manually;
+  (2) `DataGridRowsPresenter.MeasureOverride` delegates to the stubbed
+  `VirtualizingPanel` base, so there is **no row-generation engine** (the cell
+  side is fine — `DataGridCellsPanel` is fully linked). So the live-host swap
+  means hand-building a row item-hosting/generation driver or porting
+  `VirtualizingStackPanel` — multiple large sub-milestones. Options A (hand-built
+  row driver) / B (port virtualizing panel) / C (keep shim render as the
+  pragmatic live host); recommended **C** pending user decision. Baseline
+  unchanged (see `session108.md`).
+- Session 109: **live-host milestone — VirtualizingStackPanel feasibility (no
+  code).** `VirtualizingStackPanel.cs` is 13,052 lines (full `IScrollInfo`,
+  ~5k-line measure region, delayed cleanup, hierarchical virtualization,
+  `ScrollTracer`). Decisive blocker: even the 533-line `VirtualizingPanel` base
+  overrides WPF `Panel` items-hosting internals (`GenerateChildren`,
+  `OnItemsChangedInternal`, `OnClearChildrenInternal`) that WinUI `Panel` (the
+  shim's `Panel`) does not have. So option B = reimplement the WPF `Panel`/
+  `ItemsControl` items-hosting core on WinUI, then the 13k engine on top — an
+  open-ended foundational sub-project to reach behavior identical to today's
+  working grid. Recommended **C** (keep shim render as live host; linked
+  presenters/cells-panel are substrate). Baseline unchanged (see `session109.md`).
+- Session 110: **virtualization track — WinUI-native scope (no code).** Decided
+  that on Uno virtualization comes from a WinUI virtualizing host, not a WPF
+  `VirtualizingStackPanel` port. Recommended `ItemsRepeater` (lighter than
+  `ListView`; shim already owns selection/cells/editing) inside the existing
+  `ScrollViewer`, replacing the `PART_ShimRowsHost` `StackPanel`. 6-rung,
+  flag-guarded, probe-gated plan: R1 template split (fixed header +
+  `ItemsRepeater` rows) → R2 element factory + realize/recycle → R3 generator
+  registry vs partial realization → R4 selection/editing on realize → R5 Auto/Star
+  width under partial realization (trickiest) → R6 parity + flip default. Baseline
+  unchanged (see `session110.md`).
 - Session 50: **reuse milestone — sorting via the real WPF path.** Header
   click now calls the linked `DataGrid.PerformSort` (raises `Sorting`, runs
   `DefaultSort`, updates `Items.SortDescriptions`); `ItemCollection.Refresh`

@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Xaml.Controls;
 
 namespace System.Windows.Controls;
 

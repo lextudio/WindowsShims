@@ -12,7 +12,7 @@ namespace System.Windows.Controls
         private readonly List<object?> _items = new();
         private GeneratorSession? _activeSession;
 
-        internal ItemContainerGenerator()
+        public ItemContainerGenerator()
         {
         }
 

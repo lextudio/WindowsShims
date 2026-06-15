@@ -229,9 +229,63 @@ public partial class ItemsControl : IGeneratorHost
 
     public bool Focus() => false;
 
-    // WPF ItemsSource swaps the inner view; the shim only stores the value
-    // until the items/view pipeline exists.
-    public IEnumerable? ItemsSource { get; set; }
+    // WPF ItemsSource swaps the inner view; the shim populates Items to
+    // keep IItemProperties.ItemProperties and OrderedItems() working for
+    // DataGrid auto-column generation and row rendering.
+    private IEnumerable? _itemsSource;
+    public IEnumerable? ItemsSource
+    {
+        get => _itemsSource;
+        set
+        {
+            var old = _itemsSource;
+            _itemsSource = value;
+            SyncItemsFromSource(old, value);
+            OnItemsSourceChanged(old, value);
+        }
+    }
+
+    private void SyncItemsFromSource(IEnumerable? oldSource, IEnumerable? newSource)
+    {
+        // Unsubscribe from old source notifications
+        if (oldSource is System.Collections.Specialized.INotifyCollectionChanged oldNcc)
+            oldNcc.CollectionChanged -= OnItemsSourceCollectionChanged;
+
+        Items.Clear();
+
+        if (newSource is not null)
+        {
+            foreach (var item in newSource)
+                Items.Add(item);
+
+            // Subscribe to live updates
+            if (newSource is System.Collections.Specialized.INotifyCollectionChanged newNcc)
+                newNcc.CollectionChanged += OnItemsSourceCollectionChanged;
+        }
+    }
+
+    private void OnItemsSourceCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        switch (e.Action)
+        {
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                if (e.NewItems is not null)
+                    foreach (var item in e.NewItems)
+                        Items.Insert(e.NewStartingIndex, item);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+                if (e.OldItems is not null)
+                    for (var i = 0; i < e.OldItems.Count; i++)
+                        Items.RemoveAt(e.OldStartingIndex);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                Items.Clear();
+                if (sender is IEnumerable src)
+                    foreach (var item in src)
+                        Items.Add(item);
+                break;
+        }
+    }
 
     // Focus tracking is not bridged; WPF reads this during selection-active
     // bookkeeping only.

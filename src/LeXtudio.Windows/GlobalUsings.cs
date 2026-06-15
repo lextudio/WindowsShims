@@ -36,7 +36,9 @@ global using Geometry                  = Microsoft.UI.Xaml.Media.Geometry;
 global using FlowDirection             = Microsoft.UI.Xaml.FlowDirection;
 global using TextAlignment             = Microsoft.UI.Xaml.TextAlignment;
 global using TextWrapping              = Microsoft.UI.Xaml.TextWrapping;
-global using TextBlock                 = Microsoft.UI.Xaml.Controls.TextBlock;
+// WPF TextBlock (not WinUI): WPF source files mean System.Windows.Controls.TextBlock.
+// Use fully-qualified Microsoft.UI.Xaml.Controls.TextBlock where WinUI rendering is needed.
+global using TextBlock                 = System.Windows.Controls.TextBlock;
 
 // ============ Dependency Property System ============
 // DependencyProperty: unqualified usage routes to WinUI's native type.
@@ -77,6 +79,10 @@ global using GeneralTransform          = System.Windows.Media.GeneralTransform;
 global using TextDecorationCollection = System.Windows.Media.TextDecorationCollection;
 // ContextMenuEventArgs: WinUI also defines one in Microsoft.UI.Xaml.Controls; alias to WPF shim so upstream TextEditor* files compile.
 global using ContextMenuEventArgs = System.Windows.Controls.ContextMenuEventArgs;
+// DataTemplate/DataTemplateSelector: WPF names alias to WinUI types so DataGridTemplateColumn
+// and ContentPresenter.ContentTemplate/ContentTemplateSelector assignments compile without errors.
+global using DataTemplate             = Microsoft.UI.Xaml.DataTemplate;
+global using DataTemplateSelector     = Microsoft.UI.Xaml.Controls.DataTemplateSelector;
 
 // TextDecorations static class (System.Windows.Media) — bring to global scope so
 // upstream files in System.Windows.Documents can reference it without an explicit using.
