@@ -8,12 +8,17 @@ public sealed class DispatcherOperation
 {
     internal DispatcherOperation(Task task) => Task = task;
     public Task Task { get; }
+
+    // WPF DispatcherOperation is awaitable; upstream ILSpy awaits InvokeAsync(...) directly.
+    public System.Runtime.CompilerServices.TaskAwaiter GetAwaiter() => Task.GetAwaiter();
 }
 
 public sealed class DispatcherOperation<T>
 {
     internal DispatcherOperation(Task<T> task) => Task = task;
     public Task<T> Task { get; }
+
+    public System.Runtime.CompilerServices.TaskAwaiter<T> GetAwaiter() => Task.GetAwaiter();
 }
 
 public sealed class Dispatcher
