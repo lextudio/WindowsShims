@@ -59,6 +59,9 @@ public static class BindingOperations
 
 public class Binding : BindingBase
 {
+    // WPF sentinel returned by IValueConverter.Convert/ConvertBack to signal "do nothing".
+    public static readonly object DoNothing = new object();
+
     public Binding()
     {
     }
