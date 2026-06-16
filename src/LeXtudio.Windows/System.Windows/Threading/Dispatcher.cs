@@ -190,6 +190,14 @@ public sealed class Dispatcher
         return new DispatcherOperation(op.Task);
     }
 
+    // WPF-style BeginInvoke(DispatcherPriority, Action) — lets a void anonymous method bind here
+    // rather than ambiguously to the DispatcherOperationCallback (object-returning) delegate.
+    public DispatcherOperation BeginInvoke(DispatcherPriority priority, Action method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        return InvokeAsync(method, priority);
+    }
+
     // WPF-style BeginInvoke(DispatcherPriority, Delegate, object) overload (priority first).
     public DispatcherOperation BeginInvoke(DispatcherPriority priority, Delegate method, object? arg)
     {
