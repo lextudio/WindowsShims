@@ -6,11 +6,21 @@ public enum BrushMappingMode
     RelativeToBoundingBox,
 }
 
-public class VisualBrush : Microsoft.UI.Xaml.Media.SolidColorBrush
+// On WinUI, SolidColorBrush is sealed, so the shim derives from the subclassable
+// XamlCompositionBrushBase instead. On the Uno desktop target SolidColorBrush is not sealed, so we
+// keep deriving from it (it also gives the transparent Color default used as a placeholder fill).
+public class VisualBrush :
+#if WINDOWS_APP_SDK
+    Microsoft.UI.Xaml.Media.XamlCompositionBrushBase
+#else
+    Microsoft.UI.Xaml.Media.SolidColorBrush
+#endif
 {
     public VisualBrush()
     {
+#if !WINDOWS_APP_SDK
         Color = global::Windows.UI.Color.FromArgb(0, 0, 0, 0);
+#endif
     }
 
     public VisualBrush(UIElement visual)
