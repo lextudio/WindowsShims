@@ -1,5 +1,7 @@
 using System.Reflection;
 
+using MS.Internal.Data;
+
 namespace System.Windows.Data;
 
 public abstract class BindingExpressionBase
@@ -35,7 +37,7 @@ public class BindingExpression : BindingExpressionBase
         {
             if (!_isActive)
             {
-                return DependencyProperty.UnsetValue;
+                return BindingValue.UnsetValue;
             }
 
             return EvaluatePath(_item, ParentBinding.Path?.Path);
@@ -67,7 +69,7 @@ public class BindingExpression : BindingExpressionBase
     {
         if (item is null)
         {
-            return DependencyProperty.UnsetValue;
+            return BindingValue.UnsetValue;
         }
 
         if (string.IsNullOrEmpty(path))
@@ -80,7 +82,7 @@ public class BindingExpression : BindingExpressionBase
         {
             if (current is null)
             {
-                return DependencyProperty.UnsetValue;
+                return BindingValue.UnsetValue;
             }
 
             var property = current.GetType().GetProperty(
@@ -88,7 +90,7 @@ public class BindingExpression : BindingExpressionBase
                 BindingFlags.Instance | BindingFlags.Public);
             if (property is null)
             {
-                return DependencyProperty.UnsetValue;
+                return BindingValue.UnsetValue;
             }
 
             current = property.GetValue(current);

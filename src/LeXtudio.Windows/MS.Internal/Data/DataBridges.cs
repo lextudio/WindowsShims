@@ -3,6 +3,19 @@ using System.Windows.Data;
 
 namespace MS.Internal.Data;
 
+// Stable "unset" sentinel for the binding/converter shims.
+//
+// On the WinUI (WINDOWS_APP_SDK) target Microsoft.UI.Xaml.DependencyProperty.UnsetValue is a
+// WinRT-projected sentinel that returns a DIFFERENT wrapper on each access, so two separate reads are
+// not Equal (`a == DependencyProperty.UnsetValue` / NUnit Is.EqualTo fail across accesses). Capture it
+// ONCE here and have the shims (and their tests) share this single reference. On the Uno desktop target
+// UnsetValue is already a stable managed object, so this is just a harmless one-time capture and the
+// value stays identical to DependencyProperty.UnsetValue.
+internal static class BindingValue
+{
+    internal static readonly object UnsetValue = Microsoft.UI.Xaml.DependencyProperty.UnsetValue;
+}
+
 internal class BindingExpressionUncommonField : UncommonField<BindingExpression>
 {
 }
@@ -23,7 +36,7 @@ internal class DynamicValueConverter
 
         if (value is null)
         {
-            return targetType.IsValueType ? DependencyProperty.UnsetValue : null;
+            return targetType.IsValueType ? BindingValue.UnsetValue : null;
         }
 
         if (targetType.IsInstanceOfType(value))
@@ -54,6 +67,6 @@ internal class DynamicValueConverter
         {
         }
 
-        return DependencyProperty.UnsetValue;
+        return BindingValue.UnsetValue;
     }
 }

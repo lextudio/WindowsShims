@@ -45,7 +45,7 @@ public sealed class BindingExpressionBridgeTests
         expression.Activate(new Person("Ada", new Address("London")));
         expression.Deactivate();
 
-        Assert.That(expression.Value, Is.EqualTo(DependencyProperty.UnsetValue));
+        Assert.That(expression.Value, Is.EqualTo(BindingValue.UnsetValue));
     }
 
     [Test]
@@ -55,7 +55,7 @@ public sealed class BindingExpressionBridgeTests
 
         expression.Activate(new Person("Ada", new Address("London")));
 
-        Assert.That(expression.Value, Is.EqualTo(DependencyProperty.UnsetValue));
+        Assert.That(expression.Value, Is.EqualTo(BindingValue.UnsetValue));
     }
 
     [Test]
@@ -73,8 +73,8 @@ public sealed class BindingExpressionBridgeTests
     {
         var converter = new DynamicValueConverter(false);
 
-        Assert.That(converter.Convert("not a number", typeof(int)), Is.EqualTo(DependencyProperty.UnsetValue));
-        Assert.That(converter.Convert(null, typeof(int)), Is.EqualTo(DependencyProperty.UnsetValue));
+        Assert.That(converter.Convert("not a number", typeof(int)), Is.EqualTo(BindingValue.UnsetValue));
+        Assert.That(converter.Convert(null, typeof(int)), Is.EqualTo(BindingValue.UnsetValue));
         Assert.That(converter.Convert(null, typeof(string)), Is.Null);
     }
 
