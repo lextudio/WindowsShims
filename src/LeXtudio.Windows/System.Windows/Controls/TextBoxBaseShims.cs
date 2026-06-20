@@ -45,7 +45,8 @@ public static class WinUIDispatcherInvokeExtensions
     public static void Invoke(
         this global::Windows.UI.Core.CoreDispatcher dispatcher,
         Action callback,
-        System.Windows.Threading.DispatcherPriority priority) => callback();
+        System.Windows.Threading.DispatcherPriority priority)
+        => System.Windows.ShimUiDispatcher.Send(callback);
 }
 
 /// <summary>WPF InputMethod shim — IME not applicable on HAS_UNO.</summary>
