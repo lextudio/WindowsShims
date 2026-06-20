@@ -48,8 +48,17 @@ public partial class FrameworkContentElement : DependencyObject
     public void CoerceValue(DependencyProperty property) { }
 
     // WPF-internal helpers used by upstream document types.
-    protected void SetCurrentDeferredValue(DependencyProperty property, object? value) =>
+    // Real WPF stores a DeferredReference and resolves it lazily inside DependencyProperty.GetValue;
+    // Uno's property system has no such hook and returns the raw DeferredReference object, so a later
+    // typed read (e.g. the (string) cast in Run.Text) throws InvalidCastException. Resolve the
+    // reference eagerly here — the value it computes is what GetValue would return anyway — so the
+    // stored value is the real, typed value.
+    protected void SetCurrentDeferredValue(DependencyProperty property, object? value)
+    {
+        if (value is System.Windows.Documents.DeferredRunTextReference runText)
+            value = runText.Resolve();
         SetValue(property, value);
+    }
 
     protected object LookupEntry(int globalIndex) => new();
 
