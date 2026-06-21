@@ -24,6 +24,7 @@
     <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <UseNuGetPackages>false</UseNuGetPackages>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <UseWinUI>true</UseWinUI>
@@ -41,6 +42,19 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="GitVersion.MsBuild" Version="5.12.0" PrivateAssets="All" />
+  </ItemGroup>
+  <!-- Win2D drawing/text backend, selected per target framework. Shared editor code
+       (DrawingContext adapter, text layout) is written once against the Win2D API surface
+       (Microsoft.Graphics.Canvas.*); on Uno desktop it binds to the SkiaSharp shim, on
+       WinUI 3 to real Win2D (native DirectWrite). See UnoEdit/docs/redesign.md. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop' AND '$(UseNuGetPackages)' != 'true'">
+    <ProjectReference Include="..\..\..\Uno2D\src\Win2D.UnoCompat\Win2D.UnoCompat.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop' AND '$(UseNuGetPackages)' == 'true'">
+    <PackageReference Include="Win2D.UnoCompat" Version="0.1.1" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.2" />
   </ItemGroup>
     <!-- Linked WPF source-of-truth artifacts (non-compiling in Uno).
        These files are intentionally linked for audit/diff workflows while
