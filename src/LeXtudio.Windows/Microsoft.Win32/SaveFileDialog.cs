@@ -44,6 +44,51 @@ namespace Microsoft.Win32
 
         public abstract Task<bool?> ShowDialogAsync();
 
+        // Runs a WinUI/Uno picker operation.
+        //
+        // On Uno's managed pickers the Pick*Async call drives a native modal dialog
+        // *synchronously* on the calling thread — the IAsyncOperation only completes after the
+        // dialog closes, and it never yields. Awaiting it directly on the UI thread therefore
+        // freezes the whole app (Uno's Win32 render loop stops pumping while the call blocks).
+        //
+        // On Windows the underlying IFileOpenDialog/IFileSaveDialog also *requires* a STA
+        // thread (Uno's UI thread is STA via OleInitialize). So we offload the blocking call to
+        // a dedicated background STA thread: that frees the UI thread, while still satisfying
+        // the dialog's apartment requirement. Uno's Win32 picker already supports being invoked
+        // off the UI thread — when GetActiveWindow() returns 0 it falls back to the host window
+        // handle as the owner. The await in the caller captured the UI SynchronizationContext,
+        // so the continuation resumes on the UI thread.
+        //
+        // On Windows App SDK the real WinRT picker is genuinely asynchronous and must run on
+        // the UI thread (it also needs InitializeWithWindow), so we call it directly there.
+        private protected static Task<T> RunPickerAsync<T>(Func<global::Windows.Foundation.IAsyncOperation<T>> pick)
+        {
+#if WINDOWS_APP_SDK
+            return pick().AsTask();
+#else
+            if (OperatingSystem.IsWindows())
+            {
+                var tcs = new TaskCompletionSource<T>();
+                var thread = new System.Threading.Thread(() =>
+                {
+                    try { tcs.SetResult(pick().GetAwaiter().GetResult()); }
+                    catch (Exception ex) { tcs.SetException(ex); }
+                })
+                {
+                    IsBackground = true,
+                    Name = "PickerStaThread",
+                };
+                thread.SetApartmentState(System.Threading.ApartmentState.STA);
+                thread.Start();
+                return tcs.Task;
+            }
+
+            // Non-Windows desktop (X11/macOS): no STA concept; just keep the blocking call off
+            // the UI thread.
+            return Task.Run(() => pick().GetAwaiter().GetResult());
+#endif
+        }
+
         public Stream OpenFile()
             => new FileStream(FileName, FileMode.Create, FileAccess.ReadWrite);
 
@@ -105,7 +150,7 @@ namespace Microsoft.Win32
 
             if (Multiselect)
             {
-                var files = await picker.PickMultipleFilesAsync();
+                var files = await RunPickerAsync(() => picker.PickMultipleFilesAsync());
                 if (files is null || files.Count == 0)
                 {
                     DialogResult = false;
@@ -117,7 +162,7 @@ namespace Microsoft.Win32
                 return true;
             }
 
-            var file = await picker.PickSingleFileAsync();
+            var file = await RunPickerAsync(() => picker.PickSingleFileAsync());
             if (file is null)
             {
                 DialogResult = false;
@@ -155,7 +200,7 @@ namespace Microsoft.Win32
 
             FileDialogHost.InitializeWithActiveWindow(picker);
 
-            var file = await picker.PickSaveFileAsync();
+            var file = await RunPickerAsync(() => picker.PickSaveFileAsync());
             if (file is null)
             {
                 DialogResult = false;
@@ -212,7 +257,7 @@ namespace Microsoft.Win32
 
             FileDialogHost.InitializeWithActiveWindow(picker);
 
-            var folder = await picker.PickSingleFolderAsync();
+            var folder = await RunPickerAsync(() => picker.PickSingleFolderAsync());
             if (folder is null)
             {
                 DialogResult = false;
