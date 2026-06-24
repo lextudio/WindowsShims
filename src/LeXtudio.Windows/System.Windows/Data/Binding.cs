@@ -81,6 +81,8 @@ public class Binding : BindingBase
 
     public string? ElementName { get; set; }
 
+    public RelativeSource? RelativeSource { get; set; }
+
     public IValueConverter? Converter { get; set; }
 
     public object? ConverterParameter { get; set; }

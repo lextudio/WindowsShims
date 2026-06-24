@@ -38,8 +38,10 @@
     <Compile Include="BindingExpressionBridgeTests.cs" />
     <Compile Include="CommandManagerBridgeTests.cs" />
     <Compile Include="BindingTests.cs" />
+    <Compile Include="WpfSubstrateBridgeTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
     <Compile Include="DataGridExtensionsShimTests.cs" />
+    <Compile Include="DataGridRomaMetadataSurfaceTests.cs" />
     <Compile Include="DataGridCellInfoTests.cs" />
     <Compile Include="DataGridCollectionTests.cs" />
     <Compile Include="DataGridControlRootPrereqTests.cs" />

@@ -138,13 +138,29 @@ internal static partial class DataGridHelper
             var detailsRow = details.EffectiveRow;
             // The upstream presenter is a ContentPresenter, so ContentTemplateProperty
             // here is WinUI ContentPresenter.ContentTemplateProperty (not ContentControl's).
-            if (dp == Microsoft.UI.Xaml.Controls.ContentPresenter.ContentTemplateProperty)
+            if (dp == Microsoft.UI.Xaml.Controls.ContentPresenter.ContentTemplateProperty
+                || dp == Microsoft.UI.Xaml.Controls.ContentPresenter.ContentTemplateSelectorProperty)
             {
-                details.ContentTemplate = detailsRow?.DetailsTemplate
-                    ?? detailsRow?.DataGridOwner?.RowDetailsTemplate;
+                // Prefer the row-level override, then fall back to the DataGrid-level setting.
+                var selector = detailsRow?.DetailsTemplateSelector
+                               ?? detailsRow?.DataGridOwner?.RowDetailsTemplateSelector;
+                if (selector != null)
+                {
+                    var template = selector.SelectTemplate(
+                        details.Content ?? detailsRow?.Item, details);
+                    if (template is IWpfTemplateBridge bridge)
+                        // WPF template bridges carry factories/metadata that WinUI's
+                        // native ContentTemplate path cannot apply yet.
+                        details.ShimTemplateBridge = bridge;
+                    else
+                        details.ContentTemplate = template;
+                }
+                else
+                {
+                    details.ContentTemplate = detailsRow?.DetailsTemplate
+                        ?? detailsRow?.DataGridOwner?.RowDetailsTemplate;
+                }
             }
-            // ContentTemplateSelector transfer is a no-op: the shim resolves the
-            // details template directly above.
         }
     }
 

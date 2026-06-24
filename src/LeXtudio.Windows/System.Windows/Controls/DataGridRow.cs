@@ -256,18 +256,34 @@ public partial class DataGridRow : Control
         var visibility = DetailsVisibility;
         host.Visibility = visibility;
 
-        if (visibility == Visibility.Visible && owner.RowDetailsTemplate != null)
+        if (visibility == Visibility.Visible && (owner.RowDetailsTemplate != null || owner.RowDetailsTemplateSelector != null))
         {
             var presenter = new DataGridDetailsPresenter();
             presenter.SetShimOwnerRow(this);
             DetailsPresenter = presenter;
             host.Content = presenter;
-            // SyncProperties sets Content = Item and transfers the details template;
-            // the ContentPresenter then renders the item through RowDetailsTemplate.
+            // SyncProperties sets Content = Item and transfers the details template.
+            // If the selector returned a WPF template bridge, SyncProperties stores it
+            // on the presenter rather than setting ContentTemplate.
             presenter.SyncProperties();
-            // WinUI's ContentPresenter doesn't flow Content to the templated child's
-            // DataContext the way WPF does, so set it explicitly for {Binding} to resolve.
-            presenter.DataContext = Item;
+            if (presenter.ShimTemplateBridge is { } bridge)
+            {
+                // Bridge factory — build the element directly and bypass WinUI template mechanism.
+                presenter.Content = bridge.LoadContent(Item);
+                presenter.ShimTemplateBridge = null;
+            }
+            else if (presenter.ShimContentFactory is { } factory)
+            {
+                // Legacy C# factory path.
+                presenter.Content = factory(Item);
+                presenter.ShimContentFactory = null;
+            }
+            else
+            {
+                // Normal DataTemplate path — WinUI ContentPresenter applies ContentTemplate.
+                // Set DataContext so {Binding} expressions inside the template can resolve.
+                presenter.DataContext = Item;
+            }
             DetailsLoaded = false;
             owner.OnLoadingRowDetailsWrapper(this);
         }

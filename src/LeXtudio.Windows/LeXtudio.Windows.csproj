@@ -24,7 +24,7 @@
     <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <UseNuGetPackages>true</UseNuGetPackages>
+    <UseNuGetPackages>false</UseNuGetPackages>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <UseWinUI>true</UseWinUI>

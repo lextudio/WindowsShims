@@ -15,4 +15,12 @@ public partial class DataGridDetailsPresenter
     internal void SetShimOwnerRow(DataGridRow row) => _shimOwnerRow = row;
 
     internal DataGridRow? EffectiveRow => DataGridHelper.FindParent<DataGridRow>(this) ?? _shimOwnerRow;
+
+    // Set by DataGridHelper.TransferProperty when the row-details selector returns a
+    // WPF template bridge. BuildRowDetails invokes it with the row item and sets
+    // Content directly.
+    internal IWpfTemplateBridge? ShimTemplateBridge { get; set; }
+
+    // Compatibility point for older ShimDataTemplate-only tests and call paths.
+    internal Func<object?, Microsoft.UI.Xaml.FrameworkElement?>? ShimContentFactory { get; set; }
 }

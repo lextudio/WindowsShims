@@ -80,6 +80,7 @@ namespace DataGridExtensions
         public Type? FlagsType { get; }
 
         public FilterControlTemplate(FilterKind kind, Type? flagsType = null)
+            : base(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader))
         {
             Kind = kind;
             FlagsType = flagsType;

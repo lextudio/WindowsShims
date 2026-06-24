@@ -139,8 +139,19 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 }
 
 /// <summary>Stub for WPF ControlTemplate — WinUI uses DataTemplate/ControlTemplate via Style.</summary>
-public class ControlTemplate
+public class ControlTemplate : WpfTemplateBridge
 {
+    public ControlTemplate()
+    {
+    }
+
+    internal ControlTemplate(
+        Type? targetType,
+        Func<object?, Microsoft.UI.Xaml.FrameworkElement?>? factory = null)
+        : base(targetType, factory)
+    {
+    }
+
     public object? VisualTree { get; set; }
 }
 

@@ -329,7 +329,19 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     internal void ApplyShimCellStyle()
     {
-        ShimAppliedCellStyle = Column?.CellStyle ?? DataGridOwner?.CellStyle;
+        var style = Column?.CellStyle ?? DataGridOwner?.CellStyle;
+        ShimAppliedCellStyle = style;
+        if (style == null)
+            return;
+        foreach (var setterBase in style.Setters)
+        {
+            if (setterBase is not Microsoft.UI.Xaml.Setter setter)
+                continue;
+            // Skip the ControlTemplate setter — the shim builds its own cell visual tree.
+            if (setter.Property == Microsoft.UI.Xaml.Controls.Control.TemplateProperty)
+                continue;
+            SetValue(setter.Property, setter.Value);
+        }
     }
 
     internal void ApplyShimGridLines()
