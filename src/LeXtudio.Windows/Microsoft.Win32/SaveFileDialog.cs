@@ -83,8 +83,23 @@ namespace Microsoft.Win32
                 return tcs.Task;
             }
 
-            // Non-Windows desktop (X11/macOS): no STA concept; just keep the blocking call off
-            // the UI thread.
+            if (OperatingSystem.IsMacOS())
+            {
+                // AppKit requires NSPanel/NSWindow creation on the main thread. Dispatch
+                // pick() there; the TCS completes when the user closes the dialog. The
+                // main thread stays free to pump events while the dialog is open.
+                var tcs = new TaskCompletionSource<T>();
+                var queue = FileDialogHost.ActiveWindow?.DispatcherQueue
+                            ?? Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                queue.TryEnqueue(async () =>
+                {
+                    try { tcs.SetResult(await pick()); }
+                    catch (Exception ex) { tcs.SetException(ex); }
+                });
+                return tcs.Task;
+            }
+
+            // Linux (X11/Wayland): keep the blocking call off the UI thread.
             return Task.Run(() => pick().GetAwaiter().GetResult());
 #endif
         }
