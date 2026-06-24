@@ -208,6 +208,8 @@ public partial class DataGrid
         // private _rowTrackingRoot field with the upstream DataGrid.cs.)
         _rowTrackingRoot = null;
         host.Children.Add(BuildHeaderRow());
+        if (DataGridExtensions.DataGridFilter.GetIsAutoFilterEnabled(this))
+            host.Children.Add(BuildFilterRow());
 
         var rowIndex = 0;
         foreach (var item in OrderedItems())
@@ -220,6 +222,12 @@ public partial class DataGrid
             var row = new DataGridRow();
             row.PrepareRow(item, this); // also initializes row.Tracker
             row.ShimRowIndex = rowIndex++;
+            // Default row separator (1px bottom border). Overridden to red by SetRowError.
+            if (!row.HasRowValidationError)
+            {
+                row.BorderBrush = DataGridRow.SeparatorBrush;
+                row.BorderThickness = DataGridRow.SeparatorThickness;
+            }
             row.ApplyShimRowStyle();
             row.ApplyShimRowBackground();
             row.Tracker!.StartTracking(ref _rowTrackingRoot);
@@ -324,6 +332,9 @@ public partial class DataGrid
     // realized content so columns size to content and stay aligned.
     private List<DataGridColumn> _visibleColumns = new();
     private readonly List<DataGridColumnHeader> _headerCells = new();
+    // Filter row cells tracked in parallel with _headerCells so the auto-width
+    // pass can synchronize their widths along with header and data cells.
+    private readonly List<Microsoft.UI.Xaml.FrameworkElement> _filterCells = new();
     private bool _autoWidthPending;
     private bool _autoWidthHooked;
 
@@ -395,7 +406,7 @@ public partial class DataGrid
             }
         }
 
-        // Apply.
+        // Apply to header cells, data cells, and filter cells.
         for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
         {
             if (widths[i] <= 0)
@@ -411,17 +422,43 @@ public partial class DataGrid
                     cell.Width = widths[i];
                 }
             }
+            if (i < _filterCells.Count)
+                _filterCells[i].Width = widths[i];
         }
     }
 
-    // Items in display order: sorted by the active sort column if one is set,
-    // otherwise the collection's own order.
-    // Display order is now the collection-view order: sorting is applied by
-    // ItemCollection.SortDescriptions (driven by the WPF PerformSort path),
-    // so Items already enumerates in sorted order. (Session 50 reuse.)
-    private IEnumerable<object?> OrderedItems() => Items.Cast<object?>().ToList();
+    // Called when a single column's Width DP changes (e.g. after a gripper drag).
+    // Applies the new width to the header cell, data cells, and filter cell for
+    // that column without rebuilding the whole visual tree.
+    private void ShimApplyColumnWidth(DataGridColumn column)
+    {
+        var i = _visibleColumns.IndexOf(column);
+        if (i < 0 || i >= _headerCells.Count)
+            return;
 
-    private Microsoft.UI.Xaml.Controls.StackPanel BuildHeaderRow()
+        var w = ShimColumnWidth(column);
+        if (double.IsNaN(w) || w <= 0)
+            return;
+
+        w = Clamp(column, w);
+        _headerCells[i].Width = w;
+        foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
+        {
+            if (row.TryGetCell(i) is { } cell)
+                cell.Width = w;
+        }
+        if (i < _filterCells.Count)
+            _filterCells[i].Width = w;
+    }
+
+    // Items in display order, with active column filters applied. Sorting is
+    // handled by ItemCollection.SortDescriptions (WPF PerformSort path).
+    private IEnumerable<object?> OrderedItems()
+        => Items.Cast<object?>()
+                .Where(item => DataGridExtensions.DataGridFilter.MatchesAllFilters(this, item))
+                .ToList();
+
+    private Microsoft.UI.Xaml.Controls.Border BuildHeaderRow()
     {
         var header = new Microsoft.UI.Xaml.Controls.StackPanel
         {
@@ -459,7 +496,251 @@ public partial class DataGrid
         }
 
         _headerHostPanel = header;
-        return header;
+        // Wrap in a Border so the header row gets a bottom separator line.
+        return new Microsoft.UI.Xaml.Controls.Border
+        {
+            BorderBrush = _rowSeparatorBrush,
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 2),
+            Child = header,
+        };
+    }
+
+    // Light gray brush shared by the filter row background and the row separator lines.
+    private static readonly Microsoft.UI.Xaml.Media.Brush _filterRowBackground =
+        new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(0xFF, 0xF0, 0xF0, 0xF0));
+    private static readonly Microsoft.UI.Xaml.Media.Brush _rowSeparatorBrush =
+        new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(0xFF, 0xD0, 0xD0, 0xD0));
+
+    // Builds a filter row below the column headers when IsAutoFilterEnabled is true.
+    // Each cell is a Text box, Hex box ("0x" prefix), or a Flags popup depending on
+    // the FilterControlTemplate stored on the column by DataGridFilterColumn.SetTemplate.
+    // Also clears/populates _filterCells so the auto-width pass keeps all rows aligned.
+    private Microsoft.UI.Xaml.Controls.Border BuildFilterRow()
+    {
+        _filterCells.Clear();
+
+        var innerRow = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+        };
+
+        if (AreRowHeadersVisible)
+            innerRow.Children.Add(new Microsoft.UI.Xaml.Controls.Border { Width = RowHeaderShimWidth });
+
+        foreach (var column in _visibleColumns)
+        {
+            var kind = DataGridExtensions.FilterKind.Text;
+            Type? flagsType = null;
+            if (DataGridExtensions.DataGridFilterColumn.GetTemplate(column)
+                    is DataGridExtensions.FilterControlTemplate fct)
+            {
+                kind = fct.Kind;
+                flagsType = fct.FlagsType;
+            }
+
+            Microsoft.UI.Xaml.FrameworkElement cell = kind switch
+            {
+                DataGridExtensions.FilterKind.Hex   => BuildHexFilterCell(column),
+                DataGridExtensions.FilterKind.Flags => BuildFlagsFilterCell(column, flagsType),
+                _                                   => BuildTextFilterCell(column),
+            };
+            _filterCells.Add(cell);
+            innerRow.Children.Add(cell);
+        }
+
+        // Wrap in a Border to provide a distinct background and a separator line below.
+        return new Microsoft.UI.Xaml.Controls.Border
+        {
+            Background = _filterRowBackground,
+            BorderBrush = _rowSeparatorBrush,
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 1),
+            Child = innerRow,
+        };
+    }
+
+    // Plain case-insensitive substring TextBox.
+    private Microsoft.UI.Xaml.Controls.TextBox BuildTextFilterCell(DataGridColumn column)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var current = state.ColumnFilterText.TryGetValue(column, out var text)
+            ? text
+            : (state.ColumnFilters.TryGetValue(column, out var f)
+               ? (f as DataGridExtensions.SubstringContentFilter)?.Text
+               : null) ?? string.Empty;
+        var box = new Microsoft.UI.Xaml.Controls.TextBox
+        {
+            Text = current,
+            Width = ShimColumnWidth(column),
+            PlaceholderText = "Filter…",
+            Margin = new Microsoft.UI.Xaml.Thickness(4, 1, 4, 1),
+        };
+        box.TextChanged += (s, _) =>
+        {
+            var text = ((Microsoft.UI.Xaml.Controls.TextBox)s!).Text;
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            if (string.IsNullOrEmpty(text))
+                st.ColumnFilterText.Remove(column);
+            else
+                st.ColumnFilterText[column] = text;
+
+            st.ColumnFilters[column] = string.IsNullOrEmpty(text)
+                ? null
+                : (st.ContentFilterFactory?.Create(text)
+                   ?? new DataGridExtensions.SubstringContentFilter(text));
+            BuildShimVisualTree();
+        };
+        return box;
+    }
+
+    // "0x" prefix + TextBox that matches via hex representation.
+    private Microsoft.UI.Xaml.Controls.StackPanel BuildHexFilterCell(DataGridColumn column)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var current = (state.ColumnFilters.TryGetValue(column, out var f)
+                       ? (f as DataGridExtensions.HexContentFilter)?.Text
+                       : null) ?? string.Empty;
+        var box = new Microsoft.UI.Xaml.Controls.TextBox
+        {
+            Text = current,
+            MinWidth = 30,
+            PlaceholderText = "hex…",
+        };
+        box.TextChanged += (s, _) =>
+        {
+            var text = ((Microsoft.UI.Xaml.Controls.TextBox)s!).Text;
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            st.ColumnFilters[column] = string.IsNullOrEmpty(text)
+                ? null
+                : new DataGridExtensions.HexContentFilter(text);
+            BuildShimVisualTree();
+        };
+        var row = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+            Width = ShimColumnWidth(column),
+            Margin = new Microsoft.UI.Xaml.Thickness(4, 1, 4, 1),
+        };
+        row.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = "0x",
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 2, 0),
+        });
+        row.Children.Add(box);
+        return row;
+    }
+
+    // ToggleButton + Flyout + CheckBox list for each flag value.
+    private Microsoft.UI.Xaml.Controls.Primitives.ToggleButton BuildFlagsFilterCell(DataGridColumn column, Type? flagsType)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var currentMask = (state.ColumnFilters.TryGetValue(column, out var f)
+                           ? (f as DataGridExtensions.MaskContentFilter)?.Mask
+                           : null) ?? -1;
+
+        var toggle = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton
+        {
+            Content = currentMask == -1 ? "All" : "Filtered",
+            Width = ShimColumnWidth(column),
+            Margin = new Microsoft.UI.Xaml.Thickness(4, 1, 4, 1),
+        };
+
+        if (flagsType is null)
+            return toggle;
+
+        // Enumerate public static fields of the flags enum (skip *Mask fields).
+        var flagItems = new System.Collections.Generic.List<(string Name, int Value)>();
+        foreach (var field in flagsType.GetFields(
+                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+        {
+            if (field.Name.EndsWith("Mask", StringComparison.Ordinal)) continue;
+            int v;
+            try { v = Convert.ToInt32(field.GetRawConstantValue()); } catch { continue; }
+            flagItems.Add((field.Name, v));
+        }
+
+        var flyoutContent = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            MaxHeight = 300,
+            Spacing = 2,
+        };
+
+        // "All" / reset checkbox
+        var allBox = new Microsoft.UI.Xaml.Controls.CheckBox
+        {
+            Content = "<All>",
+            IsChecked = currentMask == -1,
+        };
+        flyoutContent.Children.Add(allBox);
+
+        var perFlagBoxes = new System.Collections.Generic.List<(Microsoft.UI.Xaml.Controls.CheckBox cb, int val)>();
+        foreach (var (name, val) in flagItems)
+        {
+            var cb = new Microsoft.UI.Xaml.Controls.CheckBox
+            {
+                Content = $"{name} ({val:X4})",
+                IsChecked = currentMask == -1 || (currentMask & val) != 0,
+                Tag = val,
+            };
+            perFlagBoxes.Add((cb, val));
+            flyoutContent.Children.Add(cb);
+        }
+
+        void ApplyMask()
+        {
+            int mask = 0;
+            bool anyChecked = false;
+            foreach (var (cb, val) in perFlagBoxes)
+            {
+                if (cb.IsChecked == true) { mask |= val; anyChecked = true; }
+            }
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            if (!anyChecked || allBox.IsChecked == true)
+            {
+                st.ColumnFilters[column] = null;
+                toggle.Content = "All";
+                toggle.IsChecked = false;
+            }
+            else
+            {
+                st.ColumnFilters[column] = new DataGridExtensions.MaskContentFilter(mask);
+                toggle.Content = "Filtered";
+            }
+            BuildShimVisualTree();
+        }
+
+        allBox.Checked += (_, _) =>
+        {
+            foreach (var (cb, _) in perFlagBoxes) cb.IsChecked = true;
+            ApplyMask();
+        };
+        allBox.Unchecked += (_, _) =>
+        {
+            foreach (var (cb, _) in perFlagBoxes) cb.IsChecked = false;
+            ApplyMask();
+        };
+        foreach (var (cb, _) in perFlagBoxes)
+        {
+            cb.Checked   += (_, _) => ApplyMask();
+            cb.Unchecked += (_, _) => ApplyMask();
+        }
+
+        var scrollViewer = new Microsoft.UI.Xaml.Controls.ScrollViewer
+        {
+            Content = flyoutContent,
+            MaxHeight = 300,
+        };
+        var flyout = new Microsoft.UI.Xaml.Controls.Flyout { Content = scrollViewer };
+        Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.SetAttachedFlyout(toggle, flyout);
+        toggle.Click += (_, _) =>
+        {
+            Microsoft.UI.Xaml.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(toggle);
+            toggle.IsChecked = null; // keep toggle visually neutral; active state shown via Content
+        };
+
+        return toggle;
     }
 
     // ── Column reorder by drag ────────────────────────────────────────────────

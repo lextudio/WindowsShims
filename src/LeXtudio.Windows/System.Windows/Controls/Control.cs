@@ -139,7 +139,7 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
 }
 
 /// <summary>Stub for WPF ControlTemplate — WinUI uses DataTemplate/ControlTemplate via Style.</summary>
-public sealed class ControlTemplate
+public class ControlTemplate
 {
     public object? VisualTree { get; set; }
 }

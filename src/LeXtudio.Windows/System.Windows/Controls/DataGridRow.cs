@@ -89,8 +89,8 @@ public partial class DataGridRow : Control
 
         HasRowValidationError = false;
         RowValidationError = null;
-        BorderBrush = null;
-        BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+        BorderBrush = SeparatorBrush;
+        BorderThickness = SeparatorThickness;
         RefreshRowHeaderGlyph();
     }
 
@@ -98,6 +98,13 @@ public partial class DataGridRow : Control
     private static readonly Microsoft.UI.Xaml.Media.Brush _selectedBrush =
         new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0xE8, 0xFF));
+
+    // Row separator — subtle bottom border drawn on every non-error row.
+    internal static readonly Microsoft.UI.Xaml.Media.Brush SeparatorBrush =
+        new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(0xFF, 0xD0, 0xD0, 0xD0));
+    internal static readonly Microsoft.UI.Xaml.Thickness SeparatorThickness =
+        new Microsoft.UI.Xaml.Thickness(0, 0, 0, 1);
 
     // Session 69: apply the stripe background (RowBackground or AlternatingRowBackground).
     // Called from BuildShimVisualTree after ShimRowIndex is set, and from
