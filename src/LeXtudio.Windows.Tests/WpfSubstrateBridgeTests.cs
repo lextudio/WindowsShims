@@ -1,12 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Runtime.CompilerServices;
 using NUnit.Framework;
 
 namespace LeXtudio.Windows.Tests;
 
 [TestFixture]
-public sealed class WpfSubstrateBridgeTests
+public sealed partial class WpfSubstrateBridgeTests
 {
     [Test]
     public void RelativeSourceCarriesFindAncestorState()
@@ -64,10 +65,61 @@ public sealed class WpfSubstrateBridgeTests
     {
         Assert.That(typeof(IWpfTemplateBridge).IsAssignableFrom(typeof(ShimDataTemplate)), Is.True);
         Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.Factory)), Is.Not.Null);
+        Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.TemplatedParentFactory)), Is.Not.Null);
         Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(IWpfTemplateBridge.TargetType)), Is.Not.Null);
         Assert.That(
-            typeof(IWpfTemplateBridge).GetMethod(nameof(IWpfTemplateBridge.LoadContent)),
+            typeof(IWpfTemplateBridge).GetMethod(
+                nameof(IWpfTemplateBridge.LoadContent),
+                new[] { typeof(object) }),
             Is.Not.Null);
+        Assert.That(
+            typeof(IWpfTemplateBridge).GetMethod(
+                nameof(IWpfTemplateBridge.LoadContent),
+                new[] { typeof(object), typeof(Microsoft.UI.Xaml.DependencyObject) }),
+            Is.Not.Null);
+    }
+
+    [Test]
+    public void TemplateBridgeCarriesTemplatedParent()
+    {
+        var parent = (Microsoft.UI.Xaml.DependencyObject)RuntimeHelpers.GetUninitializedObject(typeof(TestDependencyObject));
+        Microsoft.UI.Xaml.DependencyObject? capturedParent = null;
+        object? capturedDataContext = null;
+        var template = new TestTemplate((dataContext, templatedParent) =>
+        {
+            capturedDataContext = dataContext;
+            capturedParent = templatedParent;
+            return null;
+        });
+
+        ((IWpfTemplateBridge)template).LoadContent("row", parent);
+
+        Assert.That(capturedDataContext, Is.EqualTo("row"));
+        Assert.That(capturedParent, Is.SameAs(parent));
+    }
+
+    [Test]
+    public void ShimDataTemplateExposesTemplatedParentFactoryConstructor()
+    {
+        var factoryType = typeof(Func<object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?>);
+
+        Assert.That(typeof(ShimDataTemplate).GetConstructor(new[] { factoryType }), Is.Not.Null);
+    }
+
+    [Test]
+    public void WpfTemplateBindingExposesTemplatedParentCopyHelper()
+    {
+        var method = typeof(WpfTemplateBinding).GetMethod(
+            nameof(WpfTemplateBinding.Apply),
+            new[]
+            {
+                typeof(Microsoft.UI.Xaml.DependencyObject),
+                typeof(DependencyProperty),
+                typeof(Microsoft.UI.Xaml.DependencyObject),
+                typeof(DependencyProperty),
+            });
+
+        Assert.That(method, Is.Not.Null);
     }
 
     [Test]
@@ -86,4 +138,18 @@ public sealed class WpfSubstrateBridgeTests
 
         public object? GetService(Type serviceType) => null;
     }
+
+    private sealed class TestTemplate : System.Windows.Controls.ControlTemplate
+    {
+        public TestTemplate(
+            Func<object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?> factory)
+            : base(typeof(TestTemplate), factory)
+        {
+        }
+    }
+
+    private sealed partial class TestDependencyObject : Microsoft.UI.Xaml.DependencyObject
+    {
+    }
+
 }

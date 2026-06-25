@@ -269,7 +269,7 @@ public partial class DataGridRow : Control
             if (presenter.ShimTemplateBridge is { } bridge)
             {
                 // Bridge factory — build the element directly and bypass WinUI template mechanism.
-                presenter.Content = bridge.LoadContent(Item);
+                presenter.Content = bridge.LoadContent(Item, presenter);
                 presenter.ShimTemplateBridge = null;
             }
             else if (presenter.ShimContentFactory is { } factory)

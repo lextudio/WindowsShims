@@ -152,6 +152,13 @@ public class ControlTemplate : WpfTemplateBridge
     {
     }
 
+    protected ControlTemplate(
+        Type? targetType,
+        Func<object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?>? factory)
+        : base(targetType, factory)
+    {
+    }
+
     public object? VisualTree { get; set; }
 }
 

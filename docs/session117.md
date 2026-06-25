@@ -537,3 +537,980 @@ probe cleanup timing rather than DataGrid rendering behavior.
    then wire them through `WpfTemplateBridge`.
 3. Replace the first Roma metadata resource group from `RomaMetadataStubs.cs` with the
    original ILSpy resource once the needed binding/resource subset is covered.
+
+## Fifth Execution
+
+Closed the remaining PE header row-details coverage gap and stabilized the focused
+metadata test run.
+
+### Roma changes
+
+Added a second header row-details integration test:
+
+- `MetadataOptionalHeader_RowDetailsRendersNestedDataGrid`
+
+It reuses `roma.probe.metadata-header-row-details` with `"Optional Header"` and asserts
+the `DLL Characteristics` row selects `CharacteristicsDataTemplateSelector`, returns a
+`ShimDataTemplate`, and renders a nested details DataGrid through the shared
+`IWpfTemplateBridge` path.
+
+The first focused run passed, proving the `OptionalHeaderTreeNode` selector hookup is
+active on the Uno path.
+
+Also increased the DevFlow probe UI-dispatch wait in `RunOnUi(...)` from 8 seconds to
+30 seconds. The metadata tests were otherwise passing but combined runs could fail when
+`roma.probe.clear` sat behind expensive UI work on the dispatcher. This is a test
+diagnostics stability fix; it does not change Roma user-facing behavior.
+
+### Verification
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused optional-header test:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter MetadataOptionalHeader_RowDetailsRendersNestedDataGrid
+```
+
+Result:
+
+- 1 passed
+- 0 failed
+- 0 skipped
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add WindowsShims behavior tests for `TemplateBinding` and
+   `RelativeSource TemplatedParent`.
+2. Wire templated-parent context through `WpfTemplateBridge.LoadContent(...)`.
+3. Use that bridge to start applying one original ILSpy metadata template/resource group
+   instead of the corresponding `RomaMetadataStubs.cs` local factory.
+
+## Sixth Execution
+
+Started the templated-parent substrate needed for real WPF-style template reuse.
+
+### WindowsShims changes
+
+Extended the generic template bridge:
+
+- `IWpfTemplateBridge` now exposes
+  `LoadContent(object? dataContext, DependencyObject? templatedParent)`.
+- `WpfTemplateBridge` can store factories that receive both data context and templated
+  parent.
+- `ShimDataTemplate` keeps its existing factory behavior and ignores templated parent
+  for compatibility.
+- `DataGridRow.BuildRowDetails(...)` now passes the `DataGridDetailsPresenter` as the
+  templated parent when rendering a bridged row-details template.
+
+Added a small template-binding substrate:
+
+- `System.Windows.WpfTemplateBinding.Apply(...)`
+
+The helper copies a dependency-property value from the templated parent to a template
+child. This is deliberately smaller than a full binding engine, but gives hand-built
+template factories a common path for WPF `TemplateBinding`-style behavior.
+
+### Tests
+
+Extended `WpfSubstrateBridgeTests` to cover:
+
+- both `IWpfTemplateBridge.LoadContent(...)` overloads;
+- propagation of the templated-parent argument through a bridge factory;
+- existence of the `WpfTemplateBinding.Apply(...)` copy helper.
+
+The templated-parent propagation test avoids constructing live Uno UI objects because
+the headless test runner has no initialized dispatcher.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 154 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add a real bridged template factory in Roma metadata stubs that uses
+   `WpfTemplateBinding.Apply(...)` instead of manually setting at least one child
+   property.
+2. Expand `WpfTemplateBinding` to handle converter and fallback values, matching the
+   existing `TemplateBindingExtension` properties.
+3. Start replacing one metadata details template with a shape closer to the original
+   ILSpy XAML while preserving the DevFlow row-details tests.
+
+## Seventh Execution
+
+Converted all current Roma metadata row-details template stubs to the templated-parent
+bridge shape in one pass.
+
+### WindowsShims changes
+
+Extended `ShimDataTemplate` so it can carry both old and new factory forms:
+
+- existing `Factory: Func<object?, FrameworkElement?>` remains for compatibility;
+- new `TemplatedParentFactory:
+  Func<object?, DependencyObject?, FrameworkElement?>` backs the
+  templated-parent bridge path;
+- a new public constructor accepts the templated-parent factory directly;
+- `IWpfTemplateBridge.LoadContent(dataContext, templatedParent)` now invokes
+  `TemplatedParentFactory`.
+
+The old constructor still works and adapts to the new factory internally, so existing
+callers are not forced to migrate at once.
+
+### Roma changes
+
+Updated all three metadata row-details resources in `RomaMetadataStubs.cs` to use the
+new two-argument factory shape:
+
+- `CustomDebugInformationDetailsDataGrid`;
+- `CustomDebugInformationDetailsTextBlob`;
+- `HeaderFlagsDetailsDataGrid`.
+
+Updated the Roma DevFlow probes to call:
+
+```csharp
+bridge.LoadContent(item, grid)
+```
+
+instead of the old one-argument overload. The real DataGrid row-details path already
+passes the `DataGridDetailsPresenter` as templated parent from
+`DataGridRow.BuildRowDetails(...)`.
+
+### Tests
+
+Extended `WpfSubstrateBridgeTests` to pin the new `ShimDataTemplate`
+templated-parent constructor and `TemplatedParentFactory` property. The test remains
+reflection-based because live `DataTemplate` construction requires an initialized Uno
+dispatcher.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 155 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Expand `WpfTemplateBinding.Apply(...)` to support converter, converter parameter,
+   target-null, and fallback semantics.
+2. Replace the direct `RowDetails` reads in metadata factories with a shared
+   WPF-style binding evaluator for the `RowDetails` path.
+3. After that, start deleting equivalent hand-coded template logic from
+   `RomaMetadataStubs.cs` resource by resource.
+
+## Eighth Execution
+
+Took a larger step toward reusable WPF binding/template behavior by adding a real
+binding evaluator and moving Roma metadata stubs onto it.
+
+### WindowsShims changes
+
+Added:
+
+- `System.Windows.Data.BindingEvaluator`
+
+The evaluator currently supports:
+
+- empty path and `.` returning the source object;
+- dotted public property paths such as `RowDetails.Name`;
+- `Binding.Source`;
+- `FallbackValue` when a path cannot be resolved;
+- `TargetNullValue` when a resolved property is null;
+- `IValueConverter`;
+- `ConverterParameter`;
+- `ConverterCulture`;
+- `StringFormat`.
+
+This is intentionally stronger than the previous template-only bridge. It gives
+programmatic templates a WPF-shaped way to evaluate the same bindings found in the
+original ILSpy XAML.
+
+Added `BindingEvaluatorTests` covering property paths, `.`/empty paths, fallback,
+target-null, converter, and `StringFormat`.
+
+### Roma changes
+
+Replaced direct `RowDetails` property access in all metadata row-details factories with
+`BindingEvaluator.Evaluate(..., new Binding("RowDetails"))`:
+
+- `BuildCustomDebugInfoDataGrid`;
+- `BuildCustomDebugInfoTextBlob`;
+- `BuildHeaderFlagsDataGrid`.
+
+Updated Roma DevFlow probes to use the same evaluator for probe-side property reads:
+
+- `Member`;
+- `RowDetails`;
+- `Kind`.
+
+This removes another local reflection/property-read path and moves both runtime stubs
+and tests toward the same binding semantics.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 155 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Let `WpfTemplateBinding.Apply(...)` consume a `TemplateBindingExtension`, including
+   converter and converter parameter.
+2. Add a small template-factory builder that wires `BindingEvaluator` and
+   `WpfTemplateBinding` together, so Roma metadata stubs describe bindings instead of
+   imperative reads.
+3. Convert `CustomDebugInformationDetailsTextBlob` first because it is a compact
+   one-control template and maps directly to the original XAML binding.
+
+## Ninth Execution
+
+Moved from binding value evaluation to binding assignment so template factories can
+describe data flow closer to XAML.
+
+### WindowsShims changes
+
+Extended `BindingEvaluator` with:
+
+```csharp
+BindingEvaluator.Apply(target, propertyName, dataContext, binding)
+```
+
+The method:
+
+- resolves the binding using the existing evaluator;
+- locates a writable public property on the target;
+- coerces primitive/enum values where needed;
+- writes the property value.
+
+Added tests for:
+
+- applying a binding to a writable property;
+- string-to-int coercion;
+- missing target property failure.
+
+### Roma changes
+
+Updated metadata row-details factories so control properties are assigned through
+bindings instead of direct imperative values:
+
+- `BuildCustomDebugInfoDataGrid` now applies `ItemsSource <- {Binding RowDetails}`;
+- `BuildCustomDebugInfoTextBlob` now applies `Text <- {Binding RowDetails}`;
+- `BuildHeaderFlagsDataGrid` now applies `ItemsSource <- {Binding RowDetails}`.
+
+The factories still construct the controls in C#, but data transfer now uses a shared
+WPF-shaped binding assignment path. This makes the remaining stub code much closer to
+the original metadata XAML.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 155 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add a `WpfTemplateFactory` helper that constructs controls and applies a list of
+   binding assignments in one declaration.
+2. Convert all three Roma row-details factories to use that helper.
+3. After that, move filter template creation toward the same declarative resource shape.
+
+## Tenth Execution
+
+Introduced a reusable template factory builder and moved all current Roma metadata
+row-details factories onto it.
+
+### WindowsShims changes
+
+Added:
+
+- `System.Windows.Controls.WpfTemplateFactory`;
+- `System.Windows.Controls.BindingAssignment`.
+
+`WpfTemplateFactory.Create<T>(...)` constructs a framework element, runs an optional
+initializer, then applies a list of binding assignments through `BindingEvaluator`.
+This gives programmatic templates a compact declaration shape:
+
+```csharp
+WpfTemplateFactory.Create<TextBox>(
+    item,
+    textBox => { ... },
+    BindingAssignment.To(nameof(TextBox.Text), new Binding("RowDetails")));
+```
+
+Added `WpfTemplateFactoryTests` to cover `BindingAssignment` behavior and pin the
+factory surface without constructing live Uno controls in the headless unit runner.
+
+### Roma changes
+
+Converted all three metadata row-details factories to `WpfTemplateFactory`:
+
+- `BuildCustomDebugInfoDataGrid`;
+- `BuildCustomDebugInfoTextBlob`;
+- `BuildHeaderFlagsDataGrid`.
+
+The factories still contain control initialization where the original XAML had element
+attributes and child column declarations, but binding application is now declarative and
+centralized.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 155 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma combined metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add first-class declarative column definitions for `WpfTemplateFactory` so
+   `HeaderFlagsDetailsDataGrid` stops hand-adding columns in an initializer.
+2. Move `DataGridCellStyle` and `ItemContainerStyle` creation toward shared style
+   helpers, preparing for `Style.BasedOn` and type-keyed resource work.
+3. Convert filter resource creation into declarative records so the remaining
+   `RomaMetadataStubs.cs` resources are data descriptions rather than ad hoc code.
+
+## Eleventh Execution
+
+Pushed `WpfTemplateFactory` further from "control construction helper" toward a
+small declarative DataGrid substrate.
+
+### WindowsShims changes
+
+Added:
+
+- `System.Windows.Controls.DataGridColumnSpec`;
+- `System.Windows.Controls.DataGridColumnKind`;
+- `WpfTemplateFactory.ApplyColumns(...)`.
+
+`DataGridColumnSpec.Text(...)` and `DataGridColumnSpec.CheckBox(...)` now describe
+the common WPF `DataGridTextColumn` / `DataGridCheckBoxColumn` declarations that
+Roma needs for metadata row-details templates. `ApplyColumns` materializes those
+specs into real DataGrid columns.
+
+Extended `WpfTemplateFactoryTests` to pin:
+
+- text column kind, header, binding, and read-only defaults;
+- checkbox column kind, header, binding, and read-only defaults.
+
+### Roma changes
+
+Updated `BuildHeaderFlagsDataGrid` so its columns are now declared through
+`DataGridColumnSpec` instead of hand-created inside the initializer:
+
+```csharp
+WpfTemplateFactory.ApplyColumns(
+    grid,
+    DataGridColumnSpec.CheckBox("Value", new Binding("Value")),
+    DataGridColumnSpec.Text("Meaning", new Binding("Meaning")));
+```
+
+This removes another local template shim from Roma and puts the reusable shape in
+WindowsShims where other migrated WPF templates can share it.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 155 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma metadata integration tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add a shared style factory for `Style`, setters, and type-targeted style
+   declarations so Roma's remaining `DataGridCellStyle` and `ItemContainerStyle`
+   code can move out of local factories.
+2. Extend that style substrate toward WPF-specific concepts that Uno lacks or only
+   partially exposes, starting with `BasedOn` and type-keyed resource lookup.
+3. Convert filter resources in `RomaMetadataStubs.cs` into declarative resource
+   specs, keeping resource construction in WindowsShims and leaving Roma with data
+   descriptions.
+
+## Twelfth Execution
+
+Moved the first style/resource layer out of Roma and into WindowsShims.
+
+### WindowsShims changes
+
+Added:
+
+- `System.Windows.Controls.WpfStyleFactory`;
+- `System.Windows.Controls.SetterSpec`;
+- `WpfStyleFactoryTests`.
+
+`WpfStyleFactory.Create(...)` now materializes a WinUI `Style` from a target type
+and a declarative list of setter specs. This gives Roma and future WPF template
+ports a single place to grow WPF style semantics such as `BasedOn`, type-keyed
+style lookup, and style resource expansion.
+
+Also fixed the test project coverage gap: the newly added binding/template/style
+test files are now explicitly included in `LeXtudio.Windows.Tests.csproj`, which
+uses `EnableDefaultCompileItems=false`.
+
+### Roma changes
+
+Converted the remaining local style construction in `RomaMetadataStubs.cs`:
+
+- `DataGridCellStyle`;
+- `ItemContainerStyle`.
+
+Both resources now declare setter specs and let WindowsShims build the actual
+`Style` objects. This removes another ad hoc Roma-side shim and keeps the
+DataGrid support moving toward reusable WPF substrate code.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 169 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma metadata integration tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add declarative resource specs for `FilterControlTemplate` and flags filters so
+   `RomaMetadataStubs.cs` can describe filters as data instead of constructing
+   each resource directly.
+2. Extend `WpfStyleFactory` with `BasedOn` support and resource-key helpers, then
+   look for upstream ILSpy styles that can stop carrying `ROMA_UNO` exclusions.
+3. Revisit `DataGridColumnSpec.CreateColumn` and `WpfStyleFactory.Create` test
+   coverage through DevFlow/Roma probes because those paths require a live Uno
+   dispatcher and cannot be fully exercised by headless WindowsShims unit tests.
+
+## Thirteenth Execution
+
+Took a larger step and introduced a unified resource-spec layer instead of adding
+one-off helpers for each remaining Roma metadata resource type.
+
+### WindowsShims changes
+
+Added:
+
+- `System.Windows.Controls.WpfResourceFactory`;
+- `System.Windows.Controls.WpfResourceSpec`;
+- `WpfResourceFactoryTests`.
+
+`WpfResourceSpec` now covers:
+
+- simple value resources;
+- `DataGridExtensions.FilterControlTemplate` resources;
+- flags filter templates;
+- style resources backed by `WpfStyleFactory`;
+- `ShimDataTemplate` resources backed by template bridge factories.
+
+This gives future WPF `ResourceDictionary` ports a single declaration shape:
+
+```csharp
+WpfResourceFactory.CreateMany(
+    WpfResourceSpec.TextFilter("DefaultFilter"),
+    WpfResourceSpec.Style("DataGridCellStyle", typeof(DataGridCell), ...),
+    WpfResourceSpec.DataTemplate("HeaderFlagsDetailsDataGrid", BuildHeaderFlagsDataGrid));
+```
+
+Headless WindowsShims tests intentionally verify the declaration/API layer and
+avoid materializing Uno `Style`, `DataTemplate`, or WPF DataGrid column instances
+that require a live dispatcher. Roma integration tests cover those materialized
+paths.
+
+### Roma changes
+
+Rewrote `MetadataTableViews.BuildResources()` as one declarative resource list.
+
+Removed direct Roma-side construction for:
+
+- `DefaultFilter`;
+- `HexFilter`;
+- all flags filters;
+- `DataGridCellStyle`;
+- `ItemContainerStyle`;
+- all row-details `ShimDataTemplate` resources.
+
+Also removed the local `Flags(...)` helper. The remaining Roma code now mostly
+describes ILSpy-specific resource keys and data types; WindowsShims owns the
+resource construction substrate.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 173 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma metadata integration tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Push `WpfResourceFactory` one layer higher: add a helper that populates a
+   `ResourceDictionary` directly from specs so Roma's constructor no longer loops
+   over tuples.
+2. Add `BasedOn` and resource-key references to `WpfStyleFactory` / `WpfResourceSpec`
+   so upstream WPF styles can retain more of their original structure.
+3. Start mapping upstream `MetadataTableViews.xaml` resource entries into specs
+   mechanically, with the long-term goal of replacing hand-written Roma stubs by a
+   reusable WPF resource translation layer.
+
+## Fourteenth Execution
+
+Raised the resource substrate one level higher and added the first style inheritance
+surface.
+
+### WindowsShims changes
+
+Extended `WpfResourceFactory` with:
+
+- `Populate(ResourceDictionary, params WpfResourceSpec[])`;
+- direct dictionary assignment from specs.
+
+Extended `WpfStyleFactory` with:
+
+- `Create(Type, Style? basedOn, params SetterSpec[])`;
+- `StyleSpec`;
+- `WpfStyleFactory.Style(...)`;
+- `WpfStyleFactory.BasedOn(...)`;
+- `WpfResourceSpec.Style(string, StyleSpec)`.
+
+This means resource dictionary ports can now stay at the spec layer and style
+declarations can preserve a WPF-like inheritance shape instead of flattening every
+setter up front.
+
+### Roma changes
+
+Changed `MetadataTableViews` so the constructor delegates resource population to
+WindowsShims:
+
+```csharp
+WpfResourceFactory.Populate(this, BuildResources());
+```
+
+`BuildResources()` now returns `WpfResourceSpec[]` directly. Roma no longer exposes
+the intermediate `(key, value)` materialization loop.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 175 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma metadata integration tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+1. Add resource-key based style inheritance so `BasedOn="{StaticResource ...}"`
+   can be represented before the referenced style is materialized.
+2. Add a `WpfResourceDictionaryBuilder` or equivalent ordered resolver if resource
+   specs need cross-resource lookups.
+3. Start translating a concrete upstream `MetadataTableViews.xaml` style/template
+   fragment into specs to identify the next missing WPF XAML construct.
+
+## Fifteenth Execution
+
+Tried direct upstream XAML reuse for the metadata resource dictionary.
+
+### WindowsShims changes
+
+Added `System.Windows.Controls.WpfXamlResourceTranslator`, a small XAML-to-resource
+translator that parses a WPF `ResourceDictionary` XML document and emits
+`WpfResourceSpec` entries for the constructs we can safely reuse today:
+
+- `<Style x:Key=... TargetType=...>` with simple `<Setter Property=... Value=...>`;
+- text filter `<ControlTemplate>`;
+- hex filter `<ControlTemplate>`;
+- flags filter `<ControlTemplate>` with `FlagsType="{x:Type ...}"`.
+
+Unsupported resources, especially current DataTemplates, are intentionally left
+for fallback specs. This lets Roma consume the real upstream XAML file while
+keeping the existing C# row-details factories as a bridge.
+
+Also changed `SetterSpec` so XAML-translated setters can store a property name and
+resolve the actual dependency property lazily when the style is materialized. This
+avoids headless unit tests triggering Uno `Control` static initialization while
+still allowing Roma's live UI path to create real setters.
+
+Added `WpfXamlResourceTranslatorTests` covering:
+
+- style + text filter + flags filter translation;
+- fallback resources for unsupported XAML entries.
+
+### Roma changes
+
+Copied upstream `ext/ilspy/ILSpy/Metadata/MetadataTableViews.xaml` into the Roma
+output as content:
+
+```xml
+<Content Include="..\..\ext\ilspy\ILSpy\Metadata\MetadataTableViews.xaml"
+         Link="ILSpy\Metadata\MetadataTableViews.xaml"
+         CopyToOutputDirectory="PreserveNewest" />
+```
+
+Changed `MetadataTableViews.BuildResources()` to prefer the copied upstream XAML:
+
+```csharp
+var xamlPath = Path.Combine(AppContext.BaseDirectory, "ILSpy", "Metadata", "MetadataTableViews.xaml");
+if (File.Exists(xamlPath))
+{
+    return WpfXamlResourceTranslator.TranslateResourceDictionary(
+        File.ReadAllText(xamlPath),
+        ResolveMetadataXamlType,
+        fallbackResources);
+}
+```
+
+The fallback path still exists for robustness, but the normal debug/build output
+now reuses upstream `MetadataTableViews.xaml` for filters and simple styles.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 177 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning in `DataGridCellInfoTests.cs` remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma metadata integration tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+Output file check:
+
+```bash
+ls -l src/Roma.Host/bin/Debug/net10.0-desktop/ILSpy/Metadata/MetadataTableViews.xaml
+```
+
+Result:
+
+- upstream XAML is present in the Roma output directory.
+
+## Next Slice
+
+1. Translate `StaticResource` / `DynamicResource` / `BasedOn` into deferred resource
+   references so more WPF styles can stay structurally intact.
+2. Add diagnostics that report which upstream XAML resources were translated and
+   which fell back, making gaps visible in integration tests.
+3. Start translating simple DataTemplates into `ShimDataTemplate` factories by
+   recognizing a small element subset such as `DataGrid`, `TextBox`, `Grid`, and
+   binding attributes.

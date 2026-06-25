@@ -36,9 +36,14 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="BindingExpressionBridgeTests.cs" />
+    <Compile Include="BindingEvaluatorTests.cs" />
     <Compile Include="CommandManagerBridgeTests.cs" />
     <Compile Include="BindingTests.cs" />
     <Compile Include="WpfSubstrateBridgeTests.cs" />
+    <Compile Include="WpfTemplateFactoryTests.cs" />
+    <Compile Include="WpfStyleFactoryTests.cs" />
+    <Compile Include="WpfResourceFactoryTests.cs" />
+    <Compile Include="WpfXamlResourceTranslatorTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
     <Compile Include="DataGridExtensionsShimTests.cs" />
     <Compile Include="DataGridRomaMetadataSurfaceTests.cs" />
