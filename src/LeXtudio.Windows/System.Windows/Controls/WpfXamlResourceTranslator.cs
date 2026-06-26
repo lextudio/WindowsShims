@@ -141,9 +141,14 @@ public static class WpfXamlResourceTranslator
     private static WpfResourceSpec? TranslateDataTemplate(string key, XElement templateElement)
     {
         var visualRoot = templateElement.Elements().FirstOrDefault();
-        if (visualRoot == null || visualRoot.Name == PresentationNamespace + "DataGrid")
+        if (visualRoot == null)
         {
             return null;
+        }
+
+        if (visualRoot.Name == PresentationNamespace + "DataGrid")
+        {
+            return TranslateDataGridDataTemplate(key, visualRoot);
         }
 
         var textBoxElement = visualRoot.Name == PresentationNamespace + "TextBox"
@@ -168,6 +173,22 @@ public static class WpfXamlResourceTranslator
                 item,
                 textBox => ApplySimplePropertyValues(textBox, textBoxValues),
                 assignments));
+    }
+
+    private static WpfResourceSpec? TranslateDataGridDataTemplate(string key, XElement dataGridElement)
+    {
+        var itemsSourceBinding = ParseBinding(dataGridElement.Attribute("ItemsSource")?.Value);
+        if (itemsSourceBinding == null)
+        {
+            return null;
+        }
+
+        var values = ReadSimplePropertyValues(dataGridElement);
+        return WpfResourceSpec.DataTemplate(key, (item, _) =>
+            WpfTemplateFactory.Create<DataGrid>(
+                item,
+                grid => ApplySimplePropertyValues(grid, values),
+                BindingAssignment.To(nameof(DataGrid.ItemsSource), itemsSourceBinding)));
     }
 
     private static string? GetKey(XElement element)
@@ -300,7 +321,12 @@ public static class WpfXamlResourceTranslator
                 }
 
                 var propertyName = attribute.Name.LocalName;
-                if (propertyName is "Text" or "Name")
+                if (propertyName is "Text" or "Name" or "ItemsSource")
+                {
+                    continue;
+                }
+
+                if (LooksLikeMarkupExtension(attribute.Value))
                 {
                     continue;
                 }
@@ -350,7 +376,7 @@ public static class WpfXamlResourceTranslator
             }
 
             var converted = ConvertToPropertyType(value, property.PropertyType);
-            if (converted != null || Nullable.GetUnderlyingType(property.PropertyType) != null || !property.PropertyType.IsValueType)
+            if (CanAssignValue(converted, property.PropertyType))
             {
                 property.SetValue(target, converted);
             }
@@ -386,6 +412,22 @@ public static class WpfXamlResourceTranslator
         }
 
         return value;
+    }
+
+    private static bool LooksLikeMarkupExtension(string value)
+    {
+        var text = value.Trim();
+        return text.StartsWith('{') && text.EndsWith('}');
+    }
+
+    private static bool CanAssignValue(object? value, Type propertyType)
+    {
+        if (value == null)
+        {
+            return Nullable.GetUnderlyingType(propertyType) != null || !propertyType.IsValueType;
+        }
+
+        return propertyType.IsInstanceOfType(value);
     }
 }
 

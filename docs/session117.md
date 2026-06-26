@@ -1514,3 +1514,81 @@ Result:
 3. Start translating simple DataTemplates into `ShimDataTemplate` factories by
    recognizing a small element subset such as `DataGrid`, `TextBox`, `Grid`, and
    binding attributes.
+
+## Sixteenth Execution
+
+Closed the high-value Roma metadata DataTemplate fallback slice.
+
+### WindowsShims changes
+
+Extended `WpfXamlResourceTranslator` so simple upstream metadata
+`DataTemplate` entries with a `DataGrid` root are translated into
+`ShimDataTemplate` resources:
+
+- `ItemsSource="{Binding ...}"` becomes a `BindingAssignment`;
+- simple bool, enum, and numeric attributes are applied through the existing
+  template factory;
+- markup-extension values such as `StaticResource` are skipped for now instead
+  of being incorrectly assigned as strings.
+
+The existing `TextBox` DataTemplate path remains in place. The translator unit test
+now pins both `TextBox` and `DataGrid` DataTemplates as translated resources with no
+fallback for the simple case.
+
+### Roma changes
+
+Removed the three local row-details fallback factories from `RomaMetadataStubs.cs`:
+
+- `CustomDebugInformationDetailsDataGrid`;
+- `CustomDebugInformationDetailsTextBlob`;
+- `HeaderFlagsDetailsDataGrid`.
+
+Roma now relies on the copied upstream `MetadataTableViews.xaml` for these row-details
+templates. The resource translation integration test was tightened so those three
+keys must appear in `TranslatedKeys` and must not appear in `FallbackKeys`.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 180 passed
+- 0 failed
+- 0 skipped
+- existing warnings remain
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata/resource tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The quick Roma metadata reuse win is now mostly harvested. The next useful small slice
+is to translate the remaining simple upstream metadata resource entry,
+`byteWidthConverter`, or to add resource-reference application for skipped
+`StaticResource` style setters. Larger DataGrid visual-pipeline reuse should still wait
+until more template/style substrate is covered.

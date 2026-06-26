@@ -111,7 +111,7 @@ public sealed class WpfXamlResourceTranslatorTests
     }
 
     [Test]
-    public void TranslateResourceDictionaryReadsSimpleTextBoxDataTemplate()
+    public void TranslateResourceDictionaryReadsSimpleTextBoxAndDataGridDataTemplates()
     {
         const string xaml = """
             <ResourceDictionary
@@ -132,12 +132,11 @@ public sealed class WpfXamlResourceTranslatorTests
         var specs = WpfXamlResourceTranslator.TranslateResourceDictionary(
             xaml,
             ResolveType,
-            out var report,
-            WpfResourceSpec.Value("GridDetails", "fallback"));
+            out var report);
 
         Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "TextBlob", "GridDetails" }));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "TextBlob" }));
-        Assert.That(report.FallbackKeys, Is.EqualTo(new[] { "GridDetails" }));
+        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "TextBlob", "GridDetails" }));
+        Assert.That(report.FallbackKeys, Is.Empty);
     }
 
     private static Type? ResolveType(string name)
