@@ -111,6 +111,27 @@ public sealed class WpfXamlResourceTranslatorTests
     }
 
     [Test]
+    public void TranslateResourceDictionaryReadsKeyedObjectResource()
+    {
+        const string xaml = """
+            <ResourceDictionary
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:local="clr-namespace:Local">
+                <local:SharedConverter x:Key="converter" />
+            </ResourceDictionary>
+            """;
+
+        var specs = WpfXamlResourceTranslator.TranslateResourceDictionary(xaml, ResolveType, out var report);
+
+        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "converter" }));
+        Assert.That(specs[0].CreateValue(), Is.SameAs(SharedConverter.Instance));
+        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "converter" }));
+        Assert.That(report.SkippedKeys, Is.Empty);
+    }
+
+
+    [Test]
     public void TranslateResourceDictionaryReadsSimpleTextBoxAndDataGridDataTemplates()
     {
         const string xaml = """
@@ -145,6 +166,12 @@ public sealed class WpfXamlResourceTranslatorTests
             "DataGridCell" => typeof(DataGridCell),
             "ListViewItem" => typeof(Microsoft.UI.Xaml.Controls.ListViewItem),
             "srm:AssemblyFlags" => typeof(System.Reflection.AssemblyFlags),
+            "SharedConverter" or "local:SharedConverter" => typeof(SharedConverter),
             _ => null
         };
+
+    private sealed class SharedConverter
+    {
+        public static readonly SharedConverter Instance = new();
+    }
 }

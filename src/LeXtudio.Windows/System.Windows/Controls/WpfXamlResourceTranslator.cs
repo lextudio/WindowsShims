@@ -86,7 +86,36 @@ public static class WpfXamlResourceTranslator
             return TranslateDataTemplate(key, element);
         }
 
-        return null;
+        return TranslateObjectResource(key, element, typeResolver);
+    }
+
+    private static WpfResourceSpec? TranslateObjectResource(string key, XElement element, Func<string, Type?> typeResolver)
+    {
+        var type = typeResolver(element.Name.LocalName) ?? typeResolver("local:" + element.Name.LocalName);
+        if (type == null)
+        {
+            return null;
+        }
+
+        object? value = null;
+        var instanceField = type.GetField(
+            "Instance",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        if (instanceField != null && type.IsInstanceOfType(instanceField.GetValue(null)))
+        {
+            value = instanceField.GetValue(null);
+        }
+
+        var instanceProperty = type.GetProperty(
+            "Instance",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        if (value == null && instanceProperty != null && type.IsInstanceOfType(instanceProperty.GetValue(null)))
+        {
+            value = instanceProperty.GetValue(null);
+        }
+
+        value ??= Activator.CreateInstance(type, nonPublic: true);
+        return value == null ? null : WpfResourceSpec.Value(key, value);
     }
 
     private static WpfResourceSpec? TranslateStyle(string key, XElement styleElement, Func<string, Type?> typeResolver)
