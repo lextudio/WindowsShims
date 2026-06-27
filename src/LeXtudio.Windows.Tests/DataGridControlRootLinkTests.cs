@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using NUnit.Framework;
 
@@ -338,8 +339,20 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("ShimBestFitColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.ShimBestFitColumnWidth measures realized header/filter/data cells for best-fit resize.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildHeaderWithGrippers", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null,
-            "DataGrid.BuildHeaderWithGrippers wraps HeaderContent in a 3-col Grid with Thumb grippers.");
+        Assert.That(
+            typeof(DataGridColumnHeader).GetMethod("OnApplyTemplate", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGridColumnHeader.OnApplyTemplate hooks the WPF PART_*HeaderGripper template parts.");
+        Assert.That(
+            typeof(DataGrid).Assembly
+                .GetType("System.Windows.Controls.DataGridColumnCollection")
+                ?.GetMethod("RecomputeColumnWidthsOnColumnResize", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGridColumnCollection.RecomputeColumnWidthsOnColumnResize bridges WPF gripper drag into the shim width path.");
+        Assert.That(
+            typeof(Thumb).GetEvent("MouseDoubleClick", BindingFlags.Instance | BindingFlags.Public),
+            Is.Not.Null,
+            "Thumb.MouseDoubleClick lets the linked WPF header double-click handler run from Uno DoubleTapped.");
         Assert.That(typeof(DataGrid).GetMethod("PreviousVisibleColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
         var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
         Assert.That(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,

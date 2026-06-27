@@ -11,10 +11,20 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
 {
     private const string HeaderTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
-        "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+        "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' " +
+        "xmlns:primitives='using:System.Windows.Controls.Primitives'>" +
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
-        "<ContentPresenter />" +
+        "<Grid>" +
+        "<Grid.ColumnDefinitions>" +
+        "<ColumnDefinition Width='8' />" +
+        "<ColumnDefinition Width='*' />" +
+        "<ColumnDefinition Width='8' />" +
+        "</Grid.ColumnDefinitions>" +
+        "<primitives:Thumb x:Name='PART_LeftHeaderGripper' Grid.Column='0' Background='Transparent' />" +
+        "<ContentPresenter Grid.Column='1' />" +
+        "<primitives:Thumb x:Name='PART_RightHeaderGripper' Grid.Column='2' Background='Transparent' />" +
+        "</Grid>" +
         "</Border></ControlTemplate>";
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _headerTemplate;

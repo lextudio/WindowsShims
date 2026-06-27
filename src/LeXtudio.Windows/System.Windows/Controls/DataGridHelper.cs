@@ -59,6 +59,13 @@ internal static partial class DataGridHelper
 
     internal static void OnColumnWidthChanged(IProvideDataGridColumn owner, DependencyPropertyChangedEventArgs e)
     {
+        var column = owner.Column;
+        if (column is { DataGridOwner: { } dataGridOwner } && column.Width.IsAuto)
+        {
+            dataGridOwner.ShimTryAutoSizeColumn(column);
+            return;
+        }
+
         if (owner is DataGridColumnHeader header)
         {
             header.Width = header.Column?.DataGridOwner?.ShimColumnWidth(header.Column) ?? double.NaN;

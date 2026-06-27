@@ -65,7 +65,8 @@ internal partial class DataGridColumnCollection
     internal void OnColumnResizeCompleted(bool cancel) { }
 
     internal void RecomputeColumnWidthsOnColumnResize(
-        DataGridColumn resizingColumn, double horizontalChange, bool retainAuto) { }
+        DataGridColumn resizingColumn, double horizontalChange, bool retainAuto)
+        => DataGridOwner?.ShimTryResizeColumn(resizingColumn, horizontalChange);
 
     internal void RedistributeColumnWidthsOnAvailableSpaceChange(
         double availableSpaceChange, double newTotalAvailableSpace) { }

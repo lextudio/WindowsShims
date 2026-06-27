@@ -458,11 +458,10 @@ public partial class DataGrid
     }
 
     // ── Column resize by header edge drag ────────────────────────────────────
-    // WPF's DataGridColumnHeader template uses two Thumb elements
-    // (PART_LeftHeaderGripper / PART_RightHeaderGripper) for resize grippers,
-    // completely separate from the ContentPresenter.  The shim replicates this
-    // by wrapping HeaderContent in a 3-column Grid:
-    //   [LeftGripper(8px)] [Content(*)] [RightGripper(8px)]
+    // WPF's linked DataGridColumnHeader owns gripper event hookup through
+    // PART_LeftHeaderGripper / PART_RightHeaderGripper template parts. The
+    // Uno-specific bridge is in DataGridColumnCollection.uno.cs, where the
+    // upstream resize callback is committed into the shim width path.
 
     private DataGridColumn? PreviousVisibleColumn(DataGridColumn? column)
     {
@@ -612,15 +611,23 @@ public partial class DataGrid
 
     private static double ElementBestFitWidth(Microsoft.UI.Xaml.FrameworkElement element)
     {
-        var width = Math.Max(element.DesiredSize.Width, element.ActualWidth);
-        if (double.IsNaN(width) || width <= 0)
+        var textWidth = TextBestFitWidth(ElementText(element));
+        if (textWidth > 0)
         {
-            width = element.Width;
+            return textWidth;
         }
 
-        var textWidth = TextBestFitWidth(ElementText(element));
-        var result = Math.Max(width, textWidth);
-        return double.IsNaN(result) || result <= 0 ? Math.Max(textWidth, 20) : result;
+        var desiredWidth = element.DesiredSize.Width;
+        if (double.IsNaN(desiredWidth) || desiredWidth <= 0 || !double.IsNaN(element.Width))
+        {
+            desiredWidth = 0;
+        }
+
+        // Best-fit should be based on content, not the width currently assigned
+        // by layout or a previous resize. Using ActualWidth/Width here makes a
+        // double-click preserve/stretch to the current width instead of
+        // shrinking back to content.
+        return double.IsNaN(desiredWidth) || desiredWidth <= 0 ? 20 : desiredWidth;
     }
 
     private static string? ElementText(object? value)
@@ -697,7 +704,7 @@ public partial class DataGrid
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             };
             headerCell.PrepareColumnHeader(column.Header, column);
-            headerCell.Content = BuildHeaderWithGrippers(column, headerCell);
+            headerCell.Content = HeaderContent(column);
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();
@@ -709,7 +716,7 @@ public partial class DataGrid
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
 
-            if (double.IsNaN(ShimColumnWidth(column)))
+            if (!double.IsNaN(ShimColumnWidth(column)))
             {
                 headerCell.Width = ShimColumnWidth(column);
             }
@@ -1418,53 +1425,6 @@ public partial class DataGrid
         }
 
         return grid;
-    }
-
-    // Wraps HeaderContent in a 3-column Grid with invisible Thumb grippers at
-    // the left and right edges (matching WPF's PART_LeftHeaderGripper /
-    // PART_RightHeaderGripper).  The grippers handle resize cursor and
-    // drag-resize; double-tap auto-sizes the adjacent column.
-    private object BuildHeaderWithGrippers(DataGridColumn column, DataGridColumnHeader headerCell)
-    {
-        var root = new Microsoft.UI.Xaml.Controls.Grid();
-
-        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(8) });
-        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
-        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(8) });
-
-        var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0));
-
-        // Left gripper (resize previous column)
-        var leftGripper = new Thumb { Background = transparent };
-        Microsoft.UI.Xaml.Controls.Grid.SetColumn(leftGripper, 0);
-        var prev = PreviousVisibleColumn(column);
-        if (prev is { CanUserResize: true })
-        {
-            leftGripper.DragDelta += (_, args) => ShimTryResizeColumn(prev, args.HorizontalChange);
-            leftGripper.DoubleTapped += (_, args) => { ShimTryAutoSizeColumn(prev); args.Handled = true; };
-            leftGripper.PointerEntered += (_, _) => headerCell.SetShimCursor();
-            leftGripper.PointerExited += (_, _) => headerCell.ClearShimCursor();
-        }
-        root.Children.Add(leftGripper);
-
-        // Content (text + sort indicator + filter button)
-        var content = (Microsoft.UI.Xaml.FrameworkElement)HeaderContent(column);
-        Microsoft.UI.Xaml.Controls.Grid.SetColumn(content, 1);
-        root.Children.Add(content);
-
-        // Right gripper (resize current column)
-        var rightGripper = new Thumb { Background = transparent };
-        Microsoft.UI.Xaml.Controls.Grid.SetColumn(rightGripper, 2);
-        if (column is { CanUserResize: true })
-        {
-            rightGripper.DragDelta += (_, args) => ShimTryResizeColumn(column, args.HorizontalChange);
-            rightGripper.DoubleTapped += (_, args) => { ShimTryAutoSizeColumn(column); args.Handled = true; };
-            rightGripper.PointerEntered += (_, _) => headerCell.SetShimCursor();
-            rightGripper.PointerExited += (_, _) => headerCell.ClearShimCursor();
-        }
-        root.Children.Add(rightGripper);
-
-        return root;
     }
 
     // Session 69: row background for alternating rows.
