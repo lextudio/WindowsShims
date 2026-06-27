@@ -451,6 +451,141 @@ public partial class DataGrid
             _filterCells[i].Width = w;
     }
 
+    // ── Column resize by header edge drag ────────────────────────────────────
+    private DataGridColumn? _resizeColumn;
+    private DataGridColumnHeader? _resizeHeader;
+    private double _resizeLastX;
+    private bool _resizeActive;
+    private const double ResizeEdgeThickness = 6.0;
+    private const double ResizeDragThreshold = 1.0;
+
+    private bool TryBeginHeaderResize(DataGridColumnHeader header, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!CanUserResizeColumns || header.Column is not { CanUserResize: true, IsVisible: true } column)
+        {
+            return false;
+        }
+
+        var point = e.GetCurrentPoint(header);
+        if (!point.Properties.IsLeftButtonPressed || !IsOnHeaderResizeEdge(header, point.Position.X))
+        {
+            return false;
+        }
+
+        _resizeHeader = header;
+        _resizeColumn = column;
+        _resizeLastX = e.GetCurrentPoint(HeaderPointerHost(header)).Position.X;
+        _resizeActive = false;
+        header.CapturePointer(e.Pointer);
+        e.Handled = true;
+        return true;
+    }
+
+    private static bool IsOnHeaderResizeEdge(DataGridColumnHeader header, double x)
+    {
+        var width = header.ActualWidth > 0 ? header.ActualWidth : header.Width;
+        return !double.IsNaN(width) && width > 0 && x >= Math.Max(0, width - ResizeEdgeThickness);
+    }
+
+    private bool ContinueHeaderResize(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_resizeColumn is null || _resizeHeader is null)
+        {
+            return false;
+        }
+
+        var x = e.GetCurrentPoint(HeaderPointerHost(_resizeHeader)).Position.X;
+        var delta = x - _resizeLastX;
+        if (Math.Abs(delta) < ResizeDragThreshold)
+        {
+            e.Handled = true;
+            return true;
+        }
+
+        _resizeActive = ShimTryResizeColumn(_resizeColumn, delta) || _resizeActive;
+        _resizeLastX = x;
+        e.Handled = true;
+        return true;
+    }
+
+    private bool EndHeaderResize(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_resizeHeader is null)
+        {
+            return false;
+        }
+
+        _resizeHeader.ReleasePointerCapture(e.Pointer);
+        _resizeHeader = null;
+        _resizeColumn = null;
+        _resizeActive = false;
+        e.Handled = true;
+        return true;
+    }
+
+    private Microsoft.UI.Xaml.UIElement HeaderPointerHost(DataGridColumnHeader fallback)
+        => _headerHostPanel is not null ? _headerHostPanel : fallback;
+
+    // Core column-resize commit used by the shim header/gripper path. WPF's
+    // full redistribution algorithm also adjusts neighboring/star columns; the
+    // shim render path keeps the user-resized column as an explicit pixel width
+    // and then synchronizes the realized header/filter/data cells.
+    internal bool ShimTryResizeColumn(DataGridColumn column, double horizontalChange)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        if (!CanUserResizeColumns || !column.CanUserResize || !column.IsVisible)
+        {
+            return false;
+        }
+
+        var currentWidth = ShimResizeBaseWidth(column);
+        if (double.IsNaN(currentWidth) || currentWidth <= 0)
+        {
+            return false;
+        }
+
+        var resizedWidth = DataGridColumnResizeShim.ComputeWidth(currentWidth, horizontalChange, column.MinWidth, column.MaxWidth);
+        if (Math.Abs(resizedWidth - currentWidth) < 0.5)
+        {
+            return false;
+        }
+
+        InternalColumns.OnColumnResizeStarted();
+        try
+        {
+            column.Width = new DataGridLength(resizedWidth);
+            ShimApplyColumnWidth(column);
+        }
+        finally
+        {
+            InternalColumns.OnColumnResizeCompleted(cancel: false);
+        }
+
+        return true;
+    }
+
+    private double ShimResizeBaseWidth(DataGridColumn column)
+    {
+        if (column.ActualWidth > 0)
+        {
+            return column.ActualWidth;
+        }
+
+        var visibleIndex = _visibleColumns.IndexOf(column);
+        if (visibleIndex >= 0 && visibleIndex < _headerCells.Count)
+        {
+            var headerWidth = _headerCells[visibleIndex].ActualWidth > 0
+                ? _headerCells[visibleIndex].ActualWidth
+                : _headerCells[visibleIndex].Width;
+            if (!double.IsNaN(headerWidth) && headerWidth > 0)
+            {
+                return headerWidth;
+            }
+        }
+
+        return column.Width.DisplayValue > 0 ? column.Width.DisplayValue : column.Width.Value;
+    }
+
     // Items in display order, with active column filters applied. Sorting is
     // handled by ItemCollection.SortDescriptions (WPF PerformSort path).
     private IEnumerable<object?> OrderedItems()
@@ -758,6 +893,11 @@ public partial class DataGrid
 
     private void OnHeaderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (sender is DataGridColumnHeader resizeHeader && TryBeginHeaderResize(resizeHeader, e))
+        {
+            return;
+        }
+
         if (!CanUserReorderColumns || _headerHostPanel is null)
             return;
         if (sender is not DataGridColumnHeader hdr || hdr.Column is not { CanUserReorder: true } col)
@@ -772,6 +912,11 @@ public partial class DataGrid
 
     private void OnHeaderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (ContinueHeaderResize(e))
+        {
+            return;
+        }
+
         if (_reorderColumn is null || _reorderHeader is null || _headerHostPanel is null)
             return;
 
@@ -790,6 +935,11 @@ public partial class DataGrid
 
     private void OnHeaderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (EndHeaderResize(e))
+        {
+            return;
+        }
+
         if (_reorderColumn is { } col && _reorderActive && _headerHostPanel is not null)
         {
             var slot = ComputeDropSlot(e.GetCurrentPoint(_headerHostPanel).Position.X);
@@ -807,7 +957,10 @@ public partial class DataGrid
     }
 
     private void OnHeaderPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        => EndReorder();
+    {
+        EndHeaderResize(e);
+        EndReorder();
+    }
 
     // Walk the realized headers (display order) accumulating widths; return the
     // index of the slot whose left half the pointer is over (drop-before), or the
@@ -1229,6 +1382,146 @@ public partial class DataGrid
             .Cast<DataGridCellInfo>()
             .Any(info => EqualsEx(info.Item, cell.RowDataItem) && ReferenceEquals(info.Column, cell.Column));
 
+    // ── Clipboard copy ───────────────────────────────────────────────────────
+    // WPF's linked command handler depends on the full selected-cell range
+    // internals. The shim visual path keeps the public selection surfaces
+    // current, so build the clipboard payload from SelectedCells/SelectedItems
+    // and reuse the upstream column cell-copy event plus row formatter.
+    internal bool ShimCopySelectionToClipboard()
+    {
+        if (ClipboardCopyMode == DataGridClipboardCopyMode.None)
+        {
+            return false;
+        }
+
+        var dataObject = ShimBuildClipboardDataObject();
+        if (dataObject is null)
+        {
+            return false;
+        }
+
+        Clipboard.SetDataObject(dataObject, copy: true);
+        return true;
+    }
+
+    internal DataObject? ShimBuildClipboardDataObject()
+    {
+        var columns = ColumnsInDisplayOrder().Where(column => column.IsVisible).ToList();
+        if (columns.Count == 0)
+        {
+            return null;
+        }
+
+        var plan = ShimBuildClipboardPlan(columns);
+        if (plan.Rows.Count == 0 || plan.Columns.Count == 0)
+        {
+            return null;
+        }
+
+        var text = new System.Text.StringBuilder();
+        var csv = new System.Text.StringBuilder();
+
+        if (ClipboardCopyMode == DataGridClipboardCopyMode.IncludeHeader)
+        {
+            var headerArgs = new DataGridRowClipboardEventArgs(
+                null!,
+                plan.Columns.Min(column => column.DisplayIndex),
+                plan.Columns.Max(column => column.DisplayIndex),
+                isColumnHeadersRow: true);
+            foreach (var column in plan.Columns)
+            {
+                headerArgs.ClipboardRowContent.Add(new DataGridClipboardCellContent(null!, column, column.Header));
+            }
+
+            text.Append(headerArgs.FormatClipboardCellValues(DataFormats.UnicodeText));
+            csv.Append(headerArgs.FormatClipboardCellValues(DataFormats.CommaSeparatedValue));
+        }
+
+        foreach (var row in plan.Rows)
+        {
+            var rowArgs = new DataGridRowClipboardEventArgs(
+                row.Item,
+                plan.Columns.Min(column => column.DisplayIndex),
+                plan.Columns.Max(column => column.DisplayIndex),
+                isColumnHeadersRow: false,
+                row.Index);
+
+            foreach (var column in plan.Columns)
+            {
+                var content = row.SelectedColumns is null || row.SelectedColumns.Contains(column)
+                    ? column.OnCopyingCellClipboardContent(row.Item)
+                    : null;
+                rowArgs.ClipboardRowContent.Add(new DataGridClipboardCellContent(row.Item, column, content));
+            }
+
+            text.Append(rowArgs.FormatClipboardCellValues(DataFormats.UnicodeText));
+            csv.Append(rowArgs.FormatClipboardCellValues(DataFormats.CommaSeparatedValue));
+        }
+
+        var dataObject = new DataObject();
+        var unicode = text.ToString();
+        dataObject.SetData(DataFormats.UnicodeText, unicode, autoConvert: false);
+        dataObject.SetData(DataFormats.Text, unicode, autoConvert: false);
+        dataObject.SetData(DataFormats.CommaSeparatedValue, csv.ToString(), autoConvert: false);
+        return dataObject;
+    }
+
+    private ClipboardPlan ShimBuildClipboardPlan(IReadOnlyList<DataGridColumn> visibleColumns)
+    {
+        var itemOrder = Items.Cast<object?>().ToList();
+        var selectedCells = SelectedCells
+            .Cast<DataGridCellInfo>()
+            .Where(cell => cell.IsValid && cell.Item is not null && cell.Column is { IsVisible: true })
+            .ToList();
+
+        if (selectedCells.Count > 0)
+        {
+            var selectedColumns = selectedCells
+                .Select(cell => cell.Column)
+                .Distinct()
+                .OrderBy(column => column.DisplayIndex)
+                .ToList();
+            var rows = selectedCells
+                .GroupBy(cell => cell.Item)
+                .Select(group => new ClipboardRow(
+                    group.Key,
+                    itemOrder.FindIndex(item => EqualsEx(item, group.Key)),
+                    group.Select(cell => cell.Column).Distinct().ToHashSet()))
+                .Where(row => row.Index >= 0)
+                .OrderBy(row => row.Index)
+                .ToList();
+
+            return new ClipboardPlan(selectedColumns, rows);
+        }
+
+        var selectedItems = SelectedItems
+            .Cast<object?>()
+            .Where(item => item is not null)
+            .Distinct()
+            .Select(item => new ClipboardRow(item!, itemOrder.FindIndex(candidate => EqualsEx(candidate, item)), null))
+            .Where(row => row.Index >= 0)
+            .OrderBy(row => row.Index)
+            .ToList();
+        if (selectedItems.Count > 0)
+        {
+            return new ClipboardPlan(visibleColumns.ToList(), selectedItems);
+        }
+
+        if (CurrentCell.IsValid && CurrentCell.Item is not null && CurrentCell.Column is { IsVisible: true } currentColumn)
+        {
+            var rowIndex = itemOrder.FindIndex(item => EqualsEx(item, CurrentCell.Item));
+            if (rowIndex >= 0)
+            {
+                return new ClipboardPlan([currentColumn], [new ClipboardRow(CurrentCell.Item, rowIndex, null)]);
+            }
+        }
+
+        return new ClipboardPlan([], []);
+    }
+
+    private sealed record ClipboardPlan(IReadOnlyList<DataGridColumn> Columns, IReadOnlyList<ClipboardRow> Rows);
+    private sealed record ClipboardRow(object Item, int Index, ISet<DataGridColumn>? SelectedColumns);
+
     private void SyncRealizedCellSelection()
     {
         foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
@@ -1250,14 +1543,53 @@ public partial class DataGrid
     protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         base.OnKeyDown(e);
+        var modifiers = Input.Keyboard.Modifiers;
+        if (e.Key == global::Windows.System.VirtualKey.C
+            && (modifiers & Input.ModifierKeys.Control) != 0
+            && ShimCopySelectionToClipboard())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == global::Windows.System.VirtualKey.A
+            && (modifiers & Input.ModifierKeys.Control) != 0
+            && ShimSelectAllCells())
+        {
+            e.Handled = true;
+            return;
+        }
+
         switch (e.Key)
         {
+            case global::Windows.System.VirtualKey.Left:
+                MoveCurrentCellByOffset(0, -1, (modifiers & Input.ModifierKeys.Shift) != 0);
+                e.Handled = true;
+                break;
+            case global::Windows.System.VirtualKey.Right:
+                MoveCurrentCellByOffset(0, 1, (modifiers & Input.ModifierKeys.Shift) != 0);
+                e.Handled = true;
+                break;
             case global::Windows.System.VirtualKey.Up:
-                MoveSelectionByOffset(-1);
+                if (SelectionUnit == DataGridSelectionUnit.Cell || SelectionUnit == DataGridSelectionUnit.CellOrRowHeader)
+                {
+                    MoveCurrentCellByOffset(-1, 0, (modifiers & Input.ModifierKeys.Shift) != 0);
+                }
+                else
+                {
+                    MoveSelectionByOffset(-1);
+                }
                 e.Handled = true;
                 break;
             case global::Windows.System.VirtualKey.Down:
-                MoveSelectionByOffset(1);
+                if (SelectionUnit == DataGridSelectionUnit.Cell || SelectionUnit == DataGridSelectionUnit.CellOrRowHeader)
+                {
+                    MoveCurrentCellByOffset(1, 0, (modifiers & Input.ModifierKeys.Shift) != 0);
+                }
+                else
+                {
+                    MoveSelectionByOffset(1);
+                }
                 e.Handled = true;
                 break;
             case global::Windows.System.VirtualKey.Home:
@@ -1306,6 +1638,147 @@ public partial class DataGrid
         HandleShimRowClicked(rows[Math.Clamp(index, 0, rows.Count - 1)]);
     }
 
+    internal bool MoveCurrentCellByOffset(int rowDelta, int columnDelta, bool extendSelection)
+    {
+        var items = Items.Cast<object?>().Where(item => item is not null).ToList();
+        var columns = ColumnsInDisplayOrder().Where(column => column.IsVisible).ToList();
+        if (items.Count == 0 || columns.Count == 0)
+        {
+            return false;
+        }
+
+        var rowIndex = CurrentCell.IsValid
+            ? items.FindIndex(item => EqualsEx(item, CurrentCell.Item))
+            : 0;
+        if (rowIndex < 0)
+        {
+            rowIndex = 0;
+        }
+
+        var columnIndex = CurrentCell.IsValid && CurrentCell.Column is not null
+            ? columns.FindIndex(column => ReferenceEquals(column, CurrentCell.Column))
+            : 0;
+        if (columnIndex < 0)
+        {
+            columnIndex = 0;
+        }
+
+        var targetRowIndex = Math.Clamp(rowIndex + rowDelta, 0, items.Count - 1);
+        var targetColumnIndex = Math.Clamp(columnIndex + columnDelta, 0, columns.Count - 1);
+        return MoveCurrentCellTo(items[targetRowIndex]!, columns[targetColumnIndex], extendSelection);
+    }
+
+    internal bool MoveCurrentCellTo(DataGridRow row, DataGridColumn column, bool extendSelection)
+        => row.Item is not null && MoveCurrentCellTo(row.Item, column, extendSelection);
+
+    private bool MoveCurrentCellTo(object item, DataGridColumn column, bool extendSelection)
+    {
+        if (!column.IsVisible)
+        {
+            return false;
+        }
+
+        var next = new DataGridCellInfo(item, column, this);
+        var oldCurrentCell = CurrentCellContainer;
+        CurrentCell = next;
+        var row = FindShimRowForItem(item);
+        CurrentCellContainer = row is null ? null : FindShimCell(row, column);
+
+        if (SelectionUnit == DataGridSelectionUnit.FullRow)
+        {
+            if (row is not null)
+            {
+                HandleShimRowClicked(row);
+            }
+            else if (!SelectedItems.Contains(item))
+            {
+                SelectedItems.Add(item);
+            }
+        }
+        else
+        {
+            using (UpdateSelectedCells())
+            {
+                if (!extendSelection)
+                {
+                    SelectedCells.Clear();
+                }
+
+                if (!SelectedCells.Contains(next))
+                {
+                    SelectedCells.Add(next);
+                }
+            }
+        }
+
+        if (oldCurrentCell is not null && !ReferenceEquals(oldCurrentCell, CurrentCellContainer))
+        {
+            oldCurrentCell.NotifyCurrentCellContainerChanged();
+        }
+
+        CurrentCellContainer?.NotifyCurrentCellContainerChanged();
+        SyncRealizedCellSelection();
+        return true;
+    }
+
+    internal bool ShimSelectAllCells()
+    {
+        var items = Items.Cast<object?>().Where(item => item is not null).ToList();
+        var columns = ColumnsInDisplayOrder().Where(column => column.IsVisible).ToList();
+        if (items.Count == 0 || columns.Count == 0)
+        {
+            return false;
+        }
+
+        if (SelectionUnit == DataGridSelectionUnit.FullRow)
+        {
+            BeginUpdateSelectedItems();
+            try
+            {
+                SelectedItems.Clear();
+                foreach (var item in items)
+                {
+                    SelectedItems.Add(item);
+                    if (FindShimRowForItem(item!) is { } row)
+                    {
+                        row.IsSelected = true;
+                    }
+                }
+            }
+            finally
+            {
+                EndUpdateSelectedItems();
+            }
+
+            return true;
+        }
+
+        using (UpdateSelectedCells())
+        {
+            SelectedCells.Clear();
+            foreach (var item in items)
+            {
+                foreach (var column in columns)
+                {
+                    SelectedCells.Add(new DataGridCellInfo(item!, column, this));
+                }
+            }
+        }
+
+        CurrentCell = new DataGridCellInfo(items[0]!, columns[0], this);
+        var firstRow = FindShimRowForItem(items[0]!);
+        CurrentCellContainer = firstRow is null ? null : FindShimCell(firstRow, columns[0]);
+        SyncRealizedCellSelection();
+        return true;
+    }
+
+    private DataGridCell? FindShimCell(DataGridRow row, DataGridColumn column)
+    {
+        var columns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
+        var index = columns.FindIndex(c => ReferenceEquals(c, column));
+        return index >= 0 ? row.TryGetCell(index) : null;
+    }
+
     // Session 50 reuse: header click drives the real WPF sort path. PerformSort
     // raises the Sorting event, toggles direction, and updates
     // Items.SortDescriptions; ItemCollection.Refresh applies the sort and
@@ -1330,4 +1803,10 @@ public partial class DataGrid
             yield return ColumnFromDisplayIndex(displayIndex);
         }
     }
+}
+
+internal static class DataGridColumnResizeShim
+{
+    internal static double ComputeWidth(double currentWidth, double horizontalChange, double minWidth, double maxWidth)
+        => Math.Clamp(currentWidth + horizontalChange, minWidth, maxWidth);
 }

@@ -2312,3 +2312,314 @@ or whether to start replacing `RomaResourceTables.cs` with a thinner adapter aro
 upstream `ResourceStringTable.xaml`/`ResourceObjectTable.xaml` shape. Directly linking the
 upstream `.xaml.cs` is still not a quick win because it depends on WPF
 `ICollectionView`, command bindings, clipboard commands, and named XAML controls.
+
+## Twenty-Seventh Execution
+
+Refocused the session back onto DataGrid feature migration.
+
+The resource-table work above is a useful reuse proof, but it is not on the critical
+DataGrid path. The next slices should stay on DataGrid behavior until the major user-facing
+features are closed.
+
+### DataGrid changes
+
+Started column-resize migration with a small shim core:
+
+- added `DataGrid.ShimTryResizeColumn(DataGridColumn, double)`;
+- added `DataGridColumnResizeShim.ComputeWidth(...)` as a pure, dispatcher-free helper;
+- resize now respects:
+  - `DataGrid.CanUserResizeColumns`;
+  - `DataGridColumn.CanUserResize`;
+  - `DataGridColumn.IsVisible`;
+  - `MinWidth` / `MaxWidth`;
+- a successful resize converts the column to an explicit pixel `DataGridLength` and
+  calls the existing `ShimApplyColumnWidth` path to synchronize header, data cells, and
+  filter cells.
+
+This is the core resize commit path. It does not yet wire pointer/gripper drag events to
+the header UI; that should be the next DataGrid-focused slice.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 188 passed
+- 0 failed
+- 0 skipped
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused DataGrid metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 4 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+Stay on DataGrid. The highest-value next step is to wire column-header gripper/pointer
+input to `ShimTryResizeColumn`, then add a Roma probe that opens a metadata table,
+resizes a column, and asserts the column width and realized cells move together.
+
+Other major DataGrid gaps still worth tracking after resize:
+
+- clipboard copy;
+- keyboard navigation beyond row-only movement;
+- fuller editing/validation parity;
+- row/column virtualization and scroll behavior;
+- upstream `DataGridColumnCollection` resize redistribution/star-column parity.
+
+## Twenty-Eighth Execution
+
+Took a larger DataGrid-focused slice by moving column resize from a dispatcher-free core
+into a user-facing header interaction and then proving it through Roma's metadata table.
+
+### DataGrid changes
+
+Wired the header right-edge pointer path to the resize core:
+
+- pressing near a `DataGridColumnHeader` right edge starts resize instead of reorder;
+- pointer movement applies incremental deltas through `ShimTryResizeColumn`;
+- the resize path captures/releases the header pointer and suppresses sort/reorder while
+  the edge drag is active;
+- resize continues to use the existing width synchronization path for headers, cells, and
+  filter cells.
+
+This is intentionally still a simple pixel-width implementation. It does not yet implement
+WPF's full neighboring-column redistribution, star-column balancing, left-gripper handling,
+or double-click auto-size.
+
+### Roma probe coverage
+
+Added a Roma dev-flow probe:
+
+```text
+roma.probe.metadata-resize-column
+```
+
+The probe opens a real metadata table, gets the live `System.Windows.Controls.DataGrid`,
+invokes the non-public resize commit path, and reports the before/after effective column
+width. The matching integration test verifies that a `TypeDef` metadata column grows and
+becomes a pixel-width column.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 188 passed
+- 0 failed
+- 0 skipped
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused DataGrid metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_ColumnResizeChangesWidth|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 5 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+Stay on visible DataGrid behavior and take another larger feature slice. The best candidates
+are:
+
+- clipboard copy from selected cells/rows, because Roma/ILSpy users expect metadata tables
+  to be extractable;
+- keyboard navigation and selection parity beyond the current row-focused movement;
+- completing column resize parity with auto-size/double-click and star redistribution.
+
+## Twenty-Ninth Execution
+
+Continued with a larger visible DataGrid feature slice: clipboard copy for metadata tables.
+
+### DataGrid changes
+
+Added a shim clipboard path that builds the copy payload from the public selection surface:
+
+- `SelectedCells` is preferred when cell selection exists;
+- `SelectedItems` copies full visible rows;
+- `CurrentCell` is used as a fallback for a single-cell copy;
+- `ClipboardCopyMode.None` disables the shim path;
+- `ClipboardCopyMode.IncludeHeader` prepends the visible column headers;
+- payloads are written as `UnicodeText`, `Text`, and `CommaSeparatedValue`;
+- cell values are still obtained through upstream `DataGridColumn.OnCopyingCellClipboardContent`,
+  so column-level clipboard binding/events remain on the WPF code path.
+
+`Ctrl+C` now calls `ShimCopySelectionToClipboard()` from the local WinUI key handler. The
+payload builder is also internal so Roma probes can validate the copy result without relying
+on OS clipboard state.
+
+### Roma probe coverage
+
+Added:
+
+```text
+roma.probe.metadata-copy-selection
+```
+
+The probe opens a real metadata table, selects the first row, invokes the DataGrid clipboard
+builder, and reports the generated text/CSV sizes plus the first two lines. The integration
+test verifies that a `TypeDef` table copy produces a non-empty header line and data line.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 189 passed
+- 0 failed
+- 0 skipped
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused DataGrid metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_CopySelectedRowProducesClipboardText|MetadataTable_ColumnResizeChangesWidth|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 6 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The highest-value remaining DataGrid behavior is now keyboard navigation/selection parity:
+left/right cell movement, `Ctrl+A` select all, and shift-extend ranges. That would build
+directly on the selected-cell and clipboard work from this slice.
+
+## Thirtieth Execution
+
+Continued the DataGrid keyboard/selection parity slice.
+
+### DataGrid changes
+
+Added keyboard-driven cell selection support on the shim path:
+
+- `Ctrl+A` calls `ShimSelectAllCells()`;
+- `Left` / `Right` move `CurrentCell` across visible columns;
+- in cell-selection modes, `Up` / `Down` move `CurrentCell` across rows instead of only
+  moving row selection;
+- `Shift` movement preserves existing selected cells and adds the destination cell;
+- selection helpers now work from `Items` plus visible columns, not only realized row
+  containers, so metadata tables without generated containers still participate.
+
+This is still not full WPF selection parity: large-table `Ctrl+A` currently materializes
+individual `DataGridCellInfo` entries, so true region-backed selection/virtualization remains
+future work.
+
+### Roma probe coverage
+
+Added:
+
+```text
+roma.probe.metadata-keyboard-selection
+```
+
+The probe opens a real metadata table, switches the grid to `SelectionUnit.Cell`, runs the
+select-all helper, moves the current cell one column to the right, and reports selected-cell
+count plus current-column headers. The integration test uses the small `Module` table to
+validate behavior without turning the test into a large-table performance benchmark.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 189 passed
+- 0 failed
+- 0 skipped
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused DataGrid metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTable_KeyboardSelectionSelectsCellsAndMovesCurrentCell|MetadataTable_CopySelectedRowProducesClipboardText|MetadataTable_ColumnResizeChangesWidth|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 7 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The next DataGrid step should either:
+
+- improve selection scalability by moving select-all/range selection toward region-backed
+  storage instead of per-cell materialization; or
+- finish resize parity with double-click auto-size and star/neighbor redistribution.

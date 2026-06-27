@@ -326,6 +326,31 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("Clamp", BindingFlags.Static | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.Clamp applies MinWidth/MaxWidth (session 42).");
+        Assert.That(
+            typeof(DataGrid).GetMethod("ShimTryResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.ShimTryResizeColumn commits a user resize into a pixel column width.");
+        Assert.That(typeof(DataGrid).GetMethod("TryBeginHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("ContinueHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("EndHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
+        Assert.That(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
+            "DataGridColumnResizeShim.ComputeWidth clamps gripper deltas without requiring a UI dispatcher.");
+    }
+
+    [Test]
+    public void ColumnResizeComputationClampsToMinAndMax()
+    {
+        var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
+        var method = resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null);
+
+        static double Invoke(System.Reflection.MethodInfo method, double current, double delta, double min, double max)
+            => (double)method.Invoke(null, [current, delta, min, max])!;
+
+        Assert.That(Invoke(method!, 100, 25, 20, 200), Is.EqualTo(125));
+        Assert.That(Invoke(method!, 100, -200, 40, 200), Is.EqualTo(40));
+        Assert.That(Invoke(method!, 100, 250, 20, 180), Is.EqualTo(180));
     }
 
     [Test]
@@ -500,5 +525,26 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("MoveSelectionToIndex", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.MoveSelectionToIndex(int) drives Home/End (session 33/34).");
+        Assert.That(
+            typeof(DataGrid).GetMethod("MoveCurrentCellByOffset", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.MoveCurrentCellByOffset(rowDelta, columnDelta, extendSelection) drives cell keyboard navigation.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("ShimSelectAllCells", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.ShimSelectAllCells() drives Ctrl+A for cell/row selection.");
+    }
+
+    [Test]
+    public void ClipboardCopySurfaceExists()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGrid).GetMethod("ShimCopySelectionToClipboard", flags), Is.Not.Null,
+            "DataGrid.ShimCopySelectionToClipboard writes the selected-cell/row payload to Clipboard.");
+        Assert.That(typeof(DataGrid).GetMethod("ShimBuildClipboardDataObject", flags), Is.Not.Null,
+            "DataGrid.ShimBuildClipboardDataObject builds Text/UnicodeText/CSV payloads for probes and command routing.");
+        Assert.That(typeof(DataGrid).GetMethod("ShimBuildClipboardPlan", flags), Is.Not.Null,
+            "DataGrid.ShimBuildClipboardPlan maps SelectedCells/SelectedItems/CurrentCell to copy rows and columns.");
     }
 }
