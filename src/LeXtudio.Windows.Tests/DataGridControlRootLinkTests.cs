@@ -587,29 +587,29 @@ public sealed class DataGridControlRootLinkTests
     }
 
     [Test]
-    public void FilterFlyoutSurfaceExists()
+    public void FilterInlineSurfaceExists()
     {
-        // Session 65: column-header filter flyout builders.
+        // Session 65+: column-header filter inline panel builders.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("BuildFilterButtonForColumn", flags,
+        Assert.That(typeof(DataGrid).GetMethod("BuildFilterPanelForColumn", flags,
             [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildFilterButtonForColumn builds the funnel-icon button.");
+            "DataGrid.BuildFilterPanelForColumn builds the filter toggle panel.");
         var fctType = typeof(DataGrid).Assembly.GetType("DataGridExtensions.FilterControlTemplate");
         Assert.That(fctType, Is.Not.Null);
 
-        Assert.That(typeof(DataGrid).GetMethod("BuildFilterFlyoutContent", flags,
+        Assert.That(typeof(DataGrid).GetMethod("BuildFilterInlineContent", flags,
             [typeof(DataGridColumn), fctType!]), Is.Not.Null,
-            "DataGrid.BuildFilterFlyoutContent dispatches to Text/Hex/Flags flyout builders.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildTextFilterFlyout", flags,
+            "DataGrid.BuildFilterInlineContent dispatches to Text/Hex/Flags inline builders.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildTextFilterInline", flags,
             [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildTextFilterFlyout builds a text-filter flyout.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildHexFilterFlyout", flags,
+            "DataGrid.BuildTextFilterInline builds a text-filter inline.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildHexFilterInline", flags,
             [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildHexFilterFlyout builds a hex-filter flyout.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildFlagsFilterFlyout", flags,
+            "DataGrid.BuildHexFilterInline builds a hex-filter inline.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildFlagsFilterInline", flags,
             [typeof(DataGridColumn), typeof(Type)]), Is.Not.Null,
-            "DataGrid.BuildFlagsFilterFlyout builds a flags-enum filter flyout.");
+            "DataGrid.BuildFlagsFilterInline builds a flags-enum filter inline.");
         Assert.That(typeof(DataGrid).GetMethod("OnHeaderPointerExited", flags,
             [typeof(object), typeof(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs)]), Is.Not.Null,
             "DataGrid.OnHeaderPointerExited clears the resize cursor when the pointer leaves.");

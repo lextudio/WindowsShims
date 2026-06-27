@@ -212,9 +212,8 @@ public partial class DataGrid
         // private _rowTrackingRoot field with the upstream DataGrid.cs.)
         _rowTrackingRoot = null;
         host.Children.Add(BuildHeaderRow());
-        // Filter row is no longer rendered. Filter UI is accessed via the "▾"
-        // button on each column header (see BuildFilterButtonForColumn).
-        // BuildFilterRow() and its helpers are kept for reference.
+        // Filter row is no longer rendered. Filter UI is accessed inline in each
+        // column header (see BuildFilterPanelForColumn).
 
         var rowIndex = 0;
         foreach (var item in OrderedItems())
@@ -992,14 +991,10 @@ public partial class DataGrid
 
     // Builds the funnel-icon filter button for a column header.
     // The button is placed at the far-right edge of the header cell by HeaderContent's Grid layout.
-    private Microsoft.UI.Xaml.Controls.Button BuildFilterButtonForColumn(DataGridColumn column)
+    private Microsoft.UI.Xaml.FrameworkElement BuildFilterPanelForColumn(DataGridColumn column)
     {
         var state = DataGridExtensions.DataGridFilter.GetState(this);
         var hasActiveFilter = state.ColumnFilters.TryGetValue(column, out var activeFilter) && activeFilter != null;
-
-        var bgColor = hasActiveFilter
-            ? global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xCC, 0x00)
-            : global::Windows.UI.Color.FromArgb(0, 0, 0, 0); // transparent for hit-test
 
         var funnelPath = (Microsoft.UI.Xaml.Shapes.Path)
             Microsoft.UI.Xaml.Markup.XamlReader.Load(
@@ -1016,36 +1011,56 @@ public partial class DataGrid
             MinWidth = 14,
             MinHeight = 14,
             BorderThickness = new Microsoft.UI.Xaml.Thickness(0),
-            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgColor),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0)),
             Opacity = hasActiveFilter ? 1.0 : 0.6,
         };
 
+        var panel = new Microsoft.UI.Xaml.Controls.Grid
+        {
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        panel.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
+        panel.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
+        Microsoft.UI.Xaml.Controls.Grid.SetRow(filterButton, 0);
+        panel.Children.Add(filterButton);
+
         if (DataGridExtensions.DataGridFilterColumn.GetTemplate(column) is DataGridExtensions.FilterControlTemplate fct)
         {
-            var flyout = new Microsoft.UI.Xaml.Controls.Flyout
+            var filterInput = BuildFilterInlineContent(column, fct);
+            filterInput.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            filterInput.Margin = new Microsoft.UI.Xaml.Thickness(0, 2, 0, 0);
+            Microsoft.UI.Xaml.Controls.Grid.SetRow(filterInput, 1);
+            panel.Children.Add(filterInput);
+
+            filterButton.Click += (_, _) =>
             {
-                Content = BuildFilterFlyoutContent(column, fct),
-                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom,
+                var isVisible = filterInput.Visibility == Microsoft.UI.Xaml.Visibility.Visible;
+                filterInput.Visibility = isVisible
+                    ? Microsoft.UI.Xaml.Visibility.Collapsed
+                    : Microsoft.UI.Xaml.Visibility.Visible;
+                if (!isVisible && filterInput is Microsoft.UI.Xaml.Controls.Control ctrl)
+                {
+                    ctrl.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                }
             };
-            filterButton.Flyout = flyout;
         }
 
-        return filterButton;
+        return panel;
     }
 
-    private Microsoft.UI.Xaml.FrameworkElement BuildFilterFlyoutContent(
+    private Microsoft.UI.Xaml.FrameworkElement BuildFilterInlineContent(
         DataGridColumn column, DataGridExtensions.FilterControlTemplate filterTemplate)
     {
         return filterTemplate.Kind switch
         {
-            DataGridExtensions.FilterKind.Hex => BuildHexFilterFlyout(column),
-            DataGridExtensions.FilterKind.Flags => BuildFlagsFilterFlyout(column, filterTemplate.FlagsType),
-            _ => BuildTextFilterFlyout(column),
+            DataGridExtensions.FilterKind.Hex => BuildHexFilterInline(column),
+            DataGridExtensions.FilterKind.Flags => BuildFlagsFilterInline(column, filterTemplate.FlagsType),
+            _ => BuildTextFilterInline(column),
         };
     }
 
-    // Text filter flyout — an auto-sized TextBox.
-    private Microsoft.UI.Xaml.FrameworkElement BuildTextFilterFlyout(DataGridColumn column)
+    // Text filter inline — an auto-sized TextBox embedded in the header.
+    private Microsoft.UI.Xaml.FrameworkElement BuildTextFilterInline(DataGridColumn column)
     {
         var state = DataGridExtensions.DataGridFilter.GetState(this);
         var current = state.ColumnFilterText.TryGetValue(column, out var text)
@@ -1079,7 +1094,7 @@ public partial class DataGrid
     }
 
     // Hex filter flyout — "0x" prefix + TextBox.
-    private Microsoft.UI.Xaml.FrameworkElement BuildHexFilterFlyout(DataGridColumn column)
+    private Microsoft.UI.Xaml.FrameworkElement BuildHexFilterInline(DataGridColumn column)
     {
         var state = DataGridExtensions.DataGridFilter.GetState(this);
         var current = (state.ColumnFilters.TryGetValue(column, out var f)
@@ -1117,7 +1132,7 @@ public partial class DataGrid
     }
 
     // Flags filter flyout — CheckBox list for each flag value.
-    private Microsoft.UI.Xaml.FrameworkElement BuildFlagsFilterFlyout(DataGridColumn column, Type? flagsType)
+    private Microsoft.UI.Xaml.FrameworkElement BuildFlagsFilterInline(DataGridColumn column, Type? flagsType)
     {
         var state = DataGridExtensions.DataGridFilter.GetState(this);
         var currentMask = (state.ColumnFilters.TryGetValue(column, out var f)
@@ -1390,14 +1405,16 @@ public partial class DataGrid
         Microsoft.UI.Xaml.Controls.Grid.SetRow(textBlock, 1);
         grid.Children.Add(textBlock);
 
-        // Filter button at the far right edge, spanning both rows
+        // Filter panel at the far right edge, spanning both rows.
+        // Contains the funnel icon button (always visible) and the filter input
+        // inline (visibility toggled by clicking the button).
         if (DataGridExtensions.DataGridFilter.GetIsAutoFilterEnabled(this) &&
             DataGridExtensions.DataGridFilterColumn.GetTemplate(column) != null)
         {
-            var filterButton = BuildFilterButtonForColumn(column);
-            Microsoft.UI.Xaml.Controls.Grid.SetColumn(filterButton, 1);
-            Microsoft.UI.Xaml.Controls.Grid.SetRowSpan(filterButton, 2);
-            grid.Children.Add(filterButton);
+            var filterPanel = BuildFilterPanelForColumn(column);
+            Microsoft.UI.Xaml.Controls.Grid.SetColumn(filterPanel, 1);
+            Microsoft.UI.Xaml.Controls.Grid.SetRowSpan(filterPanel, 2);
+            grid.Children.Add(filterPanel);
         }
 
         return grid;
