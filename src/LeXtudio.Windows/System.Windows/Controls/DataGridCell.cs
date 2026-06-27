@@ -50,10 +50,28 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         DataContext = null;
     }
 
+    private const string CellTemplateXaml =
+        "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+        "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+        "<Border Background='{TemplateBinding Background}' " +
+        "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
+        "<ContentPresenter />" +
+        "</Border></ControlTemplate>";
+
+    private static Microsoft.UI.Xaml.Controls.ControlTemplate? _cellTemplate;
+
     // Uno construction hook (called from the upstream ctor). Tints the cell
     // background to reflect selection, using WinUI's RegisterPropertyChangedCallback.
     partial void OnInitializedShim()
     {
+        if (_cellTemplate == null)
+        {
+            _cellTemplate = (Microsoft.UI.Xaml.Controls.ControlTemplate)
+                Microsoft.UI.Xaml.Markup.XamlReader.Load(CellTemplateXaml);
+        }
+
+        Template = _cellTemplate;
+
         RegisterPropertyChangedCallback(IsSelectedProperty, (sender, dp) =>
         {
             var cell = (DataGridCell)sender;

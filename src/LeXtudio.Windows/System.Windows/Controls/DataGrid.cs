@@ -254,7 +254,67 @@ public partial class DataGrid
             RestoreEditingCellAfterRebuild(editingItem, editingColumn);
         }
 
-        // Schedule an Auto-width pass if any visible column is non-absolute.
+        // Synchronous column width computation for Auto/SizeToHeader/SizeToCells
+        // columns. WPF measures headers and cells during layout so columns render
+        // at content width on the first frame. Without this pass, auto-sized
+        // columns start narrow (header text only) and only get corrected on the
+        // post-layout LayoutUpdated handler.
+        // We force ApplyTemplate on all rows first because DataGridRow.BuildCells
+        // runs in OnApplyTemplate (lazy). Without it, TryGetCell returns null.
+        if (_visibleColumns.Any(IsAutoWidth))
+        {
+            var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
+            foreach (var row in rows)
+                row.ApplyTemplate();
+
+            var widths = new double[_visibleColumns.Count];
+
+            for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+            {
+                var column = _visibleColumns[i];
+
+                double w = 0;
+
+                var headerCell = _headerCells[i];
+                headerCell.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                w = Math.Max(w, headerCell.DesiredSize.Width);
+
+                foreach (var row in rows)
+                {
+                    if (row.TryGetCell(i) is { } cell)
+                    {
+                        cell.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        w = Math.Max(w, cell.DesiredSize.Width);
+                    }
+                }
+
+                if (i < _filterCells.Count)
+                {
+                    _filterCells[i].Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                    w = Math.Max(w, _filterCells[i].DesiredSize.Width);
+                }
+
+                widths[i] = Clamp(column, Math.Max(w, 20));
+            }
+
+            for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+            {
+                if (widths[i] <= 0)
+                    continue;
+
+                _headerCells[i].Width = widths[i];
+                foreach (var row in rows)
+                {
+                    if (row.TryGetCell(i) is { } cell)
+                        cell.Width = widths[i];
+                }
+                if (i < _filterCells.Count)
+                    _filterCells[i].Width = widths[i];
+            }
+        }
+
+        // Schedule a post-layout pass for content that isn't fully measured yet
+        // (virtualized cells, late-binding content, future changes).
         if (_visibleColumns.Any(IsAutoWidth))
         {
             _autoWidthPending = true;
@@ -781,7 +841,6 @@ public partial class DataGrid
                 Content = HeaderContent(column),
                 Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Margin = new Microsoft.UI.Xaml.Thickness(4, 2, 4, 2),
             };
             headerCell.PrepareColumnHeader(column.Header, column);
             headerCell.Content = HeaderContent(column);

@@ -9,6 +9,16 @@ namespace System.Windows.Controls.Primitives;
 // This partial provides the HAS_UNO-specific render helpers.
 public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
 {
+    private const string HeaderTemplateXaml =
+        "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+        "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+        "<Border Background='{TemplateBinding Background}' " +
+        "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
+        "<ContentPresenter />" +
+        "</Border></ControlTemplate>";
+
+    private static Microsoft.UI.Xaml.Controls.ControlTemplate? _headerTemplate;
+
     // DisplayIndex and IsFrozen are now read-only DPs from the upstream file.
     // IsFrozen: upstream declares IsFrozenPropertyKey — use it in the setter.
 
@@ -42,6 +52,14 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
         var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
         var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
         var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;
+
+        if (_headerTemplate == null)
+        {
+            _headerTemplate = (Microsoft.UI.Xaml.Controls.ControlTemplate)
+                Microsoft.UI.Xaml.Markup.XamlReader.Load(HeaderTemplateXaml);
+        }
+
+        Template = _headerTemplate;
 
         BorderThickness = horizontal || vertical
             ? new Microsoft.UI.Xaml.Thickness(0, 0, vertical ? 1 : 0, horizontal ? 1 : 0)
