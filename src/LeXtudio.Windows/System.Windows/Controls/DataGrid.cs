@@ -50,6 +50,10 @@ public partial class DataGrid
     // normal layout pass if the visual tree is already realized.
     public new void UpdateLayout()
     {
+        // Ensure the shim template is applied so GetTemplateChild can find
+        // PART_ShimRowsHost. On first call the template was set in the
+        // constructor (via EnsureShimStyleKey) but hasn't been instantiated yet.
+        ApplyTemplate();
         BuildShimVisualTree();
         base.UpdateLayout();
     }
@@ -208,8 +212,9 @@ public partial class DataGrid
         // private _rowTrackingRoot field with the upstream DataGrid.cs.)
         _rowTrackingRoot = null;
         host.Children.Add(BuildHeaderRow());
-        if (DataGridExtensions.DataGridFilter.GetIsAutoFilterEnabled(this))
-            host.Children.Add(BuildFilterRow());
+        // Filter row is no longer rendered. Filter UI is accessed via the "▾"
+        // button on each column header (see BuildFilterButtonForColumn).
+        // BuildFilterRow() and its helpers are kept for reference.
 
         var rowIndex = 0;
         foreach (var item in OrderedItems())
@@ -254,67 +259,7 @@ public partial class DataGrid
             RestoreEditingCellAfterRebuild(editingItem, editingColumn);
         }
 
-        // Synchronous column width computation for Auto/SizeToHeader/SizeToCells
-        // columns. WPF measures headers and cells during layout so columns render
-        // at content width on the first frame. Without this pass, auto-sized
-        // columns start narrow (header text only) and only get corrected on the
-        // post-layout LayoutUpdated handler.
-        // We force ApplyTemplate on all rows first because DataGridRow.BuildCells
-        // runs in OnApplyTemplate (lazy). Without it, TryGetCell returns null.
-        if (_visibleColumns.Any(IsAutoWidth))
-        {
-            var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
-            foreach (var row in rows)
-                row.ApplyTemplate();
-
-            var widths = new double[_visibleColumns.Count];
-
-            for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
-            {
-                var column = _visibleColumns[i];
-
-                double w = 0;
-
-                var headerCell = _headerCells[i];
-                headerCell.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                w = Math.Max(w, headerCell.DesiredSize.Width);
-
-                foreach (var row in rows)
-                {
-                    if (row.TryGetCell(i) is { } cell)
-                    {
-                        cell.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                        w = Math.Max(w, cell.DesiredSize.Width);
-                    }
-                }
-
-                if (i < _filterCells.Count)
-                {
-                    _filterCells[i].Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                    w = Math.Max(w, _filterCells[i].DesiredSize.Width);
-                }
-
-                widths[i] = Clamp(column, Math.Max(w, 20));
-            }
-
-            for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
-            {
-                if (widths[i] <= 0)
-                    continue;
-
-                _headerCells[i].Width = widths[i];
-                foreach (var row in rows)
-                {
-                    if (row.TryGetCell(i) is { } cell)
-                        cell.Width = widths[i];
-                }
-                if (i < _filterCells.Count)
-                    _filterCells[i].Width = widths[i];
-            }
-        }
-
-        // Schedule a post-layout pass for content that isn't fully measured yet
-        // (virtualized cells, late-binding content, future changes).
+        // Schedule an Auto-width pass if any visible column is non-absolute.
         if (_visibleColumns.Any(IsAutoWidth))
         {
             _autoWidthPending = true;
@@ -466,7 +411,7 @@ public partial class DataGrid
             }
         }
 
-        // Apply to header cells, data cells, and filter cells.
+        // Apply to header cells, data cells, filter cells, and column ActualWidth.
         for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
         {
             if (widths[i] <= 0)
@@ -475,6 +420,7 @@ public partial class DataGrid
             }
 
             _headerCells[i].Width = widths[i];
+            _visibleColumns[i].SetActualWidth(widths[i]);
             foreach (var row in rows)
             {
                 if (row.TryGetCell(i) is { } cell)
@@ -502,6 +448,7 @@ public partial class DataGrid
 
         w = Clamp(column, w);
         _headerCells[i].Width = w;
+        _visibleColumns[i].SetActualWidth(w);
         foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
         {
             if (row.TryGetCell(i) is { } cell)
@@ -851,9 +798,32 @@ public partial class DataGrid
             headerCell.PointerMoved += OnHeaderPointerMoved;
             headerCell.PointerReleased += OnHeaderPointerReleased;
             headerCell.PointerCaptureLost += OnHeaderPointerCaptureLost;
+            headerCell.PointerExited += OnHeaderPointerExited;
             headerCell.DoubleTapped += OnHeaderDoubleTapped;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
+
+            // Measure header text width directly (header cell has no XAML
+            // template so its Measure does not content-size). Use a standalone
+            // TextBlock so column.ActualWidth reflects content before the
+            // post-layout auto-width pass.
+            if (double.IsNaN(ShimColumnWidth(column)) && column.Header is string hdr)
+            {
+                var tb = new Microsoft.UI.Xaml.Controls.TextBlock
+                {
+                    Text = hdr,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14,
+                };
+                tb.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+                // 32px padding for sort glyph area + filter button + margins
+                var hw = Math.Max(tb.DesiredSize.Width + 32, column.MinWidth);
+                if (hw > 0)
+                {
+                    headerCell.Width = hw;
+                    column.SetActualWidth(hw);
+                }
+            }
         }
 
         _headerHostPanel = header;
@@ -1104,6 +1074,223 @@ public partial class DataGrid
         return toggle;
     }
 
+    // ── Per-column-header filter button + flyout ──────────────────────────────
+    // When IsAutoFilterEnabled, each column header gets a "▾" button on the
+    // right side. Clicking it opens a flyout with the appropriate filter control
+    // (Text, Hex, or Flags). The filter row is no longer rendered.
+
+    // Builds the funnel-icon filter button for a column header.
+    // The button is placed at the far-right edge of the header cell by HeaderContent's Grid layout.
+    private Microsoft.UI.Xaml.Controls.Button BuildFilterButtonForColumn(DataGridColumn column)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var hasActiveFilter = state.ColumnFilters.TryGetValue(column, out var activeFilter) && activeFilter != null;
+
+        var bgColor = hasActiveFilter
+            ? global::Windows.UI.Color.FromArgb(0xFF, 0xFF, 0xCC, 0x00)
+            : global::Windows.UI.Color.FromArgb(0, 0, 0, 0); // transparent for hit-test
+
+        var funnelPath = (Microsoft.UI.Xaml.Shapes.Path)
+            Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                "<Path xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+                "Data='M0,0 L10,0 6,4 6,9 4,9 4,4 Z' " +
+                "Fill='Gray' Stretch='Uniform' Width='10' Height='12' " +
+                "VerticalAlignment='Center' HorizontalAlignment='Center' />");
+
+        var filterButton = new Microsoft.UI.Xaml.Controls.Button
+        {
+            Content = funnelPath,
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+            Padding = new Microsoft.UI.Xaml.Thickness(2),
+            MinWidth = 14,
+            MinHeight = 14,
+            BorderThickness = new Microsoft.UI.Xaml.Thickness(0),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgColor),
+            Opacity = hasActiveFilter ? 1.0 : 0.6,
+        };
+
+        if (DataGridExtensions.DataGridFilterColumn.GetTemplate(column) is DataGridExtensions.FilterControlTemplate fct)
+        {
+            var flyout = new Microsoft.UI.Xaml.Controls.Flyout
+            {
+                Content = BuildFilterFlyoutContent(column, fct),
+                Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Bottom,
+            };
+            filterButton.Flyout = flyout;
+        }
+
+        return filterButton;
+    }
+
+    private Microsoft.UI.Xaml.FrameworkElement BuildFilterFlyoutContent(
+        DataGridColumn column, DataGridExtensions.FilterControlTemplate filterTemplate)
+    {
+        return filterTemplate.Kind switch
+        {
+            DataGridExtensions.FilterKind.Hex => BuildHexFilterFlyout(column),
+            DataGridExtensions.FilterKind.Flags => BuildFlagsFilterFlyout(column, filterTemplate.FlagsType),
+            _ => BuildTextFilterFlyout(column),
+        };
+    }
+
+    // Text filter flyout — an auto-sized TextBox.
+    private Microsoft.UI.Xaml.FrameworkElement BuildTextFilterFlyout(DataGridColumn column)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var current = state.ColumnFilterText.TryGetValue(column, out var text)
+            ? text
+            : (state.ColumnFilters.TryGetValue(column, out var f)
+               ? (f as DataGridExtensions.SubstringContentFilter)?.Text
+               : null) ?? string.Empty;
+
+        var box = new Microsoft.UI.Xaml.Controls.TextBox
+        {
+            Text = current,
+            PlaceholderText = "Filter…",
+            MinWidth = 120,
+        };
+        box.TextChanged += (s, _) =>
+        {
+            var t = ((Microsoft.UI.Xaml.Controls.TextBox)s!).Text;
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            if (string.IsNullOrEmpty(t))
+                st.ColumnFilterText.Remove(column);
+            else
+                st.ColumnFilterText[column] = t;
+
+            st.ColumnFilters[column] = string.IsNullOrEmpty(t)
+                ? null
+                : (st.ContentFilterFactory?.Create(t)
+                   ?? new DataGridExtensions.SubstringContentFilter(t));
+            BuildShimVisualTree();
+        };
+        return box;
+    }
+
+    // Hex filter flyout — "0x" prefix + TextBox.
+    private Microsoft.UI.Xaml.FrameworkElement BuildHexFilterFlyout(DataGridColumn column)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var current = (state.ColumnFilters.TryGetValue(column, out var f)
+                       ? (f as DataGridExtensions.HexContentFilter)?.Text
+                       : null) ?? string.Empty;
+
+        var panel = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal,
+        };
+
+        panel.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = "0x",
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+            Margin = new Microsoft.UI.Xaml.Thickness(0, 0, 4, 0),
+        });
+
+        var box = new Microsoft.UI.Xaml.Controls.TextBox
+        {
+            Text = current,
+            PlaceholderText = "hex…",
+        };
+        box.TextChanged += (s, _) =>
+        {
+            var t = ((Microsoft.UI.Xaml.Controls.TextBox)s!).Text;
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            st.ColumnFilters[column] = string.IsNullOrEmpty(t)
+                ? null
+                : new DataGridExtensions.HexContentFilter(t);
+            BuildShimVisualTree();
+        };
+        panel.Children.Add(box);
+        return panel;
+    }
+
+    // Flags filter flyout — CheckBox list for each flag value.
+    private Microsoft.UI.Xaml.FrameworkElement BuildFlagsFilterFlyout(DataGridColumn column, Type? flagsType)
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var currentMask = (state.ColumnFilters.TryGetValue(column, out var f)
+                           ? (f as DataGridExtensions.MaskContentFilter)?.Mask
+                           : null) ?? -1;
+
+        var content = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            MaxHeight = 300,
+            Spacing = 2,
+        };
+
+        if (flagsType is null)
+            return new Microsoft.UI.Xaml.Controls.TextBlock { Text = "No filter options" };
+
+        var flagItems = new List<(string Name, int Value)>();
+        foreach (var field in flagsType.GetFields(
+                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+        {
+            if (field.Name.EndsWith("Mask", StringComparison.Ordinal)) continue;
+            int v;
+            try { v = Convert.ToInt32(field.GetRawConstantValue()); } catch { continue; }
+            flagItems.Add((field.Name, v));
+        }
+
+        // "All" / reset checkbox
+        var allBox = new Microsoft.UI.Xaml.Controls.CheckBox
+        {
+            Content = "<All>",
+            IsChecked = currentMask == -1,
+        };
+        content.Children.Add(allBox);
+
+        var perFlagBoxes = new List<(Microsoft.UI.Xaml.Controls.CheckBox cb, int val)>();
+        foreach (var (name, val) in flagItems)
+        {
+            var cb = new Microsoft.UI.Xaml.Controls.CheckBox
+            {
+                Content = $"{name} ({val:X4})",
+                IsChecked = currentMask == -1 || (currentMask & val) != 0,
+                Tag = val,
+            };
+            perFlagBoxes.Add((cb, val));
+            content.Children.Add(cb);
+        }
+
+        void ApplyMask()
+        {
+            int mask = 0;
+            bool anyChecked = false;
+            foreach (var (cb, val) in perFlagBoxes)
+            {
+                if (cb.IsChecked == true) { mask |= val; anyChecked = true; }
+            }
+            var st = DataGridExtensions.DataGridFilter.GetState(this);
+            st.ColumnFilters[column] = (!anyChecked || allBox.IsChecked == true)
+                ? null
+                : new DataGridExtensions.MaskContentFilter(mask);
+            BuildShimVisualTree();
+        }
+
+        allBox.Checked += (_, _) =>
+        {
+            foreach (var (cb, _) in perFlagBoxes) cb.IsChecked = true;
+            ApplyMask();
+        };
+        allBox.Unchecked += (_, _) =>
+        {
+            foreach (var (cb, _) in perFlagBoxes) cb.IsChecked = false;
+            ApplyMask();
+        };
+        foreach (var (cb, _) in perFlagBoxes)
+        {
+            cb.Checked   += (_, _) => ApplyMask();
+            cb.Unchecked += (_, _) => ApplyMask();
+        }
+
+        return new Microsoft.UI.Xaml.Controls.ScrollViewer
+        {
+            Content = content,
+            MaxHeight = 300,
+        };
+    }
+
     // ── Column reorder by drag ────────────────────────────────────────────────
     // Reuses the upstream reorder event sequence (CanUserReorderColumns gate →
     // ColumnReordering → move DisplayIndex → ColumnReordered) from
@@ -1157,6 +1344,23 @@ public partial class DataGrid
             return;
         }
 
+        // Resize cursor: show SizeWestEast when hovering near a column edge
+        if (sender is DataGridColumnHeader header && !_reorderActive)
+        {
+            var pt = e.GetCurrentPoint(header).Position;
+            if (header.IsVisible && CanUserResizeColumns && header.Column is { CanUserResize: true })
+            {
+                if (HeaderResizeEdgeAt(header, pt.X) != HeaderResizeEdge.None)
+                {
+                    header.SetShimCursor();
+                }
+                else
+                {
+                    header.ClearShimCursor();
+                }
+            }
+        }
+
         if (_reorderColumn is null || _reorderHeader is null || _headerHostPanel is null)
             return;
 
@@ -1200,6 +1404,14 @@ public partial class DataGrid
     {
         EndHeaderResize(e);
         EndReorder();
+    }
+
+    private void OnHeaderPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is DataGridColumnHeader header)
+        {
+            header.ClearShimCursor();
+        }
     }
 
     // Walk the realized headers (display order) accumulating widths; return the
@@ -1275,13 +1487,57 @@ public partial class DataGrid
     // active sort.
     internal object? HeaderContent(DataGridColumn column)
     {
+        var grid = new Microsoft.UI.Xaml.Controls.Grid();
+
+        // 2-column layout: [* content] [Auto filter button]
+        grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = Microsoft.UI.Xaml.GridLength.Auto });
+
+        // 2-row layout: [Auto sort indicator] [* text]
+        grid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
+        grid.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
+
+        // Sort indicator at top, centered horizontally
         if (column.SortDirection is { } dir)
         {
-            var glyph = dir == System.ComponentModel.ListSortDirection.Ascending ? " ▲" : " ▼";
-            return (column.Header?.ToString() ?? string.Empty) + glyph;
+            var glyphData = dir == System.ComponentModel.ListSortDirection.Ascending
+                ? "M0,5 L4,0 L8,5 Z"
+                : "M0,0 L4,5 L8,0 Z";
+
+            var arrowPath = (Microsoft.UI.Xaml.Shapes.Path)
+                Microsoft.UI.Xaml.Markup.XamlReader.Load(
+                    "<Path xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+                    $"Data='{glyphData}' " +
+                    "Fill='Gray' Stretch='Uniform' Width='8' Height='6' " +
+                    "HorizontalAlignment='Center' VerticalAlignment='Bottom' " +
+                    "Margin='0,1,0,0' />");
+
+            Microsoft.UI.Xaml.Controls.Grid.SetColumn(arrowPath, 0);
+            grid.Children.Add(arrowPath);
         }
 
-        return column.Header;
+        // Header text centered
+        var textBlock = new Microsoft.UI.Xaml.Controls.TextBlock
+        {
+            Text = column.Header?.ToString() ?? "",
+            HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+        };
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(textBlock, 0);
+        Microsoft.UI.Xaml.Controls.Grid.SetRow(textBlock, 1);
+        grid.Children.Add(textBlock);
+
+        // Filter button at the far right edge, spanning both rows
+        if (DataGridExtensions.DataGridFilter.GetIsAutoFilterEnabled(this) &&
+            DataGridExtensions.DataGridFilterColumn.GetTemplate(column) != null)
+        {
+            var filterButton = BuildFilterButtonForColumn(column);
+            Microsoft.UI.Xaml.Controls.Grid.SetColumn(filterButton, 1);
+            Microsoft.UI.Xaml.Controls.Grid.SetRowSpan(filterButton, 2);
+            grid.Children.Add(filterButton);
+        }
+
+        return grid;
     }
 
     // Session 69: row background for alternating rows.

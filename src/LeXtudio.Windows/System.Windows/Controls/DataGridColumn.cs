@@ -20,4 +20,12 @@ public abstract partial class DataGridColumn
     internal FrameworkElement? BuildEditingCellContent(DataGridCell cell, object dataItem)
         => GenerateEditingElement(cell, dataItem);
 
+    // Session 65: propagate the shim's computed width back to the linked
+    // column's ActualWidth DP so probes (EffectiveColumnWidth) and any
+    // WPF-linked code that reads column.ActualWidth see the real value.
+    internal void SetActualWidth(double width)
+    {
+        var key = ActualWidthPropertyKey;
+        SetValue(key, width);
+    }
 }

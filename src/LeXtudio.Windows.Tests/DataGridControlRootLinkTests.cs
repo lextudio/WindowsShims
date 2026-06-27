@@ -566,4 +566,69 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(typeof(DataGrid).GetMethod("ShimBuildClipboardPlan", flags), Is.Not.Null,
             "DataGrid.ShimBuildClipboardPlan maps SelectedCells/SelectedItems/CurrentCell to copy rows and columns.");
     }
+
+    [Test]
+    public void ColumnHeaderCursorSurfaceExists()
+    {
+        // Session 65: resize cursor. DataGridColumnHeader exposes
+        // SetShimCursor/ClearShimCursor so the owning DataGrid can change
+        // the cursor without accessing ProtectedCursor (a protected member).
+        var header = typeof(DataGrid).Assembly
+            .GetType("System.Windows.Controls.Primitives.DataGridColumnHeader");
+        Assert.That(header, Is.Not.Null);
+
+        var setCursor = header!.GetMethod("SetShimCursor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(setCursor, Is.Not.Null,
+            "DataGridColumnHeader.SetShimCursor() sets the resize cursor.");
+        Assert.That(setCursor!.ReturnType, Is.EqualTo(typeof(void)));
+
+        var clearCursor = header!.GetMethod("ClearShimCursor",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(clearCursor, Is.Not.Null,
+            "DataGridColumnHeader.ClearShimCursor() clears the custom cursor.");
+        Assert.That(clearCursor!.ReturnType, Is.EqualTo(typeof(void)));
+    }
+
+    [Test]
+    public void FilterFlyoutSurfaceExists()
+    {
+        // Session 65: column-header filter flyout builders.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        Assert.That(typeof(DataGrid).GetMethod("BuildFilterButtonForColumn", flags,
+            [typeof(DataGridColumn)]), Is.Not.Null,
+            "DataGrid.BuildFilterButtonForColumn builds the funnel-icon button.");
+        var fctType = typeof(DataGrid).Assembly.GetType("DataGridExtensions.FilterControlTemplate");
+        Assert.That(fctType, Is.Not.Null);
+
+        Assert.That(typeof(DataGrid).GetMethod("BuildFilterFlyoutContent", flags,
+            [typeof(DataGridColumn), fctType!]), Is.Not.Null,
+            "DataGrid.BuildFilterFlyoutContent dispatches to Text/Hex/Flags flyout builders.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildTextFilterFlyout", flags,
+            [typeof(DataGridColumn)]), Is.Not.Null,
+            "DataGrid.BuildTextFilterFlyout builds a text-filter flyout.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildHexFilterFlyout", flags,
+            [typeof(DataGridColumn)]), Is.Not.Null,
+            "DataGrid.BuildHexFilterFlyout builds a hex-filter flyout.");
+        Assert.That(typeof(DataGrid).GetMethod("BuildFlagsFilterFlyout", flags,
+            [typeof(DataGridColumn), typeof(Type)]), Is.Not.Null,
+            "DataGrid.BuildFlagsFilterFlyout builds a flags-enum filter flyout.");
+        Assert.That(typeof(DataGrid).GetMethod("OnHeaderPointerExited", flags,
+            [typeof(object), typeof(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs)]), Is.Not.Null,
+            "DataGrid.OnHeaderPointerExited clears the resize cursor when the pointer leaves.");
+    }
+
+    [Test]
+    public void HeaderContentMethodIsInternal()
+    {
+        // Session 65: HeaderContent is the per-column header factory exposed
+        // as an internal method so BuildHeaderRow can call it.
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var headerContent = typeof(DataGrid).GetMethod("HeaderContent", flags,
+            [typeof(DataGridColumn)]);
+        Assert.That(headerContent, Is.Not.Null,
+            "DataGrid.HeaderContent(DataGridColumn) is the internal header-content factory.");
+        Assert.That(headerContent!.ReturnType, Is.EqualTo(typeof(object)));
+    }
 }

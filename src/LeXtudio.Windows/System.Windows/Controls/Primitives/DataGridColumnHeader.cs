@@ -46,6 +46,16 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
         ShimAppliedColumnHeaderStyle = Column?.HeaderStyle ?? Column?.DataGridOwner?.ColumnHeaderStyle;
     }
 
+    internal void SetShimCursor()
+    {
+        ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+    }
+
+    internal void ClearShimCursor()
+    {
+        ProtectedCursor = null;
+    }
+
     internal void ApplyShimGridLines()
     {
         var owner = Column?.DataGridOwner;
