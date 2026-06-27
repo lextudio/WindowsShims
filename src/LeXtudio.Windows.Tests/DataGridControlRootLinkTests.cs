@@ -338,13 +338,9 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("ShimBestFitColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.ShimBestFitColumnWidth measures realized header/filter/data cells for best-fit resize.");
-        Assert.That(typeof(DataGrid).GetMethod("TryBeginHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("ContinueHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("EndHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("HeaderResizeEdgeAt", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("ResolveHeaderResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("BuildHeaderWithGrippers", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null,
+            "DataGrid.BuildHeaderWithGrippers wraps HeaderContent in a 3-col Grid with Thumb grippers.");
         Assert.That(typeof(DataGrid).GetMethod("PreviousVisibleColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("OnHeaderDoubleTapped", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
         var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
         Assert.That(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
             "DataGridColumnResizeShim.ComputeWidth clamps gripper deltas without requiring a UI dispatcher.");

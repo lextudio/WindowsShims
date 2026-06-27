@@ -459,72 +459,11 @@ public partial class DataGrid
     }
 
     // ── Column resize by header edge drag ────────────────────────────────────
-    private DataGridColumn? _resizeColumn;
-    private DataGridColumnHeader? _resizeHeader;
-    private double _resizeLastX;
-    private bool _resizeActive;
-    private const double ResizeEdgeThickness = 6.0;
-    private const double ResizeDragThreshold = 1.0;
-    private enum HeaderResizeEdge
-    {
-        None,
-        Left,
-        Right
-    }
-
-    private bool TryBeginHeaderResize(DataGridColumnHeader header, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        if (!CanUserResizeColumns)
-        {
-            return false;
-        }
-
-        var point = e.GetCurrentPoint(header);
-        if (!point.Properties.IsLeftButtonPressed
-            || ResolveHeaderResizeColumn(header, point.Position.X) is not { CanUserResize: true, IsVisible: true } column)
-        {
-            return false;
-        }
-
-        _resizeHeader = header;
-        _resizeColumn = column;
-        _resizeLastX = e.GetCurrentPoint(HeaderPointerHost(header)).Position.X;
-        _resizeActive = false;
-        header.CapturePointer(e.Pointer);
-        e.Handled = true;
-        return true;
-    }
-
-    private static bool IsOnHeaderResizeEdge(DataGridColumnHeader header, double x)
-        => HeaderResizeEdgeAt(header, x) is not HeaderResizeEdge.None;
-
-    private static HeaderResizeEdge HeaderResizeEdgeAt(DataGridColumnHeader header, double x)
-    {
-        var width = header.ActualWidth > 0 ? header.ActualWidth : header.Width;
-        if (double.IsNaN(width) || width <= 0)
-        {
-            return HeaderResizeEdge.None;
-        }
-
-        if (x <= ResizeEdgeThickness)
-        {
-            return HeaderResizeEdge.Left;
-        }
-
-        return x >= Math.Max(0, width - ResizeEdgeThickness)
-            ? HeaderResizeEdge.Right
-            : HeaderResizeEdge.None;
-    }
-
-    private DataGridColumn? ResolveHeaderResizeColumn(DataGridColumnHeader header, double x)
-    {
-        return HeaderResizeEdgeAt(header, x) switch
-        {
-            HeaderResizeEdge.Right => header.Column,
-            HeaderResizeEdge.Left => PreviousVisibleColumn(header.Column),
-            _ => null
-        };
-    }
+    // WPF's DataGridColumnHeader template uses two Thumb elements
+    // (PART_LeftHeaderGripper / PART_RightHeaderGripper) for resize grippers,
+    // completely separate from the ContentPresenter.  The shim replicates this
+    // by wrapping HeaderContent in a 3-column Grid:
+    //   [LeftGripper(8px)] [Content(*)] [RightGripper(8px)]
 
     private DataGridColumn? PreviousVisibleColumn(DataGridColumn? column)
     {
@@ -549,42 +488,6 @@ public partial class DataGrid
         }
 
         return null;
-    }
-
-    private bool ContinueHeaderResize(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        if (_resizeColumn is null || _resizeHeader is null)
-        {
-            return false;
-        }
-
-        var x = e.GetCurrentPoint(HeaderPointerHost(_resizeHeader)).Position.X;
-        var delta = x - _resizeLastX;
-        if (Math.Abs(delta) < ResizeDragThreshold)
-        {
-            e.Handled = true;
-            return true;
-        }
-
-        _resizeActive = ShimTryResizeColumn(_resizeColumn, delta) || _resizeActive;
-        _resizeLastX = x;
-        e.Handled = true;
-        return true;
-    }
-
-    private bool EndHeaderResize(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        if (_resizeHeader is null)
-        {
-            return false;
-        }
-
-        _resizeHeader.ReleasePointerCapture(e.Pointer);
-        _resizeHeader = null;
-        _resizeColumn = null;
-        _resizeActive = false;
-        e.Handled = true;
-        return true;
     }
 
     private Microsoft.UI.Xaml.UIElement HeaderPointerHost(DataGridColumnHeader fallback)
@@ -700,7 +603,12 @@ public partial class DataGrid
             }
         }
 
-        return width > 0 ? DataGridColumnResizeShim.ClampWidth(width, column.MinWidth, column.MaxWidth) : double.NaN;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            return TextBestFitWidth(column.Header?.ToString());
+        }
+
+        return DataGridColumnResizeShim.ClampWidth(width, column.MinWidth, column.MaxWidth);
     }
 
     private static double ElementBestFitWidth(Microsoft.UI.Xaml.FrameworkElement element)
@@ -711,7 +619,9 @@ public partial class DataGrid
             width = element.Width;
         }
 
-        return Math.Max(width, TextBestFitWidth(ElementText(element)));
+        var textWidth = TextBestFitWidth(ElementText(element));
+        var result = Math.Max(width, textWidth);
+        return double.IsNaN(result) || result <= 0 ? Math.Max(textWidth, 20) : result;
     }
 
     private static string? ElementText(object? value)
@@ -785,12 +695,10 @@ public partial class DataGrid
         {
             var headerCell = new DataGridColumnHeader
             {
-                Content = HeaderContent(column),
-                Width = ShimColumnWidth(column),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             };
             headerCell.PrepareColumnHeader(column.Header, column);
-            headerCell.Content = HeaderContent(column);
+            headerCell.Content = BuildHeaderWithGrippers(column, headerCell);
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();
@@ -799,9 +707,13 @@ public partial class DataGrid
             headerCell.PointerReleased += OnHeaderPointerReleased;
             headerCell.PointerCaptureLost += OnHeaderPointerCaptureLost;
             headerCell.PointerExited += OnHeaderPointerExited;
-            headerCell.DoubleTapped += OnHeaderDoubleTapped;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
+
+            if (double.IsNaN(ShimColumnWidth(column)))
+            {
+                headerCell.Width = ShimColumnWidth(column);
+            }
 
             // Measure header text width directly (header cell has no XAML
             // template so its Measure does not content-size). Use a standalone
@@ -816,7 +728,6 @@ public partial class DataGrid
                     FontSize = 14,
                 };
                 tb.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-                // 32px padding for sort glyph area + filter button + margins
                 var hw = Math.Max(tb.DesiredSize.Width + 32, column.MinWidth);
                 if (hw > 0)
                 {
@@ -1306,61 +1217,19 @@ public partial class DataGrid
 
     private void OnHeaderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (sender is DataGridColumnHeader resizeHeader && TryBeginHeaderResize(resizeHeader, e))
+        // Reorder: record candidate but don't capture yet (plain click still sorts).
+        if (CanUserReorderColumns && _headerHostPanel is not null
+            && sender is DataGridColumnHeader hdr && hdr.Column is { CanUserReorder: true } col)
         {
-            return;
-        }
-
-        if (!CanUserReorderColumns || _headerHostPanel is null)
-            return;
-        if (sender is not DataGridColumnHeader hdr || hdr.Column is not { CanUserReorder: true } col)
-            return;
-
-        // Record the candidate; do NOT capture yet so a plain click still sorts.
-        _reorderHeader = hdr;
-        _reorderColumn = col;
-        _reorderStartX = e.GetCurrentPoint(_headerHostPanel).Position.X;
-        _reorderActive = false;
-    }
-
-    private void OnHeaderDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-    {
-        if (sender is not DataGridColumnHeader header
-            || ResolveHeaderResizeColumn(header, e.GetPosition(header).X) is not { } column)
-        {
-            return;
-        }
-
-        if (ShimTryAutoSizeColumn(column))
-        {
-            e.Handled = true;
+            _reorderHeader = hdr;
+            _reorderColumn = col;
+            _reorderStartX = e.GetCurrentPoint(_headerHostPanel).Position.X;
+            _reorderActive = false;
         }
     }
 
     private void OnHeaderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (ContinueHeaderResize(e))
-        {
-            return;
-        }
-
-        // Resize cursor: show SizeWestEast when hovering near a column edge
-        if (sender is DataGridColumnHeader header && !_reorderActive)
-        {
-            var pt = e.GetCurrentPoint(header).Position;
-            if (header.IsVisible && CanUserResizeColumns && header.Column is { CanUserResize: true })
-            {
-                if (HeaderResizeEdgeAt(header, pt.X) != HeaderResizeEdge.None)
-                {
-                    header.SetShimCursor();
-                }
-                else
-                {
-                    header.ClearShimCursor();
-                }
-            }
-        }
-
         if (_reorderColumn is null || _reorderHeader is null || _headerHostPanel is null)
             return;
 
@@ -1368,7 +1237,7 @@ public partial class DataGrid
         if (!_reorderActive)
         {
             if (Math.Abs(x - _reorderStartX) <= ReorderDragThreshold)
-                return; // below the drag threshold — still a potential click
+                return;
             _reorderActive = true;
             _reorderHeader.CapturePointer(e.Pointer);
             _reorderHeader.Opacity = 0.5;
@@ -1379,11 +1248,6 @@ public partial class DataGrid
 
     private void OnHeaderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (EndHeaderResize(e))
-        {
-            return;
-        }
-
         if (_reorderColumn is { } col && _reorderActive && _headerHostPanel is not null)
         {
             var slot = ComputeDropSlot(e.GetCurrentPoint(_headerHostPanel).Position.X);
@@ -1392,7 +1256,7 @@ public partial class DataGrid
                 hdr.ReleasePointerCapture(e.Pointer);
             EndReorder();
             ShimTryReorderColumn(col, target);
-            e.Handled = true; // suppress the click-to-sort that would otherwise fire
+            e.Handled = true;
         }
         else
         {
@@ -1402,7 +1266,6 @@ public partial class DataGrid
 
     private void OnHeaderPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        EndHeaderResize(e);
         EndReorder();
     }
 
@@ -1538,6 +1401,53 @@ public partial class DataGrid
         }
 
         return grid;
+    }
+
+    // Wraps HeaderContent in a 3-column Grid with invisible Thumb grippers at
+    // the left and right edges (matching WPF's PART_LeftHeaderGripper /
+    // PART_RightHeaderGripper).  The grippers handle resize cursor and
+    // drag-resize; double-tap auto-sizes the adjacent column.
+    private object BuildHeaderWithGrippers(DataGridColumn column, DataGridColumnHeader headerCell)
+    {
+        var root = new Microsoft.UI.Xaml.Controls.Grid();
+
+        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(8) });
+        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star) });
+        root.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition { Width = new Microsoft.UI.Xaml.GridLength(8) });
+
+        var transparent = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+        // Left gripper (resize previous column)
+        var leftGripper = new Thumb { Background = transparent };
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(leftGripper, 0);
+        var prev = PreviousVisibleColumn(column);
+        if (prev is { CanUserResize: true })
+        {
+            leftGripper.DragDelta += (_, args) => ShimTryResizeColumn(prev, args.HorizontalChange);
+            leftGripper.DoubleTapped += (_, args) => { ShimTryAutoSizeColumn(prev); args.Handled = true; };
+            leftGripper.PointerEntered += (_, _) => headerCell.SetShimCursor();
+            leftGripper.PointerExited += (_, _) => headerCell.ClearShimCursor();
+        }
+        root.Children.Add(leftGripper);
+
+        // Content (text + sort indicator + filter button)
+        var content = (Microsoft.UI.Xaml.FrameworkElement)HeaderContent(column);
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(content, 1);
+        root.Children.Add(content);
+
+        // Right gripper (resize current column)
+        var rightGripper = new Thumb { Background = transparent };
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(rightGripper, 2);
+        if (column is { CanUserResize: true })
+        {
+            rightGripper.DragDelta += (_, args) => ShimTryResizeColumn(column, args.HorizontalChange);
+            rightGripper.DoubleTapped += (_, args) => { ShimTryAutoSizeColumn(column); args.Handled = true; };
+            rightGripper.PointerEntered += (_, _) => headerCell.SetShimCursor();
+            rightGripper.PointerExited += (_, _) => headerCell.ClearShimCursor();
+        }
+        root.Children.Add(rightGripper);
+
+        return root;
     }
 
     // Session 69: row background for alternating rows.

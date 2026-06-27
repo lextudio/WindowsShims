@@ -1,8 +1,5 @@
 namespace System.Windows.Controls.Primitives;
 
-// Minimal shell carrying the drag routed-event identities that the linked
-// Drag*EventArgs files and DataGrid column-header drag paths reference.
-// Thumb input behavior (capture, drag tracking) is not implemented.
 public partial class Thumb : Control
 {
     public static readonly RoutedEvent DragStartedEvent = EventManager.RegisterRoutedEvent(
@@ -16,6 +13,9 @@ public partial class Thumb : Control
 
     private static readonly RoutedEvent MouseDoubleClickEvent = EventManager.RegisterRoutedEvent(
         "MouseDoubleClick", RoutingStrategy.Bubble, typeof(Input.MouseButtonEventHandler), typeof(Thumb));
+
+    private double _lastX, _lastY;
+    private bool _isDragging;
 
     public event DragStartedEventHandler DragStarted
     {
@@ -39,5 +39,80 @@ public partial class Thumb : Control
     {
         add => AddHandler(MouseDoubleClickEvent, value);
         remove => RemoveHandler(MouseDoubleClickEvent, value);
+    }
+
+    public Thumb()
+    {
+        PointerPressed += OnPointerPressed;
+        PointerMoved += OnPointerMoved;
+        PointerReleased += OnPointerReleased;
+        PointerCaptureLost += OnPointerCaptureLost;
+    }
+
+    private void OnPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var pt = e.GetCurrentPoint(this);
+        if (!pt.Properties.IsLeftButtonPressed)
+            return;
+
+        _lastX = pt.Position.X;
+        _lastY = pt.Position.Y;
+        _isDragging = true;
+        CapturePointer(e.Pointer);
+        e.Handled = true;
+
+        RaiseEvent(new DragStartedEventArgs(_lastX, _lastY)
+        {
+            RoutedEvent = DragStartedEvent,
+            Source = this,
+        });
+    }
+
+    private void OnPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_isDragging)
+            return;
+
+        var pt = e.GetCurrentPoint(this);
+        var deltaX = pt.Position.X - _lastX;
+        var deltaY = pt.Position.Y - _lastY;
+        _lastX = pt.Position.X;
+        _lastY = pt.Position.Y;
+        e.Handled = true;
+
+        RaiseEvent(new DragDeltaEventArgs(deltaX, deltaY)
+        {
+            RoutedEvent = DragDeltaEvent,
+            Source = this,
+        });
+    }
+
+    private void OnPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_isDragging)
+            return;
+
+        _isDragging = false;
+        ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+
+        RaiseEvent(new DragCompletedEventArgs(0, 0, false)
+        {
+            RoutedEvent = DragCompletedEvent,
+            Source = this,
+        });
+    }
+
+    private void OnPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_isDragging)
+            return;
+
+        _isDragging = false;
+        RaiseEvent(new DragCompletedEventArgs(0, 0, true)
+        {
+            RoutedEvent = DragCompletedEvent,
+            Source = this,
+        });
     }
 }
