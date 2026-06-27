@@ -458,16 +458,23 @@ public partial class DataGrid
     private bool _resizeActive;
     private const double ResizeEdgeThickness = 6.0;
     private const double ResizeDragThreshold = 1.0;
+    private enum HeaderResizeEdge
+    {
+        None,
+        Left,
+        Right
+    }
 
     private bool TryBeginHeaderResize(DataGridColumnHeader header, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (!CanUserResizeColumns || header.Column is not { CanUserResize: true, IsVisible: true } column)
+        if (!CanUserResizeColumns)
         {
             return false;
         }
 
         var point = e.GetCurrentPoint(header);
-        if (!point.Properties.IsLeftButtonPressed || !IsOnHeaderResizeEdge(header, point.Position.X))
+        if (!point.Properties.IsLeftButtonPressed
+            || ResolveHeaderResizeColumn(header, point.Position.X) is not { CanUserResize: true, IsVisible: true } column)
         {
             return false;
         }
@@ -482,9 +489,59 @@ public partial class DataGrid
     }
 
     private static bool IsOnHeaderResizeEdge(DataGridColumnHeader header, double x)
+        => HeaderResizeEdgeAt(header, x) is not HeaderResizeEdge.None;
+
+    private static HeaderResizeEdge HeaderResizeEdgeAt(DataGridColumnHeader header, double x)
     {
         var width = header.ActualWidth > 0 ? header.ActualWidth : header.Width;
-        return !double.IsNaN(width) && width > 0 && x >= Math.Max(0, width - ResizeEdgeThickness);
+        if (double.IsNaN(width) || width <= 0)
+        {
+            return HeaderResizeEdge.None;
+        }
+
+        if (x <= ResizeEdgeThickness)
+        {
+            return HeaderResizeEdge.Left;
+        }
+
+        return x >= Math.Max(0, width - ResizeEdgeThickness)
+            ? HeaderResizeEdge.Right
+            : HeaderResizeEdge.None;
+    }
+
+    private DataGridColumn? ResolveHeaderResizeColumn(DataGridColumnHeader header, double x)
+    {
+        return HeaderResizeEdgeAt(header, x) switch
+        {
+            HeaderResizeEdge.Right => header.Column,
+            HeaderResizeEdge.Left => PreviousVisibleColumn(header.Column),
+            _ => null
+        };
+    }
+
+    private DataGridColumn? PreviousVisibleColumn(DataGridColumn? column)
+    {
+        if (column is null)
+        {
+            return null;
+        }
+
+        var index = _visibleColumns.IndexOf(column);
+        if (index > 0)
+        {
+            return _visibleColumns[index - 1];
+        }
+
+        index = Columns.IndexOf(column);
+        for (var i = index - 1; i >= 0; i--)
+        {
+            if (Columns[i].IsVisible)
+            {
+                return Columns[i];
+            }
+        }
+
+        return null;
     }
 
     private bool ContinueHeaderResize(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -564,6 +621,115 @@ public partial class DataGrid
         return true;
     }
 
+    internal bool ShimTryAutoSizeColumn(DataGridColumn column)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        if (!CanUserResizeColumns || !column.CanUserResize || !column.IsVisible)
+        {
+            return false;
+        }
+
+        var bestFitWidth = ShimBestFitColumnWidth(column);
+        if (double.IsNaN(bestFitWidth) || bestFitWidth <= 0)
+        {
+            return false;
+        }
+
+        var currentWidth = ShimResizeBaseWidth(column);
+        var resizedWidth = DataGridColumnResizeShim.ClampWidth(bestFitWidth, column.MinWidth, column.MaxWidth);
+        if (!double.IsNaN(currentWidth) && Math.Abs(resizedWidth - currentWidth) < 0.5)
+        {
+            return false;
+        }
+
+        InternalColumns.OnColumnResizeStarted();
+        try
+        {
+            column.Width = new DataGridLength(resizedWidth);
+            ShimApplyColumnWidth(column);
+        }
+        finally
+        {
+            InternalColumns.OnColumnResizeCompleted(cancel: false);
+        }
+
+        return true;
+    }
+
+    private double ShimBestFitColumnWidth(DataGridColumn column)
+    {
+        var visibleIndex = _visibleColumns.IndexOf(column);
+        if (visibleIndex < 0)
+        {
+            visibleIndex = Columns.IndexOf(column);
+        }
+
+        if (visibleIndex < 0 && column.DisplayIndex >= 0)
+        {
+            visibleIndex = column.DisplayIndex;
+        }
+
+        if (visibleIndex < 0)
+        {
+            return double.NaN;
+        }
+
+        var width = TextBestFitWidth(column.Header?.ToString());
+        if (visibleIndex < _headerCells.Count)
+        {
+            width = Math.Max(width, ElementBestFitWidth(_headerCells[visibleIndex]));
+        }
+
+        if (visibleIndex < _filterCells.Count)
+        {
+            width = Math.Max(width, ElementBestFitWidth(_filterCells[visibleIndex]));
+        }
+
+        foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
+        {
+            if (row.TryGetCell(visibleIndex) is { } cell)
+            {
+                width = Math.Max(width, ElementBestFitWidth(cell));
+            }
+        }
+
+        return width > 0 ? DataGridColumnResizeShim.ClampWidth(width, column.MinWidth, column.MaxWidth) : double.NaN;
+    }
+
+    private static double ElementBestFitWidth(Microsoft.UI.Xaml.FrameworkElement element)
+    {
+        var width = Math.Max(element.DesiredSize.Width, element.ActualWidth);
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = element.Width;
+        }
+
+        return Math.Max(width, TextBestFitWidth(ElementText(element)));
+    }
+
+    private static string? ElementText(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            Microsoft.UI.Xaml.Controls.TextBlock textBlock => textBlock.Text,
+            Microsoft.UI.Xaml.Controls.TextBox textBox => textBox.Text,
+            ContentControl contentControl => ElementText(contentControl.Content),
+            Microsoft.UI.Xaml.Controls.ContentControl contentControl => ElementText(contentControl.Content),
+            _ => value.ToString()
+        };
+    }
+
+    private static double TextBestFitWidth(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0;
+        }
+
+        return Math.Clamp(text.Length * 7.0 + 24.0, 20.0, 800.0);
+    }
+
     private double ShimResizeBaseWidth(DataGridColumn column)
     {
         if (column.ActualWidth > 0)
@@ -626,6 +792,7 @@ public partial class DataGrid
             headerCell.PointerMoved += OnHeaderPointerMoved;
             headerCell.PointerReleased += OnHeaderPointerReleased;
             headerCell.PointerCaptureLost += OnHeaderPointerCaptureLost;
+            headerCell.DoubleTapped += OnHeaderDoubleTapped;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
         }
@@ -908,6 +1075,20 @@ public partial class DataGrid
         _reorderColumn = col;
         _reorderStartX = e.GetCurrentPoint(_headerHostPanel).Position.X;
         _reorderActive = false;
+    }
+
+    private void OnHeaderDoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (sender is not DataGridColumnHeader header
+            || ResolveHeaderResizeColumn(header, e.GetPosition(header).X) is not { } column)
+        {
+            return;
+        }
+
+        if (ShimTryAutoSizeColumn(column))
+        {
+            e.Handled = true;
+        }
     }
 
     private void OnHeaderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -1808,5 +1989,8 @@ public partial class DataGrid
 internal static class DataGridColumnResizeShim
 {
     internal static double ComputeWidth(double currentWidth, double horizontalChange, double minWidth, double maxWidth)
-        => Math.Clamp(currentWidth + horizontalChange, minWidth, maxWidth);
+        => ClampWidth(currentWidth + horizontalChange, minWidth, maxWidth);
+
+    internal static double ClampWidth(double width, double minWidth, double maxWidth)
+        => Math.Clamp(width, minWidth, maxWidth);
 }

@@ -330,12 +330,26 @@ public sealed class DataGridControlRootLinkTests
             typeof(DataGrid).GetMethod("ShimTryResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null,
             "DataGrid.ShimTryResizeColumn commits a user resize into a pixel column width.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("ShimTryAutoSizeColumn", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.ShimTryAutoSizeColumn commits a best-fit column width for double-click resize.");
+        Assert.That(
+            typeof(DataGrid).GetMethod("ShimBestFitColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null,
+            "DataGrid.ShimBestFitColumnWidth measures realized header/filter/data cells for best-fit resize.");
         Assert.That(typeof(DataGrid).GetMethod("TryBeginHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetMethod("ContinueHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
         Assert.That(typeof(DataGrid).GetMethod("EndHeaderResize", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("HeaderResizeEdgeAt", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("ResolveHeaderResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("PreviousVisibleColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.That(typeof(DataGrid).GetMethod("OnHeaderDoubleTapped", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
         var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
         Assert.That(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
             "DataGridColumnResizeShim.ComputeWidth clamps gripper deltas without requiring a UI dispatcher.");
+        Assert.That(resizeShim?.GetMethod("ClampWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
+            "DataGridColumnResizeShim.ClampWidth clamps best-fit widths without requiring a UI dispatcher.");
     }
 
     [Test]
@@ -351,6 +365,11 @@ public sealed class DataGridControlRootLinkTests
         Assert.That(Invoke(method!, 100, 25, 20, 200), Is.EqualTo(125));
         Assert.That(Invoke(method!, 100, -200, 40, 200), Is.EqualTo(40));
         Assert.That(Invoke(method!, 100, 250, 20, 180), Is.EqualTo(180));
+
+        var clamp = resizeShim?.GetMethod("ClampWidth", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.That(clamp, Is.Not.Null);
+        Assert.That((double)clamp!.Invoke(null, [10.0, 20.0, 100.0])!, Is.EqualTo(20));
+        Assert.That((double)clamp.Invoke(null, [120.0, 20.0, 100.0])!, Is.EqualTo(100));
     }
 
     [Test]
