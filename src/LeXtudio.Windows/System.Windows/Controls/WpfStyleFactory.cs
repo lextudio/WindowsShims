@@ -146,9 +146,12 @@ public sealed class SetterSpec
             throw new InvalidOperationException($"Could not resolve dependency property '{PropertyName}'.");
         }
 
-        var value = Value is WpfResourceReference reference
-            ? resourceResolver?.Invoke(reference.Key) ?? Value
-            : Value;
+        var value = Value switch
+        {
+            WpfResourceReference reference => resourceResolver?.Invoke(reference.Key) ?? Value,
+            IWpfDeferredSetterValue deferred => deferred.CreateValue(),
+            _ => Value
+        };
         return new(property, value);
     }
 
@@ -170,7 +173,9 @@ public sealed class SetterSpec
             }
         }
 
-        return ResolveDependencyPropertyOnType(typeof(Microsoft.UI.Xaml.Controls.Control), propertyFieldName);
+        return ResolveDependencyPropertyOnType(typeof(Microsoft.UI.Xaml.Controls.Control), propertyFieldName)
+            ?? ResolveDependencyPropertyOnType(typeof(Microsoft.UI.Xaml.FrameworkElement), propertyFieldName)
+            ?? ResolveDependencyPropertyOnType(typeof(System.Windows.WinUIFrameworkElementExtensions), propertyFieldName);
     }
 
     private static Microsoft.UI.Xaml.DependencyProperty? ResolveDependencyPropertyOnType(Type type, string propertyFieldName)
@@ -188,4 +193,9 @@ public sealed class SetterSpec
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         return propertyInfo?.GetValue(null) as Microsoft.UI.Xaml.DependencyProperty;
     }
+}
+
+public interface IWpfDeferredSetterValue
+{
+    object CreateValue();
 }

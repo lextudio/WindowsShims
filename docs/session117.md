@@ -1592,3 +1592,723 @@ is to translate the remaining simple upstream metadata resource entry,
 `byteWidthConverter`, or to add resource-reference application for skipped
 `StaticResource` style setters. Larger DataGrid visual-pipeline reuse should still wait
 until more template/style substrate is covered.
+
+## Seventeenth Execution
+
+Started the small follow-up resource translation slice for the last simple upstream
+metadata resource.
+
+### WindowsShims changes
+
+Extended `WpfXamlResourceTranslator` so a keyed object resource such as:
+
+```xml
+<local:ByteWidthConverter x:Key="byteWidthConverter" />
+```
+
+can be translated through the existing type resolver. The translator now:
+
+- asks the resolver for the element local name and a `local:`-prefixed form;
+- prefers a static `Instance` field/property when present;
+- falls back to a parameterless constructor, including non-public constructors.
+
+Added a unit test that pins the static `Instance` path, matching the upstream
+`ByteWidthConverter` shape.
+
+### Roma changes
+
+Updated the metadata XAML type resolver so `ByteWidthConverter` resolves to the
+upstream ILSpy converter type, and tightened the integration assertion so
+`byteWidthConverter` is expected in translated resources rather than skipped resources.
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 181 passed
+- 0 failed
+- 0 skipped
+- existing warnings remain
+
+UnoEdit native asset blocker:
+
+The Roma build then hit the existing macOS native asset copy issue in `UnoEdit`.
+The UnoEdit copy item was updated to point at the sibling `TextCore.Uno` checkout
+and only include the dylib when it exists. A direct UnoEdit build passed after this
+change.
+
+Roma build/integration status:
+
+Roma.Host rebuild is currently blocked by existing local project state unrelated to
+the translator change:
+
+- `Roma.Host.csproj` has an existing `UseNuGetPackages=false` change;
+- the source-generator path reports `UseStudio` missing in one build mode;
+- the package-mode override exposes missing `System.Windows.Threading` /
+  `System.Windows.Media` shim references in `TomsToolbox.Wpf.Uno`.
+
+Because Roma.Host could not be rebuilt, the `metadata-xaml-resources` integration probe
+still ran against the previous host output and did not observe the new
+`byteWidthConverter` translation yet. The WindowsShims translator behavior itself is
+covered by the new unit test.
+
+## Eighteenth Execution
+
+Completed the remaining metadata resource translation verification and added one more
+small resource-reference bridge.
+
+### WindowsShims changes
+
+Added a resource-aware `WpfResourceSpec.DataTemplate(...)` overload. Template factories
+can now capture the `ResourceDictionary` used by `WpfResourceFactory.Populate(...)`.
+
+Updated `WpfXamlResourceTranslator` so simple `StaticResource` attributes on translated
+`DataGrid` DataTemplates are resolved when the template is materialized. This covers
+the upstream metadata template attribute:
+
+```xml
+CellStyle="{StaticResource DataGridCellStyle}"
+```
+
+Simple scalar attributes and `ItemsSource` binding continue to use the existing
+template factory path. Unsupported markup extensions are still skipped rather than
+misassigned.
+
+### Roma verification
+
+After the local TomsToolbox/Roma build state was fixed, the metadata resource probe
+confirmed the previous `byteWidthConverter` translation change.
+
+Focused Roma metadata tests passed after the resource-reference bridge:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 5 passed
+- 0 failed
+- 0 skipped
+
+### Verification
+
+WindowsShims:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 182 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+## Next Slice
+
+The upstream `MetadataTableViews.xaml` path is now largely harvested for Roma. The
+remaining quick wins are likely diagnostics and cleanup: make the translation report
+assert the expected skipped set precisely, then consider whether the leftover
+`DataGridCellStyle` `Setter.Value` `ControlTemplate` should stay skipped or become the
+next explicit substrate feature.
+
+## Nineteenth Execution
+
+Tightened the upstream metadata XAML translation guard.
+
+### Roma changes
+
+Updated `MetadataTableViews_ReportsUpstreamXamlResourceTranslation` so it now asserts
+the exact translated resource list from upstream `MetadataTableViews.xaml`:
+
+- `DataGridCellStyle`;
+- `DefaultFilter` / `HexFilter`;
+- all flags filter templates;
+- `ItemContainerStyle`;
+- `byteWidthConverter`;
+- all three row-details `DataTemplate` resources.
+
+The test now also asserts that both `FallbackKeys` and `SkippedKeys` are empty. This
+locks in that every top-level resource in the upstream metadata resource dictionary is
+handled by the WindowsShims translator.
+
+### Verification
+
+Roma resource translation test:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter MetadataTableViews_ReportsUpstreamXamlResourceTranslation
+```
+
+Result:
+
+- 1 passed
+- 0 failed
+- 0 skipped
+
+Roma focused metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 5 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The remaining local difference in this resource file is semantic depth, not top-level
+coverage: `DataGridCellStyle` is translated as a style with simple setters, but its
+nested `Setter.Value` `ControlTemplate` is still not represented. The next worthwhile
+substrate slice would be explicit support for style setter element values, starting
+with `ControlTemplate` metadata rather than a full visual tree.
+
+## Twentieth Execution
+
+Added style setter element-value translation for the first real upstream case:
+`DataGridCellStyle` now preserves a nested `Setter.Value` `ControlTemplate` descriptor.
+
+### WindowsShims changes
+
+Updated `WpfXamlResourceTranslator.TranslateStyle` so a setter can be translated from
+either a `Value` attribute or a child `Setter.Value` element. The first supported child
+element form is:
+
+```xml
+<Setter Property="Template">
+  <Setter.Value>
+    <ControlTemplate TargetType="{x:Type DataGridCell}" />
+  </Setter.Value>
+</Setter>
+```
+
+The translator now creates a `System.Windows.Controls.ControlTemplate`, resolves its
+`TargetType`, and keeps the original XML element as template metadata. This is still a
+metadata bridge, not a full visual-tree compiler, but it is enough to represent the
+upstream resource shape without treating that setter as lost.
+
+`WpfResourceSpec` also now carries an optional `Descriptor`, so tests and downstream
+diagnostics can inspect the translated `StyleSpec` without creating the runtime resource
+first.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 182 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 5 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+This completes the quick-win coverage for all top-level upstream
+`MetadataTableViews.xaml` resources and the known nested `DataGridCellStyle` template
+setter metadata. The next useful code-reuse slice is probably to point another WPF XAML
+resource file at the same translator and let the unsupported constructs surface from
+tests, rather than expanding the translator speculatively.
+
+## Twenty-First Execution
+
+Removed the translator's string-only resource-key assumption.
+
+### WindowsShims changes
+
+`WpfResourceSpec.Key` is now an `object`, matching WPF `ResourceDictionary` semantics
+more closely. This keeps existing string-keyed resources working while opening the path
+for type-keyed resources such as implicit:
+
+```xml
+<DataTemplate DataType="{x:Type local:SomeViewModel}">
+```
+
+`WpfXamlResourceTranslator` now resolves an implicit `DataTemplate` key from `DataType`
+when `x:Key` is absent. Translation reports still expose readable string keys, using the
+type full name for type-keyed resources.
+
+This does not yet translate the full `FlagsTooltip.xaml` visual tree, but it removes the
+first substrate blocker for metadata resources that use WPF's type-keyed template model.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 183 passed
+- 0 failed
+- 0 skipped
+- existing warnings remain
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 5 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The next concrete target should be resource extraction from non-`ResourceDictionary`
+roots, starting with `Control.Resources` in `FlagsTooltip.xaml`. After that, the
+remaining blocker is translating its simple StackPanel/TextBlock/ListBox/CheckBox
+template trees into a usable Uno `ShimDataTemplate`.
+
+## Twenty-Second Execution
+
+Extended upstream XAML resource extraction beyond `ResourceDictionary` roots and wired
+`FlagsTooltip.xaml` into the Roma diagnostics loop.
+
+### WindowsShims changes
+
+`WpfXamlResourceTranslator.TranslateResourceDictionary` now extracts resource elements
+from either:
+
+- a `ResourceDictionary` root; or
+- a non-dictionary root's matching `RootType.Resources` child, such as
+  `Control.Resources`.
+
+This keeps existing callers/API names stable while allowing WPF control XAML files to
+feed their local resource dictionaries into the same translation substrate.
+
+Added coverage for a `Control` root containing both a keyed object resource and an
+implicit type-keyed `DataTemplate`.
+
+### Roma changes
+
+Linked upstream `ILSpy/Metadata/FlagsTooltip.xaml` as output `Content`, without enabling
+`InitializeComponent`. The XAML is now available as translator input beside
+`MetadataTableViews.xaml`.
+
+Added a DevFlow probe and integration test for the real upstream `FlagsTooltip.xaml`.
+The current report is intentionally partial:
+
+- translated: `nullVisConv`;
+- skipped: `ICSharpCode.ILSpy.Metadata.MultipleChoiceGroup`,
+  `ICSharpCode.ILSpy.Metadata.SingleChoiceGroup`;
+- fallback: empty.
+
+This confirms the file is now in the reuse pipeline, and the remaining unsupported
+surface is the two typed template visual trees.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 184 passed
+- 0 failed
+- 0 skipped
+- existing warnings remain
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata/resource tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|FlagsTooltip_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 6 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+Translate the first simple non-TextBox `DataTemplate` visual tree shape needed by
+`FlagsTooltip.xaml`: `StackPanel` with `TextBlock` children and simple bindings. Once
+that works, the multiple-choice template adds the next nested shape:
+`ListBox.ItemTemplate` with `CheckBox`.
+
+## Twenty-Third Execution
+
+Translated the first `FlagsTooltip.xaml` typed template visual tree.
+
+### WindowsShims changes
+
+Added a deliberately small `DataTemplate` element builder for this upstream shape:
+
+- root `StackPanel`;
+- child `TextBlock` elements;
+- simple property assignment such as `Orientation`;
+- `TextBlock.Text` bindings, including dotted paths such as `SelectedFlag.Name`.
+
+Unsupported descendants still cause the template to remain skipped. This keeps
+`MultipleChoiceGroup` out until `ListBox.ItemTemplate` and `CheckBox` support are added,
+while allowing the simpler `SingleChoiceGroup` template to translate now.
+
+### Roma changes
+
+Updated the real `FlagsTooltip.xaml` translation guard. The current upstream report is:
+
+- translated: `nullVisConv`, `ICSharpCode.ILSpy.Metadata.SingleChoiceGroup`;
+- skipped: `ICSharpCode.ILSpy.Metadata.MultipleChoiceGroup`;
+- fallback: empty.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 185 passed
+- 0 failed
+- 0 skipped
+- existing nullable warning remains
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata/resource tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|FlagsTooltip_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 6 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+Finish `FlagsTooltip.xaml` by translating the remaining `MultipleChoiceGroup`
+template. The missing constructs are `ListBox`, `ListBox.ItemTemplate`, and `CheckBox`
+with simple bindings.
+
+## Twenty-Fourth Execution
+
+Finished the current `FlagsTooltip.xaml` resource translation coverage.
+
+### WindowsShims changes
+
+Extended the small `DataTemplate` element builder with the remaining upstream shape:
+
+- `ListBox` with `ItemsSource` binding;
+- `ListBox.ItemTemplate`;
+- nested `DataTemplate`;
+- `CheckBox` with `Content` and `IsChecked` bindings.
+
+This is still intentionally scoped to the metadata tooltip resource shape. General WPF
+layout, attached properties, brushes, margins, and triggers are not treated as a full
+XAML compiler here; unsupported values are ignored when the target WinUI property cannot
+accept them.
+
+### Roma changes
+
+Updated the real `FlagsTooltip.xaml` translation guard. The current upstream report is:
+
+- translated: `nullVisConv`,
+  `ICSharpCode.ILSpy.Metadata.MultipleChoiceGroup`,
+  `ICSharpCode.ILSpy.Metadata.SingleChoiceGroup`;
+- skipped: empty;
+- fallback: empty.
+
+This means all resource entries inside upstream `FlagsTooltip.xaml` are now in the
+translator pipeline.
+
+One caveat: Uno currently emits a `Uno0001` warning for
+`Microsoft.UI.Xaml.Controls.ListBox` in the generated template factory. That is acceptable
+for the translation/report milestone, but if the tooltip UI is exercised visually we may
+want to map this specific WPF `ListBox` shape onto a supported Uno control such as
+`ListView`/`ItemsControl`.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 186 passed
+- 0 failed
+- 0 skipped
+- existing warnings remain, plus the expected Uno `ListBox` implementation warning
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused metadata/resource tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|FlagsTooltip_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 6 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The next reuse target should be a different small upstream XAML file, or a visual probe
+for the translated `FlagsTooltip` templates. If visual tooltip rendering matters next,
+replace the internal `ListBox` emission with a Uno-supported items control before
+asserting rendered output.
+
+## Twenty-Fifth Execution
+
+Closed the `FlagsTooltip.xaml` `ListBox` caveat.
+
+### WindowsShims changes
+
+The translator still recognizes upstream WPF `<ListBox>` in `FlagsTooltip.xaml`, but now
+emits a WinUI `ListView` for the generated template factory. This preserves the WPF XAML
+resource shape while avoiding Uno's `Microsoft.UI.Xaml.Controls.ListBox` implementation
+warning.
+
+The existing `ListBox.ItemTemplate` and `CheckBox` translation path remains unchanged:
+
+- `ItemsSource` binding is applied to the generated `ListView`;
+- nested item `DataTemplate` is represented by `ShimDataTemplate`;
+- `CheckBox.Content` and `CheckBox.IsChecked` are bound from each item.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 186 passed
+- 0 failed
+- 0 skipped
+- the previous Uno `ListBox` implementation warning is gone
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 warnings
+- 0 errors
+
+Roma focused metadata/resource tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "MetadataTableViews_ReportsUpstreamXamlResourceTranslation|FlagsTooltip_ReportsUpstreamXamlResourceTranslation|MetadataTable_RendersDataGrid|MetadataHeader_RowDetailsRendersNestedDataGrid|MetadataOptionalHeader_RowDetailsRendersNestedDataGrid|MetadataCustomDebugInformation_RowDetailsRenders"
+```
+
+Result:
+
+- 6 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The `FlagsTooltip.xaml` resource extraction/translation path is now complete for the
+current upstream file. The next worthwhile reuse target should be another small upstream
+resource file, preferably one with a diagnostic guard like the metadata files, rather
+than expanding the template builder speculatively.
+
+## Twenty-Sixth Execution
+
+Started the next small upstream resource target: ILSpy resource-table XAML.
+
+### WindowsShims changes
+
+Extended `WpfXamlResourceTranslator` so it can translate resource blocks nested below
+the XAML root, such as `UserControl > Grid > Grid.Resources`. This is required by:
+
+- `ILSpy/Controls/ResourceStringTable.xaml`
+- `ILSpy/Controls/ResourceObjectTable.xaml`
+
+Added support for the resource shapes used by those files:
+
+- `AlternationConverter` with nested `SolidColorBrush` entries;
+- keyed `SolidColorBrush` as a deferred resource value;
+- style setter values that are WPF `Binding` markup extensions;
+- style setter element values for `ContextMenu`/`MenuItem`;
+- delayed materialization for brush and context-menu objects so translator tests do not
+  need a live Uno dispatcher.
+
+Added a minimal `System.Windows.Controls.AlternationConverter` shim and lightweight
+descriptor records (`SolidColorBrushSpec`, `AlternationConverterSpec`,
+`ContextMenuSpec`, `MenuItemSpec`) so translated resources can be inspected without
+constructing WinUI controls.
+
+### Roma changes
+
+Copied the upstream resource-table XAML files to output:
+
+- `ILSpy/Controls/ResourceStringTable.xaml`
+- `ILSpy/Controls/ResourceObjectTable.xaml`
+
+Added `roma.probe.resource-tables-xaml-resources`, which translates both upstream files
+and reports translated/fallback/skipped keys. Added the corresponding integration test
+`ResourceTables_ReportUpstreamXamlResourceTranslation`.
+
+Both files now translate:
+
+- `BackgroundConverter`
+- `alternatingWithBinding`
+
+with empty fallback and skipped lists.
+
+This does not yet replace `RomaResourceTables.cs`; it proves that the shared upstream
+resource block is now reusable and gives the next slice a guarded entry point.
+
+### Verification
+
+WindowsShims tests:
+
+```bash
+dotnet test src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 187 passed
+- 0 failed
+- 0 skipped
+
+Roma build:
+
+```bash
+dotnet build src/Roma.Host/Roma.Host.csproj -f net10.0-desktop --no-restore
+```
+
+Result:
+
+- 0 errors
+- existing warnings remain
+
+Roma focused XAML translation tests:
+
+```bash
+dotnet test tests/Roma.IntegrationTests/Roma.IntegrationTests.csproj --filter "ResourceTables_ReportUpstreamXamlResourceTranslation|FlagsTooltip_ReportsUpstreamXamlResourceTranslation|MetadataTableViews_ReportsUpstreamXamlResourceTranslation"
+```
+
+Result:
+
+- 3 passed
+- 0 failed
+- 0 skipped
+
+## Next Slice
+
+The next practical step is deciding whether to consume the translated
+`alternatingWithBinding` style inside the current `ResourceTableView<TRow>` implementation,
+or whether to start replacing `RomaResourceTables.cs` with a thinner adapter around the
+upstream `ResourceStringTable.xaml`/`ResourceObjectTable.xaml` shape. Directly linking the
+upstream `.xaml.cs` is still not a quick win because it depends on WPF
+`ICollectionView`, command bindings, clipboard commands, and named XAML controls.

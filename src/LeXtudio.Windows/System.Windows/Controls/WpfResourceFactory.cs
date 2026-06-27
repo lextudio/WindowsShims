@@ -13,7 +13,7 @@ public static class WpfResourceFactory
         }
     }
 
-    public static IEnumerable<(string Key, object Value)> CreateMany(params WpfResourceSpec[] resources)
+    public static IEnumerable<(object Key, object Value)> CreateMany(params WpfResourceSpec[] resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
 
@@ -28,27 +28,36 @@ public sealed class WpfResourceSpec
 {
     private readonly Func<System.Windows.ResourceDictionary?, object> _createValue;
 
-    private WpfResourceSpec(string key, Func<System.Windows.ResourceDictionary?, object> createValue)
+    private WpfResourceSpec(object key, Func<System.Windows.ResourceDictionary?, object> createValue, object? descriptor = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(createValue);
         Key = key;
         _createValue = createValue;
+        Descriptor = descriptor;
     }
 
-    public string Key { get; }
+    public object Key { get; }
+
+    public object? Descriptor { get; }
 
     public object CreateValue() => _createValue(null);
 
     internal object CreateValue(System.Windows.ResourceDictionary dictionary) => _createValue(dictionary);
 
-    public static WpfResourceSpec Value(string key, object value)
-        => new(key, _ => value);
+    public static WpfResourceSpec Value(object key, object value)
+        => new(key, _ => value, value);
 
-    public static WpfResourceSpec Style(string key, Type targetType, params SetterSpec[] setters)
-        => new(key, _ => WpfStyleFactory.Create(targetType, setters));
+    public static WpfResourceSpec Value(object key, Func<object> valueFactory, object? descriptor = null)
+    {
+        ArgumentNullException.ThrowIfNull(valueFactory);
+        return new(key, _ => valueFactory(), descriptor);
+    }
 
-    public static WpfResourceSpec Style(string key, StyleSpec style)
+    public static WpfResourceSpec Style(object key, Type targetType, params SetterSpec[] setters)
+        => Style(key, WpfStyleFactory.Style(targetType, setters));
+
+    public static WpfResourceSpec Style(object key, StyleSpec style)
     {
         ArgumentNullException.ThrowIfNull(style);
         return new(key, dictionary => style.CreateStyle(resourceKey =>
@@ -59,26 +68,34 @@ public sealed class WpfResourceSpec
             }
 
             return null;
-        }));
+        }), style);
     }
 
-    public static WpfResourceSpec Filter(string key, DataGridExtensions.FilterKind kind, Type? flagsType = null)
+    public static WpfResourceSpec Filter(object key, DataGridExtensions.FilterKind kind, Type? flagsType = null)
         => new(key, _ => new DataGridExtensions.FilterControlTemplate(kind, flagsType));
 
-    public static WpfResourceSpec TextFilter(string key)
+    public static WpfResourceSpec TextFilter(object key)
         => Filter(key, DataGridExtensions.FilterKind.Text);
 
-    public static WpfResourceSpec HexFilter(string key)
+    public static WpfResourceSpec HexFilter(object key)
         => Filter(key, DataGridExtensions.FilterKind.Hex);
 
-    public static WpfResourceSpec FlagsFilter(string key, Type flagsType)
+    public static WpfResourceSpec FlagsFilter(object key, Type flagsType)
     {
         ArgumentNullException.ThrowIfNull(flagsType);
         return Filter(key, DataGridExtensions.FilterKind.Flags, flagsType);
     }
 
     public static WpfResourceSpec DataTemplate(
-        string key,
+        object key,
         Func<object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?> factory)
         => new(key, _ => new ShimDataTemplate(factory));
+
+    public static WpfResourceSpec DataTemplate(
+        object key,
+        Func<System.Windows.ResourceDictionary?, object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?> factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        return new(key, dictionary => new ShimDataTemplate((item, templatedParent) => factory(dictionary, item, templatedParent)));
+    }
 }

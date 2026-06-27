@@ -24,14 +24,17 @@ public sealed class WpfResourceFactoryTests
     public void PopulateAddsResourcesToDictionary()
     {
         var dictionary = new System.Windows.ResourceDictionary();
+        var typeKey = typeof(WpfResourceFactoryTests);
 
         WpfResourceFactory.Populate(
             dictionary,
             WpfResourceSpec.Value("A", 1),
-            WpfResourceSpec.Value("B", "two"));
+            WpfResourceSpec.Value("B", "two"),
+            WpfResourceSpec.Value(typeKey, "typed"));
 
         Assert.That(dictionary["A"], Is.EqualTo(1));
         Assert.That(dictionary["B"], Is.EqualTo("two"));
+        Assert.That(dictionary[typeKey], Is.EqualTo("typed"));
     }
 
     [Test]
