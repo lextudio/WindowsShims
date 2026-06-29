@@ -616,3 +616,57 @@ by default.
   requires making the linked header presenter + `DataGridColumnHeadersPanel` functional AND migrating all
   the manual header interaction (resize / reorder / filter / sort / auto-width wired on `_headerCells`),
   a large high-risk surgery for structural-only benefit while the manual header works. Deferred.
+
+### Slice 15 — off-screen selection survives virtualization
+
+Roma's metadata navigation (GoToToken etc.) calls `DataGrid.SelectItem(item)` to select+reveal a row,
+which under virtualization may be off-screen / unrealized. Two fixes:
+
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — implemented the WPF
+  `OnBringItemIntoView(ItemInfo)` hook (driven by `ScrollIntoView`): a realized container is brought
+  into view via `StartBringIntoView`; an unrealized one resolves the items host
+  (`GetTemplateChild("PART_ShimRowsHost")`) and calls `BringIndexIntoView(index)` + a synchronous
+  `host.UpdateLayout()` so the target window realizes before the async `ScrollViewer.ViewChanged` can
+  reset the forced viewport.
+- [ExtensionMethods.cs](../../Roma/ext/ilspy/ILSpy/ExtensionMethods.cs) (ILSpy, ROMA_UNO) — `SelectItem`
+  now sets the **engine selection** (`view.SelectedItem = item`) before scrolling, so the selection
+  survives container recycling (a re-realized row reads selected state from the DataGrid's selection via
+  `IsRowItemSelected`, not a transient row flag), then `ScrollIntoView` + `UpdateLayout`.
+
+Runtime verification (CoreLib `TypeDef`, 2400 rows; target index 1500 pinned off-screen):
+
+```text
+metadata-select-offscreen → { realizedBefore: false, engineSelected: true, visuallySelected: true, firstAfter: 1498 }
+```
+
+Selecting an off-screen item sets engine selection, scrolls the window to it (first realized row 1498 ≈
+target), and the realized row shows selected. WindowsShims 210 passed / 0 failed; builds clean.
+
+### Slice 16 — keyboard navigation reaches off-screen rows
+
+[DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — `MoveSelectionToIndex` /
+`MoveSelectionByOffset` (the targets of Up/Down/Home/End/PageUp/PageDown in row-selection mode) were
+operating only over **realized** containers, so under virtualization they couldn't move past the visible
+window (End stopped at the last realized row). Rewrote them in **item-index space**: the current item
+comes from the engine selection, the target is clamped against `Items.Count`, then `OnBringItemIntoView`
+scrolls/realizes it and `HandleShimRowClicked` applies selection on the now-realized row (engine-selection
+fallback otherwise). Works for both the manual and virtualized paths.
+
+Runtime verification (CoreLib `TypeDef`, target 1500 off-screen):
+
+```text
+metadata-keyboard-offscreen → { realizedBefore: false, engineSelected: true, visuallySelected: true, firstAfter: 1498 }
+```
+
+### Option 1 (virtualization parity) — conclusion
+
+- **Off-screen selection** (Roma's GoToToken/navigation `SelectItem` path) — done (Slice 15).
+- **Keyboard navigation to off-screen rows** — done (Slice 16).
+- **Row-details variable height under virtualization** — **moot for Roma**: the tables that use
+  `RowDetails` are the PE-header tables (DOS/COFF/Optional, <50 rows → manual path), while the tables
+  large enough to auto-virtualize (TypeDef/MethodDef, thousands of rows) don't use row details. No Roma
+  scenario hits expanded details inside a virtualized grid, so the uniform-row-height assumption holds.
+
+Virtualization parity for Roma's real usage is complete: large tables auto-virtualize, scroll/recycle,
+filter/sort, fixed header, and selection + keyboard navigation correctly reach (and reveal) off-screen
+rows. WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.

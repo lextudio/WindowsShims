@@ -423,6 +423,39 @@ public partial class DataGrid
         ItemContainerGenerator.UnregisterContainer(container);
     }
 
+    // WPF ItemsControl.OnBringItemIntoView hook, driven by ScrollIntoView. For a realized
+    // container, bring it into view; otherwise (virtualized off-screen) ask the items host
+    // to scroll the item's index into view, which devirtualizes it.
+    internal override object? OnBringItemIntoView(ItemInfo info)
+    {
+        var container = (info.Container ?? ItemContainerGenerator.ContainerFromItem(info.Item))
+            as Microsoft.UI.Xaml.FrameworkElement;
+        if (container is not null)
+        {
+            container.StartBringIntoView();
+            return null;
+        }
+
+        // Resolve the items host via the template part (InternalItemsHost may not be wired
+        // yet during template application).
+        if (info.Item is not null && GetTemplateChild("PART_ShimRowsHost") is VirtualizingStackPanel host)
+        {
+            var index = Items.IndexOf(info.Item);
+            if (index >= 0)
+            {
+                host.BringIndexIntoView(index);
+                // Realize the target window synchronously now, before the async
+                // ScrollViewer.ViewChanged can reset the forced viewport.
+                host.UpdateLayout();
+            }
+        }
+
+        return null;
+    }
+
+    internal override object? OnBringItemIntoView(object arg)
+        => arg is ItemInfo info ? OnBringItemIntoView(info) : null;
+
     // Scrolls a (possibly off-screen / not-yet-realized) item into view on the virtualized
     // path, devirtualizing it. Returns true if the item is realized afterwards.
     internal bool ShimScrollItemIntoView(object? item)
@@ -2267,29 +2300,42 @@ public partial class DataGrid
 
     internal void MoveSelectionByOffset(int delta)
     {
-        var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
-        if (rows.Count == 0)
+        if (Items.Count == 0)
         {
             return;
         }
 
-        var current = rows.FindIndex(r => r.IsSelected);
+        // Work in item-index space (not just realized rows) so navigation reaches
+        // virtualized off-screen rows; the current item comes from the engine selection.
+        var current = SelectedItem is not null ? Items.IndexOf(SelectedItem) : -1;
         var target = current < 0
-            ? (delta > 0 ? 0 : rows.Count - 1)
-            : Math.Clamp(current + delta, 0, rows.Count - 1);
+            ? (delta > 0 ? 0 : Items.Count - 1)
+            : Math.Clamp(current + delta, 0, Items.Count - 1);
 
-        HandleShimRowClicked(rows[target]);
+        MoveSelectionToIndex(target);
     }
 
     internal void MoveSelectionToIndex(int index)
     {
-        var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
-        if (rows.Count == 0)
+        if (Items.Count == 0)
         {
             return;
         }
 
-        HandleShimRowClicked(rows[Math.Clamp(index, 0, rows.Count - 1)]);
+        var clamped = Math.Clamp(index, 0, Items.Count - 1);
+        var item = Items[clamped];
+
+        // Scroll the target into view (realizes it if virtualized off-screen), then apply
+        // row-click selection on the now-realized container; fall back to engine selection.
+        OnBringItemIntoView(NewItemInfo(item));
+        if (ItemContainerGenerator.ContainerFromItem(item) is DataGridRow row)
+        {
+            HandleShimRowClicked(row);
+        }
+        else
+        {
+            SelectedItem = item;
+        }
     }
 
     internal bool MoveCurrentCellByOffset(int rowDelta, int columnDelta, bool extendSelection)
