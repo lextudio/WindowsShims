@@ -196,7 +196,7 @@ namespace DataGridExtensions
                 if (filter is null) continue;
                 string? path = column is DataGridBoundColumn bound ? bound.BindingPath : null;
                 object? cellValue = path is { Length: > 0 }
-                    ? item.GetType().GetProperty(path)?.GetValue(item)
+                    ? System.Windows.Data.BindingEvaluator.Evaluate(item, new System.Windows.Data.Binding(path))
                     : null;
                 if (!filter.IsMatch(cellValue))
                     return false;

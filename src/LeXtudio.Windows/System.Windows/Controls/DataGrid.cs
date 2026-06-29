@@ -270,6 +270,46 @@ public partial class DataGrid
         }
     }
 
+    // Rebuilds only the data rows without touching the header row.
+    // Used by filter TextChanged handlers so the header TextBox retains focus.
+    internal void RefreshFilteredRows()
+    {
+        if (GetTemplateChild("PART_ShimRowsHost") is not Microsoft.UI.Xaml.Controls.Panel host)
+            return;
+
+        // Remove data rows (everything after the header at index 0).
+        while (host.Children.Count > 1)
+            host.Children.RemoveAt(host.Children.Count - 1);
+
+        ItemContainerGenerator.ResetContainers();
+        _rowTrackingRoot = null;
+
+        var rowIndex = 0;
+        foreach (var item in OrderedItems())
+        {
+            if (item is null) continue;
+            var row = new DataGridRow();
+            row.PrepareRow(item, this);
+            row.ShimRowIndex = rowIndex++;
+            if (!row.HasRowValidationError)
+            {
+                row.BorderBrush = DataGridRow.SeparatorBrush;
+                row.BorderThickness = DataGridRow.SeparatorThickness;
+            }
+            row.ApplyShimRowStyle();
+            row.ApplyShimRowBackground();
+            row.Tracker!.StartTracking(ref _rowTrackingRoot);
+            if (IsRowItemSelected(item))
+                row.IsSelected = true;
+            ItemContainerGenerator.RegisterContainer(item, row);
+            host.Children.Add(row);
+        }
+
+        PruneRealRowSelection();
+        PruneRealCellSelection();
+        ItemContainerGenerator.NotifyContainersGenerated();
+    }
+
     private void RestoreEditingCellAfterRebuild(object editingItem, DataGridColumn editingColumn)
     {
         if (ItemContainerGenerator.ContainerFromItem(editingItem) is not DataGridRow row)
@@ -837,7 +877,7 @@ public partial class DataGrid
                 ? null
                 : (st.ContentFilterFactory?.Create(text)
                    ?? new DataGridExtensions.SubstringContentFilter(text));
-            BuildShimVisualTree();
+            RefreshFilteredRows();
         };
         return box;
     }
@@ -862,7 +902,7 @@ public partial class DataGrid
             st.ColumnFilters[column] = string.IsNullOrEmpty(text)
                 ? null
                 : new DataGridExtensions.HexContentFilter(text);
-            BuildShimVisualTree();
+            RefreshFilteredRows();
         };
         var row = new Microsoft.UI.Xaml.Controls.StackPanel
         {
@@ -956,7 +996,7 @@ public partial class DataGrid
                 st.ColumnFilters[column] = new DataGridExtensions.MaskContentFilter(mask);
                 toggle.Content = "Filtered";
             }
-            BuildShimVisualTree();
+            RefreshFilteredRows();
         }
 
         allBox.Checked += (_, _) =>
@@ -1022,32 +1062,50 @@ public partial class DataGrid
             Opacity = hasActiveFilter ? 1.0 : 0.6,
         };
 
+        // Button and filter input overlap in the same Grid cell, matching WPF HexFilterControl.xaml:
+        // icon is always behind; input panel overlays it and is shown/hidden via Visibility.
         var panel = new Microsoft.UI.Xaml.Controls.Grid
         {
             VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
         };
-        panel.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
-        panel.RowDefinitions.Add(new Microsoft.UI.Xaml.Controls.RowDefinition { Height = Microsoft.UI.Xaml.GridLength.Auto });
-        Microsoft.UI.Xaml.Controls.Grid.SetRow(filterButton, 0);
         panel.Children.Add(filterButton);
 
         if (DataGridExtensions.DataGridFilterColumn.GetTemplate(column) is DataGridExtensions.FilterControlTemplate fct)
         {
             var filterInput = BuildFilterInlineContent(column, fct);
-            filterInput.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
             filterInput.Margin = new Microsoft.UI.Xaml.Thickness(0, 2, 0, 0);
-            Microsoft.UI.Xaml.Controls.Grid.SetRow(filterInput, 1);
             panel.Children.Add(filterInput);
+
+            // Show input immediately when a filter is already active (e.g. after rebuild).
+            if (hasActiveFilter)
+            {
+                filterButton.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            }
+            else
+            {
+                filterInput.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            }
 
             filterButton.Click += (_, _) =>
             {
-                var isVisible = filterInput.Visibility == Microsoft.UI.Xaml.Visibility.Visible;
-                filterInput.Visibility = isVisible
-                    ? Microsoft.UI.Xaml.Visibility.Collapsed
-                    : Microsoft.UI.Xaml.Visibility.Visible;
-                if (!isVisible && filterInput is Microsoft.UI.Xaml.Controls.Control ctrl)
+                filterButton.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+                filterInput.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                var focusTarget = filterInput as Microsoft.UI.Xaml.Controls.Control
+                    ?? (Microsoft.UI.Xaml.Controls.Control?)
+                       (filterInput as Microsoft.UI.Xaml.Controls.Panel)?.Children
+                       .OfType<Microsoft.UI.Xaml.Controls.TextBox>().FirstOrDefault();
+                focusTarget?.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+            };
+
+            // When the input loses focus and has no active filter, collapse back to the icon.
+            filterInput.LostFocus += (_, _) =>
+            {
+                var st = DataGridExtensions.DataGridFilter.GetState(this);
+                var stillActive = st.ColumnFilters.TryGetValue(column, out var f) && f != null;
+                if (!stillActive)
                 {
-                    ctrl.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                    filterInput.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+                    filterButton.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
                 }
             };
         }
@@ -1095,7 +1153,7 @@ public partial class DataGrid
                 ? null
                 : (st.ContentFilterFactory?.Create(t)
                    ?? new DataGridExtensions.SubstringContentFilter(t));
-            BuildShimVisualTree();
+            RefreshFilteredRows();
         };
         return box;
     }
@@ -1125,14 +1183,20 @@ public partial class DataGrid
             Text = current,
             PlaceholderText = "hex…",
         };
-        box.TextChanged += (s, _) =>
+        void ApplyFilterText()
         {
-            var t = ((Microsoft.UI.Xaml.Controls.TextBox)s!).Text;
+            var t = box.Text;
             var st = DataGridExtensions.DataGridFilter.GetState(this);
             st.ColumnFilters[column] = string.IsNullOrEmpty(t)
                 ? null
                 : new DataGridExtensions.HexContentFilter(t);
-            BuildShimVisualTree();
+            RefreshFilteredRows();
+        }
+
+        box.Tag = (Action)ApplyFilterText;
+        box.TextChanged += (s, _) =>
+        {
+            ApplyFilterText();
         };
         panel.Children.Add(box);
         return panel;
@@ -1198,7 +1262,7 @@ public partial class DataGrid
             st.ColumnFilters[column] = (!anyChecked || allBox.IsChecked == true)
                 ? null
                 : new DataGridExtensions.MaskContentFilter(mask);
-            BuildShimVisualTree();
+            RefreshFilteredRows();
         }
 
         allBox.Checked += (_, _) =>
