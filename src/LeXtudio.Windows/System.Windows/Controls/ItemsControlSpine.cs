@@ -283,17 +283,13 @@ public partial class ItemsControl : IGeneratorHost
         if (oldSource is System.Collections.Specialized.INotifyCollectionChanged oldNcc)
             oldNcc.CollectionChanged -= OnItemsSourceCollectionChanged;
 
-        Items.Clear();
+        // Bulk-populate with a single Reset (avoids an O(n²) per-item rebuild storm on
+        // large tables).
+        Items.ReplaceAll(newSource);
 
-        if (newSource is not null)
-        {
-            foreach (var item in newSource)
-                Items.Add(item);
-
-            // Subscribe to live updates
-            if (newSource is System.Collections.Specialized.INotifyCollectionChanged newNcc)
-                newNcc.CollectionChanged += OnItemsSourceCollectionChanged;
-        }
+        // Subscribe to live updates
+        if (newSource is System.Collections.Specialized.INotifyCollectionChanged newNcc)
+            newNcc.CollectionChanged += OnItemsSourceCollectionChanged;
     }
 
     private void OnItemsSourceCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -311,10 +307,7 @@ public partial class ItemsControl : IGeneratorHost
                         Items.RemoveAt(e.OldStartingIndex);
                 break;
             case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
-                Items.Clear();
-                if (sender is IEnumerable src)
-                    foreach (var item in src)
-                        Items.Add(item);
+                Items.ReplaceAll(sender as IEnumerable);
                 break;
         }
     }

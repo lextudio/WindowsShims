@@ -184,6 +184,9 @@ public partial class DataGrid
         "<p:DataGridRowsPresenter x:Name='PART_ShimRowsHost' IsItemsHost='True' MinWidth='120' MinHeight='40' />" +
         "</ScrollViewer></Grid></Border></ControlTemplate>";
 
+    // Row count above which the manual render auto-switches to the virtualized presenter.
+    private const int ShimAutoVirtualizeThreshold = 1000;
+
     private bool _shimUseRowsPresenter;
 
     internal bool ShimUseRowsPresenter => _shimUseRowsPresenter;
@@ -257,6 +260,16 @@ public partial class DataGrid
             _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
             ShimBuildVirtualizedHeader();
             ShimInvalidateRealizationView();
+            return;
+        }
+
+        // Large tables: eagerly building one DataGridRow per item is O(n) and stalls on
+        // huge metadata tables (e.g. MethodDef, tens of thousands of rows). Auto-switch to
+        // the virtualized presenter so only the visible window is realized. Metadata grids
+        // are read-only, so the not-yet-complete editing-under-virtualization parity is moot.
+        if (!_shimUseRowsPresenter && Items.Count > ShimAutoVirtualizeThreshold)
+        {
+            ShimSetRowVirtualization(true);
             return;
         }
 

@@ -582,6 +582,37 @@ realized before scrolling (`realizedBefore: true`), so the off-screen→on-scree
 couldn't be staged headlessly; the proof is that the window is repositioned *at* the target.
 WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
 
-Remaining high-value items (B1 reuse `DataGridColumnHeadersPresenter`, C1 lazy `LoadTable` for huge
-tables like `MethodDef`) are each large, higher-risk focused efforts — best done as dedicated passes
-(B already showed how a deep refactor can need reverting).
+### Slice 14 — huge tables open (parity C1)
+
+`MethodDef` (≈9–50k rows) previously **timed out on open**. Two contained fixes:
+
+- [ItemCollection.cs](../src/LeXtudio.Windows/System.Windows/Controls/ItemCollection.cs) +
+  [ItemsControlSpine.cs](../src/LeXtudio.Windows/System.Windows/Controls/ItemsControlSpine.cs) —
+  `ItemCollection.ReplaceAll(IEnumerable)` bulk-populates with a **single Reset** instead of N per-item
+  `Add` notifications; `SyncItemsFromSource` uses it. Previously each `Add` fired `CollectionChanged` →
+  `BuildShimVisualTree` on a hooked grid → **O(n²)**.
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — `BuildShimVisualTree`
+  auto-switches to the virtualized presenter when `Items.Count > 1000` (`ShimAutoVirtualizeThreshold`),
+  so a huge table realizes only its visible window instead of eagerly building tens of thousands of
+  rows. Metadata grids are read-only, so editing-under-virtualization parity is moot.
+
+Runtime verification (CoreLib):
+
+```text
+metadata-virtualization(MethodDef) → { total: 9278, realizedInitial: 25, rowHeight: 22, virtualized: true }
+metadata-open-table(MethodDef)     → opens fast: hasGrid true, rows 9278, columns 9, headerCells 9  (auto-virtualized, no explicit enable)
+metadata-open-table(Module, 1 row) → unchanged: manual path, rows 1, columns 8
+```
+
+`MethodDef` now opens (was a hard timeout); small tables keep the manual path. WindowsShims 210 passed /
+0 failed; builds clean. Behavior change (intended): metadata tables with >1000 rows now render virtualized
+by default.
+
+### High-value parity round — summary
+
+- **A1 scroll-into-view** — done (`BringIndexIntoView` devirtualizes/positions the window at an item).
+- **C1 huge tables** — done (`MethodDef` opens via bulk-populate + auto-virtualize).
+- **B1 reuse `DataGridColumnHeadersPresenter`** — investigated, **not pursued**: like audit-item B, it
+  requires making the linked header presenter + `DataGridColumnHeadersPanel` functional AND migrating all
+  the manual header interaction (resize / reorder / filter / sort / auto-width wired on `_headerCells`),
+  a large high-risk surgery for structural-only benefit while the manual header works. Deferred.

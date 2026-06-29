@@ -272,6 +272,41 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     // Session 50: apply SortDescriptions to the underlying items (real
     // collection-view sort), so the WPF DataGrid sort path (PerformSort →
     // Items.SortDescriptions → Refresh) drives ordering instead of a shim.
+    // Session 119 (Slice 14): bulk-replace the items with a single Reset instead of N
+    // per-item Add notifications. ItemsSource population of a large table (e.g. MethodDef,
+    // ~30k rows) otherwise fires one CollectionChanged per row, and a hooked DataGrid rebuilds
+    // on each → O(n²) and a load timeout. One Reset → one rebuild (and the virtualized panel
+    // only realizes the visible window).
+    internal void ReplaceAll(System.Collections.IEnumerable? items)
+    {
+        if (Items is not List<object?> backing)
+        {
+            return;
+        }
+
+        backing.Clear();
+        _unfilteredSource = null;
+        if (items is not null)
+        {
+            foreach (var item in items)
+            {
+                backing.Add(item);
+            }
+        }
+
+        _currentPosition = -1;
+
+        // Apply the filter/sort view if active (fires its own Reset); otherwise raise a single Reset.
+        if (Filter is not null || _sortDescriptions is { Count: > 0 })
+        {
+            Refresh();
+        }
+        else
+        {
+            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+        }
+    }
+
     public void Refresh()
     {
         NeedsRefresh = false;
