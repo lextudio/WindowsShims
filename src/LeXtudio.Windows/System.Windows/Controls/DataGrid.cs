@@ -173,9 +173,16 @@ public partial class DataGrid
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' " +
         "xmlns:p='using:System.Windows.Controls.Primitives'>" +
         "<Border Background='White' BorderBrush='#CCCCCC' BorderThickness='1'>" +
-        "<ScrollViewer HorizontalScrollBarVisibility='Auto' VerticalScrollBarVisibility='Auto'>" +
+        "<Grid>" +
+        "<Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/></Grid.RowDefinitions>" +
+        // Row 0: pinned column-header host (does not scroll vertically), matching WPF.
+        "<Border x:Name='PART_ShimHeaderHost' Grid.Row='0'/>" +
+        // Row 1: ScrollViewer hosting the virtualizing presenter. Horizontal scroll is
+        // enabled for wide tables; the pinned header is translated to match its horizontal
+        // offset (ShimHookHeaderScrollSync) so columns stay aligned.
+        "<ScrollViewer x:Name='PART_ShimRowsScroll' Grid.Row='1' VerticalScrollBarVisibility='Auto' HorizontalScrollBarVisibility='Auto'>" +
         "<p:DataGridRowsPresenter x:Name='PART_ShimRowsHost' IsItemsHost='True' MinWidth='120' MinHeight='40' />" +
-        "</ScrollViewer></Border></ControlTemplate>";
+        "</ScrollViewer></Grid></Border></ControlTemplate>";
 
     private bool _shimUseRowsPresenter;
 
@@ -202,10 +209,10 @@ public partial class DataGrid
             return false;
         }
 
-        // The virtualized presenter self-populates via the generator on measure; the
-        // manual path needs an explicit build.
-        if (!enabled)
-            BuildShimVisualTree();
+        // Manual path builds rows; virtualized path builds the pinned header and lets the
+        // presenter self-populate rows on measure. BuildShimVisualTree handles both via its
+        // host-type branch.
+        BuildShimVisualTree();
 
         return enabled;
     }
@@ -242,10 +249,13 @@ public partial class DataGrid
         }
 
         // Virtualized path: the DataGridRowsPresenter generates its own rows in view via
-        // the VirtualizingStackPanel engine; refresh the filtered/sorted view and let it
-        // re-realize instead of building the full list manually.
+        // the VirtualizingStackPanel engine. Build the pinned header, then refresh the
+        // filtered/sorted view and let the presenter re-realize the visible rows.
         if (host is Primitives.DataGridRowsPresenter)
         {
+            InternalColumns.RefreshDisplayIndexMap();
+            _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
+            ShimBuildVirtualizedHeader();
             ShimInvalidateRealizationView();
             return;
         }
@@ -385,9 +395,10 @@ public partial class DataGrid
             // exists before decorating. The virtualized path realizes the row into the
             // live tree before measure; decorating an un-templated row otherwise leaves
             // it measured at border-only height (cells never contribute).
-            // Decorate without the separator border (see ShimDecorateRow): the border
-            // collapses row height under the virtualizing measure. Apply the template so
-            // cells exist (built in OnApplyTemplate) before the panel measures the row.
+            // Apply the template so cells exist (built in OnApplyTemplate) before the panel
+            // measures the row. Skip the separator border: setting row.BorderThickness on a
+            // row measured by the VirtualizingStackPanel collapses its content to border-only
+            // height on Uno (confirmed independent of the horizontal-scroll/width setting).
             row.ApplyTemplate();
             ShimDecorateRow(row, item, index, includeSeparator: false);
             ItemContainerGenerator.RegisterContainer(item, row);
@@ -397,6 +408,40 @@ public partial class DataGrid
     internal override void ShimOnContainerRecycled(DependencyObject container, object? item)
     {
         ItemContainerGenerator.UnregisterContainer(container);
+    }
+
+    // Builds the column-header row into the virtualized template's pinned header host.
+    private void ShimBuildVirtualizedHeader()
+    {
+        if (GetTemplateChild("PART_ShimHeaderHost") is Microsoft.UI.Xaml.Controls.Border headerHost)
+        {
+            headerHost.Child = BuildHeaderRow();
+        }
+
+        ShimHookHeaderScrollSync();
+    }
+
+    private bool _headerSyncHooked;
+
+    // Keeps the pinned header aligned with horizontal scrolling of the virtualized rows:
+    // translate the header host by the rows' horizontal offset.
+    private void ShimHookHeaderScrollSync()
+    {
+        if (_headerSyncHooked)
+            return;
+
+        if (GetTemplateChild("PART_ShimRowsScroll") is Microsoft.UI.Xaml.Controls.ScrollViewer scroller
+            && GetTemplateChild("PART_ShimHeaderHost") is Microsoft.UI.Xaml.FrameworkElement headerHost)
+        {
+            scroller.ViewChanged += (_, _) =>
+            {
+                headerHost.RenderTransform = new Microsoft.UI.Xaml.Media.TranslateTransform
+                {
+                    X = -scroller.HorizontalOffset,
+                };
+            };
+            _headerSyncHooked = true;
+        }
     }
 
     // Cached filtered/sorted display order the virtualized presenter realizes over, so

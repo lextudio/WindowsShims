@@ -417,3 +417,73 @@ failed; LeXtudio.Windows + Roma.Host build 0 errors.
 Parity still remaining: pinned (non-scrolling) header on the virtualized template; the deferred row
 separator; height-constraining the virtualized `ScrollViewer` so live interactive scrolling (not just
 the probe's deterministic viewport) realizes a sane window; filter/sort runtime probe.
+
+### Slice 9 — pinned column header on the virtualized template
+
+WPF pins the column headers; the virtualized template now does too:
+
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — `ShimVirtualizedTemplateXaml`
+  is now a `Grid` with a pinned `PART_ShimHeaderHost` (row 0, `Auto`) above a vertical-only
+  `ScrollViewer` (row 1) hosting the presenter; horizontal scroll is disabled so rows measure at a
+  finite width and align with the header. `ShimBuildVirtualizedHeader` builds the existing
+  `BuildHeaderRow()` (column headers, resize grippers, filter buttons, sort) into the pinned host.
+  `ShimSetRowVirtualization` / the virtualized `BuildShimVisualTree` branch now set `_visibleColumns`
+  and build the header before invalidating the realization view.
+
+Retested whether the finite-width measure would let the separator border survive — it does **not**
+(rowHeight still collapsed to 1 with the border on), so the separator stays deferred; the quirk is
+specific to `BorderThickness` on a row measured by the panel, not the width constraint.
+
+Runtime verification (CoreLib `TypeDef`, 2400 rows):
+
+```text
+{ total: 2400, realizedInitial: 25, firstAfterScroll: 1198,
+  extent: 52800, rowHeight: 22, headerCells: 9, virtualized: true }
+```
+
+Pinned header (9 columns) present, rows correctly ~22px and windowed (25 of 2400), window shifts on
+scroll. WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
+
+Parity still remaining: the deferred row separator (find a separator that survives the virtualizing
+measure — e.g. a cell-level bottom border); height-constraining the live `ScrollViewer` so interactive
+scrolling realizes a sane window (the probe drives a deterministic viewport); horizontal-scroll header
+sync if wide tables need it; a filter/sort runtime probe.
+
+### Slice 10 — viewport authority, horizontal-scroll header sync, filter probe
+
+Closed three of the four remaining parity items:
+
+- **(2) Live-scroll viewport authority.**
+  [VirtualizingPanelStubs.cs](../src/LeXtudio.Windows/System.Windows/Controls/VirtualizingPanelStubs.cs)
+  — `EffectiveViewportChanged` is now the **authoritative** viewport source. It reports the true
+  visible band in the panel's own coordinates accounting for *all* ancestor clipping, so the window
+  stays sane even when the immediate `ScrollViewer` is measured unbounded (`ViewportHeight ==` content
+  height — exactly the earlier "realized 498/1198→end" anomaly). The ancestor `ScrollViewer.ViewChanged`
+  is now only a re-measure nudge, not a value source.
+- **(3) Horizontal-scroll header sync.**
+  [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — the virtualized
+  template's rows `ScrollViewer` (`PART_ShimRowsScroll`) re-enables horizontal scrolling;
+  `ShimHookHeaderScrollSync` translates the pinned `PART_ShimHeaderHost` by `-HorizontalOffset` on
+  `ViewChanged` so columns stay aligned with the rows when scrolled horizontally.
+- **(4) Filter runtime probe.** `roma.probe.metadata-virtualization-filter` applies a hex column
+  filter via the shim's filter state and asserts the presenter's `ShimRealizationCount` tracks the
+  filter-matching count.
+
+Runtime verification (CoreLib `TypeDef`, 2400 rows):
+
+```text
+metadata-virtualization        → { realizedInitial: 25, firstAfterScroll: 1198,
+                                   rowHeight: 22, headerCells: 9, virtualized: true }
+metadata-virtualization-filter → { total: 2400, viewBefore: 2400, viewAfter: 1,
+                                   expected: 1, honorsFilter: true }
+```
+
+Windowing intact after the viewport/horizontal-scroll changes; the virtualized view honors the column
+filter (realized exactly the 1 matching row). WindowsShims 210 passed / 0 failed; LeXtudio.Windows +
+Roma.Host build 0 errors.
+
+Only remaining parity item: the deferred per-row separator line (the `BorderThickness`-on-row collapse
+under the panel measure; needs a separator drawn some other way — e.g. a cell-level bottom border or a
+1px child element rather than the row `Control`'s border). Live mouse-wheel scrolling could not be
+exercised by the synchronous probe, but the authoritative `EffectiveViewport` is the WinUI-correct
+mechanism and reports sane values.

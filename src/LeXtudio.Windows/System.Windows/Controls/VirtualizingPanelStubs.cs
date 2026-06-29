@@ -155,8 +155,9 @@ public class VirtualizingStackPanel : VirtualizingPanel
             if (current is Microsoft.UI.Xaml.Controls.ScrollViewer scrollViewer)
             {
                 _scrollOwner = scrollViewer;
+                // Only a nudge to re-measure; the authoritative viewport comes from
+                // EffectiveViewportChanged (see below).
                 scrollViewer.ViewChanged += OnScrollViewerViewChanged;
-                UpdateViewportFromScrollOwner();
                 break;
             }
 
@@ -174,30 +175,17 @@ public class VirtualizingStackPanel : VirtualizingPanel
     }
 
     private void OnScrollViewerViewChanged(object? sender, Microsoft.UI.Xaml.Controls.ScrollViewerViewChangedEventArgs e)
-        => UpdateViewportFromScrollOwner();
-
-    private void UpdateViewportFromScrollOwner()
-    {
-        if (_scrollOwner is null)
-            return;
-
-        // The panel is the ScrollViewer's content, so its top in content coordinates
-        // is 0 and the visible band is [VerticalOffset, VerticalOffset + ViewportHeight].
-        SetViewport(_scrollOwner.VerticalOffset, _scrollOwner.ViewportHeight);
-    }
+        => InvalidateMeasure();
 
     private void OnEffectiveViewportChanged(
         Microsoft.UI.Xaml.FrameworkElement sender,
         Microsoft.UI.Xaml.EffectiveViewportChangedEventArgs args)
     {
-        // Prefer the ScrollViewer's offset once known; EffectiveViewport still drives
-        // the very first realization before the panel is loaded under a ScrollViewer.
-        if (_scrollOwner is not null)
-        {
-            UpdateViewportFromScrollOwner();
-            return;
-        }
-
+        // EffectiveViewport is the authoritative visible band: it accounts for ALL
+        // ancestor clipping/scrolling in the panel's own coordinates, so it stays sane
+        // even when the immediate ScrollViewer is measured unbounded (ViewportHeight ==
+        // content height). Using ScrollViewer.ViewportHeight here would realize the whole
+        // list in that case.
         SetViewport(args.EffectiveViewport.Y, args.EffectiveViewport.Height, args.EffectiveViewport.Width);
     }
 
