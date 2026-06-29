@@ -227,7 +227,7 @@ public class VirtualizingStackPanel : VirtualizingPanel
         _owner = owner;
         var recycling = Recycling;
         _realizer = new VirtualizingRowsRealizer<UIElement>(
-            itemAt: index => owner.ShimRealizationItemAt(index),
+            itemAt: index => owner.Items[index],
             create: item =>
             {
                 var container = (UIElement)owner.CreateContainerForItem(item)!;
@@ -265,7 +265,7 @@ public class VirtualizingStackPanel : VirtualizingPanel
             return base.MeasureOverride(availableSize);
 
         var realizer = EnsureRealizer(owner);
-        var itemCount = owner.ShimRealizationCount;
+        var itemCount = owner.Items.Count;
 
         // Before the first EffectiveViewportChanged, fall back to the measure
         // constraint so the very first realization shows the top of the list.

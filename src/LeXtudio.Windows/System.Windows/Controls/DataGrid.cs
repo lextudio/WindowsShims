@@ -444,24 +444,38 @@ public partial class DataGrid
         }
     }
 
-    // Cached filtered/sorted display order the virtualized presenter realizes over, so
-    // virtualization honors column filters and sorting (Slice 8).
-    private List<object?>? _shimRealizationView;
+    // Slice 11: filtering now lives on the ItemCollection view (WPF ICollectionView.Filter),
+    // so Items itself is the filtered+sorted sequence both render paths read — no parallel
+    // realization-view shim. Suppresses the content-changed→rebuild while applying the view.
+    private bool _shimSuppressContentRebuild;
 
-    private List<object?> ShimRealizationView
-        => _shimRealizationView ??= OrderedItems().Where(i => i is not null).ToList();
+    // Pushes the active DataGridExtensions column filters onto the ItemCollection view and
+    // refreshes the rendered rows. Items becomes the filtered+sorted source; the virtualized
+    // presenter and the manual builder both realize over it directly.
+    private void ShimApplyFilterView()
+    {
+        var state = DataGridExtensions.DataGridFilter.GetState(this);
+        var anyActive = state.IsAutoFilterEnabled && state.ColumnFilters.Values.Any(f => f is not null);
+        Items.Filter = anyActive
+            ? item => DataGridExtensions.DataGridFilter.MatchesAllFilters(this, item)
+            : null;
 
-    internal override int ShimRealizationCount
-        => _shimUseRowsPresenter ? ShimRealizationView.Count : Items.Count;
+        _shimSuppressContentRebuild = true;
+        try
+        {
+            Items.Refresh();
+        }
+        finally
+        {
+            _shimSuppressContentRebuild = false;
+        }
 
-    internal override object? ShimRealizationItemAt(int index)
-        => _shimUseRowsPresenter ? ShimRealizationView[index] : Items[index];
+        RefreshFilteredRows();
+    }
 
-    // Invalidate the cached display order and re-realize. Called on the virtualized path
-    // wherever the manual path would rebuild rows (filter/sort/items changes).
+    // Re-realize the virtualized presenter (filter/sort/items changed).
     private void ShimInvalidateRealizationView()
     {
-        _shimRealizationView = null;
         if (GetTemplateChild("PART_ShimRowsHost") is VirtualizingStackPanel presenter)
         {
             presenter.ShimResetRealization();
@@ -875,10 +889,10 @@ public partial class DataGrid
 
     // Items in display order, with active column filters applied. Sorting is
     // handled by ItemCollection.SortDescriptions (WPF PerformSort path).
+    // Items is already the filtered+sorted view (ItemCollection.Filter / SortDescriptions),
+    // so the display sequence is just Items; filtering is no longer re-applied here.
     private IEnumerable<object?> OrderedItems()
-        => Items.Cast<object?>()
-                .Where(item => DataGridExtensions.DataGridFilter.MatchesAllFilters(this, item))
-                .ToList();
+        => Items.Cast<object?>().ToList();
 
     private Microsoft.UI.Xaml.Controls.Border BuildHeaderRow()
     {
@@ -1035,7 +1049,7 @@ public partial class DataGrid
                 ? null
                 : (st.ContentFilterFactory?.Create(text)
                    ?? new DataGridExtensions.SubstringContentFilter(text));
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         };
         return box;
     }
@@ -1060,7 +1074,7 @@ public partial class DataGrid
             st.ColumnFilters[column] = string.IsNullOrEmpty(text)
                 ? null
                 : new DataGridExtensions.HexContentFilter(text);
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         };
         var row = new Microsoft.UI.Xaml.Controls.StackPanel
         {
@@ -1154,7 +1168,7 @@ public partial class DataGrid
                 st.ColumnFilters[column] = new DataGridExtensions.MaskContentFilter(mask);
                 toggle.Content = "Filtered";
             }
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         }
 
         allBox.Checked += (_, _) =>
@@ -1311,7 +1325,7 @@ public partial class DataGrid
                 ? null
                 : (st.ContentFilterFactory?.Create(t)
                    ?? new DataGridExtensions.SubstringContentFilter(t));
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         };
         return box;
     }
@@ -1348,7 +1362,7 @@ public partial class DataGrid
             st.ColumnFilters[column] = string.IsNullOrEmpty(t)
                 ? null
                 : new DataGridExtensions.HexContentFilter(t);
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         }
 
         box.Tag = (Action)ApplyFilterText;
@@ -1420,7 +1434,7 @@ public partial class DataGrid
             st.ColumnFilters[column] = (!anyChecked || allBox.IsChecked == true)
                 ? null
                 : new DataGridExtensions.MaskContentFilter(mask);
-            RefreshFilteredRows();
+            ShimApplyFilterView();
         }
 
         allBox.Checked += (_, _) =>
@@ -1724,7 +1738,13 @@ public partial class DataGrid
     private bool IsRowItemSelected(object? item) => item is not null && SelectedItems.Contains(item);
 
     private void OnShimContentChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-        => BuildShimVisualTree();
+    {
+        // Filter-view refreshes manage their own row rebuild (header focus preserved);
+        // don't let the resulting collection-reset trigger a full rebuild.
+        if (_shimSuppressContentRebuild)
+            return;
+        BuildShimVisualTree();
+    }
 
     // ── Session 28/63: input-to-selection bridge ────────────────────────────
     // Pointer press on a row routes to the linked WPF DataGrid selection engine.

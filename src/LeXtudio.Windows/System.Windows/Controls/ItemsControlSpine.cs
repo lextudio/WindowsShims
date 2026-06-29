@@ -155,12 +155,6 @@ public partial class ItemsControl : IGeneratorHost
     {
     }
 
-    // Session 119 (Slice 8): the sequence the virtualizing panel realizes over. Defaults
-    // to the raw Items; DataGrid overrides it to expose the filtered/sorted display order
-    // so virtualization respects column filters and sorting.
-    internal virtual int ShimRealizationCount => Items.Count;
-
-    internal virtual object? ShimRealizationItemAt(int index) => Items[index];
 
     internal virtual void ChangeVisualState(bool useTransitions)
     {

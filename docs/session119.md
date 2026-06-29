@@ -487,3 +487,51 @@ under the panel measure; needs a separator drawn some other way — e.g. a cell-
 1px child element rather than the row `Control`'s border). Live mouse-wheel scrolling could not be
 exercised by the synchronous probe, but the authoritative `EffectiveViewport` is the WinUI-correct
 mechanism and reports sane values.
+
+## Session 119 (cont.) — Shim-reduction audit + Slice 11
+
+Audited the local virtualization shims (~900 lines: `VirtualizingRowsLayout` 129, `VirtualizingRowsRealizer`
+135, `VirtualizingPanelStubs` 335, `ItemContainerGenerator` 301) against upstream WPF. Verdict:
+
+- **Keep (good shims):** our ~900-line engine replaces `VirtualizingStackPanel.cs` (13k) +
+  `ItemContainerGenerator.cs` (3k), neither linkable on Uno (bound to WPF measure/IScrollInfo/CollectionView
+  internals). Porting them is infeasible; the compact reimplementation is the right call.
+- **Remove (avoidable duplication):** (A) a parallel filtered view at the DataGrid level
+  (`ShimRealizationView`/`Count`/`ItemAt`) instead of WPF's `ICollectionView.Filter`; (B) two realization
+  systems (the unused generator `GenerateNext`/session path vs the realizer) + two recycle pools.
+
+### Slice 11 — filtering via `ICollectionView.Filter` (audit item A)
+
+Moved filtering onto the collection view, matching WPF, and removed the parallel shim:
+
+- [ItemCollection.cs](../src/LeXtudio.Windows/System.Windows/Controls/ItemCollection.cs) — added a WPF
+  `Filter` predicate with source/view separation: `Refresh()` rebuilds the visible backing to the
+  filtered+sorted subset of a retained unfiltered source (kept in sync on insert/remove); a null filter
+  restores the full set (unchanged behavior, so non-filtered grids are unaffected).
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — `ShimApplyFilterView`
+  pushes the active DataGridExtensions filters onto `Items.Filter` and `Items.Refresh()` (guarded so the
+  collection-reset doesn't trigger a full rebuild / header-focus loss), then refreshes rows. `OrderedItems()`
+  is now just `Items` (no re-applied filter); the six filter callbacks call `ShimApplyFilterView`. Removed
+  `_shimRealizationView` + `ShimRealizationView` + the `ShimRealizationCount`/`ItemAt` overrides; the VSP
+  realizes directly over `owner.Items`.
+- [ItemsControlSpine.cs](../src/LeXtudio.Windows/System.Windows/Controls/ItemsControlSpine.cs) — removed the
+  `ShimRealizationCount`/`ShimRealizationItemAt` virtuals (the indirection layer is gone).
+
+**Behavior change (intended, WPF-faithful):** `Items.Count` / enumeration now reflect the active filter
+(previously Items was the full set and the filter applied only at render). Selection, copy, etc. now see
+the filtered set — matching WPF.
+
+Runtime verification (CoreLib `TypeDef`, 2400 rows):
+
+```text
+metadata-virtualization-filter → { total: 2400, viewBefore: 2400, viewAfter: 1, expected: 1, honorsFilter: true }
+metadata-virtualization        → { realizedInitial: 25, firstAfterScroll: 1198, rowHeight: 22, headerCells: 9, virtualized: true }
+```
+
+`Items.Count` drops to the filtered count (1) and the virtualized view honors it; windowing unaffected.
+WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
+
+Audit item B (fold the realizer into the generator so the VSP drives `IItemContainerGenerator` like WPF)
+is still open — it removes the realizer + dual recycle pool but trades away the realizer's headless unit
+tests (the generator is `ItemsControl`-coupled, probe-verified only) and requires making the generator's
+`GenerateNext` windowed; deferred as a deliberate, separately-verified refactor.

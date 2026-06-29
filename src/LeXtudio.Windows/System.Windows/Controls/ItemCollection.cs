@@ -19,6 +19,15 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     private NewItemPlaceholderPosition _newItemPlaceholderPosition;
     private object? _currentAddItem;
 
+    // Session 119 (Slice 11): WPF-style ICollectionView.Filter. When set, Refresh()
+    // rebuilds the visible backing list to the filtered+sorted subset of the retained
+    // unfiltered source, so Items itself is the filtered view (matching WPF) and the
+    // DataGrid no longer needs a parallel filtered-view shim. Null filter = no filtering
+    // (backing stays the full set, sorted in place) — unchanged behavior.
+    private List<object?>? _unfilteredSource;
+
+    public Predicate<object?>? Filter { get; set; }
+
     public SortDescriptionCollection SortDescriptions
     {
         get
@@ -200,6 +209,13 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     protected override void InsertItem(int index, object? item)
     {
         base.InsertItem(index, item);
+        // While filtered, the backing list is the view; keep the retained full set in sync
+        // so the item survives a filter change.
+        if (_unfilteredSource is not null && !IsPlaceholder(item))
+        {
+            _unfilteredSource.Add(item);
+        }
+
         if (index <= _currentPosition)
         {
             _currentPosition++;
@@ -214,6 +230,7 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     {
         var removed = this[index];
         base.RemoveItem(index);
+        _unfilteredSource?.Remove(removed);
         if (index < _currentPosition || _currentPosition >= Count)
         {
             MoveCurrentToPosition(Math.Min(_currentPosition - (index < _currentPosition ? 1 : 0), Count - 1));
@@ -236,6 +253,7 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     protected override void ClearItems()
     {
         base.ClearItems();
+        _unfilteredSource = null;
         _currentPosition = -1;
         CollectionChanged?.Invoke(
             this,
@@ -258,27 +276,64 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     {
         NeedsRefresh = false;
 
-        if (_sortDescriptions is { Count: > 0 } && Items is List<object?> backing && backing.Count > 1)
+        if (Items is not List<object?> backing)
         {
-            var placeholder = backing.FirstOrDefault(IsPlaceholder);
-            var ordered = ApplySortDescriptions(backing.Where(item => !IsPlaceholder(item)));
-            backing.Clear();
-            backing.AddRange(ordered);
-            if (placeholder is not null)
-            {
-                if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtBeginning)
-                {
-                    backing.Insert(0, placeholder);
-                }
-                else if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtEnd)
-                {
-                    backing.Add(placeholder);
-                }
-            }
-
-            _currentPosition = -1;
-            CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+            return;
         }
+
+        var hasSort = _sortDescriptions is { Count: > 0 };
+        var hasFilter = Filter is not null;
+
+        // Nothing to apply and no prior filter to undo → preserve the original no-op fast path.
+        if (!hasSort && !hasFilter && _unfilteredSource is null)
+        {
+            return;
+        }
+
+        // Capture the full set the first time a filter engages; the view is derived from it
+        // so clearing the filter can restore every item.
+        if (hasFilter && _unfilteredSource is null)
+        {
+            _unfilteredSource = new List<object?>(backing);
+        }
+
+        var source = _unfilteredSource ?? backing;
+        var placeholder = source.FirstOrDefault(IsPlaceholder);
+        IEnumerable<object?> visible = source.Where(item => !IsPlaceholder(item));
+        if (hasFilter)
+        {
+            var filter = Filter!;
+            visible = visible.Where(item => filter(item));
+        }
+
+        if (hasSort)
+        {
+            visible = ApplySortDescriptions(visible);
+        }
+
+        var view = visible.ToList();
+        backing.Clear();
+        backing.AddRange(view);
+        if (placeholder is not null)
+        {
+            if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtBeginning)
+            {
+                backing.Insert(0, placeholder);
+            }
+            else if (_newItemPlaceholderPosition == NewItemPlaceholderPosition.AtEnd)
+            {
+                backing.Add(placeholder);
+            }
+        }
+
+        // Filter cleared → the backing list is the full set again; drop the source snapshot.
+        if (!hasFilter)
+        {
+            _unfilteredSource = null;
+        }
+
+        _currentPosition = -1;
+        CollectionChanged?.Invoke(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
     }
 
     private List<object?> ApplySortDescriptions(IEnumerable<object?> items)
