@@ -1,11 +1,15 @@
 namespace System.Windows.Controls;
 
-public class Panel : FrameworkElement
+// Session 119 (DataGrid virtualization, Slice 3): the WPF Panel shim now derives
+// from the real WinUI Microsoft.UI.Xaml.Controls.Panel so that the WPF-derived
+// virtualizing panel chain (Panel -> VirtualizingPanel -> VirtualizingStackPanel ->
+// DataGridRowsPresenter, and DataGridCellsPanel) becomes a *live* layout element:
+// Uno calls its MeasureOverride/ArrangeOverride, and InternalChildren are real
+// visual children. The WPF-shaped surface (InternalChildren, IsItemsHost,
+// OnIsItemsHostChanged) is bridged on top; Background and Children come from the
+// WinUI base. UIElementCollection is aliased to the WinUI collection (GlobalUsings).
+public class Panel : Microsoft.UI.Xaml.Controls.Panel
 {
-    private readonly UIElementCollection _children;
-
-    public Panel() => _children = new UIElementCollection(this);
-
     public static readonly DependencyProperty IsItemsHostProperty =
         DependencyProperty.Register(
             "IsItemsHost",
@@ -19,11 +23,9 @@ public class Panel : FrameworkElement
                 }
             }));
 
-    public static DependencyProperty BackgroundProperty { get; internal set; }
-
-    public UIElementCollection Children => _children;
-
-    protected internal UIElementCollection InternalChildren => _children;
+    // WPF's Panel.InternalChildren is the protected accessor the virtualizing panels
+    // mutate; map it onto the live WinUI Children collection.
+    protected internal UIElementCollection InternalChildren => Children;
 
     public bool IsItemsHost
     {
@@ -34,13 +36,6 @@ public class Panel : FrameworkElement
     protected virtual void OnIsItemsHostChanged(bool oldIsItemsHost, bool newIsItemsHost)
     {
     }
-}
-
-// Minimal UIElementCollection shim: DataGrid accesses Panel.Children to
-// enumerate visual children; the shim stores a simple list.
-public sealed class UIElementCollection : System.Collections.ObjectModel.Collection<UIElement>
-{
-    internal UIElementCollection(Panel owner) { }
 }
 
 // Decorator: single-child FrameworkElement. WPF's Decorator is in PresentationFramework

@@ -60,6 +60,10 @@ global using FrameworkElement          = Microsoft.UI.Xaml.FrameworkElement;
 global using Visual                    = Microsoft.UI.Xaml.UIElement;
 // Panel: alias to the WPF shim to resolve CS0104 between System.Windows.Controls.Panel and Microsoft.UI.Xaml.Controls.Panel.
 global using Panel                     = System.Windows.Controls.Panel;
+// UIElementCollection: the WPF Panel shim now derives from the WinUI Panel, whose
+// Children/InternalChildren are Microsoft.UI.Xaml.Controls.UIElementCollection. Alias
+// the WPF type name to it so linked WPF panel code (DataGridCellsPanel) binds correctly.
+global using UIElementCollection       = Microsoft.UI.Xaml.Controls.UIElementCollection;
 global using Control                   = System.Windows.Controls.Control;
 // PropertyPath/BindingExpressionBase: WPF source files mean the WPF-shaped
 // binding types, and Uno's implicit usings would otherwise resolve unqualified

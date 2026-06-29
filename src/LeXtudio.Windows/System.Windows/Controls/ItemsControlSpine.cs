@@ -22,7 +22,25 @@ public partial class ItemsControl : IGeneratorHost
     // No container generation, so containers never resolve to their owner.
     public static ItemsControl? ItemsControlFromItemContainer(DependencyObject container) => null;
 
-    public static ItemsControl? GetItemsOwner(DependencyObject element) => null;
+    // Session 119 (Slice 4): the panel marked IsItemsHost resolves its owning
+    // ItemsControl by walking up the live visual tree. Returns null until a panel
+    // is actually installed as an items host (so the virtualizing engine stays
+    // inert on the current manual render path).
+    public static ItemsControl? GetItemsOwner(DependencyObject element)
+    {
+        if (element is not Panel { IsItemsHost: true })
+            return null;
+
+        DependencyObject? current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+        while (current is not null)
+        {
+            if (current is ItemsControl owner)
+                return owner;
+            current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
 
     protected virtual void OnInitialized(EventArgs e)
     {
@@ -123,6 +141,26 @@ public partial class ItemsControl : IGeneratorHost
             ClearContainerForItemOverride(container, item);
         }
     }
+
+    // Session 119 (Slice 7): shim-specific hooks the virtualizing panel calls as
+    // containers enter/leave the realized window, carrying the display index that
+    // PrepareContainerForItemOverride does not receive. DataGrid overrides these to
+    // apply alternating background / selection visuals and keep the generator
+    // registry in sync. No-op by default.
+    internal virtual void ShimOnContainerRealized(DependencyObject container, object? item, int index)
+    {
+    }
+
+    internal virtual void ShimOnContainerRecycled(DependencyObject container, object? item)
+    {
+    }
+
+    // Session 119 (Slice 8): the sequence the virtualizing panel realizes over. Defaults
+    // to the raw Items; DataGrid overrides it to expose the filtered/sorted display order
+    // so virtualization respects column filters and sorting.
+    internal virtual int ShimRealizationCount => Items.Count;
+
+    internal virtual object? ShimRealizationItemAt(int index) => Items[index];
 
     internal virtual void ChangeVisualState(bool useTransitions)
     {

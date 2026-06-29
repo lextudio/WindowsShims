@@ -63,6 +63,8 @@
     <Compile Include="SelectorSpineTests.cs" />
     <Compile Include="DataGridNotificationChainTests.cs" />
     <Compile Include="DataGridColumnHeaderNotificationTests.cs" />
+    <Compile Include="VirtualizingRowsLayoutTests.cs" />
+    <Compile Include="VirtualizingRowsRealizerTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

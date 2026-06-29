@@ -65,6 +65,18 @@ namespace System.Windows.Controls
             _containers.Add(container);
         }
 
+        // Virtualized path: a recycled container leaves the realized set. Remove its
+        // item<->container entry so ContainerFromItem/IndexFromContainer stay accurate.
+        internal void UnregisterContainer(DependencyObject container)
+        {
+            var index = _containers.IndexOf(container);
+            if (index >= 0)
+            {
+                _containers.RemoveAt(index);
+                _items.RemoveAt(index);
+            }
+        }
+
         internal void NotifyContainersGenerated()
             => StatusChanged?.Invoke(this, EventArgs.Empty);
 
