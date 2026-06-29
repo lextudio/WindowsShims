@@ -410,6 +410,22 @@ public partial class DataGrid
         ItemContainerGenerator.UnregisterContainer(container);
     }
 
+    // Scrolls a (possibly off-screen / not-yet-realized) item into view on the virtualized
+    // path, devirtualizing it. Returns true if the item is realized afterwards.
+    internal bool ShimScrollItemIntoView(object? item)
+    {
+        if (item is null || GetTemplateChild("PART_ShimRowsHost") is not VirtualizingStackPanel presenter)
+            return false;
+
+        var index = Items.IndexOf(item);
+        if (index < 0)
+            return false;
+
+        presenter.BringIndexIntoView(index);
+        presenter.UpdateLayout();
+        return ItemContainerGenerator.ContainerFromItem(item) is not null;
+    }
+
     // Builds the column-header row into the virtualized template's pinned header host.
     private void ShimBuildVirtualizedHeader()
     {

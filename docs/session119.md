@@ -531,7 +531,57 @@ metadata-virtualization        → { realizedInitial: 25, firstAfterScroll: 1198
 `Items.Count` drops to the filtered count (1) and the virtualized view honors it; windowing unaffected.
 WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
 
-Audit item B (fold the realizer into the generator so the VSP drives `IItemContainerGenerator` like WPF)
-is still open — it removes the realizer + dual recycle pool but trades away the realizer's headless unit
-tests (the generator is `ItemsControl`-coupled, probe-verified only) and requires making the generator's
-`GenerateNext` windowed; deferred as a deliberate, separately-verified refactor.
+### Slice 12 — audit item B (attempted, reverted)
+
+Attempted to fold `VirtualizingRowsRealizer` into the `ItemContainerGenerator` (single windowed store +
+single recycle pool) and have the VSP drive realization through the generator (`ShimRealizeAt` /
+`ShimRecycleOutside`), mirroring the WPF panel↔generator relationship.
+
+Outcome: **reverted.** With the generator-driven realization, rows measured at border-only height
+(`extent 2400 / rowHeight 1`) instead of 22px — i.e. cells didn't contribute to the row measure — even
+after matching the realizer's exact add→prepare→decorate ordering and two-pass (realize-all-then-measure)
+structure. The realizer path produces correct 22px rows from a structurally identical sequence; the
+subtle Uno templating/measure-timing difference that breaks the generator-driven path wasn't worth more
+probe cycles to root-cause for an optional, behavior-neutral refactor. Reverted the seven B files to the
+committed Slice-11 state (`git checkout HEAD -- …`); the realizer remains as the (headless-unit-tested)
+windowing brain with the generator as the WPF-contract registry.
+
+Verification after revert: WindowsShims 210 passed / 0 failed; runtime probes unchanged
+(`metadata-virtualization` → realized 25/2400, rowHeight 22, header 9, shift 1198;
+`metadata-virtualization-filter` → viewAfter 1, honorsFilter true).
+
+Conclusion of the shim-reduction audit: item A (filtering via `ICollectionView.Filter`) landed and
+removed the parallel realization-view shim. Item B (unifying the realizer and generator) is **not worth
+pursuing** — it trades tested code for coupling and a measure regression, with only aesthetic WPF-fidelity
+gain, since our generator can't be the real (un-portable) WPF generator anyway. The realizer + generator
+split is the right structure to keep.
+
+### Slice 13 — scroll-into-view / devirtualization (parity A1)
+
+Implemented `VirtualizingPanel.BringIndexIntoView` for the live panel so an off-screen item can be
+scrolled to and realized (the basis for selection / keyboard navigation reaching unrealized rows):
+
+- [VirtualizingPanelStubs.cs](../src/LeXtudio.Windows/System.Windows/Controls/VirtualizingPanelStubs.cs)
+  — `BringIndexIntoView(index)` scrolls the owning `ScrollViewer` to `index * rowHeight` AND sets the
+  viewport directly (so the next measure realizes the target window synchronously, not waiting on the
+  async `ViewChanged`).
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) — `ShimScrollItemIntoView(item)`
+  finds the item's index and drives the presenter's `BringIndexIntoView`, returning whether the item is
+  realized afterwards.
+- `roma.probe.metadata-scroll-into-view` verifies it.
+
+Runtime verification (CoreLib `TypeDef`, 2400 rows):
+
+```text
+{ targetIndex: 1500, realizedAfter: true, firstAfter: 1498, broughtToTarget: true }
+```
+
+`BringIndexIntoView(1500)` moved the realized window to start at 1498 (target + cache) and realized the
+target row. Caveat: the probe layout's effective viewport is large enough that the target was already
+realized before scrolling (`realizedBefore: true`), so the off-screen→on-screen transition itself
+couldn't be staged headlessly; the proof is that the window is repositioned *at* the target.
+WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
+
+Remaining high-value items (B1 reuse `DataGridColumnHeadersPresenter`, C1 lazy `LoadTable` for huge
+tables like `MethodDef`) are each large, higher-risk focused efforts — best done as dedicated passes
+(B already showed how a deep refactor can need reverting).

@@ -310,8 +310,18 @@ public class VirtualizingStackPanel : VirtualizingPanel
         return finalSize;
     }
 
+    // Scroll the row at item index into view (WPF VirtualizingPanel.BringIndexIntoView).
+    // Scrolls the owning ScrollViewer to the row's pixel offset AND sets the viewport
+    // directly so the next measure realizes the now-visible window synchronously (rather
+    // than waiting for the async ScrollViewer.ViewChanged callback).
     protected internal override void BringIndexIntoView(int index)
     {
+        if (index < 0)
+            return;
+
+        var top = index * _rowHeight;
+        _scrollOwner?.ChangeView(null, top, null, true);
+        SetViewport(top, _viewportHeight > 0 ? _viewportHeight : DefaultRowHeight * 20);
     }
 
     protected override void OnIsItemsHostChanged(bool oldIsItemsHost, bool newIsItemsHost)
