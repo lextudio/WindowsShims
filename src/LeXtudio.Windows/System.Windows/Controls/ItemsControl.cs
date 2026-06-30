@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Linq;
 
 namespace System.Windows.Controls;
 
@@ -40,7 +41,7 @@ public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     // which lacks SortDescriptions/GroupDescriptions. Shadow it so DataGrid and
     // other linked WPF code get our System.Windows.Controls.ItemCollection.
     private ItemCollection? _shimItems;
-    private Microsoft.UI.Xaml.Controls.StackPanel? _itemsHostPanel;
+    private Microsoft.UI.Xaml.Controls.Panel? _itemsHostPanel;
 
     public new ItemCollection Items
     {
@@ -55,16 +56,100 @@ public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     }
 
     // Called by ToolBar to replace the WinUI-items forwarding with a
-    // direct-panel approach, which gives guaranteed horizontal layout.
+    // direct-panel approach that lays items out horizontally and provides an
+    // overflow chevron + popup for items that do not fit.
     internal void UseHorizontalPanelHost()
     {
         if (_shimItems is not null) return; // already initialised
-        _itemsHostPanel = new Microsoft.UI.Xaml.Controls.StackPanel
+
+        var panel = new Primitives.ToolBarOverflowAwarePanel();
+
+        // Overflow chevron: a Button with a Flyout. Flyout auto-positions relative
+        // to the button and renders reliably on Uno desktop (a bare Popup does not).
+        var chevron = new Microsoft.UI.Xaml.Controls.Button
         {
-            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal
+            Content = "»",
+            FontSize = 12,
+            Padding = new Thickness(4, 0, 4, 0),
+            MinWidth = 0,
+            VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Stretch,
+            Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
+            Name = "ToolBarOverflowButton"
         };
-        base.Items.Add(_itemsHostPanel);
-        _shimItems = new ItemCollection { PanelHost = _itemsHostPanel };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(chevron, "ToolBarOverflowButton");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(chevron, "Overflow");
+
+        var popupHost = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Vertical
+        };
+        var flyout = new Microsoft.UI.Xaml.Controls.Flyout
+        {
+            Content = popupHost
+        };
+        // Strip the default FlyoutPresenter min-width/padding so the dropdown
+        // hugs the toolbar icons instead of being ~300px wide.
+        var presenterStyle = new Microsoft.UI.Xaml.Style(typeof(Microsoft.UI.Xaml.Controls.FlyoutPresenter));
+        presenterStyle.Setters.Add(new Microsoft.UI.Xaml.Setter(Microsoft.UI.Xaml.FrameworkElement.MinWidthProperty, 0.0));
+        presenterStyle.Setters.Add(new Microsoft.UI.Xaml.Setter(Microsoft.UI.Xaml.Controls.Control.MaxWidthProperty, double.PositiveInfinity));
+        presenterStyle.Setters.Add(new Microsoft.UI.Xaml.Setter(Microsoft.UI.Xaml.Controls.Control.PaddingProperty, new Thickness(2)));
+        presenterStyle.Setters.Add(new Microsoft.UI.Xaml.Setter(Microsoft.UI.Xaml.FrameworkElement.MinHeightProperty, 0.0));
+        flyout.FlyoutPresenterStyle = presenterStyle;
+        try { flyout.Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight; }
+        catch { /* placement best-effort */ }
+        // Open explicitly on click rather than via Button.Flyout: ShowAt fires for
+        // both real clicks and reflection-invoked clicks (DevFlow), and positions
+        // the flyout relative to the chevron.
+        chevron.Click += (_, _) => flyout.ShowAt(chevron);
+
+        var grid = new Microsoft.UI.Xaml.Controls.Grid();
+        grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition
+        {
+            Width = new Microsoft.UI.Xaml.GridLength(1, Microsoft.UI.Xaml.GridUnitType.Star)
+        });
+        grid.ColumnDefinitions.Add(new Microsoft.UI.Xaml.Controls.ColumnDefinition
+        {
+            Width = Microsoft.UI.Xaml.GridLength.Auto
+        });
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(panel, 0);
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(chevron, 1);
+        grid.Children.Add(panel);
+        grid.Children.Add(chevron);
+
+        var suspendOverflowSync = false;
+
+        panel.OverflowChanged += (_, _) =>
+        {
+            if (suspendOverflowSync) return;
+            chevron.Visibility = panel.OverflowItems.Count > 0
+                ? Microsoft.UI.Xaml.Visibility.Visible
+                : Microsoft.UI.Xaml.Visibility.Collapsed;
+        };
+
+        flyout.Opening += (_, _) =>
+        {
+            suspendOverflowSync = true;
+            popupHost.Children.Clear();
+            foreach (var item in panel.OverflowItems.ToList())
+            {
+                panel.Children.Remove(item);
+                popupHost.Children.Add(item);
+            }
+        };
+
+        flyout.Closed += (_, _) =>
+        {
+            foreach (var item in popupHost.Children.ToList())
+            {
+                popupHost.Children.Remove(item);
+                panel.Children.Add(item);
+            }
+            suspendOverflowSync = false;
+        };
+
+        _itemsHostPanel = panel;
+        base.Items.Add(grid);
+        _shimItems = new ItemCollection { PanelHost = panel };
     }
 
     // ── WPF-only stub properties not in WinUI ItemsControl ───────────────────

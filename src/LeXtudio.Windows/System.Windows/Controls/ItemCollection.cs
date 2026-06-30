@@ -20,7 +20,7 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
     // When set, UIElement items are added to this panel's Children instead of
     // WinUI's ItemsControl.Items. Used by ToolBar to guarantee horizontal layout.
-    internal Microsoft.UI.Xaml.Controls.StackPanel? PanelHost { get; set; }
+    internal Microsoft.UI.Xaml.Controls.Panel? PanelHost { get; set; }
 
     private int _currentPosition = -1;
     private SortDescriptionCollection? _sortDescriptions;

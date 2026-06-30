@@ -22,16 +22,7 @@ public abstract partial class ButtonBase : ContentControl
         // VisualStateManager.GoToState needs the template applied and the
         // control hosted, which isn't guaranteed when toolbar items are created
         // with IsEnabled=false before being added to the tree.
-        IsEnabledChanged += (_, _) =>
-        {
-            var dim = IsEnabled ? 1.0 : 0.4;
-            Opacity = dim;
-            // Also fade the content leaf directly: Uno does not reliably
-            // propagate a container's Opacity onto an SVG Image's render.
-            if (Content is Microsoft.UI.Xaml.UIElement contentElement)
-                contentElement.Opacity = dim;
-            UpdateVisualState();
-        };
+        IsEnabledChanged += (_, _) => UpdateVisualState();
     }
 
     // ── ClickMode ────────────────────────────────────────────────────────────

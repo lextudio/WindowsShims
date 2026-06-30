@@ -74,10 +74,14 @@
         <Setter Property="BorderBrush" Value="#CCCCCC" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="2,1" />
+        <!-- The single child of Items is the overflow-aware host Grid built in
+             ItemsControl.UseHorizontalPanelHost. Use a Grid ItemsPanel so the host
+             is width-constrained (a horizontal StackPanel would hand it infinite
+             width and the overflow panel could never detect overflow). -->
         <Setter Property="ItemsPanel">
             <Setter.Value>
                 <ItemsPanelTemplate>
-                    <StackPanel Orientation="Horizontal" />
+                    <Grid />
                 </ItemsPanelTemplate>
             </Setter.Value>
         </Setter>
@@ -89,20 +93,7 @@
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}"
                         Padding="{TemplateBinding Padding}">
-                        <StackPanel Orientation="Horizontal">
-                            <ContentPresenter
-                                x:Name="ToolBarHeader"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Margin="0,0,4,0" />
-                            <swcp:ToolBarPanel x:Name="PART_ToolBarPanel">
-                                <ItemsPresenter />
-                            </swcp:ToolBarPanel>
-                            <swcp:ToolBarOverflowPanel
-                                x:Name="PART_ToolBarOverflowPanel"
-                                WrapWidth="200"
-                                Visibility="Collapsed" />
-                        </StackPanel>
+                        <ItemsPresenter HorizontalAlignment="Stretch" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
