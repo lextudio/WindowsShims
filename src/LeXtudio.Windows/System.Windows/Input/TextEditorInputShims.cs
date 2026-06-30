@@ -13,23 +13,21 @@ namespace System.Windows.Input
 
     public static class Cursors
     {
-        // Existing `Cursor` shim (defined in EarlyBatchEditorShims) is a marker
-        // class with no real implementation; we just return new instances.
-        public static Cursor Arrow { get; } = new();
-        public static Cursor IBeam { get; } = new();
-        public static Cursor Wait { get; } = new();
-        public static Cursor Cross { get; } = new();
-        public static Cursor Hand { get; } = new();
-        public static Cursor Help { get; } = new();
-        public static Cursor No { get; } = new();
-        public static Cursor AppStarting { get; } = new();
+        public static Cursor Arrow { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Arrow);
+        public static Cursor IBeam { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.IBeam);
+        public static Cursor Wait { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Wait);
+        public static Cursor Cross { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Cross);
+        public static Cursor Hand { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Hand);
+        public static Cursor Help { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Help);
+        public static Cursor No { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.UniversalNo);
+        public static Cursor AppStarting { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.Wait);
         public static Cursor Pen { get; } = new();
-        public static Cursor SizeAll { get; } = new();
-        public static Cursor SizeNESW { get; } = new();
-        public static Cursor SizeNS { get; } = new();
-        public static Cursor SizeNWSE { get; } = new();
-        public static Cursor SizeWE { get; } = new();
-        public static Cursor UpArrow { get; } = new();
+        public static Cursor SizeAll { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+        public static Cursor SizeNESW { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.SizeNortheastSouthwest);
+        public static Cursor SizeNS { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
+        public static Cursor SizeNWSE { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.SizeNorthwestSoutheast);
+        public static Cursor SizeWE { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast);
+        public static Cursor UpArrow { get; } = new(Microsoft.UI.Input.InputSystemCursorShape.UpArrow);
         public static Cursor None { get; } = new();
         public static Cursor ScrollNS { get; } = new();
         public static Cursor ScrollWE { get; } = new();
@@ -53,4 +51,3 @@ namespace System.Windows.Input
         internal void DismissToolTipsForOwner(Microsoft.UI.Xaml.DependencyObject o) { }
     }
 }
-

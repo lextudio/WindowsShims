@@ -7,7 +7,10 @@ public static class WinUIButtonExtensions
         public System.Windows.Input.Cursor? Cursor
         {
             get => null;
-            set { }
+            set
+            {
+                System.Windows.Input.CursorInterop.SetCursor(button, value);
+            }
         }
     }
 }

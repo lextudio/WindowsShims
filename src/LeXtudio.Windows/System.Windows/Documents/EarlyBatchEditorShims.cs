@@ -159,6 +159,16 @@ namespace System.Windows.Input
 
     public class Cursor
     {
+        public Cursor()
+        {
+        }
+
+        internal Cursor(Microsoft.UI.Input.InputSystemCursorShape systemCursorShape)
+        {
+            SystemCursorShape = systemCursorShape;
+        }
+
+        internal Microsoft.UI.Input.InputSystemCursorShape? SystemCursorShape { get; }
     }
 
     public enum InputScopeNameValue
