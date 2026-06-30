@@ -29,6 +29,7 @@ namespace Microsoft.Win32
         public string DefaultExt { get; set; } = string.Empty;
         public string InitialDirectory { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
+        public bool RestoreDirectory { get; set; }
         public object? Owner { get; set; }
         public bool? DialogResult { get; set; }
 

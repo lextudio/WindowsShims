@@ -670,3 +670,73 @@ metadata-keyboard-offscreen → { realizedBefore: false, engineSelected: true, v
 Virtualization parity for Roma's real usage is complete: large tables auto-virtualize, scroll/recycle,
 filter/sort, fixed header, and selection + keyboard navigation correctly reach (and reveal) off-screen
 rows. WindowsShims 210 passed / 0 failed; LeXtudio.Windows + Roma.Host build 0 errors.
+
+### Slice 17 — cross-platform shell commands (Open Folder / Command Line)
+
+Roma's assembly-tree context-menu "Open containing folder" and "Open command line here" were Windows-only
+and dead on macOS. Ported ProjectRover's cross-platform approach (dropping its settings-section dependency
+for sensible per-OS defaults):
+
+- [GlobalUtils.wpf.cs](../../Roma/ext/ilspy/ILSpy/Util/GlobalUtils.wpf.cs) — `OpenTerminalAt` was
+  hard-coded `cmd.exe`; now branches by `RuntimeInformation`: Windows `cmd.exe`, macOS Terminal.app via
+  `osascript`, Linux common emulators (gnome-terminal/konsole/xfce4/x-terminal-emulator/xterm).
+- [ShellHelper.cs](../../Roma/ext/ilspy/ILSpy/Util/ShellHelper.cs) — `OpenFolderAndSelectItem(s)` used
+  `shell32` P/Invoke, which threw `DllNotFoundException` (not caught by the COM/Win32 filter) on macOS.
+  Now branches: Windows keeps the shell32 multi-select; macOS reveals via `open -R`; Linux opens the
+  containing folder via `xdg-open`. `OpenFolder` likewise uses `open`/`xdg-open`/shell-execute.
+
+Verification: Roma.Host builds 0 errors; `open` and `osascript` resolve on macOS, `osascript` runs, and
+the Terminal AppleScript compiles. Actual Finder-reveal / Terminal-launch are GUI side effects (not
+asserted headlessly), but the logic mirrors ProjectRover's shipping macOS implementation.
+
+### Slice 18 — update check against project-roma GitHub releases
+
+Roma's update check pointed at ILSpy's upstream `updates.xml` feed and compared against the ILSpy *engine*
+version, so it never reflected Roma's own releases. Repointed it at GitHub (adapted from ProjectRover,
+which uses Octokit — Roma uses plain HttpClient + System.Text.Json, no new dependency):
+
+- [UpdateService.cs](../../Roma/ext/ilspy/ILSpy/Updates/UpdateService.cs) — `GetLatestVersionAsync` now
+  queries `https://api.github.com/repos/lextudio/project-roma/releases/latest` (the API already excludes
+  drafts/prereleases), parses `tag_name` (e.g. `v0.2.0` → `0.2.0.0`, stripping `v`/pre-release suffix) and
+  uses `html_url` as the download link. Dropped the XML/redirect machinery.
+- [AppUpdateService.cs](../../Roma/ext/ilspy/ILSpy/Updates/AppUpdateService.cs) — `CurrentVersion` now
+  resolves Roma's *own* app version (this code is linked into Roma.Host, so `typeof(...).Assembly` is
+  Roma's, from GitVersion), normalized to `Major.Minor.Build.0`. This fixes both comparison sites (the
+  About-page panel and `CheckForUpdateInternal`) at once.
+- `roma.probe.check-update` exercises the live query.
+
+Runtime verification (against the real repo):
+
+```text
+check-update → { current: 0.2.1.0, latest: 0.2.0.0,
+                 downloadUrl: https://github.com/lextudio/project-roma/releases/tag/v0.2.0,
+                 updateAvailable: false }
+```
+
+Queries the correct repo, parses the tag, compares against Roma's own version (0.2.1 > 0.2.0 → no update).
+Roma.Host builds 0 errors; WindowsShims 210 passed / 0 failed (unaffected — changes are in Roma).
+
+### Slice 19 — terminal preference + recent-fonts (ported from ProjectRover)
+
+Two settings-backed features adapted from Rover:
+
+- **Terminal preference** for "Open command line here":
+  [RomaHostSettings.cs](../../Roma/src/Roma.Host/RomaHostSettings.cs) gained `PreferredTerminalApp` +
+  `CustomTerminalPath` (single value, interpreted per current OS — leaner than Rover's per-OS triplet,
+  appropriate for Roma). [GlobalUtils.wpf.cs](../../Roma/ext/ilspy/ILSpy/Util/GlobalUtils.wpf.cs)
+  `OpenTerminalAt` reads it via `App.ExportProvider → SettingsService → RomaHostSettings` and switches
+  per platform (macOS: Terminal.app / iTerm2 / System Default / Custom; Windows: cmd / PowerShell /
+  pwsh / Windows Terminal / Custom; Linux: gnome-terminal / konsole / xfce4 / xterm / Custom), falling
+  back to the per-OS default when unset. [MiscSettingsPanel](../../Roma/src/Roma.Host/Options/MiscSettingsPanel.xaml)
+  exposes a current-OS dropdown + custom-path box.
+- **Recent fonts**: ported [RecentFontsCache.cs](../../Roma/src/Roma.Host/RecentFontsCache.cs)
+  (most-recent-first, capped at 8, persisted under LocalApplicationData) + a `RecentFontsEnabled` setting
+  with a Misc-panel checkbox, AND wired it into Roma's existing font picker
+  ([DisplaySettingsPanel](../../Roma/src/Roma.Host/Options/DisplaySettingsPanel.xaml.cs)): on load the
+  combo floats recently-used fonts to the top (when enabled), and picking a font records it via
+  `RecentFontsCache.Update`. Mirrors ProjectRover's display panel.
+
+Verification (`roma.probe.host-settings`): `terminalRoundTrip: true` (settings section persists),
+`recentFontsEnabled: true`, `recentFontTop: RomaProbeFont`, `recentFontCachesIt: true` (cache round-trips).
+Roma.Host builds 0 errors. The OptionsDialog dropdown's visual interaction and the actual per-preference
+terminal launch are GUI side effects (not asserted headlessly); the settings they read/write are verified.

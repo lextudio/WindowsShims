@@ -10,5 +10,8 @@ namespace System.Windows.Media
         public static Brush DarkGray => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.DarkGray);
         public static Brush LightGray => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.LightGray);
         public static Brush Transparent => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.Transparent);
+        public static Brush LightGreen => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.LightGreen);
+        public static Brush LightPink => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.LightPink);
+        public static Brush LightBlue => (Brush)(Microsoft.UI.Xaml.Media.Brush)new SolidColorBrush(Colors.LightBlue);
     }
 }

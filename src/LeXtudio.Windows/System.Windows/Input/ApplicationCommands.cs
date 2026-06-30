@@ -11,5 +11,7 @@ namespace System.Windows.Input
 		public static RoutedUICommand Delete    { get; } = new RoutedUICommand("Delete",    "Delete",    typeof(ApplicationCommands));
 		public static RoutedUICommand Find           { get; } = new RoutedUICommand("Find",           "Find",           typeof(ApplicationCommands));
 		public static RoutedUICommand CorrectionList { get; } = new RoutedUICommand("CorrectionList", "CorrectionList", typeof(ApplicationCommands));
+		public static RoutedUICommand Open   { get; } = new RoutedUICommand("Open",   "Open",   typeof(ApplicationCommands));
+		public static RoutedUICommand Save   { get; } = new RoutedUICommand("Save",   "Save",   typeof(ApplicationCommands));
 	}
 }
