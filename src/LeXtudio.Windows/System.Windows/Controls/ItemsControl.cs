@@ -156,16 +156,3 @@ public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     public string? ItemStringFormat { get; set; }
     public int AlternationCount { get; set; }
 }
-
-// Minimal stub for WPF-only BindingGroup (row-level validation in DataGrid).
-public class BindingGroup
-{
-    public System.Collections.IList Items { get; } = new System.Collections.ArrayList();
-    public System.Collections.ObjectModel.Collection<System.Windows.Controls.ValidationRule> ValidationRules { get; }
-        = new System.Collections.ObjectModel.Collection<System.Windows.Controls.ValidationRule>();
-    public bool SharesProposedValues { get; set; }
-    public bool ValidateWithoutUpdate() => true;
-    public bool BeginEdit() => true;
-    public bool CommitEdit() => true;
-    public void CancelEdit() { }
-}

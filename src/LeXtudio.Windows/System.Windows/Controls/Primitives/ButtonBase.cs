@@ -2,13 +2,16 @@ namespace System.Windows.Controls.Primitives;
 
 /// <summary>
 /// WPF ButtonBase shim — abstract base for button-like controls.
-/// Inherits ContentControl so DataGridColumnHeader (which inherits ButtonBase
-/// in upstream WPF) can be used directly as a WinUI content control.
+/// It is based on WinUI's button base so shim controls get native command/click
+/// behavior while still exposing the WPF-shaped members used by linked sources.
 /// </summary>
-public abstract partial class ButtonBase : ContentControl
+public abstract partial class ButtonBase : Microsoft.UI.Xaml.Controls.Primitives.ButtonBase
 {
     protected static readonly DependencyProperty FocusableProperty =
         DependencyProperty.Register("Focusable", typeof(bool), typeof(ButtonBase), new PropertyMetadata(true));
+
+    public static readonly DependencyProperty ContentStringFormatProperty =
+        DependencyProperty.Register(nameof(ContentStringFormat), typeof(string), typeof(ButtonBase), new PropertyMetadata(null));
 
     public static readonly RoutedEvent ClickEvent = new();
     public event RoutedEventHandler? Click;
@@ -87,6 +90,17 @@ public abstract partial class ButtonBase : ContentControl
     public void ReleaseMouseCapture() { }
 
     public bool IsPressed => _isPressed;
+    public bool IsMouseOver => _isPointerOver;
+
+    public string? ContentStringFormat
+    {
+        get => (string?)GetValue(ContentStringFormatProperty);
+        set => SetValue(ContentStringFormatProperty, value);
+    }
+
+    protected Microsoft.UI.Xaml.DependencyObject? VisualParent => Parent;
+
+    protected void CoerceValue(DependencyProperty dp) { }
 
     // ── WinUI pointer bridges ─────────────────────────────────────────────────
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -151,7 +165,11 @@ public abstract partial class ButtonBase : ContentControl
     // Drive the CommonStates visual-state group (Normal/PointerOver/Pressed/Disabled)
     // so the toolbar Button/ToggleButton templates show hover and pressed highlights.
     // DataGridColumnHeader overrides this to skip button state changes.
-    internal override void ChangeVisualState(bool useTransitions)
+    internal void UpdateVisualState() => UpdateVisualState(true);
+
+    internal virtual void UpdateVisualState(bool useTransitions) => ChangeVisualState(useTransitions);
+
+    internal virtual void ChangeVisualState(bool useTransitions)
     {
         string state = !IsEnabled ? "Disabled"
             : _isPressed ? "Pressed"

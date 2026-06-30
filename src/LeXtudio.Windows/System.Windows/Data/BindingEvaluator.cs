@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 
 namespace System.Windows.Data;
@@ -13,9 +14,7 @@ public static class BindingEvaluator
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
         ArgumentNullException.ThrowIfNull(binding);
 
-        var property = target.GetType().GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public);
+        var property = ResolveProperty(target.GetType(), propertyName);
         if (property is null || !property.CanWrite)
         {
             throw new InvalidOperationException(
@@ -127,9 +126,7 @@ public static class BindingEvaluator
                 return null;
             }
 
-            var property = value.GetType().GetProperty(
-                segment,
-                BindingFlags.Instance | BindingFlags.Public);
+            var property = ResolveProperty(value.GetType(), segment);
             if (property is null)
             {
                 return UnsetValue;
@@ -139,5 +136,42 @@ public static class BindingEvaluator
         }
 
         return value;
+    }
+
+    private static PropertyInfo? ResolveProperty(Type type, string propertyName)
+    {
+        try
+        {
+            return type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
+        }
+        catch (AmbiguousMatchException)
+        {
+            return type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(p => p.Name == propertyName)
+                .OrderByDescending(p => p.DeclaringType?.Namespace?.StartsWith("System.Windows", StringComparison.Ordinal) == true)
+                .ThenBy(p => InheritanceDistance(type, p.DeclaringType))
+                .FirstOrDefault();
+        }
+    }
+
+    private static int InheritanceDistance(Type type, Type? declaringType)
+    {
+        if (declaringType is null)
+        {
+            return int.MaxValue;
+        }
+
+        var distance = 0;
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current == declaringType)
+            {
+                return distance;
+            }
+
+            distance++;
+        }
+
+        return int.MaxValue;
     }
 }

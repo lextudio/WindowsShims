@@ -33,7 +33,7 @@ public partial class DataGridRow : Control
 
     public Style? ShimAppliedRowStyle { get; private set; }
 
-    internal BindingGroup? BindingGroup { get; set; }
+    internal System.Windows.Data.BindingGroup? BindingGroup { get; set; }
 
     // Session 69: row index within the rendered set (0-based), for striping.
     internal int ShimRowIndex { get; set; }
