@@ -4,8 +4,8 @@ namespace System.Windows.Controls;
 
 // WPF System.Windows.Controls.ItemsControl shim.
 // Inherits WinUI ItemsControl and adds WPF-internal helpers needed by HeaderedItemsControl
-// and other linked WPF source files.
-public class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
+// and other linked WPF source files. Declared partial to extend ItemsControlSpine.cs.
+public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
 {
     // ── WPF ControlBoolFlags storage (same as Control shim) ─────────────────
     private ControlBoolFlags _controlBoolField;
@@ -17,7 +17,6 @@ public class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     }
 
     // ── WPF-internal preparation/cleanup methods ─────────────────────────────
-    // On HAS_UNO these are no-ops; actual data binding is handled by WinUI's ItemsControl.
     internal void PrepareItemsControl(object item, ItemsControl parentItemsControl) { }
     internal void ClearItemsControl(object item) { }
 
@@ -32,30 +31,31 @@ public class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     protected internal virtual IEnumerator LogicalChildren
         => System.Linq.Enumerable.Empty<object>().GetEnumerator();
 
-    // ── WPF CoerceValue ───────────────────────────────────────────────────────
-    internal void CoerceValue(DependencyProperty dp) { }
-
-    // ── WPF DependencyPropertyKey SetValue path ───────────────────────────────
-    public void SetValue(System.Windows.DependencyPropertyKey key, object? value)
-        => SetValue(key.DependencyProperty, value);
-
-    // ── WPF SetCurrentValueInternal ───────────────────────────────────────────
-    internal void SetCurrentValueInternal(DependencyProperty dp, object? value) => SetValue(dp, value);
-
-    // ── WPF SetResourceReference (WinUI uses SetValue; no resource reference system) ──
-    public void SetResourceReference(DependencyProperty dp, object resourceKey) { }
-
     // ── WPF DTypeThemeStyleKey stub ───────────────────────────────────────────
     internal virtual DependencyObjectType DTypeThemeStyleKey
         => DependencyObjectType.FromSystemTypeInternal(GetType());
 
+    // ── Shadow Items to return the WPF shim ItemCollection ──────────────────
+    // WinUI ItemsControl.Items returns Microsoft.UI.Xaml.Controls.ItemCollection
+    // which lacks SortDescriptions/GroupDescriptions. Shadow it so DataGrid and
+    // other linked WPF code get our System.Windows.Controls.ItemCollection.
+    private ItemCollection? _shimItems;
+    public new ItemCollection Items => _shimItems ??= new ItemCollection();
+
     // ── WPF-only stub properties not in WinUI ItemsControl ───────────────────
     public string? ItemStringFormat { get; set; }
-    public StyleSelector? ItemContainerStyleSelector { get; set; }
     public int AlternationCount { get; set; }
-    public BindingGroup? ItemBindingGroup { get; set; }
 }
 
-// Minimal stub for WPF-only types referenced by HeaderedItemsControl.PrepareHierarchy.
-public class StyleSelector { }
-public class BindingGroup { }
+// Minimal stub for WPF-only BindingGroup (row-level validation in DataGrid).
+public class BindingGroup
+{
+    public System.Collections.IList Items { get; } = new System.Collections.ArrayList();
+    public System.Collections.ObjectModel.Collection<System.Windows.Controls.ValidationRule> ValidationRules { get; }
+        = new System.Collections.ObjectModel.Collection<System.Windows.Controls.ValidationRule>();
+    public bool SharesProposedValues { get; set; }
+    public bool ValidateWithoutUpdate() => true;
+    public bool BeginEdit() => true;
+    public bool CommitEdit() => true;
+    public void CancelEdit() { }
+}

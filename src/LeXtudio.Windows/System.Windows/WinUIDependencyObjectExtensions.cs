@@ -21,11 +21,6 @@ public static class WinUIDependencyObjectExtensions
 
         public bool CheckAccess() => true;
 
-        // WPF SetCurrentValue writes without changing the value source; Uno
-        // has no such layer, so it degrades to a local SetValue.
-        public void SetCurrentValueInternal(Microsoft.UI.Xaml.DependencyProperty dp, object? value)
-            => self.SetValue(dp, value);
-
         // ── Coerce (no property-engine coercion in this bridge) ───────
         public void CoerceValue(Microsoft.UI.Xaml.DependencyProperty property) { }
 

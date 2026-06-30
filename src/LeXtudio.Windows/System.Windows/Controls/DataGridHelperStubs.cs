@@ -110,20 +110,6 @@ internal static class VisualStates
     }
 }
 
-// SystemResourceKey: WPF resource-key for system-defined brushes; stubs for
-// focus-border lookup which is resolved via XAML styles at runtime.
-// Extends ComponentResourceKey so it can be stored in ComponentResourceKey-typed fields.
-public sealed class SystemResourceKey : System.Windows.ComponentResourceKey
-{
-    private SystemResourceKey() : base(typeof(SystemResourceKey), "DataGridFocusBorderBrush") { }
-    private SystemResourceKey(object resourceId) : base(typeof(SystemResourceKey), resourceId) { }
-    public static SystemResourceKey DataGridFocusBorderBrushKey { get; } = new SystemResourceKey();
-    // Session 60: style key for the linked DataGridComboBoxColumn.TextBlockComboBox.
-    public static SystemResourceKey DataGridComboBoxColumnTextBlockComboBoxStyleKey { get; } = new SystemResourceKey();
-    public static SystemResourceKey DataGridColumnHeaderColumnHeaderDropSeparatorStyleKey { get; } = new(nameof(DataGridColumnHeaderColumnHeaderDropSeparatorStyleKey));
-    public static SystemResourceKey DataGridColumnHeaderColumnFloatingHeaderStyleKey { get; } = new(nameof(DataGridColumnHeaderColumnFloatingHeaderStyleKey));
-}
-
 // TextSearch: WPF attached-property based incremental-search support on
 // ItemsControl. DataGrid holds an instance and calls DoSearch on key input.
 public class TextSearch

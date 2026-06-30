@@ -1,3 +1,6 @@
+using System.Windows;
+using System.Windows.Controls;
+
 namespace MS.Internal;
 
 internal static class Helper
@@ -19,4 +22,13 @@ internal static class Helper
             end.InvalidateMeasure();
         }
     }
+
+    internal static void CheckTemplateAndTemplateSelector(
+        string name,
+        DependencyProperty templateProperty,
+        DependencyProperty templateSelectorProperty,
+        DependencyObject d) { }
+
+    internal static bool HasDefaultValue(DependencyObject d, DependencyProperty dp)
+        => d.ReadLocalValue(dp) == Microsoft.UI.Xaml.DependencyProperty.UnsetValue;
 }

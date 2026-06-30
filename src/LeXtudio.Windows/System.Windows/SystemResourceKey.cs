@@ -1,15 +1,11 @@
 namespace System.Windows;
 
 // WPF SystemResourceKey — typed resource key used by ToolBar to identify per-item default styles
-// (e.g. ToolBarButtonStyleKey). On HAS_UNO these are just object-identity keys looked up in
-// the application resource dictionary via FrameworkElement.SetResourceReference.
-public abstract class ResourceKey { }
-
-public sealed class SystemResourceKey : ResourceKey
+// and DataGrid system-defined brushes. Inherits ComponentResourceKey so the shim instances can
+// be assigned to ComponentResourceKey-typed fields in linked DataGrid/ToolBar source.
+public sealed class SystemResourceKey : ComponentResourceKey
 {
-    private readonly string _name;
-    private SystemResourceKey(string name) => _name = name;
-    public override string ToString() => _name;
+    private SystemResourceKey(string name) : base(typeof(SystemResourceKey), name) { }
 
     public static readonly SystemResourceKey ToolBarButtonStyleKey       = new("ToolBarButtonStyle");
     public static readonly SystemResourceKey ToolBarToggleButtonStyleKey = new("ToolBarToggleButtonStyle");
@@ -19,4 +15,10 @@ public sealed class SystemResourceKey : ResourceKey
     public static readonly SystemResourceKey ToolBarComboBoxStyleKey     = new("ToolBarComboBoxStyle");
     public static readonly SystemResourceKey ToolBarTextBoxStyleKey      = new("ToolBarTextBoxStyle");
     public static readonly SystemResourceKey ToolBarMenuStyleKey         = new("ToolBarMenuStyle");
+
+    // DataGrid resource keys (formerly in DataGridHelperStubs.cs).
+    public static readonly SystemResourceKey DataGridFocusBorderBrushKey                          = new("DataGridFocusBorderBrush");
+    public static readonly SystemResourceKey DataGridComboBoxColumnTextBlockComboBoxStyleKey       = new("DataGridComboBoxColumnTextBlockComboBoxStyle");
+    public static readonly SystemResourceKey DataGridColumnHeaderColumnHeaderDropSeparatorStyleKey  = new("DataGridColumnHeaderColumnHeaderDropSeparatorStyle");
+    public static readonly SystemResourceKey DataGridColumnHeaderColumnFloatingHeaderStyleKey      = new("DataGridColumnHeaderColumnFloatingHeaderStyle");
 }
