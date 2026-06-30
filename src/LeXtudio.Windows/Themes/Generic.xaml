@@ -74,6 +74,13 @@
         <Setter Property="BorderBrush" Value="#CCCCCC" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="2,1" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="swc:ToolBar">
@@ -96,6 +103,132 @@
                                 WrapWidth="200"
                                 Visibility="Collapsed" />
                         </StackPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Button: WPF toolbar button appearance — transparent by default, light
+         hover/pressed highlight with a subtle border, matching SharpDevelop's
+         Standard toolbar buttons. ButtonBase derives from ContentControl, so the
+         template hosts a single ContentPresenter. -->
+    <Style TargetType="swc:Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="swc:Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="3">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#22000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="BorderBrush">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#55000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#33000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="BorderBrush">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#77000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0" />
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ToggleButton: same toolbar look as Button, with a Checked highlight. -->
+    <Style TargetType="swcp:ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="swcp:ToggleButton">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            CornerRadius="3">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#22000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="BorderBrush">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#55000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#33000000" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0" />
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="CheckStates">
+                                <VisualState x:Name="Unchecked" />
+                                <VisualState x:Name="Checked">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#3D6699CC" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root" Storyboard.TargetProperty="BorderBrush">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="#996699CC" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Indeterminate" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}" />
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

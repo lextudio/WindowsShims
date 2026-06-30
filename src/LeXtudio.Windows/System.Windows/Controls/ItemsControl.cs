@@ -40,7 +40,32 @@ public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
     // which lacks SortDescriptions/GroupDescriptions. Shadow it so DataGrid and
     // other linked WPF code get our System.Windows.Controls.ItemCollection.
     private ItemCollection? _shimItems;
-    public new ItemCollection Items => _shimItems ??= new ItemCollection();
+    private Microsoft.UI.Xaml.Controls.StackPanel? _itemsHostPanel;
+
+    public new ItemCollection Items
+    {
+        get
+        {
+            if (_shimItems is null)
+            {
+                _shimItems = new ItemCollection { WinUIItems = base.Items };
+            }
+            return _shimItems;
+        }
+    }
+
+    // Called by ToolBar to replace the WinUI-items forwarding with a
+    // direct-panel approach, which gives guaranteed horizontal layout.
+    internal void UseHorizontalPanelHost()
+    {
+        if (_shimItems is not null) return; // already initialised
+        _itemsHostPanel = new Microsoft.UI.Xaml.Controls.StackPanel
+        {
+            Orientation = Microsoft.UI.Xaml.Controls.Orientation.Horizontal
+        };
+        base.Items.Add(_itemsHostPanel);
+        _shimItems = new ItemCollection { PanelHost = _itemsHostPanel };
+    }
 
     // ── WPF-only stub properties not in WinUI ItemsControl ───────────────────
     public string? ItemStringFormat { get; set; }

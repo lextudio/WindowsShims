@@ -11,7 +11,9 @@ public abstract partial class ButtonBase : ContentControl
         DependencyProperty.Register("Focusable", typeof(bool), typeof(ButtonBase), new PropertyMetadata(true));
 
     public static readonly RoutedEvent ClickEvent = new();
+    public event RoutedEventHandler? Click;
     private bool _isPressed;
+    private bool _isPointerOver;
 
     // ── ClickMode ────────────────────────────────────────────────────────────
     public static readonly DependencyProperty ClickModeProperty =
@@ -57,7 +59,10 @@ public abstract partial class ButtonBase : ContentControl
 
     // ── WPF virtual click/mouse entry points ─────────────────────────────────
     // Subclasses (DataGridColumnHeader) override OnClick to perform their action.
-    protected virtual void OnClick() { }
+    protected virtual void OnClick()
+    {
+        Click?.Invoke(this, new RoutedEventArgs());
+    }
 
     protected virtual void OnMouseLeftButtonDown(Input.MouseButtonEventArgs e) { }
     protected virtual void OnMouseMove(Input.MouseEventArgs e) { }
@@ -95,6 +100,21 @@ public abstract partial class ButtonBase : ContentControl
         OnMouseMove(new Input.MouseEventArgs());
     }
 
+    protected override void OnPointerEntered(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        _isPointerOver = true;
+        UpdateVisualState();
+    }
+
+    protected override void OnPointerExited(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _isPointerOver = false;
+        _isPressed = false;
+        UpdateVisualState();
+    }
+
     protected override void OnPointerReleased(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         base.OnPointerReleased(e);
@@ -118,9 +138,17 @@ public abstract partial class ButtonBase : ContentControl
         OnLostMouseCapture(new Input.MouseEventArgs());
     }
 
-    // ChangeVisualState stub — upstream DataGridColumnHeader calls this on
-    // base but explicitly skips the button state changes.
-    internal virtual void ChangeVisualState(bool useTransitions) { }
+    // Drive the CommonStates visual-state group (Normal/PointerOver/Pressed/Disabled)
+    // so the toolbar Button/ToggleButton templates show hover and pressed highlights.
+    // DataGridColumnHeader overrides this to skip button state changes.
+    internal virtual void ChangeVisualState(bool useTransitions)
+    {
+        string state = !IsEnabled ? "Disabled"
+            : _isPressed ? "Pressed"
+            : _isPointerOver ? "PointerOver"
+            : "Normal";
+        Microsoft.UI.Xaml.VisualStateManager.GoToState(this, state, useTransitions);
+    }
 
     internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
 

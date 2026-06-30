@@ -14,6 +14,14 @@ namespace System.Windows.Controls;
 // supported.
 public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView, IEditableCollectionViewAddNewItem, IItemProperties
 {
+    // When set, UIElement items inserted into this shim are also forwarded to the
+    // WinUI visual-tree items collection so they actually render.
+    internal Microsoft.UI.Xaml.Controls.ItemCollection? WinUIItems { get; set; }
+
+    // When set, UIElement items are added to this panel's Children instead of
+    // WinUI's ItemsControl.Items. Used by ToolBar to guarantee horizontal layout.
+    internal Microsoft.UI.Xaml.Controls.StackPanel? PanelHost { get; set; }
+
     private int _currentPosition = -1;
     private SortDescriptionCollection? _sortDescriptions;
     private NewItemPlaceholderPosition _newItemPlaceholderPosition;
@@ -209,6 +217,15 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     protected override void InsertItem(int index, object? item)
     {
         base.InsertItem(index, item);
+        // Forward UIElements to WinUI visual tree so they actually render.
+        if (item is Microsoft.UI.Xaml.UIElement uie)
+        {
+            if (PanelHost is not null)
+                PanelHost.Children.Add(uie);
+            else if (WinUIItems is not null)
+                WinUIItems.Add(uie);
+        }
+
         // While filtered, the backing list is the view; keep the retained full set in sync
         // so the item survives a filter change.
         if (_unfilteredSource is not null && !IsPlaceholder(item))
@@ -253,6 +270,8 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     protected override void ClearItems()
     {
         base.ClearItems();
+        PanelHost?.Children.Clear();
+        if (PanelHost is null) WinUIItems?.Clear();
         _unfilteredSource = null;
         _currentPosition = -1;
         CollectionChanged?.Invoke(
