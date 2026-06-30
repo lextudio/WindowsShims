@@ -18,7 +18,7 @@ public class ToggleButton : ButtonBase
         DependencyProperty.Register(nameof(IsChecked), typeof(bool?), typeof(ToggleButton),
             new PropertyMetadata(false, OnIsCheckedChanged));
 
-    private static void OnIsCheckedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static void OnIsCheckedChanged(Microsoft.UI.Xaml.DependencyObject d, Microsoft.UI.Xaml.DependencyPropertyChangedEventArgs e)
     {
         ((ToggleButton)d).UpdateCheckVisualState(true);
     }

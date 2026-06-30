@@ -15,6 +15,25 @@ public abstract partial class ButtonBase : ContentControl
     private bool _isPressed;
     private bool _isPointerOver;
 
+    protected ButtonBase()
+    {
+        // Fade the whole control when disabled (WPF toolbar buttons grey out).
+        // Done with a direct Opacity set rather than a VisualState because
+        // VisualStateManager.GoToState needs the template applied and the
+        // control hosted, which isn't guaranteed when toolbar items are created
+        // with IsEnabled=false before being added to the tree.
+        IsEnabledChanged += (_, _) =>
+        {
+            var dim = IsEnabled ? 1.0 : 0.4;
+            Opacity = dim;
+            // Also fade the content leaf directly: Uno does not reliably
+            // propagate a container's Opacity onto an SVG Image's render.
+            if (Content is Microsoft.UI.Xaml.UIElement contentElement)
+                contentElement.Opacity = dim;
+            UpdateVisualState();
+        };
+    }
+
     // ── ClickMode ────────────────────────────────────────────────────────────
     public static readonly DependencyProperty ClickModeProperty =
         DependencyProperty.Register(nameof(ClickMode), typeof(Controls.ClickMode), typeof(ButtonBase),
@@ -141,7 +160,7 @@ public abstract partial class ButtonBase : ContentControl
     // Drive the CommonStates visual-state group (Normal/PointerOver/Pressed/Disabled)
     // so the toolbar Button/ToggleButton templates show hover and pressed highlights.
     // DataGridColumnHeader overrides this to skip button state changes.
-    internal virtual void ChangeVisualState(bool useTransitions)
+    internal override void ChangeVisualState(bool useTransitions)
     {
         string state = !IsEnabled ? "Disabled"
             : _isPressed ? "Pressed"
