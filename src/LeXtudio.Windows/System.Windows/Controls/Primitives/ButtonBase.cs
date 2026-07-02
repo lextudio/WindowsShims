@@ -26,7 +26,12 @@ public abstract partial class ButtonBase : Microsoft.UI.Xaml.Controls.Primitives
         // control hosted, which isn't guaranteed when toolbar items are created
         // with IsEnabled=false before being added to the tree.
         IsEnabledChanged += (_, _) => UpdateVisualState();
+        ((Microsoft.UI.Xaml.Controls.Primitives.ButtonBase)this).Click += (_, _) =>
+        {
+            OnClick();
+        };
     }
+
 
     // ── ClickMode ────────────────────────────────────────────────────────────
     public static readonly DependencyProperty ClickModeProperty =
@@ -113,8 +118,6 @@ public abstract partial class ButtonBase : Microsoft.UI.Xaml.Controls.Primitives
             UpdateVisualState();
             var args = new Input.MouseButtonEventArgs();
             OnMouseLeftButtonDown(args);
-            if (!args.Handled && ClickMode == Controls.ClickMode.Press)
-                OnClick();
         }
     }
 
@@ -149,8 +152,6 @@ public abstract partial class ButtonBase : Microsoft.UI.Xaml.Controls.Primitives
             UpdateVisualState();
             var args = new Input.MouseButtonEventArgs();
             OnMouseLeftButtonUp(args);
-            if (!args.Handled && ClickMode == Controls.ClickMode.Release)
-                OnClick();
         }
     }
 
