@@ -740,3 +740,305 @@ Verification (`roma.probe.host-settings`): `terminalRoundTrip: true` (settings s
 `recentFontsEnabled: true`, `recentFontTop: RomaProbeFont`, `recentFontCachesIt: true` (cache round-trips).
 Roma.Host builds 0 errors. The OptionsDialog dropdown's visual interaction and the actual per-preference
 terminal launch are GUI side effects (not asserted headlessly); the settings they read/write are verified.
+
+## DataGrid port — remaining-gap survey and plan for the next session
+
+Cross-checked `docs/DATAGRID.md`'s feature table against the current source tree
+(`src/LeXtudio.Windows/System.Windows/...`) to separate what is genuinely still
+missing from what the older doc's table entries describe stale. Row/cell
+container behavior, selection, editing, sorting, filtering, and row
+virtualization (this session) are done and proven by probes — the remaining
+gaps are narrower than the DATAGRID.md table (last substantively updated
+around session 110) suggests. Grouped by cost/value, cheapest and
+highest-value first:
+
+### Confirmed still-missing (checked against source, not just the doc)
+
+1. **Row separator line under virtualization.** Deferred three times (Slices
+   8-10): `BorderThickness` on a row measured by `VirtualizingStackPanel`
+   collapses the row to border-only height on Uno. Non-virtualized (manual)
+   path still draws it fine. Needs a separator mechanism that survives panel
+   measure — likely a 1px child `Border`/`Rectangle` docked to the row's
+   bottom edge instead of `Control.BorderThickness`, or a cell-level bottom
+   border (`DataGridCell` already draws grid-line borders per session 74-75 —
+   extend that path to also draw the row separator instead of relying on the
+   row's own border).
+2. **Accessibility / UI Automation is fully inert.** Confirmed in source:
+   `AutomationPeer.ListenerExists` always `false`, `AutomationPeer.FromElement`
+   always `null` (`System.Windows/Automation/Peers/AutomationPeer.cs`), so
+   every `DataGrid*AutomationPeer` in the linked upstream code is unreachable
+   dead weight. Screen readers get nothing from the grid today. This is a
+   real accessibility gap for a shipped app, not just a WPF-fidelity nicety.
+3. **Grouping is fully inert.** Confirmed in source: `ItemsControlSpine.
+   IsGrouping` is hardcoded `false`; `CollectionViewShims`/`GroupItem` are
+   stub types gated on that flag. `DataGrid.GroupStyle` / row-group headers
+   cannot work. Only relevant if a future Roma table wants grouped rows —
+   currently no consumer needs it.
+4. **Frozen columns don't actually freeze.** Confirmed: no
+   `FrozenColumnCount`-driven clip/scroll offset logic in the current
+   `DataGridCellsPanel`/`DataGridRowsPresenter` Uno path — session 71 only
+   pinned live *notification* of `IsFrozen`/`DisplayIndex < FrozenColumnCount`
+   onto realized visuals, not the actual "stay put while the rest scrolls
+   horizontally" layout. Low priority unless a wide metadata table needs
+   pinned key columns.
+5. **Column-header reuse (`DataGridColumnHeadersPresenter`) not live.**
+   `DataGrid.BuildHeaderRow` still hand-builds headers; the linked upstream
+   presenter/collection compile but aren't the render path. Investigated and
+   explicitly deferred as "high-risk surgery for structural-only benefit"
+   (Session 119, "B1" note) — no behavior gap today, just source-purity debt.
+6. **Column drag-reorder via floating header / drop separator.** Linked
+   upstream `DataGridColumnFloatingHeader`/`DataGridColumnDropSeparator`
+   compile (session 93) but the live header still uses the shim-native
+   reorder path, not these visuals — cosmetic parity gap only if reorder drag
+   currently looks different from WPF.
+7. **Hyperlink column is a placeholder.** `DataGridHyperlinkColumn` is a
+   `local-shell` stub added only so `CreateDefaultColumn` compiles for `Uri`
+   properties; no real hyperlink rendering/navigation. Only matters if a Roma
+   table auto-generates a `Uri`-typed column.
+8. **Row-details (expander) variable-height rows under virtualization.**
+   Noted moot for Roma today (Session 119 "Option 1 conclusion" — the only
+   tables using `RowDetails` are small, non-virtualized PE-header tables) but
+   would need work if a future large virtualized table adopts row details.
+
+### Already done (do not re-plan these — DATAGRID.md's table entries predate them)
+
+Row/cell selection (single+multi, keyboard, cell unit), sort, column
+filter, cell/row editing + validation (`IDataErrorInfo`, `ValidationRule`,
+`IEditableObject`), Auto/Star column widths, clipboard copy, row
+virtualization + recycling + scroll-shift + auto-virtualize for huge tables,
+off-screen selection/keyboard navigation, pinned header, horizontal-scroll
+header sync, cross-platform shell commands, update check, terminal/font
+preferences.
+
+### Recommended order for a future session
+
+1. **Row separator under virtualization** (item 1) — cheapest, closes the
+   last cosmetic gap in the now-default-eligible virtualized render path.
+2. **Accessibility (item 2)** — highest real-world value (screen-reader
+   users get literally nothing today) but the largest lift: needs an actual
+   `AutomationPeer.FromElement`/`ListenerExists` bridge onto Uno's automation
+   provider (Uno does have its own automation-peer system under
+   `Microsoft.UI.Xaml.Automation.Peers`), then wiring the ~8 linked
+   `DataGrid*AutomationPeer` classes to raise through it. Worth scoping as its
+   own multi-slice arc rather than folding into a DataGrid session.
+3. Items 3-8 are back-burner: no current Roma scenario needs grouping, frozen
+   columns, the header-presenter swap, drag-visual parity, real hyperlink
+   columns, or virtualized row-details. Revisit only if a concrete consumer
+   need appears.
+
+### Slice 20 — row separator under virtualization (item 1, closed)
+
+Root cause was mutating `DataGridRow`'s own `BorderThickness`/`BorderBrush` (the
+row `Control`'s DPs, bound into the row template's outer `Border` via
+`TemplateBinding`) to draw the separator. Under `VirtualizingStackPanel`'s
+infinite-width measure pass this collapsed the row to border-only height on
+Uno — confirmed independent of horizontal-scroll/width settings across three
+prior sessions (8-10), so it was deferred each time rather than re-investigated.
+
+Fix: stopped drawing the separator via the row's own border entirely and made
+it a plain **fixed-height child element** instead — unaffected by the parent
+panel's constraint because its size doesn't depend on measurement:
+
+- [DataGridRow.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGridRow.cs)
+  — `RowTemplateXaml` gained a `PART_RowSeparator` (`Border`, `Height=1`,
+  `HorizontalAlignment=Stretch`, gray background) as a sibling after
+  `PART_DetailsHost`. `OnApplyTemplate` resolves it; new
+  `ApplyRowSeparatorVisibility()` toggles it Visible/Collapsed based on
+  `HasRowValidationError`, called from `OnApplyTemplate`, `SetRowError`, and
+  `ClearRowError`. `ClearRowError` now resets the row-wide error border to
+  none (`BorderThickness=0`) instead of restoring it to a 1px separator value,
+  since the separator is no longer that border. Removed the now-dead
+  `SeparatorBrush`/`SeparatorThickness` static fields.
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) —
+  `ShimDecorateRow` dropped the `includeSeparator` parameter (both the manual
+  and virtualized paths now call `row.ApplyRowSeparatorVisibility()`
+  unconditionally, since the fix applies equally to both); the virtualized
+  realize hook (`ShimOnContainerRealized`) call site simplified to match.
+
+Verification:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+Results: LeXtudio.Windows 0 errors; WindowsShims 207 passed / 3 failed — the 3
+failures are pre-existing on `master` (confirmed via `git stash`: identical
+`AmbiguousMatchException` reflection failures in
+`BindingExpressionBridgeTests`/`DataGridSelectedCellsTests`/`SelectorSpineTests`
+before this change too, unrelated to the separator fix). Roma.Host builds 0
+errors. Runtime rendering of the separator under an active virtualized grid
+was not re-probed live in this session (no running app instance); the fix
+removes the exact mutation identified as the root cause and preserves it as a
+static template child, so the border-collapse mechanism no longer applies.
+
+Row separator is the last item from the "Confirmed still-missing" list that's
+now closed. Remaining open items: accessibility (2, largest, deserves its own
+session), grouping/frozen columns/header-presenter swap/drag visuals/hyperlink
+columns/virtualized row-details (3-8, back-burner, no current consumer need).
+
+## Session 119 (cont.) — B1 header-presenter swap: re-investigated, still deferred
+
+User picked item 5 (column-header reuse — making `DataGridColumnHeadersPresenter`
+the live header host instead of `DataGrid.BuildHeaderRow`) from the back-burner
+list to work on next. Re-investigated given how much has landed since the
+original "high-risk surgery" assessment (row virtualization is now a proven
+generator-driven live host) to see if the same pattern now makes this
+tractable. It does not, for reasons specific to headers, not virtualization:
+
+**What's promising (confirmed in source):**
+
+- `DataGridColumnHeadersPresenter` (linked, session 94) is a plain
+  (non-virtualizing) `ItemsControl` over `DataGridCellsPanel` — the same panel
+  type already proven live for row cells since session 91/101. Its
+  `GetContainerForItemOverride`/`PrepareContainerForItemOverride` just call
+  `new DataGridColumnHeader()` + `header.PrepareColumnHeader(item, column)` —
+  a shim method our own `BuildHeaderRow` already calls today, so generation
+  itself is not the blocker.
+- `DataGridColumnHeader`'s resize-gripper drag and sort-click
+  (`OnClick` → `PerformSort`) are **already real upstream behavior** wired
+  through `PART_LeftHeaderGripper`/`PART_RightHeaderGripper` `Thumb`s in our
+  own template (session 77) — not something the swap would need to add.
+
+**Why it's still a large, risky refactor (the actual blocker, more precise
+than the earlier assessment):** `DataGrid._headerCells` — the
+manually-populated `List<DataGridColumnHeader>` from `BuildHeaderRow` — is
+read at **21 call sites**, not just at generation time:
+
+- Auto/Star column-width computation (`_headerCells[i].DesiredSize.Width` /
+  `.ActualWidth`) — the already-fragile width pass from sessions 41-42.
+- Column resize (`_headerCells[i].Width = w`).
+- Drag-reorder drop-slot math (`OnHeaderPointerMoved`/`Released`, keyed by
+  index into `_headerCells`/`_visibleColumns` and positions relative to the
+  manually-built `_headerHostPanel`).
+- The live-notification dispatch loop (session 70-75 batch) that pushes
+  `GridLinesVisibility`/`CellStyle`/`ColumnHeaderStyle`/`RowStyleSelector`-style
+  changes onto realized headers by iterating `_headerCells` directly.
+
+`PrepareContainerForItemOverride` is upstream, unguarded (no local `HAS_UNO`
+override point), and sets `Column` via a private field with no property-changed
+notification to hook into — so none of the above could be quietly redirected
+to read from the presenter's generated children without rewriting all four
+systems (width, resize, reorder, live-notification) against the
+`ItemContainerGenerator`/presenter's realized-child collection instead of
+`_headerCells`. Auto/Star width in particular is the same "proxy, not exact"
+mechanism flagged as fragile in sessions 41-42 — touching its measurement
+source now, for a change with **zero behavioral upside** (BuildHeaderRow
+already renders resize, reorder, sort, filter, frozen, styles, and gridlines
+correctly and is fully tested), is a bad risk/reward trade at any effort level,
+not just under the current budget.
+
+**Conclusion:** left unimplemented, matching the Session 119 "B1" note.
+Recommend either (a) scoping this as its own dedicated multi-slice arc — one
+slice per system (width, resize, reorder, notifications) each swapped and
+re-verified against the existing Roma header probes before touching the next —
+analogous to how row virtualization took ~10 slices, or (b) leaving it
+permanently back-burner, since (unlike accessibility) no user-facing behavior
+is blocked on it today. No code changed in this investigation.
+
+User elected to commit to (a) as a real multi-session arc and start slice 1
+now, accepting the exploratory risk below.
+
+### Slice 1 (exploratory) — can a non-DataGrid ItemsControl generate its own items here?
+
+Before writing code, re-checked the precedent I'd cited for optimism and found
+it didn't hold: `DataGridCellsPresenter` — the other `ItemsControl`-derived
+WPF presenter already linked in this codebase (session 91) — has **never
+actually been instantiated** (`grep -rn "new DataGridCellsPresenter"` across
+`src/LeXtudio.Windows/` returns nothing outside build artifacts). Cell
+rendering still goes through `DataGridRow.BuildCells()` manually building a
+plain `StackPanel`. Likewise `DataGridRowsPresenter` is never `new`'d directly —
+it's placed via XAML in the DataGrid's own template and works because it's a
+`Panel` (not an `ItemsControl`) piggybacking on **DataGrid's own**, already-
+proven generation via `ItemsControlSpine.GetItemsOwner` walking up to find
+DataGrid as the owner. `DataGridColumnHeadersPresenter` is different in kind:
+it IS the `ItemsControl` and must generate over its own `ItemsSource`
+(`DataGridColumnHeaderCollection`) — a capability this shim has never
+exercised for any class other than `DataGrid` itself. Flagged this to the user
+before proceeding; they chose to accept the risk and continue.
+
+Investigation turned up one more relevant fact: this shim's
+`System.Windows.Controls.ItemsControl` derives from the **real**
+`Microsoft.UI.Xaml.Controls.ItemsControl`, not from the shim's own `Control`
+(superseding the session 108 note, which predates this). WinUI's real
+`ItemsControl` has the same four virtuals as WPF
+(`GetContainerForItemOverride`/`IsItemItsOwnContainerOverride`/
+`PrepareContainerForItemOverride`/`ClearContainerForItemOverride`), so the
+linked upstream `DataGridColumnHeadersPresenter`'s overrides bind to WinUI's
+real virtual slots, not a shim reimplementation. However, `Panel.IsItemsHost`
+— the flag WinUI's own `ItemsControl`/`ItemsPresenter` machinery uses
+internally to find its host panel — is **shadowed** by a same-named local
+`DependencyProperty` on the shim `Panel` (`PanelShims.cs`, added for the row-
+virtualization work), so setting it only satisfies `ItemsControlSpine.
+GetItemsOwner`'s own manual visual-tree walk, not WinUI's native item-host
+discovery. That local walk is genuinely generic, though (it just looks for the
+nearest `ItemsControl`-typed ancestor), so a `DataGridColumnHeadersPresenter`
+with a `DataGridCellsPanel` marked `IsItemsHost` in its template should resolve
+itself as the owner the same way DataGrid does for rows — *if* the linked
+`DataGridCellsPanel.MeasureOverride` (fully linked WPF source, session 101)
+actually drives generation through that same `GetItemsOwner` call, which
+wasn't independently re-verified here (it's inherited, not new code).
+
+**Change made** (compiles, builds and tests green, default OFF — zero
+regression risk to the working manual header):
+
+- [DataGridColumnHeadersPresenter.uno.cs](../src/LeXtudio.Windows/System.Windows/Controls/Primitives/DataGridColumnHeadersPresenter.uno.cs)
+  (new file) — gives the previously template-less linked presenter a minimal
+  `ControlTemplate`: a `DataGridCellsPanel` marked `IsItemsHost='True'` as its
+  sole child, assigned in an explicit constructor (the shim `Control`'s
+  `InitializeDefaultStyleKey()` hook doesn't apply here since this class's
+  base really is WinUI's `ItemsControl`, not the shim `Control`).
+- [DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs) —
+  new opt-in `ShimSetHeaderPresenterHost(bool)` (mirrors
+  `ShimSetRowVirtualization`): when enabled, `ShimBuildVirtualizedHeader()`
+  puts a `DataGridColumnHeadersPresenter` into `PART_ShimHeaderHost` instead of
+  `BuildHeaderRow()`'s manual `StackPanel`, then calls `presenter.
+  ApplyTemplate()` explicitly — the presenter's own linked `OnApplyTemplate`
+  resolves `ParentDataGrid` via a visual-tree walk and sets
+  `ItemsSource`/`grid.ColumnHeadersPresenter` from it, so it must run only
+  *after* the presenter is parented, not at construction time. Only reachable
+  when row virtualization is also enabled (the manual template has no
+  standalone header host to swap). Column resize, drag-reorder, and the
+  session 70-75 live-style/gridline notification batch are **not** wired to
+  this path — they still target the old `_headerCells` list — so enabling
+  this only proves/renders column header generation and content (via the
+  existing `DataGridHelper.TransferProperty` glue, unchanged), nothing else.
+- [RomaIntegrationProbes.cs](../../Roma/src/Roma.Host/Diagnostics/RomaIntegrationProbes.cs)
+  — new `roma.probe.metadata-header-presenter`: enables virtualization + the
+  header presenter, then reports `realizedHeaders` (count of real
+  `DataGridColumnHeader` descendants found) vs `columnCount`, plus the first
+  header's text. This is the actual proof point — the reasoning above is not a
+  substitute for running it.
+
+**Not verified at runtime in this session** — no running app instance was
+available. The mechanism is plausible from source reading (detailed above) but
+**unproven**: whether `DataGridCellsPanel.MeasureOverride` actually resolves
+`GetItemsOwner` to this presenter and drives real generation, versus silently
+rendering zero children, is exactly what `roma.probe.metadata-header-presenter`
+needs to answer next time the app can run. Do not assume this works before that
+probe reports `generated: true`.
+
+Verification performed:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+Results: LeXtudio.Windows 0 errors; WindowsShims 207 passed / 3 failed (the
+same pre-existing failures confirmed unrelated in the Slice 20 entry above,
+unaffected by this change since it's opt-in/default-off); Roma.Host 0 errors
+including the new probe.
+
+**Next step for whoever picks this up:** run `roma.probe.metadata-header-
+presenter` against a live Roma instance. If `generated: true` with a sane
+`firstHeaderText`, slice 2 is wiring Auto/Star width computation to read from
+the presenter's realized headers (via its `ItemContainerGenerator`) instead of
+`_headerCells`, verified against the existing width probes before touching
+resize/reorder/notifications. If `generated: false`, the next investigation
+is why `DataGridCellsPanel.MeasureOverride` isn't resolving/driving generation
+for this owner (likely something `GetItemsOwner`'s visual-tree walk finds
+before reaching the presenter's template root, or a WinUI template-application
+timing gap around the explicit `ApplyTemplate()` call).

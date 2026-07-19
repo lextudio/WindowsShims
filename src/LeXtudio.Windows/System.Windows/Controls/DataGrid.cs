@@ -260,6 +260,12 @@ public partial class DataGrid
             _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
             ShimBuildVirtualizedHeader();
             ShimInvalidateRealizationView();
+            // Session 120 (B1 slice 2): the manual path below schedules this same pass after
+            // building rows, but that code is unreached here (early return). Without it,
+            // Auto/SizeTo*/Star columns under virtualization never get a real per-column width
+            // pass — they keep whatever estimate DataGridCellsPanel's own internal column-width
+            // determination guessed (uniform average, not content-based).
+            ScheduleAutoWidthPassIfNeeded();
             return;
         }
 
@@ -324,7 +330,12 @@ public partial class DataGrid
             RestoreEditingCellAfterRebuild(editingItem, editingColumn);
         }
 
-        // Schedule an Auto-width pass if any visible column is non-absolute.
+        ScheduleAutoWidthPassIfNeeded();
+    }
+
+    // Schedule an Auto-width pass if any visible column is non-absolute.
+    private void ScheduleAutoWidthPassIfNeeded()
+    {
         if (_visibleColumns.Any(IsAutoWidth))
         {
             _autoWidthPending = true;
@@ -378,18 +389,16 @@ public partial class DataGrid
     // virtualized generation path: alternating background, separator border, style,
     // and selection highlight. PrepareRow / tracker / generator registration are done
     // by the caller (they differ between the two paths).
-    internal void ShimDecorateRow(DataGridRow row, object item, int displayIndex, bool includeSeparator = true)
+    internal void ShimDecorateRow(DataGridRow row, object item, int displayIndex)
     {
         row.ShimRowIndex = displayIndex;
-        // Default row separator (1px bottom border). Overridden to red by SetRowError.
-        // Skipped on the virtualized path: mutating BorderThickness on a row measured by
-        // the VirtualizingStackPanel (infinite-width constraint) collapses its content to
-        // border-only height on Uno. Alternating background + selection still apply.
-        if (includeSeparator && !row.HasRowValidationError)
-        {
-            row.BorderBrush = DataGridRow.SeparatorBrush;
-            row.BorderThickness = DataGridRow.SeparatorThickness;
-        }
+        // Session 120: the separator is a fixed-height template child
+        // (DataGridRow.PART_RowSeparator), not the row Control's own
+        // BorderThickness, so it renders identically on the manual and
+        // virtualized paths (the latter used to skip it — mutating
+        // BorderThickness on a row measured by VirtualizingStackPanel's
+        // infinite-width constraint collapsed the row to border-only height).
+        row.ApplyRowSeparatorVisibility();
         row.ApplyShimRowStyle();
         row.ApplyShimRowBackground();
         // Reflect the engine's selection so the highlight follows the item even across
@@ -408,12 +417,8 @@ public partial class DataGrid
             // exists before decorating. The virtualized path realizes the row into the
             // live tree before measure; decorating an un-templated row otherwise leaves
             // it measured at border-only height (cells never contribute).
-            // Apply the template so cells exist (built in OnApplyTemplate) before the panel
-            // measures the row. Skip the separator border: setting row.BorderThickness on a
-            // row measured by the VirtualizingStackPanel collapses its content to border-only
-            // height on Uno (confirmed independent of the horizontal-scroll/width setting).
             row.ApplyTemplate();
-            ShimDecorateRow(row, item, index, includeSeparator: false);
+            ShimDecorateRow(row, item, index);
             ItemContainerGenerator.RegisterContainer(item, row);
         }
     }
@@ -472,15 +477,117 @@ public partial class DataGrid
         return ItemContainerGenerator.ContainerFromItem(item) is not null;
     }
 
+    private bool _shimUseHeaderPresenter;
+
+    internal bool ShimUseHeaderPresenter => _shimUseHeaderPresenter;
+
+    // Session 120 (B1 slice 1, exploratory): opt-in swap of the virtualized template's pinned
+    // header host from the manual BuildHeaderRow() row to a live DataGridColumnHeadersPresenter.
+    // Default off — BuildHeaderRow is unaffected unless this is called. Column resize,
+    // drag-reorder, and the session 70-75 live-style/gridline notification batch all still
+    // target the manual _headerCells list and are NOT wired to the presenter path yet, so
+    // enabling this only proves/renders column headers (content, style, frozen visuals via
+    // DataGridHelper.TransferProperty), not the full header feature set.
+    internal bool ShimSetHeaderPresenterHost(bool enabled)
+    {
+        _shimUseHeaderPresenter = enabled;
+        if (_shimUseRowsPresenter)
+        {
+            ShimBuildVirtualizedHeader();
+        }
+
+        return enabled;
+    }
+
     // Builds the column-header row into the virtualized template's pinned header host.
     private void ShimBuildVirtualizedHeader()
     {
         if (GetTemplateChild("PART_ShimHeaderHost") is Microsoft.UI.Xaml.Controls.Border headerHost)
         {
-            headerHost.Child = BuildHeaderRow();
+            if (_shimUseHeaderPresenter)
+            {
+                var presenter = headerHost.Child as Primitives.DataGridColumnHeadersPresenter
+                    ?? new Primitives.DataGridColumnHeadersPresenter();
+                headerHost.Child = presenter;
+                // Session 120: VirtualizingPanel.IsVirtualizing is a WPF property-value-inherited
+                // attached DP. ShimSetRowVirtualization(true) sets it (true) at the DataGrid/rows
+                // level so DataGridRowsPresenter's cells panels virtualize columns correctly, but
+                // that inherited value flows down into the pinned header's DataGridCellsPanel too,
+                // overriding the type-default-metadata false the presenter's static constructor
+                // registers for headers specifically. The header panel then runs cell-level column
+                // virtualization keyed off the ROWS' scroll/viewport state, which is meaningless for
+                // a non-scrolling pinned header — confirmed live: it realizes 0-1 columns and the
+                // realized set churns between measure passes, ending at 0 realized headers. Force a
+                // LOCAL value here so it wins over the inherited one.
+                VirtualizingPanel.SetIsVirtualizing(presenter, false);
+                // The presenter's own (linked upstream) OnApplyTemplate resolves ParentDataGrid
+                // via a visual-tree walk and sets ItemsSource/ColumnHeadersPresenter from it, so
+                // it must run only after the presenter is parented here — hence the explicit
+                // re-apply rather than relying on the Template assignment at construction time.
+                presenter.ApplyTemplate();
+                _shimHeaderPresenterForRetry = presenter;
+            }
+            else
+            {
+                headerHost.Child = BuildHeaderRow();
+            }
         }
 
         ShimHookHeaderScrollSync();
+    }
+
+    private Primitives.DataGridColumnHeadersPresenter? _shimHeaderPresenterForRetry;
+
+    // Session 120 diagnostic (B1): the header template's DataGridCellsPanel has
+    // IsItemsHost="True" set at XAML-parse time (inside ApplyTemplate's template expansion),
+    // which is BEFORE the panel is attached under the presenter in the live visual tree.
+    // OnIsItemsHostChanged (linked upstream DataGridCellsPanel code) reads ParentPresenter
+    // (ItemsControlSpine.GetItemsOwner, a VisualTreeHelper.GetParent walk) synchronously at that
+    // moment and gets null, so DataGridColumnHeadersPresenter.InternalItemsHost never gets wired
+    // and no headers are ever generated. Unlike VirtualizingStackPanel (which re-resolves its
+    // owner on every MeasureOverride), this upstream panel only wires up once, in that one event.
+    // Called by a probe (or future real code) after a layout pass confirms the panel is actually
+    // parented, to force the event to refire with a resolvable owner. Returns whether the panel
+    // was found (diagnostic signal distinct from whether generation then succeeded).
+    internal bool ShimRetryHeaderItemsHost()
+    {
+        if (_shimHeaderPresenterForRetry is not { } presenter)
+        {
+            return false;
+        }
+
+        if (FindVisualDescendant<DataGridCellsPanel>(presenter) is not { } headerCellsPanel)
+        {
+            return false;
+        }
+
+        headerCellsPanel.IsItemsHost = false;
+        headerCellsPanel.IsItemsHost = true;
+        // IsItemsHostProperty has no AffectsMeasure metadata, so toggling it does not by itself
+        // schedule a re-measure; without this, OnIsItemsHostChanged's InternalItemsHost wiring
+        // (if it succeeds now) would sit unused until something else happens to invalidate layout.
+        headerCellsPanel.InvalidateMeasure();
+        return true;
+    }
+
+    private static T? FindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindVisualDescendant<T>(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
     }
 
     private bool _headerSyncHooked;
@@ -623,6 +730,39 @@ public partial class DataGrid
     private static double Clamp(DataGridColumn column, double width)
         => Math.Clamp(width, column.MinWidth, column.MaxWidth);
 
+    // Session 120 (B1 slice 2): under the opt-in header-presenter path, `_headerCells`
+    // (populated only by BuildHeaderRow()) stays empty, so the Auto/Star width pass below
+    // silently no-ops. Resolve the width-relevant header cells from whichever path is live —
+    // generation order in the presenter's registry may not match display order (column
+    // reorder), so match by Column reference rather than by index.
+    private IReadOnlyList<DataGridColumnHeader> EffectiveHeaderCells()
+    {
+        if (!_shimUseHeaderPresenter || ColumnHeadersPresenter is not { } presenter)
+        {
+            return _headerCells;
+        }
+
+        var byColumn = new Dictionary<DataGridColumn, DataGridColumnHeader>();
+        foreach (var container in presenter.ItemContainerGenerator.Containers)
+        {
+            if (container is DataGridColumnHeader { Column: { } column } header)
+            {
+                byColumn[column] = header;
+            }
+        }
+
+        var result = new List<DataGridColumnHeader>(_visibleColumns.Count);
+        foreach (var column in _visibleColumns)
+        {
+            if (byColumn.TryGetValue(column, out var header))
+            {
+                result.Add(header);
+            }
+        }
+
+        return result;
+    }
+
     private void OnAutoWidthLayoutUpdated(object? sender, object e)
     {
         if (!_autoWidthPending)
@@ -632,6 +772,7 @@ public partial class DataGrid
 
         _autoWidthPending = false;
 
+        var headerCells = EffectiveHeaderCells();
         var rows = ItemContainerGenerator.Containers.OfType<DataGridRow>().ToList();
         var widths = new double[_visibleColumns.Count];
         var starWeights = new double[_visibleColumns.Count];
@@ -639,7 +780,7 @@ public partial class DataGrid
         var totalStar = 0.0;
 
         // Pass 1: fixed (absolute) + auto (measured) widths, clamped.
-        for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+        for (var i = 0; i < _visibleColumns.Count && i < headerCells.Count; i++)
         {
             var column = _visibleColumns[i];
             if (column.Width.IsStar)
@@ -656,7 +797,7 @@ public partial class DataGrid
             }
             else
             {
-                w = _headerCells[i].DesiredSize.Width;
+                w = headerCells[i].DesiredSize.Width;
                 foreach (var row in rows)
                 {
                     if (row.TryGetCell(i) is { } cell)
@@ -685,14 +826,14 @@ public partial class DataGrid
         }
 
         // Apply to header cells, data cells, filter cells, and column ActualWidth.
-        for (var i = 0; i < _visibleColumns.Count && i < _headerCells.Count; i++)
+        for (var i = 0; i < _visibleColumns.Count && i < headerCells.Count; i++)
         {
             if (widths[i] <= 0)
             {
                 continue;
             }
 
-            _headerCells[i].Width = widths[i];
+            headerCells[i].Width = widths[i];
             _visibleColumns[i].SetActualWidth(widths[i]);
             foreach (var row in rows)
             {
@@ -712,7 +853,8 @@ public partial class DataGrid
     private void ShimApplyColumnWidth(DataGridColumn column)
     {
         var i = _visibleColumns.IndexOf(column);
-        if (i < 0 || i >= _headerCells.Count)
+        var headerCells = EffectiveHeaderCells();
+        if (i < 0 || i >= headerCells.Count)
             return;
 
         var w = ShimColumnWidth(column);
@@ -720,7 +862,7 @@ public partial class DataGrid
             return;
 
         w = Clamp(column, w);
-        _headerCells[i].Width = w;
+        headerCells[i].Width = w;
         _visibleColumns[i].SetActualWidth(w);
         foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
         {
@@ -856,10 +998,11 @@ public partial class DataGrid
             return double.NaN;
         }
 
+        var headerCells = EffectiveHeaderCells();
         var width = TextBestFitWidth(column.Header?.ToString());
-        if (visibleIndex < _headerCells.Count)
+        if (visibleIndex < headerCells.Count)
         {
-            width = Math.Max(width, ElementBestFitWidth(_headerCells[visibleIndex]));
+            width = Math.Max(width, ElementBestFitWidth(headerCells[visibleIndex]));
         }
 
         if (visibleIndex < _filterCells.Count)
@@ -935,11 +1078,12 @@ public partial class DataGrid
         }
 
         var visibleIndex = _visibleColumns.IndexOf(column);
-        if (visibleIndex >= 0 && visibleIndex < _headerCells.Count)
+        var headerCells = EffectiveHeaderCells();
+        if (visibleIndex >= 0 && visibleIndex < headerCells.Count)
         {
-            var headerWidth = _headerCells[visibleIndex].ActualWidth > 0
-                ? _headerCells[visibleIndex].ActualWidth
-                : _headerCells[visibleIndex].Width;
+            var headerWidth = headerCells[visibleIndex].ActualWidth > 0
+                ? headerCells[visibleIndex].ActualWidth
+                : headerCells[visibleIndex].Width;
             if (!double.IsNaN(headerWidth) && headerWidth > 0)
             {
                 return headerWidth;
@@ -2488,10 +2632,14 @@ public partial class DataGrid
     // Session 67: column-header notification chain — mirrors the row-cell chain
     // from session 66. The upstream DataGrid.NotifyPropertyChanged would route
     // through ColumnHeadersPresenter (null in the shim) to headers; this shim
-    // dispatch iterates _headerCells directly instead.
+    // dispatch iterates the live header cells directly instead. Session 120
+    // (B1 slice 4): use EffectiveHeaderCells() so style/gridline notifications
+    // (GridLinesVisibility, CellStyle, ColumnHeaderStyle, RowStyleSelector,
+    // etc.) reach the presenter's realized headers too, not just the manual
+    // BuildHeaderRow() ones.
     private void ShimNotifyColumnHeaders(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        foreach (var header in _headerCells)
+        foreach (var header in EffectiveHeaderCells())
             header.NotifyPropertyChanged(d, e);
     }
 

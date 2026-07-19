@@ -52,6 +52,12 @@ public partial class DataGridRow : Control
 
     // Session 57: the row template is now vertical — the cells row sits above a
     // PART_DetailsHost that expands to host the materialized RowDetailsTemplate.
+    // Session 120: the separator is a fixed-height child element (PART_RowSeparator),
+    // not the row Control's own BorderThickness. Under the virtualized path, setting
+    // BorderThickness on a row measured by VirtualizingStackPanel (infinite-width
+    // constraint) collapses the whole row to border-only height on Uno; a plain
+    // child element with an explicit Height is unaffected by that quirk, so the
+    // separator can render on both the manual and virtualized paths.
     private const string RowTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
@@ -63,6 +69,8 @@ public partial class DataGridRow : Control
         "<StackPanel x:Name='PART_CellsHost' Orientation='Horizontal' />" +
         "</StackPanel>" +
         "<ContentControl x:Name='PART_DetailsHost' Visibility='Collapsed' />" +
+        "<Border x:Name='PART_RowSeparator' Height='1' HorizontalAlignment='Stretch' " +
+        "Background='#FFD0D0D0' />" +
         "</StackPanel></Border></ControlTemplate>";
 
     // ── Session 48: row-level validation indicator ──────────────────────────
@@ -77,6 +85,7 @@ public partial class DataGridRow : Control
         BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0x00, 0x00));
         BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+        ApplyRowSeparatorVisibility();
         RefreshRowHeaderGlyph();
     }
 
@@ -89,8 +98,11 @@ public partial class DataGridRow : Control
 
         HasRowValidationError = false;
         RowValidationError = null;
-        BorderBrush = SeparatorBrush;
-        BorderThickness = SeparatorThickness;
+        // The row-wide error border clears back to none; the bottom separator (a
+        // template child, not this Control's own border) resumes via ApplyRowSeparatorVisibility.
+        BorderBrush = null;
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+        ApplyRowSeparatorVisibility();
         RefreshRowHeaderGlyph();
     }
 
@@ -98,13 +110,6 @@ public partial class DataGridRow : Control
     private static readonly Microsoft.UI.Xaml.Media.Brush _selectedBrush =
         new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0xE8, 0xFF));
-
-    // Row separator — subtle bottom border drawn on every non-error row.
-    internal static readonly Microsoft.UI.Xaml.Media.Brush SeparatorBrush =
-        new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            global::Windows.UI.Color.FromArgb(0xFF, 0xD0, 0xD0, 0xD0));
-    internal static readonly Microsoft.UI.Xaml.Thickness SeparatorThickness =
-        new Microsoft.UI.Xaml.Thickness(0, 0, 0, 1);
 
     // Session 69: apply the stripe background (RowBackground or AlternatingRowBackground).
     // Called from BuildShimVisualTree after ShimRowIndex is set, and from
@@ -180,7 +185,21 @@ public partial class DataGridRow : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+        _rowSeparator = GetTemplateChild("PART_RowSeparator") as Microsoft.UI.Xaml.Controls.Border;
+        ApplyRowSeparatorVisibility();
         BuildCells();
+    }
+
+    private Microsoft.UI.Xaml.Controls.Border? _rowSeparator;
+
+    // Session 120: toggles the fixed-height separator child (see RowTemplateXaml).
+    // Hidden while the row shows the whole-row validation-error border instead.
+    internal void ApplyRowSeparatorVisibility()
+    {
+        if (_rowSeparator is { } separator)
+        {
+            separator.Visibility = HasRowValidationError ? Visibility.Collapsed : Visibility.Visible;
+        }
     }
 
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
