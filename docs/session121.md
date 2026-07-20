@@ -709,3 +709,331 @@ closed items 3 and 7; items 5-6 were already closed by session 120's B1 arc):
 
 Remaining real gaps: accessibility (2, large), frozen columns (4, medium),
 row-details virtualization (8, small but currently unneeded).
+
+## Frozen columns (gap survey item 4) — Slice 1: real DataGridCell generation via DataGridCellsPresenter
+
+Started the frozen-column arc. Scoped as a multi-slice arc from the outset
+(comparable to the B1 header-presenter swap), not a quick patch — investigated
+why before writing any code.
+
+**Why a lightweight patch (counter-translate/overlay) doesn't work.** Real
+frozen-column behavior needs some columns to stay visually fixed while the
+rest of the *same row* scrolls horizontally underneath them. The current row
+template puts *all* cells (frozen or not) in one plain `StackPanel` inside one
+shared, whole-grid `ScrollViewer` (`PART_ShimRowsScroll`) — there is no
+per-row scroll, only one outer scroll for everything. Tracing through the
+options: counter-translating just the frozen cells (mirroring the existing
+pinned-header `RenderTransform` sync) hits an unavoidable z-order problem —
+`StackPanel` renders children in `Children`-collection order, so the
+(first-added) frozen cells would render *underneath* the non-frozen cells
+sliding over them, the opposite of "frozen columns occlude scrolled content."
+An overlay of *cloned* frozen cells avoids the z-order issue but can't
+reasonably duplicate live, interactive, editable cell content. The only
+architecturally sound fix — matching what real WPF and this project's own
+linked-but-inert upstream code already do — is for the cells-hosting *panel
+itself* to own horizontal positioning (frozen columns arranged at a fixed X;
+non-frozen columns arranged at an X offset by scroll; a clip at the boundary),
+not something bolted onto a plain `StackPanel` inside a native `ScrollViewer`.
+
+**Confirmed the exact machinery for this is already linked and inert** —
+`ext/wpf/.../Primitives/DataGridCellsPanel.cs`'s `ArrangeOverride`/
+`ArrangeChild` (its `ArrangeState.NextFrozenCellStart`/
+`NextNonFrozenCellStart`/`ViewportStartX` math) is the real, portable
+(no WPF-only APIs — ordinary `Rect`/`Clip`, not `VisualBrush`/`Viewport3D`)
+frozen-column layout logic, already proven to compile and run on this Uno
+target for the pinned *header* (session 120's B1 arc, via
+`DataGridColumnHeadersPresenter`). It has simply never been reachable for
+*rows*, because `DataGridRow`'s own cell host (`PART_CellsHost`) is a manual
+`StackPanel` populated by hand (`BuildCells()`), not the real, also-linked
+`DataGridCellsPresenter` (the `ItemsControl` that generates `DataGridCell`
+containers over `DataGridCellsPanel` as its items host) — confirmed 100%
+unused before this slice (referenced by type only, never instantiated).
+`docs/DATAGRID.md`'s feature table already flagged this exact gap as a known
+"major blocker": *"Replacing the manual rows/header host with the WPF
+item-hosted layout."*
+
+**What Slice 1 does — swap generation only, not width/arrange/frozen yet.**
+Deliberately scoped tight, mirroring B1's own phasing (generation proven first,
+width/resize/frozen-arrange as later slices):
+
+- New `Primitives/DataGridCellsPresenter.uno.cs`: gives the linked-but-inert
+  upstream `DataGridCellsPresenter` a minimal template (a `DataGridCellsPanel`
+  marked `IsItemsHost`), mirroring `DataGridColumnHeadersPresenter.uno.cs`'s
+  session-120 recipe exactly. One difference from that precedent: upstream
+  `DataGridCellsPresenter` already declares both an instance and a static
+  constructor (`ItemsPanelProperty` default-metadata override), so this
+  partial can't add either — `ShimEnsureTemplate(presenter)` sets `Template`
+  from the outside instead, called from `DataGridRow.OnApplyTemplate` right
+  where the presenter is retrieved via `GetTemplateChild`.
+- `DataGridRow.cs`: added `CellsPresenterRowTemplateXaml` (same shape as the
+  existing row template, `PART_CellsHost` a `DataGridCellsPresenter` instead
+  of a `StackPanel`) and `ShimApplyCellsPresenterTemplateIfNeeded(bool)`.
+  Called right after `new DataGridRow()` (both `BuildRowsOrGroups`'s flat
+  loop and `BuildGroupedRows`'s leaf loop in `DataGrid.cs`) — **not** from
+  `InitializeDefaultStyleKey`, since that runs from the base `Control`
+  constructor, before `PrepareRow` sets `DataGridOwner`, so the
+  presenter-vs-manual choice isn't knowable there yet. `OnApplyTemplate`
+  branches: presenter path calls `presenter.ApplyTemplate()` (letting
+  `DataGridCellsPresenter`'s own upstream `OnApplyTemplate` self-register as
+  `row.CellsPresenter`, per its `DataGridRowOwner` ambient lookup — a
+  visual-tree walk via `DataGridHelper.FindParent`, *not* `TemplatedParent`,
+  so it works correctly despite the template being built at runtime via
+  `XamlReader.Load`); manual path still calls `BuildCells()` unchanged.
+- `DataGrid.cs`: new `ShimSetCellsPresenterHost(bool)` (default off, mirrors
+  `ShimSetHeaderPresenterHost`), triggering a full `BuildShimVisualTree()`
+  rebuild so existing rows regenerate under the new template choice.
+- Scoped to the **manual (non-virtualized) render path only** for this
+  slice — the virtualized row path's `GetContainerForItemOverride() => new
+  DataGridRow()` doesn't go through `ShimApplyCellsPresenterTemplateIfNeeded`
+  yet; extending to virtualized rows is a later slice.
+
+**Two bugs found and fixed live, both direct repeats of B1-arc findings —
+worth internalizing as a *pattern*, not two isolated one-offs:**
+
+1. **`IsItemsHost` timing bug** (identical to session 120's
+   `ShimRetryHeaderItemsHost` finding): `IsItemsHost="True"` in the cells
+   panel's template XAML sets the DP at template-expansion time, before the
+   panel is attached under the presenter, so the one-shot
+   `OnIsItemsHostChanged` → `ParentPresenter`/`GetItemsOwner` call sees null
+   and never wires `InternalItemsHost`. Unlike the header case (which needed
+   a manually-invoked retry probe/method), this slice bakes the fix directly
+   into `DataGridRow.OnApplyTemplate` — toggle `IsItemsHost` off/on and
+   `InvalidateMeasure()` immediately after `presenter.ApplyTemplate()`, since
+   the root cause is now understood well enough to fix proactively rather
+   than needing another round of live diagnosis.
+2. **`IsVirtualizing`-inheritance bug** (identical to session 120's header
+   root cause): wiring was fully correct (`presenterItemsCount: 8` matching
+   column count, `InternalItemsHost` correctly set to the panel) but realized
+   cell count was still 0 — confirmed live via the same diagnostic shape
+   session 120 used for headers. Fixed the same way:
+   `VirtualizingPanel.SetIsVirtualizing(presenter, false)` as a local value,
+   set right before `presenter.ApplyTemplate()`.
+
+Finding the *exact same two bugs*, in the *exact same order*, on the second
+`ItemsControl`-hosted-panel swap in this codebase (headers, then cells) is a
+useful signal for whoever does the *next* one (frozen columns' own eventual
+virtualized-row extension, or any future presenter swap): **check the
+IsItemsHost-timing and IsVirtualizing-inheritance issues first**, before
+assuming a new root cause — they appear to be structural properties of "any
+`ItemsControl`+`DataGridCellsPanel` pair templated via runtime
+`XamlReader.Load` in this shim," not one-off bugs specific to headers.
+
+**Live-verified** (`roma.probe.metadata-cells-presenter`, both a 1-row table
+and a 461-row table):
+
+```json
+// Module (1 row, 8 columns)
+{"total":1,"columnCount":8,"presentersFound":1,"panelsFound":1,"rowsFound":1,
+ "cellsFound":8,"expectedCellCount":8,"firstCellContentType":"System.Windows.Controls.TextBlock",
+ "generated":true}
+
+// TypeRef (461 rows, 6 columns)
+{"total":461,"columnCount":6,"presentersFound":461,"panelsFound":461,"rowsFound":461,
+ "cellsFound":2766,"expectedCellCount":2766,"generated":true}
+```
+
+`cellsFound == expectedCellCount` (`rows × columns`) in both cases, and
+`firstCellContentType` confirms real bound content (a real `TextBlock` from
+the column's `GenerateElement`, via the actual upstream container-generation
+pipeline — `DataGridBoundColumn`'s existing, proven `GenerateElement`/
+`ApplyBinding` machinery), not empty placeholder containers.
+
+**Verification**:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 218/221 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+No regression to the default (presenter host off) path: same 218/221 test
+result as before this slice, and the default manual `BuildCells()` path is
+structurally untouched (only reached when `ShimUseCellsPresenter` is false,
+which it is unless a caller explicitly opts in).
+
+## Frozen columns, Slice 2 — width/resize already work; one notification gap fixed
+
+Before implementing anything, re-checked whether the width/resize redirect
+Slice 1's own write-up assumed would be needed (an `EffectiveHeaderCells()`
+equivalent, mirroring B1 Slice 2/3) was actually necessary. It mostly wasn't
+— **real upstream `DataGridRow.TryGetCell(int)` already does exactly this
+redirect**:
+
+```csharp
+internal DataGridCell TryGetCell(int index)
+{
+    DataGridCellsPresenter cellsPresenter = CellsPresenter;
+    if (cellsPresenter != null)
+        return cellsPresenter.ItemContainerGenerator.ContainerFromIndex(index) as DataGridCell;
+#if HAS_UNO
+    return ShimTryGetCell(index);   // manual-path fallback
+#else
+    return null;
+#endif
+}
+```
+
+All 9 of `DataGrid.cs`'s width/resize/notification call sites already call
+`row.TryGetCell(i)` (this real upstream method), not the shim-only
+`row.ShimTryGetCell(i)` — so once `row.CellsPresenter` is set (which happens
+automatically, per Slice 1's `DataGridCellsPresenter.OnApplyTemplate`
+self-registration), these call sites transparently start reading/writing
+presenter-hosted cells with **zero code changes**. This is architecturally
+neater than the header case: real WPF's `DataGridRow` already anticipated
+"cells might come from a presenter or might not" and built the redirect in
+from the start, unlike headers where `EffectiveHeaderCells()` had to be
+added as new shim code.
+
+**Live-verified** (`roma.probe.metadata-cells-presenter-resize`, `TypeRef`,
+column 1, resize delta +60): `cellsPresenterSet: true`, `resized: true`,
+`widthBefore: NaN` (unset) → `widthAfter: 134.0` — confirms
+`ShimTryResizeColumn` → `ShimApplyColumnWidth` → `cell.Width = w` actually
+lands on the presenter-hosted cell, through `TryGetCell`, with no changes to
+either method. (Read `cell.Width`, the explicit DP `ShimApplyColumnWidth`
+writes, not `ActualWidth` — the latter read `0` in an earlier probe attempt,
+consistent with session 120's precedent elsewhere in this codebase that
+`ActualWidth`/`ActualHeight` don't reliably reflect real rendered size via
+this CLR property on this Uno target.)
+
+**One real gap found and fixed**: `DataGridRow.ShimNotifyCells` (the
+style/gridline-type notification batch upstream's `NotifyPropertyChanged`
+calls, `#if HAS_UNO`) iterated the manual `_cells` list directly — the one
+call site that doesn't go through `TryGetCell`'s per-index redirect, since it
+needs the *whole* realized set at once, not one index. Added
+`DataGridRow.EffectiveCells()` (`CellsPresenter is { } p ? p.ItemContainerGenerator.
+Containers.OfType<DataGridCell>() : _cells`) and switched `ShimNotifyCells`
+to use it — the same shape of fix as B1's `ShimNotifyColumnHeaders` →
+`EffectiveHeaderCells()`, just for cells instead of headers.
+
+**Verification**:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 218/221 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+## Frozen columns, Slice 3 — arrange wiring root-caused and fixed; frozen columns now genuinely work
+
+Picked back up with live instrumented tracing (temporary `Console.WriteLine`
+in `EnsureInternalScrollControls`, `ComputeCellsPanelHorizontalOffset`,
+`InitializeArrangeState`, and `OnNotifyHorizontalOffsetPropertyChanged` —
+mirroring exactly how session 120 root-caused the header generation and
+`IsVirtualizing` bugs), rather than continuing to reason about the plumbing
+in the abstract. Found and fixed two real, distinct bugs; frozen columns are
+now confirmed working live.
+
+**Fixed along the way**: the manual (non-virtualized) template's
+`ScrollViewer` (`ShimTemplateXaml`) had **no `x:Name` at all** — only the
+virtualized template's copy was named `PART_ShimRowsScroll`. Named it
+consistently in both templates.
+
+**Root cause #1 (the real blocker): `ContentHorizontalOffset` is a WPF-scrolling-model
+dead end on this target.** Traced with instrumentation: the `Binding`
+(`EnsureInternalScrollControls`, `SetBinding(HorizontalScrollOffsetProperty,
+new Binding("ContentHorizontalOffset") { Source = _internalScrollHost })`)
+*did* get created successfully against the real, live `ScrollViewer` — but
+its target's changed-callback (`OnNotifyHorizontalOffsetPropertyChanged`)
+never fired even once after the initial bind, confirmed by adding a trace to
+it directly. Root cause: `ScrollViewer.ContentHorizontalOffset` (upstream
+`ScrollViewer.cs`, `OnLayoutUpdated`) is only ever pushed by WPF's classic
+`IScrollInfo`/command-queue scrolling model — a `LayoutUpdated` handler gated
+on queued scroll commands, real code that only runs when something actually
+calls into that model. On this Uno target, `_internalScrollHost` is a real
+*native* `Microsoft.UI.Xaml.Controls.ScrollViewer`, scrolled via the native
+scroll/manipulation pipeline, which never touches `IScrollInfo` at all — so
+`ContentHorizontalOffset` is permanently stuck at its bind-time value (`0`),
+and the (perfectly functional) native `Binding` correctly reports "no
+change," because from its point of view there genuinely was none.
+
+**Fix**: replaced the dead `Binding` with the same live-push pattern this
+codebase already uses for the pinned header's scroll sync
+(`ShimHookHeaderScrollSync`) — subscribe to the `ScrollViewer`'s own
+`ViewChanged` event and push `HorizontalOffset` directly into
+`HorizontalScrollOffsetProperty` via `SetValue`:
+
+```csharp
+#if HAS_UNO
+_internalScrollHost.ViewChanged += (_, _) =>
+    SetValue(HorizontalScrollOffsetProperty, _internalScrollHost.HorizontalOffset);
+SetValue(HorizontalScrollOffsetProperty, _internalScrollHost.HorizontalOffset);
+#else
+Binding horizontalOffsetBinding = new Binding("ContentHorizontalOffset") { Source = _internalScrollHost };
+SetBinding(HorizontalScrollOffsetProperty, horizontalOffsetBinding);
+#endif
+```
+
+Confirmed live via trace after the fix: `[EISC] ViewChanged fired,
+HorizontalOffset=150` — the handler fires correctly and the DP updates.
+
+**Root cause #2 (a probe artifact, not a product bug): `OpenMetadataGrid`
+rebuilds the tab's `DataGrid` from scratch on every call.** After fixing root
+cause #1, a two-round-trip probe (`-setup` then `-readback`, needed because
+`CellsPanelHorizontalOffset`'s invalidation is itself `Dispatcher.BeginInvoke`-queued
+at `DispatcherPriority.Loaded` — a single synchronous `RunOnUi` callback
+returns before that queued callback runs, however many `UpdateLayout()` calls
+it makes in between) still read back `HorizontalScrollOffset: 0`. Traced this
+to the probe helper itself: `OpenMetadataGrid` always calls
+`page.OnTreeNodeSelected(target)`, which unconditionally rebuilds the tab's
+content via `ilspyNode.View(tabPage)` — re-selecting the same already-open
+node discards the live grid the `-setup` call configured and hands back a
+**brand-new** `DataGrid` instance, silently losing all state (scroll
+position, `FrozenColumnCount`, cells-presenter mode). Fixed the readback
+probe to read `page._nodeContent.Content` directly instead of calling
+`OpenMetadataGrid` again.
+
+**Live-verified, cleanly, twice** (`roma.probe.metadata-frozen-columns-setup`/
+`-readback`, `TypeRef`):
+
+- 1 frozen column (RID, ~220px), scroll 0 → 150: `frozenX: 1.0 → 1.0`
+  (unchanged), `nonFrozenX (Token): 221.0 → 71.0` (delta exactly −150,
+  matching the scroll amount to the pixel).
+- 2 frozen columns (RID+Token, ~440px), scroll 0 → 100:
+  `frozenX: 1.0` (unchanged), `nonFrozenX (Offset): ≈441 → 341` (delta ≈ −100,
+  matching).
+
+Frozen columns genuinely stay fixed on screen while the rest of the row
+scrolls underneath them — the core frozen-column behavior — confirmed
+working, not just theorized.
+
+**Verification**:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 218/221 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+All temporary diagnostic `Console.WriteLine` tracing (in
+`EnsureInternalScrollControls`, `ComputeCellsPanelHorizontalOffset`,
+`InitializeArrangeState`, `OnNotifyHorizontalOffsetPropertyChanged`) has been
+removed — only the actual `ViewChanged`-based fix remains.
+
+**Worth remembering for future dispatcher-queued-plumbing verification**:
+`CellsPanelHorizontalOffset`'s invalidation being `DispatcherPriority.Loaded`-queued
+made a single synchronous probe blind to it, regardless of `UpdateLayout()`
+calls — splitting into two DevFlow round-trips (letting the real message
+loop run between them) is the general pattern for verifying anything gated
+behind real upstream WPF's `Dispatcher.BeginInvoke` calls on this target.
+
+## Frozen columns — remaining slices (not yet done)
+
+1. **Virtualized-row extension** — `ShimApplyCellsPresenterTemplateIfNeeded`
+   is only called from the manual-path row-creation sites; the virtualized
+   `VirtualizingRowsRealizer`'s `create` callback (`owner.CreateContainerForItem`
+   → linked upstream `GetContainerForItemOverride() => new DataGridRow()`)
+   doesn't call it, so virtualized rows still get the manual `StackPanel`
+   template (and thus no frozen-column support). Given frozen columns are
+   primarily useful for wide tables (which auto-switch to virtualization past
+   `ShimAutoVirtualizeThreshold`), this extension is not optional — it's
+   required before frozen columns are useful for the tables that actually
+   need them.
+2. **Selection/editing/resize regression check under the presenter path** —
+   not yet verified live (Slices 1-3 checked generation, width/resize, and
+   arrange). `TryReselectCell` (called in the manual `BuildCells()` today) has
+   no presenter-path equivalent yet.
+3. **Vertical scroll interaction** — Slice 3 only exercised horizontal scroll;
+   whether frozen columns' vertical position stays correctly in sync with
+   their row as the grid scrolls vertically (should be automatic, since
+   frozen/non-frozen cells are still siblings in the same row's vertical
+   layout — not yet explicitly live-verified).

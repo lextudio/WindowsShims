@@ -73,6 +73,27 @@ public partial class DataGridRow : Control
         "Background='#FFD0D0D0' />" +
         "</StackPanel></Border></ControlTemplate>";
 
+    // Session 121 (frozen columns, Slice 1): same shape as RowTemplateXaml, except
+    // PART_CellsHost is a live DataGridCellsPresenter (self-populating via the ambient
+    // DataGridRowOwner/Item wiring in its own OnApplyTemplate) instead of a plain StackPanel
+    // BuildCells() populates by hand. Opt-in via DataGrid.ShimSetCellsPresenterHost — default
+    // off, so this template is only used once a caller asks for it.
+    private const string CellsPresenterRowTemplateXaml =
+        "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+        "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' " +
+        "xmlns:p='using:System.Windows.Controls.Primitives'>" +
+        "<Border Background='{TemplateBinding Background}' " +
+        "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
+        "<StackPanel Orientation='Vertical'>" +
+        "<StackPanel Orientation='Horizontal'>" +
+        "<ContentControl x:Name='PART_RowHeader' />" +
+        "<p:DataGridCellsPresenter x:Name='PART_CellsHost' />" +
+        "</StackPanel>" +
+        "<ContentControl x:Name='PART_DetailsHost' Visibility='Collapsed' />" +
+        "<Border x:Name='PART_RowSeparator' Height='1' HorizontalAlignment='Stretch' " +
+        "Background='#FFD0D0D0' />" +
+        "</StackPanel></Border></ControlTemplate>";
+
     // ── Session 48: row-level validation indicator ──────────────────────────
     internal bool HasRowValidationError { get; private set; }
 
@@ -168,6 +189,10 @@ public partial class DataGridRow : Control
         }
 
         Template = _rowTemplate;
+        // Session 121 (frozen columns, Slice 1): ShimApplyCellsPresenterTemplateIfNeeded
+        // (below) may reassign Template again right after construction, once DataGridOwner
+        // is known — this method runs from the base Control constructor, before PrepareRow
+        // sets DataGridOwner, so the presenter-vs-manual choice can't be made here.
 
         // WinUI DP change hooks for IsSelected and IsEditing.
         // AddOwner is a no-op shim so upstream OnIsSelectedChanged never fires;
@@ -187,7 +212,82 @@ public partial class DataGridRow : Control
         base.OnApplyTemplate();
         _rowSeparator = GetTemplateChild("PART_RowSeparator") as Microsoft.UI.Xaml.Controls.Border;
         ApplyRowSeparatorVisibility();
-        BuildCells();
+
+        // Session 121 (frozen columns, Slice 1): under the presenter-hosted template,
+        // PART_CellsHost is a live DataGridCellsPresenter that self-populates via its own
+        // ambient DataGridRowOwner/Item wiring (upstream OnApplyTemplate) once it's parented
+        // and templated — BuildCells()'s manual per-cell construction only applies to the
+        // default (StackPanel) template.
+        if (GetTemplateChild("PART_CellsHost") is Primitives.DataGridCellsPresenter presenter)
+        {
+            Primitives.DataGridCellsPresenter.ShimEnsureTemplate(presenter);
+            // Session 121 (frozen columns, Slice 1): same IsVirtualizing-inheritance issue
+            // session 120 root-caused for the pinned header presenter — VirtualizingPanel.
+            // IsVirtualizing is a property-value-inherited attached DP; without a local
+            // value here, an ancestor's inherited value (or the type-default racing it) can
+            // put this panel on the wrong generation branch. Force Standard/non-virtualizing
+            // locally, matching the header presenter's fix, since row cells are already fully
+            // enumerated by DataGridRow (one row = one item; no windowing concept here).
+            VirtualizingPanel.SetIsVirtualizing(presenter, false);
+            presenter.ApplyTemplate();
+
+            // Session 121 (frozen columns, Slice 1): same IsItemsHost timing bug session 120
+            // hit for the header presenter (ShimRetryHeaderItemsHost) — IsItemsHost="True" in
+            // PART_RowCellsPanel's template XAML sets the shim's Panel.IsItemsHost DP at
+            // template-expansion time, before the panel is attached under the presenter, so
+            // OnIsItemsHostChanged's one-shot ParentPresenter/GetItemsOwner call sees null and
+            // never wires InternalItemsHost. Toggle it off/on now that the panel is confirmed
+            // parented (ApplyTemplate above already ran), and force a re-measure since
+            // IsItemsHostProperty has no AffectsMeasure metadata.
+            if (FindVisualDescendant<DataGridCellsPanel>(presenter) is { } cellsPanel)
+            {
+                cellsPanel.IsItemsHost = false;
+                cellsPanel.IsItemsHost = true;
+                cellsPanel.InvalidateMeasure();
+            }
+        }
+        else
+        {
+            BuildCells();
+        }
+    }
+
+    private static T? FindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindVisualDescendant<T>(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    private static Microsoft.UI.Xaml.Controls.ControlTemplate? _cellsPresenterRowTemplate;
+
+    // Session 121 (frozen columns, Slice 1): called right after construction (before
+    // PrepareRow/BuildCells run), once DataGridOwner.ShimUseCellsPresenter is knowable —
+    // InitializeDefaultStyleKey (runs from the base Control constructor) always applies the
+    // default manual-cells template first, since DataGridOwner isn't set yet at that point.
+    internal void ShimApplyCellsPresenterTemplateIfNeeded(bool useCellsPresenter)
+    {
+        if (!useCellsPresenter)
+        {
+            return; // default template from InitializeDefaultStyleKey already applies
+        }
+
+        _cellsPresenterRowTemplate ??= (Microsoft.UI.Xaml.Controls.ControlTemplate)
+            Microsoft.UI.Xaml.Markup.XamlReader.Load(CellsPresenterRowTemplateXaml);
+        Template = _cellsPresenterRowTemplate;
     }
 
     private Microsoft.UI.Xaml.Controls.Border? _rowSeparator;
@@ -246,7 +346,7 @@ public partial class DataGridRow : Control
         DependencyPropertyChangedEventArgs args,
         DataGridNotificationTarget target)
     {
-        foreach (var cell in _cells)
+        foreach (var cell in EffectiveCells())
         {
             cell.NotifyPropertyChanged(dependencyObject, propertyName, args, target);
         }
@@ -254,6 +354,16 @@ public partial class DataGridRow : Control
 
     internal DataGridCell? ShimTryGetCell(int index)
         => (uint)index < (uint)_cells.Count ? _cells[index] : null;
+
+    // Session 121 (frozen columns, Slice 2): realized cells regardless of which
+    // path built them — real upstream TryGetCell(int) already does this same
+    // CellsPresenter-first check for index-based lookups (DataGrid.cs's width/
+    // resize call sites all use it), but a couple of call sites (style/gridline
+    // notification batch) need the full realized set, not one index at a time.
+    internal IEnumerable<DataGridCell> EffectiveCells()
+        => CellsPresenter is { } presenter
+            ? presenter.ItemContainerGenerator.Containers.OfType<DataGridCell>()
+            : _cells;
 
     private Visibility ComputeDetailsVisibility(DataGrid owner)
     {

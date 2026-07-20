@@ -160,7 +160,7 @@ public partial class DataGrid
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
         "<Grid>" +
         "<Border Background='White' BorderBrush='#CCCCCC' BorderThickness='1'>" +
-        "<ScrollViewer HorizontalScrollBarVisibility='Auto' VerticalScrollBarVisibility='Auto'>" +
+        "<ScrollViewer x:Name='PART_ShimRowsScroll' HorizontalScrollBarVisibility='Auto' VerticalScrollBarVisibility='Auto'>" +
         "<StackPanel x:Name='PART_ShimRowsHost' MinWidth='120' MinHeight='40' />" +
         "</ScrollViewer></Border>" +
         // Session 120: floating drag-header/drop-indicator overlay (see the "Column
@@ -201,6 +201,24 @@ public partial class DataGrid
     private bool _shimUseRowsPresenter;
 
     internal bool ShimUseRowsPresenter => _shimUseRowsPresenter;
+
+    // Session 121 (frozen columns, Slice 1): opt-in swap of each row's cell host from the
+    // manual BuildCells()-populated StackPanel to a live DataGridCellsPresenter (mirroring
+    // the header-presenter swap, session 120 B1 slice 1). Default off — BuildCells is
+    // unaffected unless this is called. Column width/resize/notification batches still
+    // target the manual _cells list and are not wired to the presenter path yet, so
+    // enabling this only proves/renders cell content, not the full cell feature set —
+    // frozen-column arrange itself is a later slice once generation is confirmed working.
+    private bool _shimUseCellsPresenter;
+
+    internal bool ShimUseCellsPresenter => _shimUseCellsPresenter;
+
+    internal bool ShimSetCellsPresenterHost(bool enabled)
+    {
+        _shimUseCellsPresenter = enabled;
+        BuildShimVisualTree();
+        return enabled;
+    }
 
     // Switches the live render between the manual StackPanel path and the virtualized
     // DataGridRowsPresenter path, rebuilding the template. Returns true if the
@@ -396,6 +414,7 @@ public partial class DataGrid
             }
 
             var row = new DataGridRow();
+            row.ShimApplyCellsPresenterTemplateIfNeeded(_shimUseCellsPresenter);
             row.PrepareRow(item, this); // also initializes row.Tracker
             ShimDecorateRow(row, item, rowIndex++);
             row.Tracker!.StartTracking(ref _rowTrackingRoot);
@@ -438,6 +457,7 @@ public partial class DataGrid
                     }
 
                     var row = new DataGridRow();
+                    row.ShimApplyCellsPresenterTemplateIfNeeded(_shimUseCellsPresenter);
                     row.PrepareRow(item, this);
                     ShimDecorateRow(row, item, rowIndex++);
                     row.Tracker!.StartTracking(ref _rowTrackingRoot);
@@ -726,6 +746,42 @@ public partial class DataGrid
     }
 
     private bool _headerSyncHooked;
+
+    // Session 121 (frozen columns, Slice 3): test/probe seam — GetTemplateChild is protected,
+    // and reflecting into it from outside this assembly hit an unrelated generic-method
+    // resolution error on this shim's Control hierarchy, so a direct accessor is simpler.
+    internal Microsoft.UI.Xaml.Controls.ScrollViewer? ShimGetRowsScrollViewer()
+    {
+        if (GetTemplateChild("PART_ShimRowsScroll") is Microsoft.UI.Xaml.Controls.ScrollViewer named)
+        {
+            return named;
+        }
+
+        // GetTemplateChild's name-scope lookup is unreliable for ControlTemplates built at
+        // runtime via XamlReader.Load (the same class of issue documented elsewhere in this
+        // codebase for TemplatedParent) — fall back to a plain visual-tree search.
+        return ShimFindVisualDescendant<Microsoft.UI.Xaml.Controls.ScrollViewer>(this);
+    }
+
+    private static T? ShimFindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (ShimFindVisualDescendant<T>(child) is { } nested)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
 
     // Keeps the pinned header aligned with horizontal scrolling of the virtualized rows:
     // translate the header host by the rows' horizontal offset.
