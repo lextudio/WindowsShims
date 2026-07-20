@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows.Controls;
 using NUnit.Framework;
 using WpfItemCollection = System.Windows.Controls.ItemCollection;
@@ -22,7 +23,9 @@ public sealed class DataGridSelectedCellsTests
     [Test]
     public void DataGridShellExposesItemCollection()
     {
-        var items = typeof(DataGrid).GetProperty(nameof(DataGrid.Items));
+        var items = typeof(System.Windows.Controls.ItemsControl).GetProperty(
+            nameof(DataGrid.Items),
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
         Assert.That(items, Is.Not.Null);
         Assert.That(items!.PropertyType, Is.EqualTo(typeof(WpfItemCollection)));

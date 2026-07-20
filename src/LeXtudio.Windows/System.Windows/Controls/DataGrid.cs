@@ -346,7 +346,9 @@ public partial class DataGrid
     }
 
     // Schedule an Auto-width pass if any visible column is non-absolute.
-    private void ScheduleAutoWidthPassIfNeeded()
+    // Internal so DataGridColumnCollection.Redistribute* methods can trigger
+    // an immediate pass on width/min/max/space changes.
+    internal void ScheduleAutoWidthPassIfNeeded()
     {
         if (_visibleColumns.Any(IsAutoWidth))
         {

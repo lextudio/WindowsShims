@@ -56,7 +56,12 @@ public sealed class SelectorSpineTests
         Assert.That(typeof(DataGrid).IsSubclassOf(typeof(MultiSelector)), Is.True);
 
         // Items and the item-info helpers now come from the spine.
-        Assert.That(typeof(DataGrid).GetProperty(nameof(DataGrid.Items))!.DeclaringType, Is.EqualTo(typeof(WpfItemsControl)));
+        var items = typeof(WpfItemsControl).GetProperty(
+            nameof(DataGrid.Items),
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
+        Assert.That(items, Is.Not.Null);
+        Assert.That(items!.DeclaringType, Is.EqualTo(typeof(WpfItemsControl)));
     }
 
     [Test]

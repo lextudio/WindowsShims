@@ -59,26 +59,60 @@ internal partial class DataGridColumnCollection
 
     private void OnCellsPanelHorizontalOffsetChanged(DependencyPropertyChangedEventArgs e) { }
 
-    // ── Column-resize / redistribution (shim width pass owns the real math) ──
-    internal void OnColumnResizeStarted() { }
+    // ── Column-resize cancel support ─────────────────────────────────────────
+    // Field _originalWidthsForResize is declared in the linked upstream file
+    // (DataGridColumnCollection.cs:2541) — accessible here via partial class.
 
-    internal void OnColumnResizeCompleted(bool cancel) { }
+    internal void OnColumnResizeStarted()
+    {
+        _originalWidthsForResize = new Dictionary<DataGridColumn, DataGridLength>();
+        foreach (var column in this)
+        {
+            _originalWidthsForResize[column] = column.Width;
+        }
+    }
+
+    internal void OnColumnResizeCompleted(bool cancel)
+    {
+        if (cancel && _originalWidthsForResize is not null)
+        {
+            foreach (var (column, original) in _originalWidthsForResize)
+            {
+                if (column.DataGridOwner is not null)
+                    column.Width = original;
+            }
+        }
+        _originalWidthsForResize = null;
+    }
 
     internal void RecomputeColumnWidthsOnColumnResize(
         DataGridColumn resizingColumn, double horizontalChange, bool retainAuto)
         => DataGridOwner?.ShimTryResizeColumn(resizingColumn, horizontalChange);
 
+    // ── Redistribution triggers (shim auto-width pass owns the real math) ────
     internal void RedistributeColumnWidthsOnAvailableSpaceChange(
-        double availableSpaceChange, double newTotalAvailableSpace) { }
+        double availableSpaceChange, double newTotalAvailableSpace)
+    {
+        DataGridOwner?.ScheduleAutoWidthPassIfNeeded();
+    }
 
     internal void RedistributeColumnWidthsOnWidthChangeOfColumn(
-        DataGridColumn changedColumn, DataGridLength oldWidth) { }
+        DataGridColumn changedColumn, DataGridLength oldWidth)
+    {
+        DataGridOwner?.ScheduleAutoWidthPassIfNeeded();
+    }
 
     internal void RedistributeColumnWidthsOnMinWidthChangeOfColumn(
-        DataGridColumn changedColumn, double oldMinWidth) { }
+        DataGridColumn changedColumn, double oldMinWidth)
+    {
+        DataGridOwner?.ScheduleAutoWidthPassIfNeeded();
+    }
 
     internal void RedistributeColumnWidthsOnMaxWidthChangeOfColumn(
-        DataGridColumn changedColumn, double oldMaxWidth) { }
+        DataGridColumn changedColumn, double oldMaxWidth)
+    {
+        DataGridOwner?.ScheduleAutoWidthPassIfNeeded();
+    }
 
     // ── Realized-column block lists (virtualization not bridged) ─────────────
     // The linked cells panel owns the typed block model. These lists are still

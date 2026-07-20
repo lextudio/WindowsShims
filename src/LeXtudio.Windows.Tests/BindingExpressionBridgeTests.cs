@@ -104,7 +104,7 @@ public sealed class BindingExpressionBridgeTests
 
         foreach (var name in virtuals)
         {
-            var method = type.GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            var method = type.GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
             Assert.That(method, Is.Not.Null, name);
             Assert.That(method!.IsVirtual, Is.True, name);
         }

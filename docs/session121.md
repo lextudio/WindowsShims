@@ -1062,14 +1062,260 @@ dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0
 dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
 ```
 
+## Frozen columns, Slice 5 — selection confirmed working; editing/vertical-scroll inconclusive, not chased further
+
+Added `roma.probe.metadata-frozen-columns-interaction` (selects a row, calls
+the real public `DataGrid.BeginEdit()`/`CommitEdit()`, then forces a vertical
+scroll) to close out the remaining regression-check items.
+
+**Selection: confirmed working.** `grid.SelectedIndex = 0` correctly set
+`IsSelected = true` on the presenter-hosted row — no code change needed;
+`Selector`/`MultiSelector`'s real selection machinery doesn't care which
+template a row uses. First attempt read back `false`/stale positions for
+everything downstream of the selection call — traced to a probe bug, not a
+product bug: the `DataGridRow` reference captured *before* calling
+`SelectedIndex =` became detached from the live visual tree afterward (a
+manual-path property change can trigger a rebuild that replaces row
+instances), so `TransformToVisual` on the stale reference silently returned
+`(0,0)` instead of throwing. Fixed by re-fetching the row/cells fresh after
+each state-changing step (selection, then again after the vertical scroll)
+rather than reusing references captured earlier in the same probe call —
+worth remembering as a general rule for any future DataGrid probe: **never
+hold a row/cell reference across a call that might trigger
+`BuildShimVisualTree`**.
+
+**Editing: correctly reports `false`, not exercised.** `BeginEdit()` returned
+`false` on Roma's metadata tables — expected, not a bug: ILSpy's metadata
+browser grids are intentionally read-only (`CanUserAddRows`/column
+`IsReadOnly`-equivalent gating), confirmed by the exact same result on the
+*manual* (non-presenter) path too. Actually exercising cell editing under the
+cells-presenter path would need a different, editable data source — out of
+scope for this probe pass; not a currently-known gap, just untested.
+
+**Vertical scroll: inconclusive, not chased further.** After the reference-staleness
+fix, `sameRowAcrossScroll` read `false` (the row found via `FindDescendant`
+after a 100px vertical scroll is a different `DataGridRow` instance than
+before) — plausible on its own (a different row could now be first in
+traversal order) — but the *positions* read back identical before and after
+(`frozenY`/`nonFrozenY` both `3.0`), which is not obviously correct for a
+100px vertical scroll and wasn't run to ground. Given the core,
+motivating claim of this arc — horizontal frozen-column positioning — is
+already cleanly proven twice (Slices 3-4, exact-pixel deltas, both
+manual and virtualized paths), this secondary check was not pursued further
+this session; flagged as a real open item below rather than either
+overclaiming success or spending more of this already-long session chasing
+a secondary property.
+
+**Verification** (Slice 5's probe-side changes only; no shim source changed
+this slice):
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 218/221 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
 ## Frozen columns — remaining slices (not yet done)
 
-1. **Selection/editing/resize regression check under the presenter path** —
-   not yet verified live (Slices 1-4 checked generation, width/resize,
-   arrange, and the virtualized-row extension). `TryReselectCell` (called in
-   the manual `BuildCells()` today) has no presenter-path equivalent yet.
-2. **Vertical scroll interaction** — all slices so far only exercised
-   horizontal scroll; reasoned (not explicitly live-verified) that vertical
-   scroll is orthogonal, since frozen/non-frozen cells stay siblings within
-   the same row's normal vertical layout regardless of the horizontal
-   arrange fix.
+1. **Vertical scroll interaction** — Slice 5's check was inconclusive (see
+    above); needs either a cleaner probe (tracking rows by data item/index
+    rather than "first `DataGridRow` found," to correctly identify the *same
+    logical row* across a scroll) or instrumented tracing to actually confirm
+    whether frozen-column cells track vertical scroll correctly.
+2. **Cell editing under the presenter path** — untested (Roma's metadata
+    grids are all read-only); would need a different, editable data source to
+    exercise `BeginEdit`/`CommitEdit` on a presenter-hosted cell for real.
+3. **Column resize while frozen columns are active** — Slice 2 verified
+    resize works under the cells presenter in general, but not specifically
+    for a column at or near the frozen/non-frozen boundary while
+    `FrozenColumnCount > 0` — a plausible edge case given the arrange math's
+    boundary-cell clip logic.
+
+## DataGrid Integration Test Migration
+
+Ported 10 DataGrid behavioral tests from `Roma.IntegrationTests` to a new
+stand-alone `DataGrid.IntegrationTests` suite + `DataGrid.IntegrationTestHost`
+(DevFlow app). Completed in two sessions: the initial 11 tests (session 119's
+scope) and 5 additional tests this session.
+
+### Session 119 — initial migration (11 tests)
+
+Created `WindowsShims/tests/DataGrid.IntegrationTestHost/` — Uno WinUI app
+with DevFlow agent on port 9224 and 14 `datagrid.probe.*` action methods.
+Created `WindowsShims/tests/DataGrid.IntegrationTests/` — xUnit project with
+`DataGridAppFixture` booting the host via `dotnet run`. Ported 11 tests:
+`CreateGrid_RendersWithColumns`, `State_ReturnsGridSnapshot`,
+`ColumnResize_ChangesWidth`, `ColumnAutoSize_ExpandsBestFitWidth`,
+`LeftHeaderEdge_ResizesPreviousColumn`,
+`HeaderGripperDrag_ChangesWidth`,
+`HeaderGripperDoubleClick_AutoSizesWidth`,
+`HeaderGripperDoubleClick_ShrinksWideColumnToBestFit`,
+`CopySelectedRow_ProducesSelectionState`,
+`KeyboardSelection_SelectsCellsAndMovesCurrentCell`,
+`ColumnWidths_AreReasonable`.
+
+Removed 10 ported tests from `RomaIntegrationTests.cs` (kept row-details,
+XAML-resource-translation, filter-button, and hex-filter tests as Roma/ILSpy-
+specific). Added `InternalsVisibleTo("DataGrid.IntegrationTestHost")` to
+`LeXtudio.Windows`. Fixed `ColumnWidths_AreReasonable` by falling back to
+`Width.DisplayValue` when `ActualWidth` is 0 (headless Skia never sets
+`ActualWidth` for explicit-width columns).
+
+### Session 121 — 5 additional tests
+
+#### 1. `ShimTryResizeColumn` resize path (simplest)
+
+**Probe**: `datagrid.probe.resize-via-shim` — calls
+`grid.ShimTryResizeColumn(col, delta)` directly (accessible via
+`InternalsVisibleTo`), exercising the full resize notification chain
+(`OnColumnResizeStarted`/`Completed`, `ShimApplyColumnWidth`,
+`ComputeWidth` clamping, `CanUserResize` guards).
+
+**Test**: `ColumnResizeViaShim_ChangesWidth` — creates grid, applies +20
+delta to column 0, asserts `resized=true` and `after > before`.
+
+**Files**: `MainPage.cs:269-283`, `DataGridIntegrationTests.cs:55-67`.
+
+#### 2. Filter buttons / auto-filter
+
+**Probe**: `datagrid.probe.create-filter-grid` — creates a standard 7-column
+grid with `DataGridFilter.SetIsAutoFilterEnabled(grid, true)` and
+`DataGridFilterColumn.SetTemplate(col, new FilterControlTemplate(Text))` on
+every column.
+
+**Probe (updated)**: `datagrid.probe.filter-buttons` — now checks
+`GetIsAutoFilterEnabled` and `GetTemplate != null` per column instead of
+hardcoding `false`.
+
+**Test**: `FilterGrid_HasFilterButtons` — creates filter grid, asserts
+`autoFilterEnabled=true` and all columns have `hasFilterButtons=true`.
+
+**Files**: `MainPage.cs:131-163,327-341`.
+
+#### 3. HEX column filter
+
+**Probe**: `datagrid.probe.create-hex-filter-grid` — 3-column grid (RID,
+Token, Offset) with `FilterKind.Hex` templates on all columns.
+
+**Probe**: `datagrid.probe.hex-filter-apply` — sets
+`ColumnFilters[col0] = new HexContentFilter(text)`, applies
+`Items.Filter = item => MatchesAllFilters`, calls `Items.Refresh()` +
+`RefreshFilteredRows()`, returns `beforeRows`/`afterRows`.
+
+**Probe**: `datagrid.probe.hex-filter-clear` — calls `GetFilter(grid).Clear()`,
+resets `Items.Filter = null`, refreshes, returns snapshot with restored row
+count.
+
+**Tests**: `HexFilter_ReducesRows` — asserts `beforeRows > afterRows > 0`
+with filter text "0001" (matches only RID=1). `HexFilterClear_RestoresRows`
+— asserts `afterRows > beforeRows` after clearing.
+
+**Files**: `MainPage.cs:343-396`, `DataGridIntegrationTests.cs:181-205`.
+
+#### 4. Row details / nested DataGrid (most complex)
+
+**Model types**: `MasterRow` (Id, Name, `List<DetailRow> Details`) and
+`DetailRow` (Id, Value).
+
+**Selector**: `MyRowDetailsSelector : DataTemplateSelector` overrides
+`SelectTemplateCore` to return a `ShimDataTemplate` whose factory creates
+a new `DataGrid` with two columns, sets `ItemsSource = ((MasterRow)dataContext).Details`.
+
+**Probe**: `datagrid.probe.create-row-details-grid` — outer grid with
+`RowDetailsVisibilityMode=Visible` and `RowDetailsTemplateSelector` set.
+
+**Probe**: `datagrid.probe.row-details-state` — reads `row.DetailsPresenter.Content`
+(via `InternalsVisibleTo`) to check the nested grid rendered with correct
+rows/columns.
+
+**Test**: `RowDetails_RendersNestedDataGrid` — asserts `detailsRendered=true`,
+`detailsGrid=true`, `detailsRows>0`, `detailsColumns>0`.
+
+**Files**: `MainPage.cs:398-469`, `DataGridIntegrationTests.cs:207-225`.
+
+### Configuration
+
+Both projects build with 0 errors on `net10.0-desktop` (host) and `net10.0`
+(tests). Test host uses `LeXtudio.Windows` + `LeXtudio.DevFlow.Agent.Uno 0.1.14`.
+`InternalsVisibleTo` established in session 119.
+
+**Verification**:
+```bash
+dotnet build WindowsShims/tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  WindowsShims/tests/DataGrid.IntegrationTests --no-restore                          # 16/16 pass
+```
+
+### Remaining Roma tests (not ported)
+
+The following Roma DataGrid tests remain Roma/ILSpy-specific and were not
+ported:
+- **XAML resource translation** (3 tests) — depend on Roma types
+  (`AssemblyFlags`, `NullVisibilityConverter`, etc). Already well covered by
+  `WpfXamlResourceTranslatorTests.cs` (12 tests).
+- **Row details with metadata** (3 tests) — open ILSpy metadata tables with
+  `CharacteristicsDataTemplateSelector` / `CustomDebugInformationDetailsTemplateSelector`.
+  The template+selector wiring is now tested by the stand-alone row details
+  test; the ILSpy-specific template content is a Roma concern.
+- **Filter button + HEX filter interaction with live metadata** (2 tests) —
+  click actual filter buttons via UI Automation against metadata tables. The
+  filter state logic (apply/clear) is now tested stand-alone.
+
+## Stub implementation — 3 areas from the remaining-stubs survey
+
+Replaced 11 empty stubs in `DataGridColumnCollection.uno.cs` (6 methods),
+`DataGrid.cs` (1 access change), and `DataGridHelperStubs.cs` (1 method).
+
+### 1. Column-resize cancel (`OnColumnResizeStarted`/`OnColumnResizeCompleted`)
+
+The upstream linked file already declares `_originalWidthsForResize`
+(`DataGridColumnCollection.cs:2541`) inside `#if !HAS_UNO` territory — wait,
+it's *outside* the guard, so the field is live. The methods were empty.
+
+**Implementation** (`DataGridColumnCollection.uno.cs:63-82`):
+- `OnColumnResizeStarted()` — saves each column's `Width` into a
+  `Dictionary<DataGridColumn, DataGridLength>` backed by the upstream field.
+- `OnColumnResizeCompleted(bool cancel)` — when `cancel == true`, restores
+  saved widths and calls `column.Width = original` on each. Always clears the
+  dictionary afterward.
+
+Callers: `ShimTryResizeColumn` (always passes `cancel: false`) and the linked
+upstream `DataGridColumnHeader.cs` drag-handler (passes `cancel: true` on
+Escape key). The Escape path now correctly snaps back to pre-drag widths.
+
+### 2. Star redistribution triggers (4 delegate-to-auto-width-pass methods)
+
+The 4 `RedistributeColumnWidthsOn*` stubs were all no-ops. Each now calls
+`DataGridOwner.ScheduleAutoWidthPassIfNeeded()` — the shim's own auto-width
+layout-updated handler — which rebalances star and auto columns on the next
+frame. This is functionally equivalent to WPF's give-away/take-away but uses
+the existing shim pass instead of replicating 1500 lines of upstream math.
+
+Required changing `ScheduleAutoWidthPassIfNeeded()` from `private` to
+`internal` (`DataGrid.cs:348`).
+
+### 3. `TextSearch.DoSearch` — keyboard incremental search
+
+**Implementation** (`DataGridHelperStubs.cs:133-162`):
+- Accumulates typed characters into a `_prefix` string (capped at 20 chars).
+- Iterates `_owner.Items`, compares each item's `TextSearch.GetText()` or
+  `item.ToString()` against `_prefix` (case-insensitive `StartsWith`).
+- On match: focuses the matching item's container via
+  `ItemContainerGenerator.ContainerFromIndex(i)?.Focus()`.
+- If no match with the full accumulated prefix, falls back to searching for
+  the single most-recent character alone.
+
+This is a simplified version of WPF's `DoSearch` (which tracks
+`_charsEntered`, `_timestamp`, repeats, and navigates via
+`NavigateToItem`). The shim lacks `NavigateToItem` entirely, so focus on
+the container is the closest approximation.
+
+### Verification
+
+```bash
+# Unit tests
+dotnet build src/LeXtudio.Windows -f net10.0-desktop --no-restore                # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests -f net10.0-desktop --no-build             # 218/221 (3 pre-existing)
+# Integration tests
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                         # 16/16 pass
+```

@@ -130,7 +130,45 @@ public class TextSearch
 
     internal static TextSearch? EnsureInstance(ItemsControl owner) => new TextSearch(owner);
 
-    internal void DoSearch(string nextChar) { }
+    private string _prefix = string.Empty;
+
+    internal void DoSearch(string nextChar)
+    {
+        _prefix += nextChar;
+        if (_prefix.Length > 20)
+            _prefix = _prefix[^20..];
+
+        if (TryMatchAndSelect(_prefix))
+            return;
+
+        // Not found with accumulated prefix; restart from the new character.
+        _prefix = nextChar;
+        TryMatchAndSelect(_prefix);
+    }
+
+    private bool TryMatchAndSelect(string prefix)
+    {
+        var gen = _owner?.ItemContainerGenerator;
+        if (gen is null)
+            return false;
+
+        for (int i = 0; i < _owner.Items.Count; i++)
+        {
+            var item = _owner.Items[i];
+            var text = item is DependencyObject d ? GetText(d) : null
+                       ?? item?.ToString();
+            if (text is not null && text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var container = gen.ContainerFromIndex(i);
+                if (container is Microsoft.UI.Xaml.FrameworkElement fe)
+                {
+                    fe.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 // ContentElement: WPF base for non-UIElement logical content (e.g. Hyperlink).
