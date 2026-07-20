@@ -197,8 +197,23 @@ public partial class ItemsControl : IGeneratorHost
 
     public bool HasItems => Items.Count > 0;
 
-    // Grouping needs CollectionView group plumbing the bridge does not have.
-    public bool IsGrouping => false;
+    // Session 121 (DataGrid grouping, Slice 1): reflects Items.GroupDescriptions
+    // now that ItemCollection actually builds a group tree on Refresh(). Container
+    // generation for GroupItem/DataGrid row-group headers over that tree is a
+    // later slice, so code gated on IsGrouping that assumes a rendered group
+    // header (not just correct data ordering) is still unreached in practice.
+    public bool IsGrouping => Items.GroupDescriptions.Count > 0;
+
+    // Session 121 (DataGrid grouping, Slice 4): per-nesting-level header/container
+    // customization, mirroring upstream WPF's ItemsControl.GroupStyle collection
+    // (indexed by group depth — GroupItem.ShimPrepareGroupHeader clamps depth to
+    // the last entry, matching WPF's own GroupStyleSelector-less fallback). Empty
+    // by default, so existing grouped grids keep Slice 2's fixed "{name} ({count})"
+    // header until a caller opts in.
+    public System.Collections.ObjectModel.ObservableCollection<GroupStyle> GroupStyle
+        => _groupStyle ??= new();
+
+    private System.Collections.ObjectModel.ObservableCollection<GroupStyle>? _groupStyle;
 
     // WPF resolves containers through the item container generator; the shim
     // keeps caller-provided state until one exists.

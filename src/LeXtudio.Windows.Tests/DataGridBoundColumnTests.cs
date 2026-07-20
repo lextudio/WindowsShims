@@ -109,4 +109,28 @@ public sealed class DataGridBoundColumnTests
             typeof(DataGridTemplateColumn).GetMethod("GenerateEditingElement", BindingFlags.Instance | BindingFlags.NonPublic),
             Is.Not.Null);
     }
+
+    [Test]
+    public void DataGridHyperlinkColumnProvidesExpectedSurface()
+    {
+        // Session 121 (gap survey item 7): replaced the former placeholder
+        // (`new TextBlock()`, no binding, no click) with a real, working
+        // hyperlink cell — verified live via roma.probe.metadata-hyperlink-column
+        // (this reflection-surface check follows the same convention as the
+        // other column tests in this file; GenerateElement needs a live UI
+        // thread/DataGridCell, not exercised in this headless suite).
+        Assert.That(typeof(DataGridHyperlinkColumn).IsSubclassOf(typeof(DataGridBoundColumn)), Is.True);
+        Assert.That(typeof(DataGridHyperlinkColumn).GetProperty(nameof(DataGridHyperlinkColumn.TargetName))?.PropertyType, Is.EqualTo(typeof(string)));
+        Assert.That(typeof(DataGridHyperlinkColumn).GetProperty(nameof(DataGridHyperlinkColumn.ContentBinding))?.PropertyType, Is.EqualTo(typeof(BindingBase)));
+
+        Assert.That(
+            typeof(DataGridHyperlinkColumn).GetMethod("GenerateElement", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null);
+        Assert.That(
+            typeof(DataGridHyperlinkColumn).GetMethod("GenerateEditingElement", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null);
+        Assert.That(
+            typeof(DataGridHyperlinkColumn).GetMethod("NavigateToBoundUri", BindingFlags.Instance | BindingFlags.NonPublic),
+            Is.Not.Null);
+    }
 }

@@ -8,10 +8,13 @@ namespace System.Windows.Controls;
 // CollectionView over either direct items or an ItemsSource view). The shim
 // keeps direct items only, raises collection-change notifications, and tracks
 // a current item/position with the WPF clamping rules the selector spine
-// relies on. Sort descriptions are stored but not applied; the editable-view
-// implementation supports direct-list item editing bookkeeping but cannot
-// construct new items. Filtering, grouping, and deferred refresh are not
-// supported.
+// relies on. Sort descriptions, filtering, and grouping (session 121, Slice 1)
+// are applied on Refresh(); the editable-view implementation supports
+// direct-list item editing bookkeeping but cannot construct new items.
+// Grouping builds the Groups tree (MS.Internal.Data.CollectionViewGroupInternal)
+// and reorders the flat backing list into group-contiguous order, matching
+// WPF; container generation for GroupItem/DataGrid row-group headers that
+// would consume Groups is not implemented yet (later slice).
 public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEditableCollectionView, IEditableCollectionViewAddNewItem, IItemProperties
 {
     // When set, UIElement items inserted into this shim are also forwarded to the
@@ -284,9 +287,27 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
     public bool NeedsRefresh { get; private set; }
 
     public System.Collections.ObjectModel.ObservableCollection<System.ComponentModel.GroupDescription> GroupDescriptions
-        => _groupDescriptions ??= new();
+    {
+        get
+        {
+            if (_groupDescriptions is null)
+            {
+                _groupDescriptions = new();
+                _groupDescriptions.CollectionChanged += (_, _) => NeedsRefresh = true;
+            }
+
+            return _groupDescriptions;
+        }
+    }
 
     private System.Collections.ObjectModel.ObservableCollection<System.ComponentModel.GroupDescription>? _groupDescriptions;
+
+    // Session 121 (DataGrid grouping, Slice 1): top-level groups from the last
+    // Refresh(), or empty when GroupDescriptions is empty. DataGrid's IsGrouping
+    // reflects GroupDescriptions.Count > 0; the group-header/GroupItem container
+    // generation that reads this tree is a later slice.
+    internal IReadOnlyList<MS.Internal.Data.CollectionViewGroupInternal> Groups { get; private set; }
+        = [];
 
     // Session 50: apply SortDescriptions to the underlying items (real
     // collection-view sort), so the WPF DataGrid sort path (PerformSort →
@@ -315,8 +336,8 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
         _currentPosition = -1;
 
-        // Apply the filter/sort view if active (fires its own Reset); otherwise raise a single Reset.
-        if (Filter is not null || _sortDescriptions is { Count: > 0 })
+        // Apply the filter/sort/group view if active (fires its own Reset); otherwise raise a single Reset.
+        if (Filter is not null || _sortDescriptions is { Count: > 0 } || _groupDescriptions is { Count: > 0 })
         {
             Refresh();
         }
@@ -337,9 +358,11 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
 
         var hasSort = _sortDescriptions is { Count: > 0 };
         var hasFilter = Filter is not null;
+        var hasGroup = _groupDescriptions is { Count: > 0 };
 
-        // Nothing to apply and no prior filter to undo → preserve the original no-op fast path.
-        if (!hasSort && !hasFilter && _unfilteredSource is null)
+        // Nothing to apply, no prior filter to undo, and no prior grouping to clear →
+        // preserve the original no-op fast path.
+        if (!hasSort && !hasFilter && !hasGroup && _unfilteredSource is null && Groups.Count == 0)
         {
             return;
         }
@@ -366,6 +389,18 @@ public class ItemCollection : Collection<object?>, INotifyCollectionChanged, IEd
         }
 
         var view = visible.ToList();
+
+        if (hasGroup)
+        {
+            var groups = MS.Internal.Data.CollectionViewGroupBuilder.BuildGroups(view, GroupDescriptions);
+            Groups = groups;
+            view = MS.Internal.Data.CollectionViewGroupBuilder.FlattenLeaves(groups).ToList();
+        }
+        else
+        {
+            Groups = [];
+        }
+
         backing.Clear();
         backing.AddRange(view);
         if (placeholder is not null)

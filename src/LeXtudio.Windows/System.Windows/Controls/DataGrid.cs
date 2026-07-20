@@ -312,24 +312,7 @@ public partial class DataGrid
         // Filter row is no longer rendered. Filter UI is accessed inline in each
         // column header (see BuildFilterPanelForColumn).
 
-        var rowIndex = 0;
-        foreach (var item in OrderedItems())
-        {
-            if (item is null)
-            {
-                continue;
-            }
-
-            var row = new DataGridRow();
-            row.PrepareRow(item, this); // also initializes row.Tracker
-            ShimDecorateRow(row, item, rowIndex++);
-            row.Tracker!.StartTracking(ref _rowTrackingRoot);
-
-            // Register the row so the linked WPF code can resolve containers
-            // (selection, scroll-into-view, row details) via the generator.
-            ItemContainerGenerator.RegisterContainer(item, row);
-            host.Children.Add(row);
-        }
+        BuildRowsOrGroups(host);
 
         PruneRealRowSelection();
         PruneRealCellSelection();
@@ -379,21 +362,97 @@ public partial class DataGrid
         ItemContainerGenerator.ResetContainers();
         _rowTrackingRoot = null;
 
-        var rowIndex = 0;
-        foreach (var item in OrderedItems())
-        {
-            if (item is null) continue;
-            var row = new DataGridRow();
-            row.PrepareRow(item, this);
-            ShimDecorateRow(row, item, rowIndex++);
-            row.Tracker!.StartTracking(ref _rowTrackingRoot);
-            ItemContainerGenerator.RegisterContainer(item, row);
-            host.Children.Add(row);
-        }
+        BuildRowsOrGroups(host);
 
         PruneRealRowSelection();
         PruneRealCellSelection();
         ItemContainerGenerator.NotifyContainersGenerated();
+    }
+
+    // Session 121 (DataGrid grouping, Slice 2): shared row-building body for the
+    // manual (non-virtualized) render path, used by both BuildShimVisualTree and
+    // RefreshFilteredRows. When IsGrouping is false this is exactly the flat
+    // per-item DataGridRow loop those two methods used to duplicate. When
+    // IsGrouping is true, it instead recurses Items' group tree, interleaving a
+    // GroupItem header (Slice 2 renders a fixed name+count header — GroupStyle
+    // is not shimmed yet) before each group's rows/subgroups, mirroring the
+    // generic ItemsControl grouping shape real WPF DataGrid reuses (there is no
+    // dedicated DataGridRowGroupHeader class upstream to link — see
+    // docs/session121.md).
+    private void BuildRowsOrGroups(Microsoft.UI.Xaml.Controls.Panel host)
+    {
+        var rowIndex = 0;
+        if (IsGrouping)
+        {
+            BuildGroupedRows(host, Items.Groups, depth: 0, ref rowIndex);
+            return;
+        }
+
+        foreach (var item in OrderedItems())
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            var row = new DataGridRow();
+            row.PrepareRow(item, this); // also initializes row.Tracker
+            ShimDecorateRow(row, item, rowIndex++);
+            row.Tracker!.StartTracking(ref _rowTrackingRoot);
+
+            // Register the row so the linked WPF code can resolve containers
+            // (selection, scroll-into-view, row details) via the generator.
+            ItemContainerGenerator.RegisterContainer(item, row);
+            host.Children.Add(row);
+        }
+    }
+
+    private void BuildGroupedRows(
+        Microsoft.UI.Xaml.Controls.Panel host,
+        IReadOnlyList<MS.Internal.Data.CollectionViewGroupInternal> groups,
+        int depth,
+        ref int rowIndex)
+    {
+        foreach (var group in groups)
+        {
+            var header = new GroupItem();
+            header.ShimPrepareGroupHeader(group, depth, this);
+            // Session 121 (DataGrid grouping, Slice 4): tapping the header toggles
+            // IsExpanded; a full rebuild is this render path's existing "re-derive
+            // the realized view" entry point (same one filter/sort changes use).
+            header.ShimToggleGroupExpansion = BuildShimVisualTree;
+            host.Children.Add(header);
+
+            if (!group.IsExpanded)
+            {
+                continue; // collapsed: only the header renders, no rows/subgroups
+            }
+
+            if (group.IsBottomLevel)
+            {
+                foreach (var item in group.Items)
+                {
+                    if (item is null)
+                    {
+                        continue;
+                    }
+
+                    var row = new DataGridRow();
+                    row.PrepareRow(item, this);
+                    ShimDecorateRow(row, item, rowIndex++);
+                    row.Tracker!.StartTracking(ref _rowTrackingRoot);
+                    ItemContainerGenerator.RegisterContainer(item, row);
+                    host.Children.Add(row);
+                }
+            }
+            else
+            {
+                var subgroups = group.Items
+                    .Cast<MS.Internal.Data.CollectionViewGroupInternal>()
+                    .ToList();
+                BuildGroupedRows(host, subgroups, depth + 1, ref rowIndex);
+            }
+        }
     }
 
     // Shared per-row visual decoration applied by both the manual builder and the
@@ -456,7 +515,7 @@ public partial class DataGrid
         // yet during template application).
         if (info.Item is not null && GetTemplateChild("PART_ShimRowsHost") is VirtualizingStackPanel host)
         {
-            var index = Items.IndexOf(info.Item);
+            var index = ResolveScrollIndex(info.Item);
             if (index >= 0)
             {
                 host.BringIndexIntoView(index);
@@ -469,6 +528,34 @@ public partial class DataGrid
         return null;
     }
 
+    // Session 121 (DataGrid grouping, Slice 4): VirtualizingStackPanel's grouped
+    // realizer virtualizes over the flattened header+leaf "slot" sequence (see
+    // EnsureGroupedSlots), not Items directly — a leaf item's slot index is offset
+    // by however many GroupHeaderSlot entries precede it. Translates via
+    // CollectionViewGroupInternal.SlotIndexFromItem so BringIndexIntoView/
+    // ShimForceViewport target the right row even under grouping.
+    private int ResolveScrollIndex(object? item)
+    {
+        if (!IsGrouping)
+        {
+            return Items.IndexOf(item);
+        }
+
+        var offset = 0;
+        foreach (var group in Items.Groups)
+        {
+            var found = group.SlotIndexFromItem(item, offset);
+            if (found >= 0)
+            {
+                return found;
+            }
+
+            offset += group.SlotCount;
+        }
+
+        return -1;
+    }
+
     internal override object? OnBringItemIntoView(object arg)
         => arg is ItemInfo info ? OnBringItemIntoView(info) : null;
 
@@ -479,7 +566,7 @@ public partial class DataGrid
         if (item is null || GetTemplateChild("PART_ShimRowsHost") is not VirtualizingStackPanel presenter)
             return false;
 
-        var index = Items.IndexOf(item);
+        var index = ResolveScrollIndex(item);
         if (index < 0)
             return false;
 

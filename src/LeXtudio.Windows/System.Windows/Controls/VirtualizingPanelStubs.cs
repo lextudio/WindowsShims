@@ -125,6 +125,13 @@ public class VirtualizingStackPanel : VirtualizingPanel
 
     private VirtualizingRowsRealizer<UIElement>? _realizer;
     private ItemsControl? _owner;
+    private bool _realizerIsGrouped;
+    // Session 121 (DataGrid grouping, Slice 3): the flattened "group headers +
+    // leaf items" visual-slot sequence when owner.IsGrouping is true, so the
+    // (unmodified) VirtualizingRowsRealizer can virtualize over it exactly as
+    // it does the flat item list — see EnsureRealizer/EnsureGroupedSlots.
+    // Rebuilt on demand after ShimResetRealization() invalidates it.
+    private List<object?>? _groupedSlots;
     private double _viewportTop;
     private double _viewportHeight;
     private bool _hasViewport;
@@ -216,45 +223,105 @@ public class VirtualizingStackPanel : VirtualizingPanel
     internal void ShimResetRealization()
     {
         _realizer?.Clear();
+        _groupedSlots = null;
         InvalidateMeasure();
     }
 
+    // Session 121 (DataGrid grouping, Slice 3): the flattened visual-slot list for
+    // owner.Items.Groups, cached until ShimResetRealization() (called after any
+    // items/filter/sort/group change — see DataGrid.ShimInvalidateRealizationView)
+    // clears it. Rebuilding is O(n) over the current group tree; fine for a
+    // recompute-on-structural-change cache, not meant to be called per realized row.
+    private List<object?> EnsureGroupedSlots(ItemsControl owner)
+        => _groupedSlots ??= MS.Internal.Data.CollectionViewGroupBuilder.FlattenWithHeaders(owner.Items.Groups);
+
     private VirtualizingRowsRealizer<UIElement> EnsureRealizer(ItemsControl owner)
     {
-        if (_realizer is not null && ReferenceEquals(_owner, owner))
+        var isGrouped = owner.IsGrouping;
+        if (_realizer is not null && ReferenceEquals(_owner, owner) && _realizerIsGrouped == isGrouped)
             return _realizer;
 
         _owner = owner;
-        var recycling = Recycling;
-        _realizer = new VirtualizingRowsRealizer<UIElement>(
-            itemAt: index => owner.Items[index],
-            create: item =>
-            {
-                var container = (UIElement)owner.CreateContainerForItem(item)!;
-                InternalChildren.Add(container);
-                return container;
-            },
-            prepare: (container, item, index) =>
-            {
-                owner.PrepareContainerForItem(container, item);
-                owner.ShimOnContainerRealized(container, item, index);
-                container.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
-            },
-            clear: (container, item) =>
-            {
-                owner.ShimOnContainerRecycled(container, item);
-                owner.ClearContainerForItem(container, item);
-                if (recycling)
+        _realizerIsGrouped = isGrouped;
+
+        // Group headers and data rows are different container types recycled from
+        // the same pool would risk handing a GroupItem back for a slot that needs a
+        // DataGridRow (or vice versa). Rather than teach the recycle pool to sort by
+        // container type, grouped grids simply don't recycle — Standard mode always
+        // discards and recreates, which VirtualizingRowsRealizer already supports.
+        var recycling = Recycling && !isGrouped;
+
+        _realizer = isGrouped
+            ? new VirtualizingRowsRealizer<UIElement>(
+                itemAt: index => EnsureGroupedSlots(owner)[index],
+                create: slot =>
                 {
-                    // Keep recycled containers in the tree (collapsed) for reuse.
-                    container.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
-                }
-                else
+                    UIElement container = slot is MS.Internal.Data.GroupHeaderSlot header
+                        ? new GroupItem()
+                        : (UIElement)owner.CreateContainerForItem(slot)!;
+                    InternalChildren.Add(container);
+                    return container;
+                },
+                prepare: (container, slot, index) =>
                 {
+                    if (slot is MS.Internal.Data.GroupHeaderSlot header && container is GroupItem groupItem)
+                    {
+                        groupItem.ShimPrepareGroupHeader(header.Group, header.Depth, owner);
+                        // Session 121 (DataGrid grouping, Slice 4): a tap toggles
+                        // IsExpanded and re-derives the realized view — exactly what
+                        // ShimResetRealization() already does after any items/filter/
+                        // sort/group change, so this reuses it rather than adding new
+                        // invalidation machinery for the virtualized path.
+                        groupItem.ShimToggleGroupExpansion = ShimResetRealization;
+                    }
+                    else
+                    {
+                        owner.PrepareContainerForItem(container, slot);
+                        owner.ShimOnContainerRealized(container, slot, index);
+                    }
+
+                    container.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                },
+                clear: (container, slot) =>
+                {
+                    if (slot is not MS.Internal.Data.GroupHeaderSlot)
+                    {
+                        owner.ShimOnContainerRecycled(container, slot);
+                        owner.ClearContainerForItem(container, slot);
+                    }
+
                     InternalChildren.Remove(container);
-                }
-            },
-            recycling: recycling);
+                },
+                recycling: recycling)
+            : new VirtualizingRowsRealizer<UIElement>(
+                itemAt: index => owner.Items[index],
+                create: item =>
+                {
+                    var container = (UIElement)owner.CreateContainerForItem(item)!;
+                    InternalChildren.Add(container);
+                    return container;
+                },
+                prepare: (container, item, index) =>
+                {
+                    owner.PrepareContainerForItem(container, item);
+                    owner.ShimOnContainerRealized(container, item, index);
+                    container.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                },
+                clear: (container, item) =>
+                {
+                    owner.ShimOnContainerRecycled(container, item);
+                    owner.ClearContainerForItem(container, item);
+                    if (recycling)
+                    {
+                        // Keep recycled containers in the tree (collapsed) for reuse.
+                        container.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        InternalChildren.Remove(container);
+                    }
+                },
+                recycling: recycling);
         return _realizer;
     }
 
@@ -265,7 +332,7 @@ public class VirtualizingStackPanel : VirtualizingPanel
             return base.MeasureOverride(availableSize);
 
         var realizer = EnsureRealizer(owner);
-        var itemCount = owner.Items.Count;
+        var itemCount = owner.IsGrouping ? EnsureGroupedSlots(owner).Count : owner.Items.Count;
 
         // Before the first EffectiveViewportChanged, fall back to the measure
         // constraint so the very first realization shows the top of the list.
