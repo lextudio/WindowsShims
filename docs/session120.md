@@ -405,24 +405,447 @@ dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop          
   above.
 - **B1 arc, column resize (slice 3): done and proven.**
 - **B1 arc, style/gridline notification batch (slice 4): done and proven.**
-- **Still not wired to the presenter path**: drag-reorder. This is the last
-  remaining item from session 119's original B1 scope.
+- **B1 arc, column reorder (slice 5): done and proven** — logical commit
+  worked with no changes; interactive drag-gesture plumbing (handler
+  attachment + overlay-based drop indicator) implemented and verified this
+  session (see below). Only the raw mouse-drag *feel* remains unverified
+  (needs a running app, not reachable via DevFlow probes).
 
-## Recommended next step
+## Drag-reorder scoping — narrower than first assessed
 
-Drag-reorder (`ComputeDropSlot`/`UpdateReorderIndicator`/the floating-header
-drag visuals) is the last remaining B1 item, and unlike slices 2-4 it is
-**not** a simple list-source swap: it reads/writes `_headerHostPanel`, a
-manual-path-only reorderable panel that **doesn't exist at all** in the
-virtualized template (the pinned header host there is a plain `Border`
-holding either `BuildHeaderRow()`'s panel or the presenter — there's no
-reorder-capable panel wrapper either way once the presenter is hosted).
-Wiring this needs a design decision first — e.g. whether the presenter's own
-`DataGridCellsPanel` (which upstream WPF already drives reorder visuals
-through, per session 119's B1 investigation) can host the drop-indicator
-directly, or whether `_headerHostPanel`-equivalent scaffolding needs to be
-added to the virtualized template — before any code changes, not a
-continuation of the slice 2-4 pattern. Separately, the `rowHeight: 1`
-observation flagged earlier in this document should be checked on a clean
-`master` checkout to confirm it predates this session's changes before anyone
-spends time on it — it is unrelated to the B1 arc.
+Before writing any reorder code, re-examined what "drag-reorder" under the
+header-presenter path actually requires, and found it splits into two
+genuinely independent pieces — one already works, one doesn't exist yet:
+
+1. **The logical reorder commit** — `ShimTryReorderColumn(column,
+   targetDisplayIndex)`: gated on `CanUserReorderColumns`/`column.CanUserReorder`,
+   raises `ColumnReordering`, sets `column.DisplayIndex`, calls
+   `BuildShimVisualTree()` (a full rebuild), raises `ColumnReordered`. This
+   method touches **no** `_headerCells`/panel-hosting state directly — it
+   delegates entirely to the existing rebuild path, which (per slices 1-4) is
+   already presenter-aware.
+2. **The interactive pointer-drag gesture** — `OnHeaderPointerPressed/Moved/
+   Released/CaptureLost/Exited` and the `_headerHostPanel`-based drop
+   indicator. These handlers are attached to header cells **only inside
+   `BuildHeaderRow()`** (`headerCell.PointerPressed += ...`, etc.) — the
+   presenter's own upstream `PrepareContainerForItemOverride` has no
+   knowledge of this DataGrid-specific wiring, so **presenter-generated
+   headers never get these handlers attached at all**, independent of any
+   `_headerHostPanel`/indicator-hosting concern.
+
+**Verified #1 live**, since Roma's metadata grids set `CanUserReorderColumns
+= false` by design (`ext/ilspy/ILSpy/Metadata/Helpers.cs` — fixed-schema
+columns aren't meant to be user-reorderable), a temporary probe
+(`roma.probe.metadata-header-presenter-reorder`) force-enabled
+`CanUserReorderColumns`/`column.CanUserReorder` (diagnostic-only override, not
+a real default change) purely to exercise the mechanism, then called
+`ShimTryReorderColumn` directly — bypassing pointer/mouse input entirely,
+mirroring how slice 3's resize probe called `ShimTryResizeColumn` directly.
+Result moving "Name" (`DisplayIndex 4`) to the front (`DisplayIndex 0`):
+`reordered: true`, `beforeOrder: "RID,Token,Offset,Attributes,Name,
+Namespace,BaseType,FieldList,MethodList"` →
+`afterOrder: "Name,RID,Token,Offset,Attributes,Namespace,BaseType,FieldList,
+MethodList"`, `realizedHeadersAfter: 9` (all headers still correctly
+generated post-rebuild, in the new order). **No code changes were needed for
+this** — the existing rebuild-based commit path already works correctly
+under the header-presenter path.
+
+**#2 remains genuinely unimplemented** and is real, scoped work for a future
+session: attaching the pointer handlers to presenter-generated headers needs
+a hook analogous to `ItemsControlSpine.ShimOnContainerRealized`/
+`ShimOnContainerRecycled` (session 119 slice 7's mechanism for rows) but for
+`DataGridColumnHeadersPresenter`'s header generation — which currently has no
+such hook, since its generation goes through fully-upstream
+`PrepareContainerForItemOverride`, not the shim's row-realizer path. Once
+handlers can be attached, the drop-indicator hosting question from the
+original assessment still applies: inserting `_reorderIndicator` directly
+into the presenter's `DataGridCellsPanel.Children` risks the panel's
+generator-driven `VirtualizeChildren`/index bookkeeping treating it as a
+stray untracked child on the next measure pass (the same fragility class as
+session 119's Slice 12 finding) — an overlay positioned independently of the
+panel's own children (e.g. a sibling in a restructured header host, rather
+than a `Children.Insert` into the generator-managed collection) would be the
+safer design, at the cost of restructuring how the header host wraps its
+content for both paths.
+
+## Drag-reorder wiring — implemented and verified (item #2 closed)
+
+Implemented both pieces item #2 needed:
+
+1. **Pointer-handler attachment.** Added `#if HAS_UNO` hooks in
+   [DataGridColumnHeadersPresenter.cs](../ext/wpf/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/DataGridColumnHeadersPresenter.cs)'s
+   `PrepareContainerForItemOverride`/`ClearContainerForItemOverride` calling new
+   `DataGrid.ShimHookHeaderReorderHandlers`/`ShimUnhookHeaderReorderHandlers`
+   ([DataGrid.cs](../src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs)) —
+   attaches/detaches the same `PointerPressed`/`Moved`/`Released`/
+   `CaptureLost`/`Exited` handlers `BuildHeaderRow()` already wires manually,
+   now also firing for presenter-generated headers as they realize/clear.
+2. **Drop-indicator overlay, not a `Children.Insert`.** Confirmed the
+   fragility concern was real and avoided it: rather than inserting
+   `_reorderIndicator` into the presenter's generator-managed
+   `DataGridCellsPanel.Children`, `ShimBuildVirtualizedHeader` now wraps the
+   presenter in a small `Grid` (`_headerPresenterOverlay`) that the indicator
+   is added to as a plain sibling, positioned by `Margin.Left` (computed from
+   `ComputeDropSlot`'s cumulative column-width offset, now returned via an
+   `out` parameter) rather than by list order — the trick the manual
+   `StackPanel` path relied on implicitly, which doesn't apply to a
+   single-cell `Grid` overlay. `EffectiveHeaderReferenceElement()` picks the
+   right coordinate-reference `UIElement` (the overlay `Grid` vs. the manual
+   `_headerHostPanel`) for `PointerRoutedEventArgs.GetCurrentPoint`, so the
+   same `OnHeaderPointer*`/`ComputeDropSlot`/`UpdateReorderIndicator`/
+   `EndReorder` code now serves both paths without ever touching the
+   presenter's own `Children`.
+
+**Verified live**: `roma.probe.metadata-header-presenter-reorder-indicator`
+drives `ComputeDropSlot`/`UpdateReorderIndicator`/`EndReorder` directly via
+reflection (DevFlow can't dispatch real pointer input, so this exercises
+every piece except the raw `PointerPressed`/`Moved` event delivery itself) —
+simulating four drag-move steps then ending the drag:
+`realizedBefore: 9, realizedAfter: 9` (headers unaffected by the new overlay
+wrapper or by the simulated drag), `overlayChildCountsDuringDrag: [2,2,2,2]`
+(presenter + indicator, repositioned via `Margin` each step — never growing,
+confirming the indicator isn't re-added on every move), `overlayChildCountAfterEnd: 1`
+(indicator cleanly removed, only the presenter remains). This is exactly the
+proof the original scoping asked for: the overlay approach does not disturb
+the presenter's generator-managed children across a full drag cycle.
+
+## Real-mouse verification attempt — inconclusive, but a useful negative result
+
+DevFlow can dispatch real native pointer input via `cliclick` (`/api/v1/ui/actions/click`
+and `/api/v1/ui/actions/drag`, both report `mode: "native"`/`"native-global"`), so this
+was attempted rather than left as "needs manual testing." Calibrated screen coordinates
+against the running Roma window (via `osascript`'s System Events for window position,
+cross-checked against `/api/v1/ui/tree`'s element bounds — confirmed by a data-row click
+correctly selecting the exact targeted row), then:
+
+- **Drag test** (`Offset` header → `RID` position, header-presenter path, `CanUserReorderColumns`
+  forced on via a new `roma.probe.enable-reorder-on-current-grid` probe): column order
+  unchanged after the drag.
+- **Control test #1**: a plain click on a column header (sort-click, no drag) — same
+  result on **both** the header-presenter path *and* the plain manual `BuildHeaderRow()`
+  path — no sort arrow appeared on either.
+- **Control test #2**: a plain click on the app's own "File" menu button (nothing to do
+  with `DataGrid` at all) — no dropdown flyout appeared either.
+
+Since manual-path sort-click and an unrelated menu button show the **same** non-response
+as the presenter-path drag, this rules out a presenter-specific or reorder-specific
+regression — real synthetic pointer clicks in this environment do not appear to reliably
+trigger WinUI `ButtonBase.Click`/`OnClick`-style interactions here at all, even though the
+same click mechanism *does* correctly drive simpler pointer-based interactions (a data-row
+click correctly produced row selection/highlight, confirmed repeatedly and reliably).
+
+### Follow-up after a DevFlow update (cliclick-sharp)
+
+Re-ran the same test after the DevFlow agent's native-input path was upgraded to a
+proper `cliclick`-backed implementation (`wpf-labs/external/cliclick-sharp` — real
+`CGEventCreateMouseEvent`-based down/move/up sequences with easing, not a single
+synthetic click). Two things stood out:
+
+- **`/api/v1/ui/actions/click` and `/api/v1/ui/actions/drag` use different coordinate
+  scales.** `click` echoes back whatever x/y it's given unchanged and reliably lands
+  (confirmed via row selection); `drag` silently **halves** the coordinates it's given
+  in its response (`{"fromX":928,"fromY":537}` → echoed back as `{"x":464,"y":268.5}`).
+  Doubling the input to `drag` (`1856,1074` → `892,1074`) made it echo back the
+  *intended* physical coordinates, confirming `drag` expects raw Retina/2x pixels while
+  `click` expects logical points. This is a real, reproducible discrepancy between the
+  two endpoints on this machine — worth fixing or documenting on the DevFlow side.
+- **Even after correcting for that scale mismatch, the drag still did not commit a
+  reorder**, and a header sort-click retried on the same freshly-launched instance
+  still produced no visible sort arrow. Row-level interactions (click-to-select)
+  continued to work reliably throughout, at both coordinate scales tested.
+
+**Refined conclusion**: this narrows the mystery from "clicks don't work" to
+specifically "pointer input aimed at `DataGridColumnHeader`-level elements doesn't
+appear to register" — both the upstream `ButtonBase.OnClick`-driven sort and this
+session's new `OnHeaderPointerPressed`-driven reorder are equally unreachable via
+synthetic input, while `DataGridRow`/`Selector`-level pointer handling works fine at
+the same coordinates. This could be a z-order/hit-test issue specific to the header
+row (e.g. an overlapping element intercepting pointer events before they reach the
+header, such as the horizontal-scroll-sync `ScrollViewer` or the pinned header
+`Border` in the virtualized template) rather than purely an input-injection artifact,
+but that hypothesis is **not yet investigated** — it would need inspecting the actual
+element receiving `PointerPressed` at those coordinates (e.g. temporary logging in
+`OnPointerPressed` at the `DataGridColumnHeader`/`Border` level), which wasn't done
+this session. The reflection-driven `ComputeDropSlot`/`UpdateReorderIndicator`/
+`EndReorder` proof remains the authoritative verification of this session's actual
+code changes; real interactive-drag (and, it turns out, real interactive sort-click)
+verification is still an open item — and now scoped more precisely than before.
+
+Verification:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 207/210 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+### DevFlow coordinate-scale bug — root-caused and fixed (in `wpf-labs`, not this repo)
+
+Traced the `/actions/drag` coordinate-halving to its source in
+`wpf-labs/src/DevFlow/LeXtudio.DevFlow.Agent.Core/DevFlowAgentServiceBase.cs`:
+`DragRequest.Global` defaulted to `false`, while the sibling `ClickRequest.Global`
+and `MoveRequest.Global` both default to `true`. Omitting `"global"` from a request
+body (as every test in this session did) therefore sent `drag` down a completely
+different code path than `click`/`move`: `UnoAgentService.TryResolveScreenPoint`
+treats non-global coordinates as **screenshot pixels** and divides by the display's
+rasterization scale (2.0 on this Retina display) to get the screen points CGEvent
+needs — exactly reproducing the observed halving. `click`/`move` skip that
+conversion entirely when `Global` defaults `true`, taking the input as already being
+in the right units. Same omitted field, two different unit systems, purely from an
+inconsistent default — not a scaling *algorithm* bug.
+
+**Fix**: changed `DragRequest.Global`'s default from `false` to `true`, matching
+`ClickRequest`/`MoveRequest`, with a doc comment explaining why (this file:
+`wpf-labs/src/DevFlow/LeXtudio.DevFlow.Agent.Core/DevFlowAgentServiceBase.cs`).
+
+**Verified two ways**:
+
+1. `wpf-labs`'s own `LeXtudio.DevFlow.Agent.Uno.Tests` suite: 22/22 passed after
+   the change (no existing test asserted the old default, so this is a
+   behavior-widening fix, not a breaking one for anything under test).
+2. Live: to test the fix against Roma without touching Roma's own
+   `nuget.config`/pinned `0.1.14` package version, checked out the exact
+   `v0.1.14` tag into a scratch worktree (`git worktree add`), applied *only*
+   this one fix there (so the rebuilt package is otherwise byte-for-byte the
+   published API surface — building current `wpf-labs` HEAD directly against
+   the older pinned version would have pulled in unrelated source-linking
+   refactors and broken the build), built `LeXtudio.DevFlow.Agent.Core`/
+   `.Agent.Uno` in Release, and copied the resulting DLLs over the local NuGet
+   package cache (`~/.nuget/packages/lextudio.devflow.agent.{core,uno}/0.1.14/lib/...`).
+   Rebuilt Roma.Host — 0 errors. Relaunched, and:
+   `curl .../ui/actions/drag -d '{"fromX":928,"fromY":537,"toX":446,"toY":537,...}'`
+   now echoes back `from: {928,537}, to: {446,537}` — **exactly the input,
+   no more halving** — and `mode` reads `"native-global"` (previously plain
+   `"native"`), confirming it now takes the same code path as `click`.
+
+**The coordinate bug is fixed and confirmed.** The header-hit-test mystery from
+the section above is **independent of it**: with coordinates now provably
+correct, the same drag (and a plain header click) still produced no reorder
+and no sort arrow, while row-selection continued to work at the same
+coordinates. So the next investigation (temporary logging in
+`DataGridColumnHeader`/its template `Border`'s pointer handling to see whether
+`PointerPressed` reaches the header element at all) is now unblocked by any
+coordinate-calibration doubt — whatever's stopping header interaction is a
+UI/hit-testing question, not an input-injection one.
+
+Note: the DevFlow fix lives in the `wpf-labs` repo (uncommitted at time of
+writing — `src/DevFlow/LeXtudio.DevFlow.Agent.Core/DevFlowAgentServiceBase.cs`),
+not in `WindowsShims`/`Roma`, so it isn't part of the B1 arc's diff. The
+NuGet-cache binary patch used to validate it live is a local, session-scoped
+workaround — production consumption still requires a real
+`LeXtudio.DevFlow.Agent.Core`/`.Agent.Uno` NuGet release once the fix is
+committed and reviewed there.
+
+## Header hit-testing mystery — root-caused (not a DataGrid bug)
+
+Went back to the open question with temporary diagnostics: added `Console.WriteLine`
+to `ButtonBase.OnPointerPressed`/`OnPointerReleased` (this shim) and
+`DataGridColumnHeader.OnClick` (upstream, `#if`-free — removed again after) to see
+directly whether pointer input reaches the header element at all.
+
+**Fixed one real bug along the way.** Traced why `Template` might never reach
+presenter-generated headers: `ApplyShimGridLines()` — the only place that assigned
+`Template` on `DataGridColumnHeader` — was called exclusively from the manual
+`BuildHeaderRow()` path. Presenter-generated headers (`new DataGridColumnHeader()`
+from `DataGridColumnHeadersPresenter.GetContainerForItemOverride`) never got a
+`Template` at all: no `Border`, no gripper `Thumb`s, nothing but whatever WinUI's
+bare `Control` chrome provides by default. Fixed by calling `ApplyShimGridLines()`
+from the shared upstream `PrepareColumnHeader` (`#if HAS_UNO`, called by both
+paths) instead, and hardened it to always give the header an explicit `Background`
+(WinUI does not hit-test a `Border`/`Control` with a null `Background` — the
+template's two gripper `Thumb`s already worked around this locally with
+`Background='Transparent'`; the header's own outer `Border` didn't). This is a
+real, independent fix — worth keeping regardless of what caused the click mystery.
+
+**That fix did not explain the mystery, though.** With diagnostics in place:
+
+- On a **fresh app launch**, the *first* click of any kind on the header produced
+  **no** `OnPointerPressed` log at all — not a DataGrid issue, not specific to
+  `DataGridColumnHeader`: a real native `Microsoft.UI.Xaml.Controls.Button` (the
+  header's own filter-icon button) at the same coordinates showed the identical
+  silent non-response.
+- Doing **any other click first** (e.g. selecting a data row) — then retrying the
+  header click — made `OnPointerPressed` fire correctly on the header. This is
+  consistent with the well-known macOS behavior where the first click on an
+  inactive/background window only activates it and isn't delivered as a "real"
+  click to the content beneath; every earlier test in this investigation happened
+  to be the first interaction after a fresh launch, which is why it looked like
+  headers specifically were unreachable.
+- With that ruled out, `OnPointerPressed` **and** `OnPointerReleased` both fired
+  correctly on the header (confirmed via log), yet `OnClick` still **never** fired.
+  Inspecting `_isPressed` at the top of `OnPointerReleased` showed it was `false`
+  — meaning `pt.Properties.IsLeftButtonPressed` read `false` inside
+  `OnPointerPressed` too, so the shim's own press-tracking (and, almost certainly,
+  WinUI's internal native `ButtonBase` click state machine, which likely gates on
+  the same `PointerPoint` property) never armed in the first place.
+
+**Conclusion**: the synthetic `cliclick`/CGEvent-injected pointer input reaches
+Uno's Skia/macOS pointer pipeline and is delivered to the correct element
+(`OnPointerPressed`/`OnPointerReleased` both fire on the right control at the
+right coordinates), but the delivered `PointerPoint` does not report
+`IsLeftButtonPressed = true` the way a real mouse/trackpad event does. This is
+an Uno-platform/CGEvent-flag-interpretation gap (or a flag `cliclick-sharp` isn't
+setting on its synthesized `CGEventCreateMouseEvent`), not a `DataGrid`,
+`DataGridColumnHeader`, or presenter-path bug — WPF's real `ButtonBase.Click`
+semantics depend on that property being true during the press, and no header-side
+code change can fix a false pointer-button-state flag arriving from outside the
+app. This is well outside the B1 arc's scope (and outside `WindowsShims`/`Roma`
+entirely) — it would need to be chased in Uno's own pointer/Skia-macOS backend or
+in how `cliclick`/CGEvent constructs the synthetic mouse-down event.
+
+All temporary diagnostic logging has been removed; only the `ApplyShimGridLines`/
+`PrepareColumnHeader` template-application fix remains.
+
+Verification:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 207/210 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
+## B1 arc — conclusion
+
+All items from session 119's original B1 scope are now implemented and
+proven under `ShimSetHeaderPresenterHost(true)` (default off, zero
+regression to the shipping manual header):
+
+1. Header generation (slice 1)
+2. Auto/Star column widths (slice 2)
+3. Column resize (slice 3)
+4. Style/gridline notification batch (slice 4)
+5. Column reorder — logical commit (already worked) + interactive drag
+   plumbing (this slice)
+
+Remaining before this could become the shipping default: manual/screenshot
+verification of the interactive drag *feel* (item 5's caveat above), and a
+decision on whether to actually flip `ShimSetHeaderPresenterHost`/
+`ShimSetRowVirtualization` on by default now that the header side is at
+parity with the manual path.
+
+## Recommended next steps (superseded by later findings in this document — see below)
+
+*(Historical note: this section originally proposed investigating a suspected
+z-order/hit-test issue for the header click mystery. That was chased further
+this session — see "Header hit-testing mystery — root-caused" above — and
+ruled out; the real cause is an Uno Platform macOS input-bridge issue, written
+up separately in [uno-macos-synthetic-click-issue.md](uno-macos-synthetic-click-issue.md)
+for upstream reporting. The DevFlow `drag` vs `click` coordinate-scale
+mismatch mentioned here was also root-caused and fixed — see "DevFlow
+coordinate-scale bug" above. Kept this section for the session's chronological
+record rather than deleting it.)*
+
+Remaining open items, consolidated:
+
+1. **Uno Platform bug** (macOS 15+, synthetic clicks don't set
+   `IsLeftButtonPressed`) — written up in
+   [uno-macos-synthetic-click-issue.md](uno-macos-synthetic-click-issue.md),
+   ready to file against `unoplatform/uno`. Blocks real interactive-drag/click
+   verification for any `ButtonBase`-derived control via automated testing on
+   this platform, independent of DataGrid/B1.
+2. **DevFlow fix not yet committed** — the `DragRequest.Global` default fix
+   lives uncommitted in the `wpf-labs` working tree
+   (`src/DevFlow/LeXtudio.DevFlow.Agent.Core/DevFlowAgentServiceBase.cs`);
+   needs a real commit/review/release there before it's available outside this
+   session's local NuGet-cache patch.
+3. **`rowHeight: 1` observation** (flagged earlier in this document) should be
+   checked on a clean `master` checkout to confirm it predates this session's
+   changes before anyone spends time on it — unrelated to the B1 arc.
+4. **B1 arc default-on decision** — per the "B1 arc — conclusion" section
+   above: whether to flip `ShimSetHeaderPresenterHost`/`ShimSetRowVirtualization`
+   on by default now that the header side is at parity with the manual path,
+   pending real interactive-drag verification (blocked on item 1).
+
+## Floating drag-header visual (gap-survey item 6, closed)
+
+Implemented the "column drag-reorder floating header" cosmetic gap flagged in
+session 119's gap survey (item 6: linked upstream
+`DataGridColumnFloatingHeader`/`DataGridColumnDropSeparator` compile but the
+live header used a plain opacity-dim instead of an actual floating ghost that
+follows the pointer).
+
+**Did not reuse the linked upstream `DataGridColumnFloatingHeader` class** —
+it paints a live `VisualBrush` snapshot of the source header
+(`new VisualBrush(_referenceHeader)`), and WinUI/Uno has no equivalent brush
+type. Reimplemented the visual effect instead:
+
+- Added `PART_ShimDragOverlay`, a hit-test-invisible `Canvas` sibling in both
+  root templates (`ShimTemplateXaml` and `ShimVirtualizedTemplateXaml`,
+  `Grid.RowSpan="2"` in the latter so it can host the floating header over
+  either the pinned header row or the scrolling rows area) — a stable,
+  absolutely-positioned overlay independent of whichever panel
+  (`_headerHostPanel`/`_headerPresenterOverlay`) currently hosts the realized
+  header cells.
+- `StartFloatingHeader`/`UpdateFloatingHeader`/`EndFloatingHeader`: on drag
+  start, builds a lightweight clone (a `Border` + centered `TextBlock` showing
+  the column's header text) positioned via `TransformToVisual`/`Canvas.SetLeft`
+  at the real header's location, then repositioned by pointer delta-X on each
+  move (`Canvas.SetLeft(startLeft + deltaX)`), removed on drag end. Wired into
+  the existing `OnHeaderPointerMoved`/`EndReorder` drag-reorder handlers from
+  earlier this session.
+
+**Hit — and fixed — a third distinct Uno-Skia measurement quirk this
+session.** The first two implementation attempts rendered nothing visible:
+
+1. First attempt (`Border` with explicit `BorderThickness` + `Width`/`Height`
+   set from `header.ActualWidth`/`ActualHeight`, `Child` = a fresh
+   `HeaderContent(column)` clone): collapsed to `73x2` (exactly the sum of the
+   top+bottom border thickness) — the same "explicit `BorderThickness` on an
+   element measured with an unconstrained parent collapses to border-only
+   size" quirk session 119 root-caused for the row separator (there: a
+   `VirtualizingStackPanel`'s infinite-width constraint; here: a `Canvas`,
+   which always measures children with infinite available size in both
+   dimensions).
+2. Second attempt (dropped `BorderThickness`, kept explicit `Height`): still
+   collapsed, this time to `73x0`. Traced further via a temporary probe
+   reading `header.ActualWidth/ActualHeight/DesiredSize/RenderSize` directly:
+   **all of the header's own height-related properties read `(0, 0)`** at the
+   moment `StartFloatingHeader` runs — `DesiredSize`/`RenderSize` `(0,0)` and
+   even `ActualHeight` `0` — despite the header visibly rendering at its real
+   ~20px height on screen (confirmed via `/api/v1/ui/tree`'s independently-
+   sourced bounds and the screenshot). Only `ActualWidth` read a sane value
+   (`73`), because `BuildHeaderRow()` only ever sets `Width` explicitly on
+   headers, never `Height` — so this reads as a live/rendered-vs-CLR-property
+   desync specific to `Height`-related layout properties on this Uno/Skia
+   target, not something fixable from `DataGrid`-level code (a fourth
+   platform-level oddity noted here for awareness, not chased further — this
+   session already has one written up in
+   [uno-macos-synthetic-click-issue.md](uno-macos-synthetic-click-issue.md);
+   didn't want to double the scope chasing a second one for a cosmetic
+   feature).
+3. **Fix**: stopped depending on the header's own (unreliable) height read
+   entirely. Left the floating `Border`'s `Height` unset (`Auto`) and let it
+   size vertically from its own `TextBlock` content + `Padding` — a
+   `TextBlock` reliably self-sizes from rendered text regardless of the
+   incoming measure constraint, sidestepping the whole class of quirk. Kept
+   `Width = header.ActualWidth` (that one reads correctly, per above).
+
+**Verified live**, three ways:
+
+1. Structural, reflection-driven (`roma.probe.metadata-reorder-floating-header`,
+   bypassing pointer input): `overlayFoundBefore: true`, `childCountAfterStart: 1`
+   (clone added), `leftAtStart: 314.0` → `leftAfterMove: 364.0` after an
+   `UpdateFloatingHeader(50.0)` call (`movedBy: 50.0`, exact), `childCountAfterEnd: 0`
+   (cleanly removed), `headerStillRealized: 8` (real headers unaffected). Confirmed
+   working identically on the header-presenter path too (`TypeDef`, 9 headers,
+   `movedBy: 50.0`).
+2. Visual: a probe variant (`roma.probe.metadata-reorder-floating-header-show`)
+   that starts the float and leaves it visible produced `floatingBounds: "73x23.5"`
+   (real, nonzero size) and a screenshot showing a light-gray "Name" ghost header
+   rendered over the target drop position, offset left by the requested delta —
+   the actual intended visual effect, confirmed by eye.
+3. Regression: build 0 errors, WindowsShims 207/210 (same 3 pre-existing,
+   unrelated failures), Roma.Host 0 errors.
+
+**Not verified**: the real interactive mouse-drag feel (does it track the
+cursor smoothly during an actual drag gesture) — blocked on the same Uno
+Platform macOS input-bridge bug (item 1 above) that blocks all real-pointer
+verification this session, not on anything specific to this feature.
+
+Verification:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 207/210 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```

@@ -158,10 +158,16 @@ public partial class DataGrid
     private const string ShimTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
+        "<Grid>" +
         "<Border Background='White' BorderBrush='#CCCCCC' BorderThickness='1'>" +
         "<ScrollViewer HorizontalScrollBarVisibility='Auto' VerticalScrollBarVisibility='Auto'>" +
         "<StackPanel x:Name='PART_ShimRowsHost' MinWidth='120' MinHeight='40' />" +
-        "</ScrollViewer></Border></ControlTemplate>";
+        "</ScrollViewer></Border>" +
+        // Session 120: floating drag-header/drop-indicator overlay (see the "Column
+        // reorder by drag" region) — a top-level sibling so the floating header can be
+        // positioned anywhere over the grid, independent of the scrolling rows/header.
+        "<Canvas x:Name='PART_ShimDragOverlay' IsHitTestVisible='False' />" +
+        "</Grid></ControlTemplate>";
 
     // Session 119 (Slice 5): opt-in virtualized template. PART_ShimRowsHost is a live
     // DataGridRowsPresenter (IsItemsHost) instead of a StackPanel, so the Slice 4
@@ -182,7 +188,12 @@ public partial class DataGrid
         // offset (ShimHookHeaderScrollSync) so columns stay aligned.
         "<ScrollViewer x:Name='PART_ShimRowsScroll' Grid.Row='1' VerticalScrollBarVisibility='Auto' HorizontalScrollBarVisibility='Auto'>" +
         "<p:DataGridRowsPresenter x:Name='PART_ShimRowsHost' IsItemsHost='True' MinWidth='120' MinHeight='40' />" +
-        "</ScrollViewer></Grid></Border></ControlTemplate>";
+        "</ScrollViewer>" +
+        // Session 120: floating drag-header/drop-indicator overlay, spanning both rows
+        // so the floating header can be positioned over the pinned header OR the
+        // scrolling rows area.
+        "<Canvas x:Name='PART_ShimDragOverlay' Grid.RowSpan='2' IsHitTestVisible='False' />" +
+        "</Grid></Border></ControlTemplate>";
 
     // Row count above which the manual render auto-switches to the virtualized presenter.
     private const int ShimAutoVirtualizeThreshold = 1000;
@@ -506,9 +517,21 @@ public partial class DataGrid
         {
             if (_shimUseHeaderPresenter)
             {
-                var presenter = headerHost.Child as Primitives.DataGridColumnHeadersPresenter
+                var presenter = _shimHeaderPresenterForRetry
                     ?? new Primitives.DataGridColumnHeadersPresenter();
-                headerHost.Child = presenter;
+                // Session 120 (B1, drag-reorder): wrap the presenter in a Grid so the reorder
+                // drop-indicator can be a sibling overlay positioned by Margin, instead of being
+                // Children.Insert()-ed into the presenter's own DataGridCellsPanel — that panel's
+                // children are strictly generator-managed (AddContainerFromGenerator/
+                // VirtualizeChildren index math), and an untracked foreign child risks the same
+                // fragility class as session 119's Slice 12 finding.
+                _headerPresenterOverlay ??= new Microsoft.UI.Xaml.Controls.Grid();
+                if (!ReferenceEquals(_headerPresenterOverlay.Children.FirstOrDefault(), presenter))
+                {
+                    _headerPresenterOverlay.Children.Clear();
+                    _headerPresenterOverlay.Children.Add(presenter);
+                }
+                headerHost.Child = _headerPresenterOverlay;
                 // Session 120: VirtualizingPanel.IsVirtualizing is a WPF property-value-inherited
                 // attached DP. ShimSetRowVirtualization(true) sets it (true) at the DataGrid/rows
                 // level so DataGridRowsPresenter's cells panels virtualize columns correctly, but
@@ -537,6 +560,31 @@ public partial class DataGrid
     }
 
     private Primitives.DataGridColumnHeadersPresenter? _shimHeaderPresenterForRetry;
+    private Microsoft.UI.Xaml.Controls.Grid? _headerPresenterOverlay;
+
+    // Session 120 (B1, drag-reorder): the presenter's own generation never runs through the
+    // shim's row-realizer path (ShimOnContainerRealized), so nothing else attaches the
+    // DataGrid-level pointer handlers that drive interactive column drag-reorder. Called from
+    // DataGridColumnHeadersPresenter.PrepareContainerForItemOverride/ClearContainerForItemOverride
+    // (ext/wpf, HAS_UNO branch) as headers are realized/cleared.
+    internal void ShimHookHeaderReorderHandlers(DataGridColumnHeader header)
+    {
+        ShimUnhookHeaderReorderHandlers(header);
+        header.PointerPressed += OnHeaderPointerPressed;
+        header.PointerMoved += OnHeaderPointerMoved;
+        header.PointerReleased += OnHeaderPointerReleased;
+        header.PointerCaptureLost += OnHeaderPointerCaptureLost;
+        header.PointerExited += OnHeaderPointerExited;
+    }
+
+    internal void ShimUnhookHeaderReorderHandlers(DataGridColumnHeader header)
+    {
+        header.PointerPressed -= OnHeaderPointerPressed;
+        header.PointerMoved -= OnHeaderPointerMoved;
+        header.PointerReleased -= OnHeaderPointerReleased;
+        header.PointerCaptureLost -= OnHeaderPointerCaptureLost;
+        header.PointerExited -= OnHeaderPointerExited;
+    }
 
     // Session 120 diagnostic (B1): the header template's DataGridCellsPanel has
     // IsItemsHost="True" set at XAML-parse time (inside ApplyTemplate's template expansion),
@@ -1679,25 +1727,104 @@ public partial class DataGrid
     private Microsoft.UI.Xaml.Controls.Border? _reorderIndicator;
     private const double ReorderDragThreshold = 4.0;
 
+    // Session 120: floating drag-header visual (WPF's DataGridColumnFloatingHeader,
+    // reimplemented rather than reused — that upstream class paints a live VisualBrush
+    // snapshot of the source header, which WinUI/Uno has no equivalent for. This builds a
+    // lightweight stand-in instead: a semi-transparent clone of the header's chrome/text
+    // that follows the pointer horizontally, hosted in PART_ShimDragOverlay (a top-level
+    // Canvas sibling added to both root templates) so it isn't constrained by the header
+    // row's own layout (StackPanel/Grid) the way the drop-indicator is.
+    private Microsoft.UI.Xaml.Controls.Border? _floatingHeader;
+    private double _floatingHeaderStartLeft;
+
+    private Microsoft.UI.Xaml.Controls.Canvas? DragOverlay
+        => GetTemplateChild("PART_ShimDragOverlay") as Microsoft.UI.Xaml.Controls.Canvas;
+
+    private void StartFloatingHeader(DataGridColumnHeader header, DataGridColumn column)
+    {
+        if (DragOverlay is not { } overlay)
+            return;
+
+        var transform = header.TransformToVisual(overlay);
+        var origin = transform.TransformPoint(new global::Windows.Foundation.Point(0, 0));
+
+        // Session 120: header.ActualHeight/DesiredSize/RenderSize all read (0,0) here even
+        // though the header renders at its real size on screen (confirmed via DevFlow's
+        // independent bounds probe) — the manual BuildHeaderRow() path only ever sets
+        // Width explicitly (ActualWidth mirrors that direct assignment), never Height, and
+        // reading the live measured/arranged Height back through these CLR properties
+        // doesn't reflect the compositor's actual on-screen size in this environment.
+        // Rather than depend on that unreliable read, leave Height unset (Auto) and let the
+        // Border size vertically from its own content — a TextBlock reliably self-sizes
+        // from its text regardless of any measure-constraint quirk, unlike a snapshot sized
+        // to a value that turned out to be 0.
+        _floatingHeader = new Microsoft.UI.Xaml.Controls.Border
+        {
+            Width = header.ActualWidth,
+            Padding = new Microsoft.UI.Xaml.Thickness(0, 2, 0, 2),
+            Opacity = 0.85,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                global::Windows.UI.Color.FromArgb(0xFF, 0xF0, 0xF0, 0xF0)),
+            Child = new Microsoft.UI.Xaml.Controls.TextBlock
+            {
+                Text = column.Header?.ToString() ?? "",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Center,
+                VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center,
+            },
+        };
+
+        _floatingHeaderStartLeft = origin.X;
+        Microsoft.UI.Xaml.Controls.Canvas.SetLeft(_floatingHeader, origin.X);
+        Microsoft.UI.Xaml.Controls.Canvas.SetTop(_floatingHeader, origin.Y);
+        Microsoft.UI.Xaml.Controls.Canvas.SetZIndex(_floatingHeader, 100);
+        overlay.Children.Add(_floatingHeader);
+    }
+
+    private void UpdateFloatingHeader(double deltaX)
+    {
+        if (_floatingHeader is null)
+            return;
+
+        Microsoft.UI.Xaml.Controls.Canvas.SetLeft(_floatingHeader, _floatingHeaderStartLeft + deltaX);
+    }
+
+    private void EndFloatingHeader()
+    {
+        if (_floatingHeader is not null)
+        {
+            DragOverlay?.Children.Remove(_floatingHeader);
+        }
+
+        _floatingHeader = null;
+    }
+
+    // Session 120 (B1, drag-reorder): coordinate reference frame for GetCurrentPoint, generalized
+    // across the manual header row (a StackPanel) and the header-presenter overlay (a Grid
+    // wrapping the presenter) — both are plain UIElements, so either works as a relative-position
+    // origin regardless of which one actually hosts the realized header cells.
+    private Microsoft.UI.Xaml.UIElement? EffectiveHeaderReferenceElement()
+        => _shimUseHeaderPresenter ? _headerPresenterOverlay : _headerHostPanel;
+
     private void OnHeaderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         // Reorder: record candidate but don't capture yet (plain click still sorts).
-        if (CanUserReorderColumns && _headerHostPanel is not null
+        if (CanUserReorderColumns && EffectiveHeaderReferenceElement() is { } reference
             && sender is DataGridColumnHeader hdr && hdr.Column is { CanUserReorder: true } col)
         {
             _reorderHeader = hdr;
             _reorderColumn = col;
-            _reorderStartX = e.GetCurrentPoint(_headerHostPanel).Position.X;
+            _reorderStartX = e.GetCurrentPoint(reference).Position.X;
             _reorderActive = false;
         }
     }
 
     private void OnHeaderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (_reorderColumn is null || _reorderHeader is null || _headerHostPanel is null)
+        if (_reorderColumn is null || _reorderHeader is null || EffectiveHeaderReferenceElement() is not { } reference)
             return;
 
-        var x = e.GetCurrentPoint(_headerHostPanel).Position.X;
+        var x = e.GetCurrentPoint(reference).Position.X;
         if (!_reorderActive)
         {
             if (Math.Abs(x - _reorderStartX) <= ReorderDragThreshold)
@@ -1705,16 +1832,18 @@ public partial class DataGrid
             _reorderActive = true;
             _reorderHeader.CapturePointer(e.Pointer);
             _reorderHeader.Opacity = 0.5;
+            StartFloatingHeader(_reorderHeader, _reorderColumn);
         }
 
-        UpdateReorderIndicator(ComputeDropSlot(x));
+        UpdateFloatingHeader(x - _reorderStartX);
+        UpdateReorderIndicator(ComputeDropSlot(x, out var offset), offset);
     }
 
     private void OnHeaderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
-        if (_reorderColumn is { } col && _reorderActive && _headerHostPanel is not null)
+        if (_reorderColumn is { } col && _reorderActive && EffectiveHeaderReferenceElement() is { } reference)
         {
-            var slot = ComputeDropSlot(e.GetCurrentPoint(_headerHostPanel).Position.X);
+            var slot = ComputeDropSlot(e.GetCurrentPoint(reference).Position.X, out _);
             var target = _visibleColumns[Math.Clamp(slot, 0, _visibleColumns.Count - 1)].DisplayIndex;
             if (sender is DataGridColumnHeader hdr)
                 hdr.ReleasePointerCapture(e.Pointer);
@@ -1743,25 +1872,29 @@ public partial class DataGrid
 
     // Walk the realized headers (display order) accumulating widths; return the
     // index of the slot whose left half the pointer is over (drop-before), or the
-    // count for drop-after-last.
-    private int ComputeDropSlot(double x)
+    // count for drop-after-last. dropOffset is the cumulative pixel X of that slot's
+    // left edge, used to position the presenter-overlay indicator (see below).
+    private int ComputeDropSlot(double x, out double dropOffset)
     {
+        var headerCells = EffectiveHeaderCells();
         double offset = AreRowHeadersVisible ? RowHeaderShimWidth : 0;
-        for (var i = 0; i < _headerCells.Count; i++)
+        for (var i = 0; i < headerCells.Count; i++)
         {
-            var w = _headerCells[i].ActualWidth > 0 ? _headerCells[i].ActualWidth : ShimColumnWidth(_visibleColumns[i]);
+            var w = headerCells[i].ActualWidth > 0 ? headerCells[i].ActualWidth : ShimColumnWidth(_visibleColumns[i]);
             if (x < offset + w / 2)
+            {
+                dropOffset = offset;
                 return i;
+            }
             offset += w;
         }
+
+        dropOffset = offset;
         return Math.Max(0, _visibleColumns.Count - 1);
     }
 
-    private void UpdateReorderIndicator(int slot)
+    private void UpdateReorderIndicator(int slot, double offset)
     {
-        if (_headerHostPanel is null)
-            return;
-
         _reorderIndicator ??= new Microsoft.UI.Xaml.Controls.Border
         {
             Width = 2,
@@ -1769,10 +1902,31 @@ public partial class DataGrid
                 global::Windows.UI.Color.FromArgb(0xFF, 0x00, 0x78, 0xD4)),
         };
 
-        _headerHostPanel.Children.Remove(_reorderIndicator);
-        var panelIndex = (AreRowHeadersVisible ? 1 : 0) + Math.Clamp(slot, 0, _headerCells.Count);
-        panelIndex = Math.Clamp(panelIndex, 0, _headerHostPanel.Children.Count);
-        _headerHostPanel.Children.Insert(panelIndex, _reorderIndicator);
+        if (_shimUseHeaderPresenter)
+        {
+            // Overlay mode: the indicator is a Grid sibling of the presenter, positioned by
+            // Margin rather than by list order (a single-cell Grid has no "position in the
+            // horizontal flow" the way the manual StackPanel's child order provided for free).
+            if (_headerPresenterOverlay is not { } overlay)
+                return;
+
+            _reorderIndicator.HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Left;
+            _reorderIndicator.VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Stretch;
+            _reorderIndicator.Margin = new Microsoft.UI.Xaml.Thickness(offset, 0, 0, 0);
+            if (!overlay.Children.Contains(_reorderIndicator))
+                overlay.Children.Add(_reorderIndicator);
+        }
+        else
+        {
+            if (_headerHostPanel is not { } panel)
+                return;
+
+            var headerCells = EffectiveHeaderCells();
+            panel.Children.Remove(_reorderIndicator);
+            var panelIndex = (AreRowHeadersVisible ? 1 : 0) + Math.Clamp(slot, 0, headerCells.Count);
+            panelIndex = Math.Clamp(panelIndex, 0, panel.Children.Count);
+            panel.Children.Insert(panelIndex, _reorderIndicator);
+        }
     }
 
     private void EndReorder()
@@ -1780,7 +1934,11 @@ public partial class DataGrid
         if (_reorderHeader is not null)
             _reorderHeader.Opacity = 1.0;
         if (_reorderIndicator is not null)
+        {
+            _headerPresenterOverlay?.Children.Remove(_reorderIndicator);
             _headerHostPanel?.Children.Remove(_reorderIndicator);
+        }
+        EndFloatingHeader();
         _reorderIndicator = null;
         _reorderHeader = null;
         _reorderColumn = null;
