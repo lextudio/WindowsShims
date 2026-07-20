@@ -1016,24 +1016,60 @@ calls — splitting into two DevFlow round-trips (letting the real message
 loop run between them) is the general pattern for verifying anything gated
 behind real upstream WPF's `Dispatcher.BeginInvoke` calls on this target.
 
+## Frozen columns, Slice 4 — virtualized-row extension (the scenario that actually needed this)
+
+Extended the cells-presenter opt-in to the virtualized row-creation path.
+Previously `ShimApplyCellsPresenterTemplateIfNeeded` was only called from the
+two manual-path row-creation sites (`BuildRowsOrGroups`/`BuildGroupedRows`,
+right after `new DataGridRow()`, before `PrepareRow`); virtualized rows come
+from the linked upstream `GetContainerForItemOverride() => new DataGridRow()`
+instead, which this shim doesn't control, so they never got the call and kept
+the default manual-`StackPanel` template.
+
+**Fix**: added the same call to `DataGrid.ShimOnContainerRealized` (the
+virtualized-path row-realize hook, already called by `VirtualizingRowsRealizer`
+for every row entering the realized window) — right before the existing
+`row.ApplyTemplate()` call, so the Template swap takes effect on that pass,
+same timing constraint as the manual-path call sites.
+
+**One correctness gap closed while doing this**: `ShimApplyCellsPresenterTemplateIfNeeded`
+was previously asymmetric — it applied the presenter template when enabled
+but did nothing when disabled (relying on "the default template already
+applies," true only for freshly-constructed rows). Under
+`VirtualizationMode.Recycling`, the *same* `DataGridRow` instance is reused
+across different items and even across mode toggles — a row realized while
+the cells presenter was enabled, later recycled and re-prepared after the
+grid switched it back off, would have kept the presenter template
+indefinitely. Made the toggle symmetric: switch back to the cached manual
+`_rowTemplate` when the current template is the cached presenter one.
+
+**Live-verified** on `TypeDef` (5318 rows — well above
+`ShimAutoVirtualizeThreshold`, so this is the actual "wide/large table"
+scenario frozen columns exist for), with row virtualization *and* the cells
+presenter *and* `FrozenColumnCount` all enabled together:
+`cellsPresenterSet: true` on a virtualized-path row, and the same clean
+frozen-column proof as Slice 3's manual-path result — zero scroll:
+`frozenX: 1.0, nonFrozenX: 221.0`; scrolled 150: `frozenX: 1.0` (unchanged),
+`nonFrozenX: 71.0` (delta exactly −150). Frozen columns now work correctly
+for the large, virtualized tables that are the actual motivating use case —
+not just the small manual-path tables Slices 1-3 verified.
+
+**Verification**:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore   # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore  # 218/221 (3 pre-existing, unrelated)
+dotnet build ../Roma/src/Roma.Host/Roma.Host.csproj -f net10.0-desktop                       # 0 errors
+```
+
 ## Frozen columns — remaining slices (not yet done)
 
-1. **Virtualized-row extension** — `ShimApplyCellsPresenterTemplateIfNeeded`
-   is only called from the manual-path row-creation sites; the virtualized
-   `VirtualizingRowsRealizer`'s `create` callback (`owner.CreateContainerForItem`
-   → linked upstream `GetContainerForItemOverride() => new DataGridRow()`)
-   doesn't call it, so virtualized rows still get the manual `StackPanel`
-   template (and thus no frozen-column support). Given frozen columns are
-   primarily useful for wide tables (which auto-switch to virtualization past
-   `ShimAutoVirtualizeThreshold`), this extension is not optional — it's
-   required before frozen columns are useful for the tables that actually
-   need them.
-2. **Selection/editing/resize regression check under the presenter path** —
-   not yet verified live (Slices 1-3 checked generation, width/resize, and
-   arrange). `TryReselectCell` (called in the manual `BuildCells()` today) has
-   no presenter-path equivalent yet.
-3. **Vertical scroll interaction** — Slice 3 only exercised horizontal scroll;
-   whether frozen columns' vertical position stays correctly in sync with
-   their row as the grid scrolls vertically (should be automatic, since
-   frozen/non-frozen cells are still siblings in the same row's vertical
-   layout — not yet explicitly live-verified).
+1. **Selection/editing/resize regression check under the presenter path** —
+   not yet verified live (Slices 1-4 checked generation, width/resize,
+   arrange, and the virtualized-row extension). `TryReselectCell` (called in
+   the manual `BuildCells()` today) has no presenter-path equivalent yet.
+2. **Vertical scroll interaction** — all slices so far only exercised
+   horizontal scroll; reasoned (not explicitly live-verified) that vertical
+   scroll is orthogonal, since frozen/non-frozen cells stay siblings within
+   the same row's normal vertical layout regardless of the horizontal
+   arrange fix.

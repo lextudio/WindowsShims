@@ -503,6 +503,16 @@ public partial class DataGrid
     {
         if (container is DataGridRow row && item is not null)
         {
+            // Session 121 (frozen columns, Slice 4): extend the cells-presenter opt-in to the
+            // virtualized row path too. The manual path applies this right after `new
+            // DataGridRow()` (before PrepareRow); the virtualized path's row instances come
+            // from the linked upstream GetContainerForItemOverride() => new DataGridRow(),
+            // which this shim doesn't control, so this realize hook is the equivalent
+            // opportunity — still before ApplyTemplate, so the Template swap takes effect on
+            // this pass. Idempotent for recycled containers (Template reassignment to the
+            // same cached instance is a no-op).
+            row.ShimApplyCellsPresenterTemplateIfNeeded(_shimUseCellsPresenter);
+
             // Ensure the row template (and thus its cells, built in OnApplyTemplate)
             // exists before decorating. The virtualized path realizes the row into the
             // live tree before measure; decorating an un-templated row otherwise leaves

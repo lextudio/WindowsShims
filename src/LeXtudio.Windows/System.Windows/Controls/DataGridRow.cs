@@ -280,14 +280,21 @@ public partial class DataGridRow : Control
     // default manual-cells template first, since DataGridOwner isn't set yet at that point.
     internal void ShimApplyCellsPresenterTemplateIfNeeded(bool useCellsPresenter)
     {
-        if (!useCellsPresenter)
+        if (useCellsPresenter)
         {
-            return; // default template from InitializeDefaultStyleKey already applies
+            _cellsPresenterRowTemplate ??= (Microsoft.UI.Xaml.Controls.ControlTemplate)
+                Microsoft.UI.Xaml.Markup.XamlReader.Load(CellsPresenterRowTemplateXaml);
+            Template = _cellsPresenterRowTemplate;
         }
-
-        _cellsPresenterRowTemplate ??= (Microsoft.UI.Xaml.Controls.ControlTemplate)
-            Microsoft.UI.Xaml.Markup.XamlReader.Load(CellsPresenterRowTemplateXaml);
-        Template = _cellsPresenterRowTemplate;
+        else if (ReferenceEquals(Template, _cellsPresenterRowTemplate))
+        {
+            // Session 121 (frozen columns, Slice 4): symmetric toggle-back for recycled
+            // containers (VirtualizationMode.Recycling) — a row instance realized while the
+            // cells presenter was enabled, then recycled and re-prepared after it's been
+            // disabled, must not keep the presenter template. Otherwise this branch is a
+            // no-op (default template from InitializeDefaultStyleKey already applies).
+            Template = _rowTemplate;
+        }
     }
 
     private Microsoft.UI.Xaml.Controls.Border? _rowSeparator;
