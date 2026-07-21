@@ -11,6 +11,6 @@
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
     <PackageVersion Include="NUnitLite" Version="4.5.1" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
-    <PackageVersion Include="LeXtudio.Win2D.UnoCompat" Version="0.1.2" />
+    <PackageVersion Include="LeXtudio.Win2D.UnoCompat" Version="0.2.0" />
   </ItemGroup>
 </Project>
