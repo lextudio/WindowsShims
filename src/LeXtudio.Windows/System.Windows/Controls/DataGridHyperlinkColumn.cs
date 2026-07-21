@@ -26,12 +26,20 @@ public class DataGridHyperlinkColumn : DataGridBoundColumn
 
     protected override FrameworkElement GenerateElement(DataGridCell cell, object dataItem)
     {
+        // Microsoft.UI.Xaml.Controls.TextBlock has no TextDecorations property
+        // (that's only meaningful on Run/Florence-engine text, see the class
+        // comment above), so the underline is rendered via an Underline inline
+        // instead. This is display-only: Tapped is wired on textBlock itself,
+        // not routed through Inlines.
         var textBlock = new TextBlock
         {
             Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
                 global::Windows.UI.Color.FromArgb(0xFF, 0x00, 0x66, 0xCC)),
-            TextDecorations = global::Windows.UI.Text.TextDecorations.Underline,
         };
+        var underline = new System.Windows.Documents.Underline();
+        var run = new System.Windows.Documents.Run();
+        underline.Inlines.Add(run);
+        textBlock.Inlines.Add(underline);
 
         ApplyStyle(isEditing: false, defaultToElementStyle: false, textBlock);
 
@@ -43,7 +51,7 @@ public class DataGridHyperlinkColumn : DataGridBoundColumn
         var displayBinding = ContentBinding ?? StringifyBinding(Binding);
         if (displayBinding is not null)
         {
-            System.Windows.Data.BindingOperations.SetBinding(textBlock, TextBlock.TextProperty, displayBinding);
+            System.Windows.Data.BindingOperations.SetBinding(run, System.Windows.Documents.Run.TextProperty, displayBinding);
         }
 
         textBlock.Tapped += (_, _) => NavigateToBoundUri(dataItem);
