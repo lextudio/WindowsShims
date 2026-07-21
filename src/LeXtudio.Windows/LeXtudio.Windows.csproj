@@ -24,7 +24,7 @@
     <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <UseNuGetPackages>false</UseNuGetPackages>
+    <UseNuGetPackages>true</UseNuGetPackages>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <UseWinUI>true</UseWinUI>
@@ -53,7 +53,7 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop' AND '$(UseNuGetPackages)' == 'true'">
     <PackageReference Include="LeXtudio.Win2D.UnoCompat" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <PackageReference Include="Microsoft.Graphics.Win2D" />
   </ItemGroup>
     <!-- Linked WPF source-of-truth artifacts (non-compiling in Uno).
@@ -486,6 +486,8 @@
              Link="System.Windows.Controls\DataGridColumn_upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridColumnCollection.cs"
              Link="System.Windows.Controls\DataGridColumnCollection_upstream.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\RealizedColumnsBlock.cs"
+             Link="System.Windows.Controls\RealizedColumnsBlock_upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridBoundColumn.cs"
              Link="System.Windows.Controls\DataGridBoundColumn_upstream.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\DataGridTextColumn.cs"

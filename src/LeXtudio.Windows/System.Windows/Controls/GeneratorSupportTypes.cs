@@ -2,22 +2,11 @@ using System.Collections.Specialized;
 
 namespace System.Windows.Controls;
 
-internal readonly struct RealizedColumnsBlock
-{
-    internal RealizedColumnsBlock(int startIndex, int endIndex, int startIndexOffset)
-    {
-        StartIndex = startIndex;
-        EndIndex = endIndex;
-        StartIndexOffset = startIndexOffset;
-    }
-
-    internal int StartIndex { get; }
-
-    internal int EndIndex { get; }
-
-    internal int StartIndexOffset { get; }
-}
-
+// Split out of the former local RealizedColumnsBlock.cs (that struct itself is now linked
+// from upstream WPF — see LeXtudio.Windows.csproj). Real WPF puts these two types in
+// System.Windows.Controls.Primitives; kept in the root System.Windows.Controls namespace
+// here (as the original file had them) to avoid a namespace migration across every
+// consumer that references them unqualified.
 public readonly struct GeneratorPosition
 {
     public GeneratorPosition(int index, int offset)
