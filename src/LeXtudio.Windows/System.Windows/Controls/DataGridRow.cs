@@ -52,25 +52,37 @@ public partial class DataGridRow : Control
 
     // Session 57: the row template is now vertical — the cells row sits above a
     // PART_DetailsHost that expands to host the materialized RowDetailsTemplate.
-    // Session 120: the separator is a fixed-height child element (PART_RowSeparator),
-    // not the row Control's own BorderThickness. Under the virtualized path, setting
-    // BorderThickness on a row measured by VirtualizingStackPanel (infinite-width
-    // constraint) collapses the whole row to border-only height on Uno; a plain
-    // child element with an explicit Height is unaffected by that quirk, so the
-    // separator can render on both the manual and virtualized paths.
+    // Session 120 added a fixed-height child element (PART_RowSeparator, a plain
+    // Border with an explicit Height so it survives the virtualized path's
+    // infinite-width-constraint BorderThickness-collapses-to-zero-height quirk)
+    // as a guaranteed-visible row-bottom line, at a time when per-cell gridline
+    // rendering (DataGridCell.ApplyShimGridLines, driven by the real WPF
+    // GridLinesVisibility/HorizontalGridLinesBrush DPs) wasn't yet reliable.
+    // Session 122: that per-cell mechanism is now correct and reliably applied
+    // (every cell BuildCells() creates calls ApplyShimGridLines) — so every row
+    // was drawing its bottom separator TWICE: once per-cell, using the real
+    // GridLinesVisibility color (Black by default) and honoring GridLinesVisibility,
+    // and a second time via this always-on, GridLinesVisibility-agnostic 1px
+    // light-gray (#D0D0D0) Border layered immediately below the cells. The two
+    // lines don't perfectly coincide in Y (independent elements, independent
+    // layout rounding), producing a visible "double line, slightly offset,
+    // different color" artifact rather than one clean separator. Removed —
+    // matches real WPF, which has no such extra always-on element; the cell
+    // gridlines alone are the row separator, exactly as GridLinesVisibility
+    // governs them.
     private const string RowTemplateXaml =
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
         "<StackPanel Orientation='Vertical'>" +
-        "<StackPanel Orientation='Horizontal'>" +
-        "<ContentControl x:Name='PART_RowHeader' />" +
-        "<StackPanel x:Name='PART_CellsHost' Orientation='Horizontal' />" +
-        "</StackPanel>" +
+        "<Grid>" +
+        "<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
+        "<ContentControl x:Name='PART_RowHeader' Grid.Column='0' " +
+        "HorizontalContentAlignment='Stretch' VerticalContentAlignment='Stretch' />" +
+        "<StackPanel x:Name='PART_CellsHost' Grid.Column='1' Orientation='Horizontal' />" +
+        "</Grid>" +
         "<ContentControl x:Name='PART_DetailsHost' Visibility='Collapsed' />" +
-        "<Border x:Name='PART_RowSeparator' Height='1' HorizontalAlignment='Stretch' " +
-        "Background='#FFD0D0D0' />" +
         "</StackPanel></Border></ControlTemplate>";
 
     // Session 121 (frozen columns, Slice 1): same shape as RowTemplateXaml, except
@@ -85,13 +97,13 @@ public partial class DataGridRow : Control
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
         "<StackPanel Orientation='Vertical'>" +
-        "<StackPanel Orientation='Horizontal'>" +
-        "<ContentControl x:Name='PART_RowHeader' />" +
-        "<p:DataGridCellsPresenter x:Name='PART_CellsHost' />" +
-        "</StackPanel>" +
+        "<Grid>" +
+        "<Grid.ColumnDefinitions><ColumnDefinition Width='Auto'/><ColumnDefinition Width='Auto'/></Grid.ColumnDefinitions>" +
+        "<ContentControl x:Name='PART_RowHeader' Grid.Column='0' " +
+        "HorizontalContentAlignment='Stretch' VerticalContentAlignment='Stretch' />" +
+        "<p:DataGridCellsPresenter x:Name='PART_CellsHost' Grid.Column='1' />" +
+        "</Grid>" +
         "<ContentControl x:Name='PART_DetailsHost' Visibility='Collapsed' />" +
-        "<Border x:Name='PART_RowSeparator' Height='1' HorizontalAlignment='Stretch' " +
-        "Background='#FFD0D0D0' />" +
         "</StackPanel></Border></ControlTemplate>";
 
     // ── Session 48: row-level validation indicator ──────────────────────────
@@ -106,7 +118,6 @@ public partial class DataGridRow : Control
         BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0x00, 0x00));
         BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
-        ApplyRowSeparatorVisibility();
         RefreshRowHeaderGlyph();
     }
 
@@ -119,11 +130,8 @@ public partial class DataGridRow : Control
 
         HasRowValidationError = false;
         RowValidationError = null;
-        // The row-wide error border clears back to none; the bottom separator (a
-        // template child, not this Control's own border) resumes via ApplyRowSeparatorVisibility.
         BorderBrush = null;
         BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
-        ApplyRowSeparatorVisibility();
         RefreshRowHeaderGlyph();
     }
 
@@ -210,8 +218,6 @@ public partial class DataGridRow : Control
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
-        _rowSeparator = GetTemplateChild("PART_RowSeparator") as Microsoft.UI.Xaml.Controls.Border;
-        ApplyRowSeparatorVisibility();
 
         // Session 121 (frozen columns, Slice 1): under the presenter-hosted template,
         // PART_CellsHost is a live DataGridCellsPresenter that self-populates via its own
@@ -297,17 +303,6 @@ public partial class DataGridRow : Control
         }
     }
 
-    private Microsoft.UI.Xaml.Controls.Border? _rowSeparator;
-
-    // Session 120: toggles the fixed-height separator child (see RowTemplateXaml).
-    // Hidden while the row shows the whole-row validation-error border instead.
-    internal void ApplyRowSeparatorVisibility()
-    {
-        if (_rowSeparator is { } separator)
-        {
-            separator.Visibility = HasRowValidationError ? Visibility.Collapsed : Visibility.Visible;
-        }
-    }
 
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {

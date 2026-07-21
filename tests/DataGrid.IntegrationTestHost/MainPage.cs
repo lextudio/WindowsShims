@@ -1,5 +1,6 @@
 #if DEBUG
 using System.Threading;
+using DataGrid.TestScenarios;
 using LeXtudio.DevFlow.Agent.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,7 +22,12 @@ public sealed partial class MainPage : Page
     {
         _current = this;
         _root = new Grid();
-        Content = _root;
+        // The scenario gallery (ScenarioGallery.cs) wraps _root in a left-nav +
+        // card layout for manual visual inspection; _root itself stays the
+        // single attachment point every headless HTTP probe below already
+        // targets (page._root.Children.Add(grid)), so probe behavior is
+        // unaffected by the UI wrapping it.
+        Content = BuildGalleryUi();
     }
 
     // ─── Inner types ────────────────────────────────────────────────
@@ -113,10 +119,14 @@ public sealed partial class MainPage : Page
             throw new InvalidOperationException("DataGrid not created. Call datagrid.probe.create-grid first.");
     }
 
-    // ─── Probe: create-grid ─────────────────────────────────────────
+    // ─── Shared scenario factories ───────────────────────────────────
+    // Extracted so both the headless HTTP probes below (used by
+    // DataGrid.IntegrationTests) and the interactive scenario gallery (added
+    // for manual visual inspection — see ScenarioGallery.cs) build identical
+    // grids from one place, rather than the gallery duplicating construction
+    // logic that could drift out of sync with what the tests actually exercise.
 
-    [DevFlowAction("datagrid.probe.create-grid", Description = "Create a DataGrid with sample metadata-style rows.")]
-    public static string ProbeCreateGrid() => RunOnUi(page =>
+    internal static WpfDataGrid BuildMetadataGrid()
     {
         var grid = new WpfDataGrid();
         grid.AutoGenerateColumns = false;
@@ -140,6 +150,34 @@ public sealed partial class MainPage : Page
             Owner = new MetadataRowOwner { Name = $"Owner{i}" },
         }).ToList();
 
+        return grid;
+    }
+
+    internal static WpfDataGrid BuildFilterGrid()
+    {
+        var grid = DataGridScenarios.BuildMetadataGrid();
+        DataGridExtensions.DataGridFilter.SetIsAutoFilterEnabled(grid, true);
+        foreach (var col in grid.Columns.Cast<System.Windows.Controls.DataGridColumn>())
+        {
+            DataGridExtensions.DataGridFilterColumn.SetTemplate(col, new DataGridExtensions.FilterControlTemplate(DataGridExtensions.FilterKind.Text));
+        }
+
+        return grid;
+    }
+
+    // ─── Probe: create-grid ─────────────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-grid", Description = "Create a DataGrid with sample metadata-style rows.")]
+    public static string ProbeCreateGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildMetadataGrid();
+        // Match the Sample's basic-grid geometry: all seven columns fit, while
+        // the 20 data rows require vertical scrolling. This keeps a horizontal
+        // scrollbar from occupying the bottom 20.5px and changing which line
+        // the last row is expected to meet.
+        grid.Width = 800;
+        grid.Height = 400;
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -155,34 +193,8 @@ public sealed partial class MainPage : Page
     [DevFlowAction("datagrid.probe.create-filter-grid", Description = "Create a DataGrid with auto-filter buttons enabled on all columns.")]
     public static string ProbeCreateFilterGrid() => RunOnUi(page =>
     {
-        var grid = new WpfDataGrid();
-        grid.AutoGenerateColumns = false;
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "RID", Binding = new WpfBinding("RID"), Width = new System.Windows.Controls.DataGridLength(50) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Token", Binding = new WpfBinding("Token"), Width = new System.Windows.Controls.DataGridLength(80) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Offset", Binding = new WpfBinding("Offset"), Width = new System.Windows.Controls.DataGridLength(70) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Attributes", Binding = new WpfBinding("Attributes"), Width = new System.Windows.Controls.DataGridLength(90) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Name", Binding = new WpfBinding("Name"), Width = new System.Windows.Controls.DataGridLength(100) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Namespace", Binding = new WpfBinding("Namespace"), Width = new System.Windows.Controls.DataGridLength(120) });
-        grid.Columns.Add(new WpfDataGridTextColumn { Header = "BaseType", Binding = new WpfBinding("BaseType"), Width = new System.Windows.Controls.DataGridLength(80) });
-
-        grid.ItemsSource = Enumerable.Range(1, 20).Select(i => new MetadataRow
-        {
-            RID = i,
-            Token = $"0x0200000{i:X1}",
-            Offset = $"0x{i * 4:X4}",
-            Attributes = i % 2 == 0 ? "Public" : "Private",
-            Name = $"Type{i}",
-            Namespace = i < 10 ? "Root" : "Root.Sub",
-            BaseType = i % 3 == 0 ? "object" : "ValueType",
-            Owner = new MetadataRowOwner { Name = $"Owner{i}" },
-        }).ToList();
-
-        DataGridExtensions.DataGridFilter.SetIsAutoFilterEnabled(grid, true);
-        foreach (var col in grid.Columns.Cast<System.Windows.Controls.DataGridColumn>())
-        {
-            DataGridExtensions.DataGridFilterColumn.SetTemplate(col, new DataGridExtensions.FilterControlTemplate(DataGridExtensions.FilterKind.Text));
-        }
-
+        var grid = DataGridScenarios.BuildFilterGrid();
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -592,6 +604,71 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":true,\"rowFound\":{Jb(row is not null)},\"cellFound\":{Jb(cell is not null)},\"text\":{Js(text)}}}";
     });
 
+    [DevFlowAction("datagrid.probe.row-line-metrics", Description = "Read row header/cell/grid Y coordinates for grid-line alignment diagnostics.")]
+    public static string ProbeRowLineMetrics(int rowIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(rowIndex) as System.Windows.Controls.DataGridRow;
+        var header = row?.RowHeader as Microsoft.UI.Xaml.FrameworkElement;
+        var firstCell = row?.TryGetCell(0);
+        var lastCell = row?.TryGetCell(Math.Max(0, grid.Columns.Count - 1));
+        var scroller = grid.ShimGetRowsScrollViewer() as Microsoft.UI.Xaml.FrameworkElement;
+        var outerBorder = grid.ShimGetOuterBorder() as Microsoft.UI.Xaml.FrameworkElement;
+
+        static (double top, double bottom, double height) Bounds(Microsoft.UI.Xaml.FrameworkElement? element, Microsoft.UI.Xaml.UIElement relativeTo)
+        {
+            if (element is null)
+            {
+                return (double.NaN, double.NaN, double.NaN);
+            }
+
+            var p = element.TransformToVisual(relativeTo).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+            return (p.Y, p.Y + element.ActualHeight, element.ActualHeight);
+        }
+
+        var hb = Bounds(header, grid);
+        var rb = Bounds(row, grid);
+        var fb = Bounds(firstCell, grid);
+        var lb = Bounds(lastCell, grid);
+        var sb = Bounds(scroller, grid);
+        var ob = Bounds(outerBorder, grid);
+        var rowBottomDelta = Math.Max(Math.Abs(hb.bottom - fb.bottom), Math.Abs(hb.bottom - rb.bottom));
+        var frameBottomDelta = Math.Abs(sb.bottom - ob.bottom);
+        var rowFrameBottomDelta = Math.Abs(rb.bottom - ob.bottom);
+
+        return $"{{\"hasGrid\":true,\"rowFound\":{Jb(row is not null)},\"headerFound\":{Jb(header is not null)},\"firstCellFound\":{Jb(firstCell is not null)}," +
+               $"\"headerTop\":{Jn(hb.top)},\"headerBottom\":{Jn(hb.bottom)},\"headerHeight\":{Jn(hb.height)}," +
+               $"\"rowTop\":{Jn(rb.top)},\"rowBottom\":{Jn(rb.bottom)},\"rowHeight\":{Jn(rb.height)}," +
+               $"\"firstCellTop\":{Jn(fb.top)},\"firstCellBottom\":{Jn(fb.bottom)},\"firstCellHeight\":{Jn(fb.height)}," +
+               $"\"lastCellBottom\":{Jn(lb.bottom)},\"scrollViewportBottom\":{Jn(sb.bottom)},\"outerBorderBottom\":{Jn(ob.bottom)}," +
+               $"\"rowBottomDelta\":{Jn(rowBottomDelta)},\"frameBottomDelta\":{Jn(frameBottomDelta)}," +
+               $"\"rowFrameBottomDelta\":{Jn(rowFrameBottomDelta)}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.scroll-to-bottom", Description = "Scroll the current DataGrid to its maximum vertical offset.")]
+    public static string ProbeScrollToBottom() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+        var scroller = grid.ShimGetRowsScrollViewer();
+        if (scroller is null)
+        {
+            return "{\"hasGrid\":true,\"hasScroller\":false}";
+        }
+
+        scroller.ChangeView(null, scroller.ScrollableHeight, null, true);
+        grid.UpdateLayout();
+        return $"{{\"hasGrid\":true,\"hasScroller\":true,\"verticalOffset\":{Jn(scroller.VerticalOffset)}," +
+               $"\"scrollableHeight\":{Jn(scroller.ScrollableHeight)},\"horizontalOffset\":{Jn(scroller.HorizontalOffset)}," +
+               $"\"scrollableWidth\":{Jn(scroller.ScrollableWidth)},\"viewportHeight\":{Jn(scroller.ViewportHeight)}," +
+               $"\"viewportWidth\":{Jn(scroller.ViewportWidth)},\"actualHeight\":{Jn(scroller.ActualHeight)}," +
+               $"\"actualWidth\":{Jn(scroller.ActualWidth)}}}";
+    });
+
     // ─── Probe: filter-buttons ──────────────────────────────────────
 
     [DevFlowAction("datagrid.probe.filter-buttons", Description = "Check which columns have filter buttons.")]
@@ -610,8 +687,7 @@ public sealed partial class MainPage : Page
 
     // ─── Probe: create-hex-filter-grid ──────────────────────────────
 
-    [DevFlowAction("datagrid.probe.create-hex-filter-grid", Description = "Create a DataGrid with HEX filter templates on columns (RID, Token, Offset).")]
-    public static string ProbeCreateHexFilterGrid() => RunOnUi(page =>
+    internal static WpfDataGrid BuildHexFilterGrid()
     {
         var grid = new WpfDataGrid();
         grid.AutoGenerateColumns = false;
@@ -633,6 +709,14 @@ public sealed partial class MainPage : Page
             DataGridExtensions.DataGridFilterColumn.SetTemplate(col, new DataGridExtensions.FilterControlTemplate(DataGridExtensions.FilterKind.Hex));
         }
 
+        return grid;
+    }
+
+    [DevFlowAction("datagrid.probe.create-hex-filter-grid", Description = "Create a DataGrid with HEX filter templates on columns (RID, Token, Offset).")]
+    public static string ProbeCreateHexFilterGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildHexFilterGrid();
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -709,8 +793,7 @@ public sealed partial class MainPage : Page
 
     // ─── Probe: create-row-details-grid ──────────────────────────────
 
-    [DevFlowAction("datagrid.probe.create-row-details-grid", Description = "Create a DataGrid with RowDetailsTemplate that renders a nested DataGrid.")]
-    public static string ProbeCreateRowDetailsGrid() => RunOnUi(page =>
+    internal static WpfDataGrid BuildRowDetailsGrid()
     {
         var grid = new WpfDataGrid();
         grid.AutoGenerateColumns = false;
@@ -728,6 +811,14 @@ public sealed partial class MainPage : Page
         grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.Visible;
         grid.RowDetailsTemplateSelector = new MyRowDetailsSelector();
 
+        return grid;
+    }
+
+    [DevFlowAction("datagrid.probe.create-row-details-grid", Description = "Create a DataGrid with RowDetailsTemplate that renders a nested DataGrid.")]
+    public static string ProbeCreateRowDetailsGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildRowDetailsGrid();
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -793,8 +884,7 @@ public sealed partial class MainPage : Page
 
     // ─── Probe: create-variable-height-grid ──────────────────────────
 
-    [DevFlowAction("datagrid.probe.create-variable-height-grid", Description = "Create a virtualized DataGrid where one row has a 150px RowDetails panel and the rest have none.")]
-    public static string ProbeCreateVariableHeightGrid(int rowCount, int tallRowIndex) => RunOnUi(page =>
+    internal static WpfDataGrid BuildVariableHeightGrid(int rowCount, int tallRowIndex)
     {
         var grid = new WpfDataGrid { AutoGenerateColumns = false };
         grid.Columns.Add(new WpfDataGridTextColumn { Header = "Id", Binding = new WpfBinding("Id"), Width = new System.Windows.Controls.DataGridLength(60) });
@@ -805,6 +895,14 @@ public sealed partial class MainPage : Page
         grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.Visible;
         grid.RowDetailsTemplateSelector = new VariableHeightDetailsSelector();
 
+        return grid;
+    }
+
+    [DevFlowAction("datagrid.probe.create-variable-height-grid", Description = "Create a virtualized DataGrid where one row has a 150px RowDetails panel and the rest have none.")]
+    public static string ProbeCreateVariableHeightGrid(int rowCount, int tallRowIndex) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildVariableHeightGrid(rowCount, tallRowIndex);
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 400;
@@ -868,8 +966,7 @@ public sealed partial class MainPage : Page
     //                so the probe can confirm they were actually invoked
     //   "groupstyleselector" — ItemsControl.GroupStyleSelector taking
     //                precedence over the GroupStyle collection
-    [DevFlowAction("datagrid.probe.create-grouped-style-grid", Description = "Create a DataGrid grouped by Country, with GroupStyle configured per `mode` (format|selector|groupstyleselector).")]
-    public static string ProbeCreateGroupedStyleGrid(string mode) => RunOnUi(page =>
+    internal static WpfDataGrid BuildGroupedStyleGrid(string mode)
     {
         var grid = new WpfDataGrid { AutoGenerateColumns = false };
         grid.Columns.Add(new WpfDataGridTextColumn { Header = "Country", Binding = new WpfBinding("Country"), Width = new System.Windows.Controls.DataGridLength(80) });
@@ -910,6 +1007,14 @@ public sealed partial class MainPage : Page
                 break;
         }
 
+        return grid;
+    }
+
+    [DevFlowAction("datagrid.probe.create-grouped-style-grid", Description = "Create a DataGrid grouped by Country, with GroupStyle configured per `mode` (format|selector|groupstyleselector).")]
+    public static string ProbeCreateGroupedStyleGrid(string mode) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildGroupedStyleGrid(mode);
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -960,10 +1065,10 @@ public sealed partial class MainPage : Page
 
         return $"{{\"hasGroup\":{Jb(group is not null)},\"groupCount\":{grid.Items.Groups.Count},\"groupNames\":{Js(groupNames)}," +
                $"\"headerContent\":{Js(header?.Content?.ToString())}," +
-               $"\"headerTemplateSelected\":{Jb(header is not null && ReferenceEquals(header.ContentTemplate, RecordingHeaderTemplateSelector.Selected))}," +
-               $"\"containerStyleSelected\":{Jb(header is not null && ReferenceEquals(header.Style, RecordingContainerStyleSelector.Selected))}," +
-               $"\"headerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(RecordingHeaderTemplateSelector.LastGroup, group))}," +
-               $"\"containerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(RecordingContainerStyleSelector.LastGroup, group))}}}";
+               $"\"headerTemplateSelected\":{Jb(header is not null && ReferenceEquals(header.ContentTemplate, DataGridScenarios.RecordingHeaderTemplateSelector.Selected))}," +
+               $"\"containerStyleSelected\":{Jb(header is not null && ReferenceEquals(header.Style, DataGridScenarios.RecordingContainerStyleSelector.Selected))}," +
+               $"\"headerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(DataGridScenarios.RecordingHeaderTemplateSelector.LastGroup, group))}," +
+               $"\"containerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(DataGridScenarios.RecordingContainerStyleSelector.LastGroup, group))}}}";
     });
 
     // ─── Probe: hides-if-empty-flatten ────────────────────────────────
@@ -985,7 +1090,7 @@ public sealed partial class MainPage : Page
 
         var nonEmpty = new MS.Internal.Data.CollectionViewGroupInternal(
             "US", new System.Windows.Data.PropertyGroupDescription("Country"), isBottomLevel: true);
-        nonEmpty.AddLeaf(new GroupedRow { Country = "US", Name = "Alice" });
+        nonEmpty.AddLeaf(new DataGridScenarios.GroupedRow { Country = "US", Name = "Alice" });
         var empty = new MS.Internal.Data.CollectionViewGroupInternal(
             "UK", new System.Windows.Data.PropertyGroupDescription("Country"), isBottomLevel: true);
 
@@ -1009,8 +1114,7 @@ public sealed partial class MainPage : Page
     // real cell editing, boundary resize) with a standalone editable+tall
     // grid, under the real DataGridCellsPresenter cell host.
 
-    [DevFlowAction("datagrid.probe.create-frozen-edit-grid", Description = "Create a standalone, editable, 40-row DataGrid with FrozenColumnCount under the cells presenter.")]
-    public static string ProbeCreateFrozenEditGrid(int frozenColumnCount) => RunOnUi(page =>
+    internal static WpfDataGrid BuildFrozenEditGrid()
     {
         var rows = Enumerable.Range(0, 40)
             .Select(i => new FrozenEditRow { ColA = $"A{i}", ColB = $"B{i}", ColC = $"C{i}", ColD = $"D{i}" })
@@ -1027,6 +1131,14 @@ public sealed partial class MainPage : Page
             });
         }
 
+        return grid;
+    }
+
+    [DevFlowAction("datagrid.probe.create-frozen-edit-grid", Description = "Create a standalone, editable, 40-row DataGrid with FrozenColumnCount under the cells presenter.")]
+    public static string ProbeCreateFrozenEditGrid(int frozenColumnCount) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildFrozenEditGrid();
+        page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
         grid.Width = 800;
@@ -1130,7 +1242,7 @@ public sealed partial class MainPage : Page
         var committed = editingCell is not null && editingCell.CommitEdit();
         var isEditingAfterCommit = editingCell?.IsEditing ?? false;
         grid.UpdateLayout();
-        var committedValue = (trackedItem as FrozenEditRow)?.ColB;
+        var committedValue = (trackedItem as DataGridScenarios.FrozenEditRow)?.ColB;
 
         var lastFrozenColumn = grid.Columns[Math.Max(0, frozenColumnCount - 1)];
         var firstNonFrozenColumn = grid.Columns[Math.Min(grid.Columns.Count - 1, frozenColumnCount)];

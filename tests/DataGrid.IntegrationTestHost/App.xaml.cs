@@ -15,6 +15,15 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Default window is uncomfortably small for the scenario gallery's
+        // left-nav + card layout; set the preferred launch size before the
+        // window is created (AppWindow.Resize() after construction/Activate
+        // didn't stick on this target — the native window's own initial size
+        // appears to win the race). PreferredLaunchWindowingMode is flagged
+        // "not implemented" on this Uno/Skia-macOS target and verified to have
+        // no effect either way — PreferredLaunchViewSize alone is sufficient.
+        Windows.UI.ViewManagement.ApplicationView.PreferredLaunchViewSize = new global::Windows.Foundation.Size(1200, 800);
+
         MainWindow = new Window();
         MainWindow.Title = "DataGrid.IntegrationTestHost";
 

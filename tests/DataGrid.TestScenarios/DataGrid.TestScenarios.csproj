@@ -1,0 +1,16 @@
+<Project Sdk="Uno.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+    <UnoSingleProject>true</UnoSingleProject>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

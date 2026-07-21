@@ -46,6 +46,41 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task RowHeaderBottomLine_AlignsWithCellBottomLine()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.row-line-metrics", 0);
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("rowFound").GetBoolean(), $"row should be realized: {raw}");
+        Assert.True(state.GetProperty("headerFound").GetBoolean(), $"row header should be realized: {raw}");
+        Assert.True(state.GetProperty("firstCellFound").GetBoolean(), $"first cell should be realized: {raw}");
+        Assert.True(state.GetProperty("rowBottomDelta").GetDouble() <= 0.5,
+            $"row header, cells, and row should share one bottom grid line: {raw}");
+        Assert.True(state.GetProperty("frameBottomDelta").GetDouble() <= 0.5,
+            $"scroll viewport and outer frame must share the bottom coordinate: {raw}");
+    }
+
+    [Fact]
+    public async Task LastRowBottomLine_OverlaysGridBottomFrame()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var scroll = await _app.InvokeAsync("datagrid.probe.scroll-to-bottom");
+        Assert.True(scroll.GetProperty("hasScroller").GetBoolean(), scroll.ToString());
+
+        // The default editable grid has 20 data rows plus WPF's trailing
+        // NewItemPlaceholder row. The placeholder is the visual row touching
+        // the bottom frame in the Sample screenshot.
+        var state = await _app.InvokeAsync("datagrid.probe.row-line-metrics", 20);
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("rowFound").GetBoolean(), $"last row should be realized: {raw}");
+        Assert.True(state.GetProperty("rowBottomDelta").GetDouble() <= 0.5,
+            $"last row header and cells must share one bottom line: {raw}");
+        Assert.True(state.GetProperty("rowFrameBottomDelta").GetDouble() <= 0.5,
+            $"last row bottom line must overlay the complete outer bottom frame: scroll={scroll}; metrics={raw}");
+    }
+
+    [Fact]
     public async Task State_ReturnsGridSnapshot()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

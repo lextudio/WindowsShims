@@ -55,7 +55,9 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
-        "<ContentPresenter />" +
+        "<ContentPresenter Content='{TemplateBinding Content}' " +
+        "HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' " +
+        "VerticalAlignment='{TemplateBinding VerticalContentAlignment}' />" +
         "</Border></ControlTemplate>";
 
     private static Microsoft.UI.Xaml.Controls.ControlTemplate? _cellTemplate;

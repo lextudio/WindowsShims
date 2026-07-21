@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
+    <ProjectReference Include="..\DataGrid.TestScenarios\DataGrid.TestScenarios.csproj" />
   </ItemGroup>
 
   <ItemGroup>

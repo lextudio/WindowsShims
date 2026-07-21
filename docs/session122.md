@@ -188,3 +188,140 @@ matching — including nested paths, and a fixed reset timeout) are fixed.
 - `tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs` — `TextSearch_DoSearchNavigatesToMatchedItem` (extended).
 
 Full suite: 229/229 unit, 29/30 integration (1 pre-existing unrelated skip).
+
+## Interactive scenario gallery + a real double-separator rendering bug
+
+The user asked for `tests/DataGrid.IntegrationTestHost` to look good and be manually
+runnable, not just a headless HTTP-probe target: a left-nav gallery (7 tabs, one per
+existing HTTP-probe scenario, plus a description and a live grid), still driving the
+exact same `DataGrid.IntegrationTests` suite underneath.
+
+**Refactor**: extracted all 7 `datagrid.probe.create-*-grid` bodies' grid-construction
+logic into shared `Build*Grid()` factories in `MainPage.cs` (`BuildMetadataGrid`,
+`BuildFilterGrid`, `BuildHexFilterGrid`, `BuildRowDetailsGrid`, `BuildVariableHeightGrid`,
+`BuildGroupedStyleGrid`, `BuildFrozenEditGrid`) — the HTTP probes and the new gallery
+both call these, so what a developer sees running the app is guaranteed to be what the
+integration tests actually exercise, not a hand-maintained parallel demo. Verified this
+refactor alone changed no behavior (30/31 integration tests unchanged before adding the
+gallery UI).
+
+**Gallery** (`ScenarioGallery.cs`, new): a `NavigationView` (left, 7 items) + a
+description `TextBlock` + a card `Border` hosting `_root` (the same field every HTTP
+probe already targets via `page._root.Children.Add(grid)` — unchanged by the UI wrapping
+it). Selection is handled directly on the UI thread rather than through `RunOnUi`
+(`MainPage.cs`'s dispatcher-queue-plus-blocking-`Wait()` helper built for the HTTP
+probes) — calling that from a `SelectionChanged` handler that's already running on the
+UI thread would deadlock, since `DispatcherQueue.TryEnqueue` only runs the queued
+callback on a *later* turn of the message loop. `App.xaml.cs` also gained a
+`ApplicationView.PreferredLaunchViewSize` (1200×800) — the default window was too small
+for the two-pane layout; `AppWindow.Resize()` after `Activate()` didn't stick on this
+target, and `PreferredLaunchWindowingMode` turned out to be flagged "not implemented" on
+this Uno/Skia-macOS target and verified to do nothing either way (removed).
+
+**A real DevFlow defect, fixed in `wpf-labs`**: verifying the gallery's tab-switching
+needed to simulate a click, and the user pointed at DevFlow (`/Users/lextm/uno-tools/
+wpf-labs/src/DevFlow`) instead of raw `cliclick`/`screencapture` — its own HTTP API
+(`/api/v1/ui/tap`, `/api/v1/ui/elements`, `/api/v1/ui/screenshot`) gives both a cleaner
+screenshot (no OS chrome) and synchronous access to element state. `POST /api/v1/ui/tap`
+on a `NavigationViewItem` failed ("could not be activated") — none of
+`UnoAgentService`'s existing fallbacks apply to a bare selection-container item: no
+`Command`, no `OnClick` method, `ButtonAutomationPeer`'s constructor rejects a
+non-`Button` element, and native tap is Windows-only (`RuntimeInformation.IsOSPlatform
+(OSPlatform.Windows)` guard). Fixed by adding `TryInvokeSelectionItemPattern` — a new
+fallback that reflects for a settable `bool IsSelected` property and sets it directly,
+the same "mutate the property a real click would toggle" reflection style as the
+existing `TryExecuteCommand` fallback, just for selection instead of commanding. Wired
+into both `TryTapAsync`/`TryTapResponseAsync`'s fallback chains. Verified live: gave each
+gallery `NavigationViewItem` a `Name` (DevFlow's element-id resolution is
+`AutomationId ?? Name`, and the item itself — not its `NavigationViewItemPresenter`
+template child, which lacks `IsSelected` — had neither), then `POST /api/v1/ui/tap
+{"id":"nav-grouped"}` returned `"simulationMode":"semantic"` and the gallery genuinely
+switched tabs. This fix lives only in `wpf-labs` source; `DataGrid.IntegrationTestHost`
+still references the published `LeXtudio.DevFlow.Agent.Uno` 0.1.14 NuGet package, so it
+needs a repack/version bump to pick this up permanently (not done — out of scope for a
+grid-shim session).
+
+**A real, independent rendering bug, found via the DevFlow screenshots**: the user
+noticed every grid appeared to draw its border/gridlines in two mismatched layers — a
+lighter frame around the whole control, darker lines in the interior, most visible at
+the leftmost/rightmost edges, and (on closer inspection, via a cropped/zoomed DevFlow
+screenshot) as slightly-Y-offset doubled lines at *every* row separator, not just the
+outer edge. Root cause, confirmed by reading the linked real WPF source: WPF's own
+`HorizontalGridLinesBrush`/`VerticalGridLinesBrush` default to `Brushes.Black`
+(`DataGrid.cs`, `HorizontalGridLinesBrushProperty`/`VerticalGridLinesBrushProperty`
+registration), and `DataGridCell.ApplyShimGridLines()` (existing, correct, real-WPF-
+matching logic) draws each cell's own bottom/right border using exactly that — so
+`GridLinesVisibility.All` (the real WPF default) already produces a fully correct grid of
+black lines with zero extra work. But *on top of* that, the shim had grown two other,
+unrelated fixed-color separator mechanisms that fire unconditionally regardless of
+`GridLinesVisibility`:
+
+1. `DataGridRow`'s template had a fixed-height `PART_RowSeparator` child `Border`
+   (`Background='#FFD0D0D0'`, light gray) added in session 120 specifically to work
+   around a *different*, now-irrelevant problem (setting `BorderThickness` directly on a
+   row measured by `VirtualizingStackPanel`'s infinite-width constraint used to collapse
+   the whole row to border-only height). By session 122 `ApplyShimGridLines` is reliably
+   called for every cell (`DataGridRow.BuildCells()` line 349, shared by both the manual
+   and presenter-hosted/frozen-columns paths), making `PART_RowSeparator` pure
+   redundant duplication — every row was drawing its bottom line *twice*.
+2. `DataGrid.BuildHeaderRow()` independently wrapped the whole header panel in a
+   `Border` with its own `_rowSeparatorBrush` (`#D0D0D0`, 2px) bottom edge — again
+   redundant with each `DataGridColumnHeader` cell's own `ApplyShimGridLines()`-driven
+   bottom border (`Primitives/DataGridColumnHeader.cs`, session 120/122).
+
+Neither is real WPF behavior — WPF has no such extra always-on separator elements; the
+per-cell/per-header gridlines *are* the row/header separator, precisely as
+`GridLinesVisibility` governs them. Two independent, differently-colored, differently-
+sized `Border` elements landing at nearly (but not exactly, due to independent layout
+rounding) the same Y coordinate is exactly what produced the doubled/offset-line
+artifact — and drawing everything twice is also strictly wasted rendering work, which
+the user separately flagged ("效率和结果看都不好啊" — bad for both efficiency and the
+result).
+
+**Fix**: removed both redundant mechanisms outright, relying solely on the correct,
+already-existing `ApplyShimGridLines` path:
+
+- `DataGridRow.cs`: `PART_RowSeparator` removed from both `RowTemplateXaml` and
+  `CellsPresenterRowTemplateXaml`; the `_rowSeparator` field and
+  `ApplyRowSeparatorVisibility()` method removed along with all three call sites
+  (`OnApplyTemplate`, `SetRowError`, `ClearRowError`, and `DataGrid.ShimDecorateRow`).
+  The row-wide validation-error border (`SetRowError`/`ClearRowError`, the row's *own*
+  `BorderBrush`/`BorderThickness` going red) is an unrelated, legitimate mechanism and is
+  untouched.
+- `DataGrid.cs`: `BuildHeaderRow()`'s wrapping `Border` no longer sets its own
+  `BorderBrush`/`BorderThickness` — kept as a plain wrapper only for return-type
+  compatibility with callers.
+- The filter row's own separator (`BuildFilterRow()`, still using `_rowSeparatorBrush`)
+  was deliberately left alone: filter cells are plain `TextBox`/hex-box/flags controls
+  that never call `ApplyShimGridLines`, so there's no second mechanism to collide with
+  there — not a duplicate, no bug.
+- Fixed the DataGrid control's own separate outer-chrome `Border` too
+  (`ShimTemplateXaml`/`ShimVirtualizedTemplateXaml`, `BorderBrush='#CCCCCC'` → `'Black'`)
+  — a shim-invented literal with no relation to any real WPF property, previously
+  mismatched against the (correct) interior gridline color.
+
+Verified via DevFlow screenshots (full-window and cropped/zoomed via `magick convert`)
+before and after: before, row/header separators visibly doubled (a lighter line
+immediately adjacent to a darker one); after, every separator — outer frame, header
+bottom edge, and every row boundary — is a single, consistently black line. Full test
+suite re-verified green after each step (229/229 unit, 30/31 integration, 1 pre-existing
+unrelated skip) — none of the removed code was covered by an assertion that depended on
+its specific (buggy) visual output.
+
+## Files touched (this addendum)
+
+- `tests/DataGrid.IntegrationTestHost/MainPage.cs` — `Build*Grid()` factories extracted;
+  probes call them instead of inlining construction.
+- `tests/DataGrid.IntegrationTestHost/ScenarioGallery.cs` — new; left-nav gallery.
+- `tests/DataGrid.IntegrationTestHost/App.xaml.cs` — `PreferredLaunchViewSize`.
+- `wpf-labs/src/DevFlow/LeXtudio.DevFlow.Agent.Uno/UnoAgentService.cs` —
+  `TryInvokeSelectionItemPattern` fallback added to the tap fallback chain (source-only;
+  not yet repacked/republished).
+- `src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs` — outer chrome border color
+  fix; `BuildHeaderRow()`'s redundant separator removed; `ShimDecorateRow()`'s
+  `ApplyRowSeparatorVisibility()` call removed.
+- `src/LeXtudio.Windows/System.Windows/Controls/DataGridRow.cs` — `PART_RowSeparator`
+  and all supporting code removed.
+
+Full suite after the rendering fix: 229/229 unit, 30/31 integration (1 pre-existing
+unrelated skip).

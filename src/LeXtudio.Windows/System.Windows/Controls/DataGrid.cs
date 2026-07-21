@@ -159,10 +159,26 @@ public partial class DataGrid
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>" +
         "<Grid>" +
-        "<Border Background='White' BorderBrush='#CCCCCC' BorderThickness='1'>" +
+        // Session 122: was '#CCCCCC' — a shim-invented outer-chrome color with no
+        // relation to real WPF's own default. Real WPF's HorizontalGridLinesBrush/
+        // VerticalGridLinesBrush both default to Brushes.Black (DataGrid.cs,
+        // linked upstream, HorizontalGridLinesBrushProperty/
+        // VerticalGridLinesBrushProperty registration); this shim's *own* minimal
+        // ControlTemplate (this whole method's comment explains why one exists at
+        // all — Themes/Generic.xaml isn't reliably loaded) then drew the outer
+        // frame in a different, much lighter gray, producing a visible two-tone
+        // "double frame": a light outer rectangle around a darker interior
+        // gridline grid, most noticeable at the leftmost/rightmost edges where the
+        // light outer border sits right next to the dark interior column
+        // separators. Matching Black here makes the outer chrome and interior
+        // gridlines views read as one consistent frame instead of two nested ones.
         "<ScrollViewer x:Name='PART_ShimRowsScroll' HorizontalScrollBarVisibility='Auto' VerticalScrollBarVisibility='Auto'>" +
         "<StackPanel x:Name='PART_ShimRowsHost' MinWidth='120' MinHeight='40' />" +
-        "</ScrollViewer></Border>" +
+        "</ScrollViewer>" +
+        // Draw the complete frame as an overlay. A wrapping Border reserves an
+        // inner layout pixel, which puts the last row line beside the bottom
+        // frame instead of on the same device-pixel coordinate.
+        "<Border x:Name='PART_ShimOuterBorder' BorderBrush='Black' BorderThickness='1' IsHitTestVisible='False' />" +
         // Session 120: floating drag-header/drop-indicator overlay (see the "Column
         // reorder by drag" region) — a top-level sibling so the floating header can be
         // positioned anywhere over the grid, independent of the scrolling rows/header.
@@ -178,7 +194,20 @@ public partial class DataGrid
         "<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
         "xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' " +
         "xmlns:p='using:System.Windows.Controls.Primitives'>" +
-        "<Border Background='White' BorderBrush='#CCCCCC' BorderThickness='1'>" +
+        // Session 122: was '#CCCCCC' — a shim-invented outer-chrome color with no
+        // relation to real WPF's own default. Real WPF's HorizontalGridLinesBrush/
+        // VerticalGridLinesBrush both default to Brushes.Black (DataGrid.cs,
+        // linked upstream, HorizontalGridLinesBrushProperty/
+        // VerticalGridLinesBrushProperty registration); this shim's *own* minimal
+        // ControlTemplate (this whole method's comment explains why one exists at
+        // all — Themes/Generic.xaml isn't reliably loaded) then drew the outer
+        // frame in a different, much lighter gray, producing a visible two-tone
+        // "double frame": a light outer rectangle around a darker interior
+        // gridline grid, most noticeable at the leftmost/rightmost edges where the
+        // light outer border sits right next to the dark interior column
+        // separators. Matching Black here makes the outer chrome and interior
+        // gridlines views read as one consistent frame instead of two nested ones.
+        "<Grid Background='White'>" +
         "<Grid>" +
         "<Grid.RowDefinitions><RowDefinition Height='Auto'/><RowDefinition Height='*'/></Grid.RowDefinitions>" +
         // Row 0: pinned column-header host (does not scroll vertically), matching WPF.
@@ -193,7 +222,9 @@ public partial class DataGrid
         // so the floating header can be positioned over the pinned header OR the
         // scrolling rows area.
         "<Canvas x:Name='PART_ShimDragOverlay' Grid.RowSpan='2' IsHitTestVisible='False' />" +
-        "</Grid></Border></ControlTemplate>";
+        "</Grid>" +
+        "<Border x:Name='PART_ShimOuterBorder' BorderBrush='Black' BorderThickness='1' IsHitTestVisible='False' />" +
+        "</Grid></ControlTemplate>";
 
     // Row count above which the manual render auto-switches to the virtualized presenter.
     private const int ShimAutoVirtualizeThreshold = 1000;
@@ -491,13 +522,6 @@ public partial class DataGrid
     internal void ShimDecorateRow(DataGridRow row, object item, int displayIndex)
     {
         row.ShimRowIndex = displayIndex;
-        // Session 120: the separator is a fixed-height template child
-        // (DataGridRow.PART_RowSeparator), not the row Control's own
-        // BorderThickness, so it renders identically on the manual and
-        // virtualized paths (the latter used to skip it — mutating
-        // BorderThickness on a row measured by VirtualizingStackPanel's
-        // infinite-width constraint collapsed the row to border-only height).
-        row.ApplyRowSeparatorVisibility();
         row.ApplyShimRowStyle();
         row.ApplyShimRowBackground();
         // Reflect the engine's selection so the highlight follows the item even across
@@ -781,6 +805,9 @@ public partial class DataGrid
         // codebase for TemplatedParent) — fall back to a plain visual-tree search.
         return ShimFindVisualDescendant<Microsoft.UI.Xaml.Controls.ScrollViewer>(this);
     }
+
+    internal Microsoft.UI.Xaml.Controls.Border? ShimGetOuterBorder()
+        => GetTemplateChild("PART_ShimOuterBorder") as Microsoft.UI.Xaml.Controls.Border;
 
     private static T? ShimFindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
     {
@@ -1372,16 +1399,22 @@ public partial class DataGrid
         }
 
         _headerHostPanel = header;
-        // Wrap in a Border so the header row gets a bottom separator line.
-        return new Microsoft.UI.Xaml.Controls.Border
-        {
-            BorderBrush = _rowSeparatorBrush,
-            BorderThickness = new Microsoft.UI.Xaml.Thickness(0, 0, 0, 2),
-            Child = header,
-        };
+        // Session 122: this used to also draw its own 2px light-gray (#D0D0D0)
+        // bottom border here — but every header cell already draws its own
+        // bottom border via ApplyShimGridLines (real WPF's GridLinesVisibility/
+        // HorizontalGridLinesBrush, Black by default), so with the default
+        // GridLinesVisibility=All this was a second, different-colored,
+        // slightly-Y-offset line drawn directly under the first — the same
+        // double-separator artifact fixed for data rows (DataGridRow.cs,
+        // PART_RowSeparator removal). No separate separator needed here either;
+        // wrapped in a plain (now borderless) Border only to keep this method's
+        // return type unchanged for callers.
+        return new Microsoft.UI.Xaml.Controls.Border { Child = header };
     }
 
-    // Light gray brush shared by the filter row background and the row separator lines.
+    // Light gray background shared by the filter row (its own bottom border,
+    // drawn below, isn't redundant with anything else — filter cells are plain
+    // TextBox/HexBox/Flags controls that don't call ApplyShimGridLines).
     private static readonly Microsoft.UI.Xaml.Media.Brush _filterRowBackground =
         new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xF0, 0xF0, 0xF0));
