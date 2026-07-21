@@ -177,6 +177,19 @@ public partial class ItemsControl : IGeneratorHost
     // Containers are never generated, so focusing an item's container is a no-op.
     internal virtual bool FocusItem(ItemInfo info, ItemNavigateArgs itemNavigateArgs) => false;
 
+    // Real WPF ItemsControl.NavigateToItem/MakeVisible analog, used by TextSearch's
+    // incremental-search match action. Base fallback only focuses an already-realized
+    // container (a no-op for virtualized/off-screen items); DataGrid overrides this to
+    // reuse its real scroll-into-view + selection machinery so a matched but
+    // not-yet-generated row is realized first, matching WPF's actual behavior.
+    internal virtual void NavigateToItem(object? item)
+    {
+        if (item is not null && ItemContainerGenerator.ContainerFromItem(item) is Microsoft.UI.Xaml.FrameworkElement container)
+        {
+            container.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
+        }
+    }
+
     // Bridge subset of WPF's nested navigation-args type.
     internal class ItemNavigateArgs
     {

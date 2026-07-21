@@ -1,3 +1,6 @@
 [submodule "ext/wpf"]
 	path = ext/wpf
 	url = https://github.com/lextudio/wpf.git
+[submodule "ext/wct-v7"]
+	path = ext/wct-v7
+	url = https://github.com/CommunityToolkit/WindowsCommunityToolkit.git

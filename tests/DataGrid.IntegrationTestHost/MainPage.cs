@@ -35,6 +35,15 @@ public sealed partial class MainPage : Page
         public string Name { get; set; } = "";
         public string Namespace { get; set; } = "";
         public string BaseType { get; set; } = "";
+
+        // Nested-path exercise for TextSearch.TextPath ("Owner.Name") — session 122
+        // follow-up 3.
+        public MetadataRowOwner? Owner { get; set; }
+    }
+
+    public sealed class MetadataRowOwner
+    {
+        public string Name { get; set; } = "";
     }
 
     // ─── JSON helpers ───────────────────────────────────────────────
@@ -128,6 +137,7 @@ public sealed partial class MainPage : Page
             Name = $"Type{i}",
             Namespace = i < 10 ? "Root" : "Root.Sub",
             BaseType = i % 3 == 0 ? "object" : "ValueType",
+            Owner = new MetadataRowOwner { Name = $"Owner{i}" },
         }).ToList();
 
         page._grid = grid;
@@ -164,6 +174,7 @@ public sealed partial class MainPage : Page
             Name = $"Type{i}",
             Namespace = i < 10 ? "Root" : "Root.Sub",
             BaseType = i % 3 == 0 ? "object" : "ValueType",
+            Owner = new MetadataRowOwner { Name = $"Owner{i}" },
         }).ToList();
 
         DataGridExtensions.DataGridFilter.SetIsAutoFilterEnabled(grid, true);
@@ -188,6 +199,15 @@ public sealed partial class MainPage : Page
     {
         return Snapshot(page);
     });
+
+    // ─── Probe: double-click-time ────────────────────────────────────
+    // Verifies session 122's SystemParameters.DoubleClickTime now queries the
+    // real OS value (Windows: user32!GetDoubleClickTime; macOS: AppKit's
+    // NSEvent.doubleClickInterval via the Objective-C runtime) instead of a
+    // hardcoded 500ms guess.
+    [DevFlowAction("datagrid.probe.double-click-time", Description = "Read System.Windows.SystemParameters.DoubleClickTime.")]
+    public static string ProbeDoubleClickTime() => RunOnUi(page =>
+        $"{{\"doubleClickTimeMs\":{System.Windows.SystemParameters.DoubleClickTime}}}");
 
     // ─── Probe: resize-column ───────────────────────────────────────
 
@@ -335,6 +355,218 @@ public sealed partial class MainPage : Page
         var widths = string.Join(",", page._grid!.Columns.Cast<System.Windows.Controls.DataGridColumn>().Select(c => Jn(c.ActualWidth > 0 ? c.ActualWidth : c.Width.DisplayValue)));
         return $"{{\"hasGrid\":true,\"autoGenerateColumns\":{Jb(page._grid.AutoGenerateColumns)},\"columnWidths\":[{widths}]}}";
     });
+
+    // ─── Probe: sort-glyph ────────────────────────────────────────────
+    // Verifies the DataGridColumnHeader VSM enrichment (session 122): real WPF's
+    // linked DataGridColumnHeader.ChangeVisualState calls VisualStateManager.
+    // GoToState("SortAscending"/"SortDescending"/"Unsorted") — previously a silent
+    // no-op since the template had no VisualStateGroups. Reads back the header's
+    // "SortIcon" TextBlock Opacity/Text to confirm the state change now actually
+    // renders.
+
+    static Microsoft.UI.Xaml.FrameworkElement? FindNamed(Microsoft.UI.Xaml.DependencyObject root, string name)
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is Microsoft.UI.Xaml.FrameworkElement { } fe && fe.Name == name) return fe;
+            if (FindNamed(child, name) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    // ─── Probe: header-hover ──────────────────────────────────────────
+    // Verifies the DataGridColumnHeader CommonStates VSM group (session 122):
+    // real WPF's linked ButtonBase-style ChangeVisualState calls
+    // VisualStateManager.GoToState("MouseOver"/"Pressed"/"Normal") on pointer
+    // enter/press — previously a silent no-op for two independent reasons, both
+    // fixed this session: (1) VisualStates.GoToState's `element is Control` type
+    // check resolved to this shim's own System.Windows.Controls.Control, which
+    // no ButtonBase-derived type (including DataGridColumnHeader) actually
+    // inherits from — broadened to Microsoft.UI.Xaml.Controls.Control; (2) the
+    // header's ControlTemplate is now force-applied eagerly (ApplyShimGridLines)
+    // so its VisualStateGroups exist by the time any state-changing property is
+    // first coerced, instead of only materializing later via the natural layout
+    // pass. Forces IsMouseOver via reflection (real pointer-event synthesis is
+    // unreliable in this headless host — see docs/uno-macos-synthetic-click-issue.md)
+    // and calls ChangeVisualState directly.
+    [DevFlowAction("datagrid.probe.header-hover", Description = "Force IsMouseOver on the first column header and call ChangeVisualState directly; read back the HoverRectangle's fill color before/after.")]
+    public static string ProbeHeaderHover() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var headerBorder = FindNamed(grid, "HeaderBorder");
+        var hoverRect = headerBorder is not null ? FindNamed(headerBorder, "HoverRectangle") as Microsoft.UI.Xaml.Shapes.Rectangle : null;
+        System.Windows.Controls.Primitives.DataGridColumnHeader? headerControl = null;
+        for (Microsoft.UI.Xaml.DependencyObject? p = headerBorder; p is not null; p = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(p))
+        {
+            if (p is System.Windows.Controls.Primitives.DataGridColumnHeader dch) { headerControl = dch; break; }
+        }
+
+        global::Windows.UI.Color ColorOf() => (hoverRect?.Fill as Microsoft.UI.Xaml.Media.SolidColorBrush)?.Color ?? default;
+        var before = ColorOf();
+
+        var isMouseOverField = typeof(System.Windows.Controls.Primitives.ButtonBase).GetField("_isPointerOver", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        isMouseOverField?.SetValue(headerControl, true);
+
+        var changeVisualState = typeof(System.Windows.Controls.Primitives.ButtonBase).GetMethod(
+            "ChangeVisualState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null, [typeof(bool)], null);
+        changeVisualState?.Invoke(headerControl, [true]);
+        grid.UpdateLayout();
+
+        var after = ColorOf();
+
+        return $"{{\"hasGrid\":true,\"headerControlFound\":{Jb(headerControl is not null)},\"hoverRectFound\":{Jb(hoverRect is not null)}," +
+               $"\"beforeAlpha\":{before.A},\"afterAlpha\":{after.A}}}";
+    });
+
+    // ─── Probe: sort-arrow ────────────────────────────────────────────
+    // Verifies real, pre-existing sort-arrow rendering (DataGrid.HeaderContent,
+    // a Path glyph above the header text driven directly by column.SortDirection
+    // at content-build time — no VisualStateManager involved) still shows exactly
+    // once per sorted column after DataGrid.PerformSort, and that the earlier
+    // VSM-based header-styling work did not leave a second, duplicate arrow
+    // behind (an actual regression a first attempt introduced and then removed —
+    // see docs/session121.md).
+    [DevFlowAction("datagrid.probe.sort-arrow", Description = "Sort a column via DataGrid.PerformSort; report how many sort-arrow Path glyphs are found in that column's header (should be exactly 1).")]
+    public static string ProbeSortArrow(int columnIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var column = grid.Columns[columnIndex];
+
+        var performSort = typeof(WpfDataGrid).GetMethod("PerformSort", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        performSort?.Invoke(grid, [column]);
+        grid.UpdateLayout();
+
+        // Never hold a header reference across PerformSort (it rebuilds the header
+        // row) — re-fetch fresh via TryGetCell-equivalent header lookup afterward.
+        var header = grid.ColumnFromDisplayIndex(columnIndex) is { } c
+            ? System.Linq.Enumerable.FirstOrDefault(
+                System.Linq.Enumerable.OfType<System.Windows.Controls.Primitives.DataGridColumnHeader>(
+                    EnumerateVisualTree(grid)), h => h.Column == c)
+            : null;
+
+        // HeaderContent's arrow Path is a logical (not necessarily visual-tree-walkable
+        // in this harness) child of Content — assert via the object graph directly
+        // rather than VisualTreeHelper, which has proven unreliable for this specific
+        // Content-not-yet-materialized case elsewhere this session too.
+        var contentGrid = header?.Content as Microsoft.UI.Xaml.Controls.Grid;
+        var arrowCount = contentGrid is not null
+            ? System.Linq.Enumerable.Count(contentGrid.Children, ch => ch is Microsoft.UI.Xaml.Shapes.Path)
+            : -1;
+        // No "SortIcon"-named element should exist anywhere anymore — that was the
+        // redundant, since-removed VSM-driven arrow a first attempt introduced.
+        var duplicateSortIconStillPresent = FindNamed(grid, "SortIcon") is not null;
+
+        return $"{{\"hasGrid\":true,\"headerFound\":{Jb(header is not null)},\"sortDirection\":{Js(column.SortDirection?.ToString())}," +
+               $"\"arrowCount\":{arrowCount},\"duplicateSortIconStillPresent\":{Jb(duplicateSortIconStillPresent)}}}";
+    });
+
+    // ─── Probe: text-search ───────────────────────────────────────────
+    // Verifies session 122's TextSearch wiring: previously TextSearch.DoSearch
+    // was never called from anywhere (ItemsControlSpine.OnTextInput was an
+    // empty stub DataGrid never overrode) — the whole incremental-search
+    // feature was dead code, not just "simplified" as the README claimed.
+    // Now DataGrid.OnKeyDown maps unmodified letter/digit VirtualKeys to
+    // DoSearch calls, and a match routes through the new
+    // ItemsControl.NavigateToItem override (DataGrid's, which reuses
+    // MoveSelectionToIndex — real scroll-into-view + selection, not just a
+    // container-focus attempt that silently no-ops for virtualized rows).
+    [DevFlowAction("datagrid.probe.text-search", Description = "Exercise DataGrid's TextSearch wiring end-to-end via reflection (key-to-char mapping + DoSearch + NavigateToItem selection).")]
+    public static string ProbeTextSearch() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.IsTextSearchEnabled = true;
+        grid.SelectedIndex = -1;
+
+        var keyToChar = typeof(WpfDataGrid).GetMethod("ShimVirtualKeyToChar", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        var mappedA = keyToChar?.Invoke(null, [global::Windows.System.VirtualKey.A]) as string;
+        var mappedEnter = keyToChar?.Invoke(null, [global::Windows.System.VirtualKey.Enter]) as string;
+
+        var textSearchType = typeof(WpfDataGrid).Assembly.GetType("System.Windows.Controls.TextSearch")!;
+        var ensureInstance = textSearchType.GetMethod("EnsureInstance", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        var instance = ensureInstance!.Invoke(null, [grid]);
+        var doSearch = textSearchType.GetMethod("DoSearch", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        // All sample rows share the same MetadataRow.ToString() (no override), so
+        // any single character matches index 0 — enough to confirm DoSearch reaches
+        // NavigateToItem and actually moves selection, without needing per-item text.
+        var firstChar = grid.Items[0]!.ToString()![0].ToString();
+        doSearch!.Invoke(instance, [firstChar]);
+        var selectedIndexToStringMatch = grid.SelectedIndex;
+
+        // Session 122 (follow-up): TextSearch.TextPath — reflection-based
+        // per-item property matching (MetadataRow.Name = "Type1".."Type20"),
+        // exercising the new GetTextPath/GetItemText path instead of the
+        // ToString()-only fallback above. "Type15" is unique (unlike "Type1",
+        // which prefix-matches Type1/10-19), so a correct match must land
+        // on the row whose Name is exactly "Type15" (RID 15 -> index 14).
+        var textPathType = typeof(WpfDataGrid).Assembly.GetType("System.Windows.Controls.TextSearch")!;
+        textPathType.GetMethod("SetTextPath", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public)!
+            .Invoke(null, [grid, "Name"]);
+        grid.SelectedIndex = -1;
+        var instance2 = ensureInstance.Invoke(null, [grid]);
+        foreach (var ch in "Type15")
+        {
+            doSearch!.Invoke(instance2, [ch.ToString()]);
+        }
+        var selectedIndexByTextPath = grid.SelectedIndex;
+
+        // Session 122 (follow-up 3): TextPath now resolves via
+        // BindingExpression.EvaluatePath, a real dotted-path walker — reuses the
+        // binding shim's own multi-segment resolution instead of a
+        // single-property-only lookup. "Owner15" is unique per-item (each row's
+        // Owner.Name is "Owner{RID}"), so a correct nested-path match must land
+        // on RID 15 -> index 14, same as the flat-property case above.
+        textPathType.GetMethod("SetTextPath", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public)!
+            .Invoke(null, [grid, "Owner.Name"]);
+        grid.SelectedIndex = -1;
+        var instance3 = ensureInstance.Invoke(null, [grid]);
+        foreach (var ch in "Owner15")
+        {
+            doSearch!.Invoke(instance3, [ch.ToString()]);
+        }
+        var selectedIndexByNestedTextPath = grid.SelectedIndex;
+
+        return $"{{\"hasGrid\":true,\"mappedA\":{Js(mappedA)},\"mappedEnterIsNull\":{Jb(mappedEnter is null)}," +
+               $"\"selectionMovedByToString\":{Jb(selectedIndexToStringMatch == 0)}," +
+               $"\"selectedIndexByTextPath\":{selectedIndexByTextPath},\"textPathMatchedType15\":{Jb(selectedIndexByTextPath == 14)}," +
+               $"\"selectedIndexByNestedTextPath\":{selectedIndexByNestedTextPath},\"nestedTextPathMatchedOwner15\":{Jb(selectedIndexByNestedTextPath == 14)}}}";
+    });
+
+    static System.Collections.Generic.IEnumerable<Microsoft.UI.Xaml.DependencyObject> EnumerateVisualTree(Microsoft.UI.Xaml.DependencyObject root)
+    {
+        yield return root;
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            foreach (var d in EnumerateVisualTree(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i)))
+            {
+                yield return d;
+            }
+        }
+    }
+
+    static int CountDescendants<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        var count = 0;
+        var childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T) count++;
+            count += CountDescendants<T>(child);
+        }
+        return count;
+    }
 
     // ─── Probe: cell-text ─────────────────────────────────────────────
     // Verifies a fix to DataGridCell.BuildVisualTree(): the bound TextBlock

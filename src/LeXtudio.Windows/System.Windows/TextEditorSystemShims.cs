@@ -3,11 +3,97 @@
 // in the upstream type surface without wiring into a real Uno input/services
 // pipeline.
 
+using System.Runtime.InteropServices;
+
 namespace System.Windows
 {
     public static class SystemParameters
     {
-        public static int DoubleClickTime => 500;
+        // Session 122 (follow-up): real per-OS double-click interval instead of a
+        // fixed guess, queried once and cached (this isn't expected to change
+        // while the process is running). Windows: user32!GetDoubleClickTime
+        // (milliseconds, directly). macOS: AppKit's NSEvent.doubleClickInterval —
+        // there's no C API for this, only the Objective-C class property, so it's
+        // read via the Objective-C runtime directly (objc_getClass/sel_registerName
+        // + objc_msgSend), the same mechanism any Objective-C caller uses; no
+        // AppKit binding library needed for one property read. x86_64's ABI
+        // requires the floating-point-return entry point (objc_msgSend_fpret) for
+        // a function returning a double; arm64's unified calling convention means
+        // the ordinary objc_msgSend works for every return shape, so which symbol
+        // gets bound depends on process architecture. Both DllImports below are
+        // declared unconditionally (fine on every OS — they only resolve, and
+        // fail, if actually invoked) and only called behind a runtime OS check;
+        // any failure (missing library, unexpected native error) falls back to
+        // the previous fixed 500ms guess rather than throwing.
+        private static readonly int _doubleClickTime = QueryDoubleClickTime();
+
+        private static int QueryDoubleClickTime()
+        {
+            const int fallbackMs = 500;
+            try
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    var ms = (int)NativeMethods.GetDoubleClickTime();
+                    return ms > 0 ? ms : fallbackMs;
+                }
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    // AppKit isn't guaranteed loaded into every process that links
+                    // this shim (verified live: objc_getClass("NSEvent") returns
+                    // NULL, and the property read silently comes back 0, without
+                    // this) — load it explicitly first. Cheap and idempotent if
+                    // already loaded (e.g. the real Uno/Skia desktop app, which
+                    // already uses AppKit for native window chrome).
+                    ObjC.dlopen("/System/Library/Frameworks/AppKit.framework/AppKit", ObjC.RTLD_LAZY);
+                    var nsEventClass = ObjC.objc_getClass("NSEvent");
+                    var selector = ObjC.sel_registerName("doubleClickInterval");
+                    double seconds = RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                        ? ObjC.objc_msgSend_double(nsEventClass, selector)
+                        : ObjC.objc_msgSend_fpret(nsEventClass, selector);
+                    var ms = (int)Math.Round(seconds * 1000.0);
+                    return ms > 0 ? ms : fallbackMs;
+                }
+            }
+            catch
+            {
+                // Native call unavailable or failed for any reason — keep the guess.
+            }
+
+            return fallbackMs;
+        }
+
+        private static class NativeMethods
+        {
+            [DllImport("user32.dll")]
+            public static extern uint GetDoubleClickTime();
+        }
+
+        private static class ObjC
+        {
+            public const int RTLD_LAZY = 1;
+
+            [DllImport("/usr/lib/system/libdyld.dylib")]
+            public static extern IntPtr dlopen(string path, int mode);
+
+            [DllImport("/usr/lib/libobjc.dylib")]
+            public static extern IntPtr objc_getClass(string name);
+
+            [DllImport("/usr/lib/libobjc.dylib")]
+            public static extern IntPtr sel_registerName(string name);
+
+            // arm64: the unified objc_msgSend entry point returns a double correctly
+            // for a no-argument class-property getter like this one.
+            [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend")]
+            public static extern double objc_msgSend_double(IntPtr receiver, IntPtr selector);
+
+            // x86_64: floating-point returns must go through the _fpret variant.
+            [DllImport("/usr/lib/libobjc.dylib", EntryPoint = "objc_msgSend_fpret")]
+            public static extern double objc_msgSend_fpret(IntPtr receiver, IntPtr selector);
+        }
+
+        public static int DoubleClickTime => _doubleClickTime;
         public static double DoubleClickDeltaX => 4.0;
         public static double DoubleClickDeltaY => 4.0;
         public static int MouseHoverTime => 400;

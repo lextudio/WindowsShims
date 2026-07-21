@@ -32,6 +32,29 @@ Install-Package LeXtudio.Windows
 - **Uno Platform (net9.0-desktop)**: Linux, macOS, iOS, Android
 - **WinUI 3 (net9.0-windows10.0.19041.0)**: Windows 10+
 
+## Ported WPF Controls
+
+Beyond the type shims, this library carries three full WPF controls onto Uno/WinUI. The common approach: real upstream WPF source (from the [`dotnet/wpf`](https://github.com/dotnet/wpf) submodule) is linked directly into the build with `#if HAS_UNO` guards, so large parts of each control's behavior are genuine, unmodified WPF code — not a reimplementation. Local `.uno.cs` bridge files fill in only what can't compile as-is against WinUI's native `DependencyObject`/layout model.
+
+### ToolBar / ToolBarTray
+
+The closest of the three to full parity. `ToolBar`, `ToolBarTray`, `ToolBarPanel`, and `ToolBarOverflowPanel` are all linked straight from upstream WPF — overflow behavior, band layout, and tray drag/dock all run real WPF logic. Only one supporting file (`ToolBarOverflowAwarePanel`) is local, bridging overflow-awareness onto Uno's layout model. No known behavioral gaps beyond general native-layout differences.
+
+### RichTextBox
+
+The full text-document spine is linked upstream: `RichTextBox`, `FlowDocument`, `TextElement`, `TextPointer`, `TextRange` (including edit/list/table variants), `TextSelection`, the `ITextPointer`/`ITextRange`/`ITextSelection` interfaces, undo units, and the word-breaker — all real WPF code. Local bridges add Uno-specific plumbing: pointer/hyperlink hit-testing and template wiring (`RichTextBox.uno.cs`), collection-changed notification on `TextElementCollection`, and serialization support surfaces.
+
+**Known gap**: the `TextEditor*` spine — the internal command orchestrator behind typing, selection, and formatting commands — remains a thin bridge rather than linked upstream code; this is the largest remaining fidelity gap. Also out of scope: table layout in `FlowDocument`, fixed-document/paginator support, document sequences, and annotations.
+
+### DataGrid
+
+The control root (`DataGrid.cs`) and its supporting enums/value types (`DataGridLength`, selection/visibility enums, `SortDescription`) are linked upstream, alongside the column header drag-resize handler and column-collection core fields. The row/cell generation and virtualization pipeline, the `ItemsControl → Selector → MultiSelector → DataGrid` tower, and `CollectionView`/`ItemCollection` are rebased onto WinUI's `Control`/layout model via local bridges.
+
+**Fully working**: row/column virtualization, selection, sorting, real data-level grouping (`CollectionViewGroup`/`GroupStyle`, full API coverage including selectors and `HidesIfEmpty`), frozen columns (including under virtualization, with real editing and selection), column resize/reorder with a floating drag header and Escape-to-cancel, column-header container reuse, hyperlink columns, real cell editing, row details (including variable-height rows under virtualization), clipboard copy, and keyboard incremental search (`TextSearch`, including dotted `TextPath` property matching and real OS double-click-interval timing).
+
+**Known gaps**:
+- **Accessibility / UI Automation** is not implemented — the largest remaining gap. This is a deliberate, honest stub (`AutomationPeer.FromElement` returns null) rather than a silent partial implementation. (Plan to address this with Uno Platform v6.6's new accessibility support.)
+
 ## What's Included
 
 ### System.Windows

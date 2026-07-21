@@ -179,7 +179,17 @@ public abstract partial class ButtonBase : Microsoft.UI.Xaml.Controls.Primitives
         Microsoft.UI.Xaml.VisualStateManager.GoToState(this, state, useTransitions);
     }
 
-    internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) { }
+    // Session 122: was a no-op ("VisualStateManager not used on HAS_UNO" — true when
+    // written, since no template declared any VisualStateGroups yet). Real WPF's
+    // DataGridColumnHeader registers this as SortDirectionProperty's PropertyChangedCallback
+    // specifically so that changing SortDirection re-evaluates visual state (the
+    // "SortAscending"/"SortDescending"/"Unsorted" states ChangeVisualState's override
+    // drives). Casting to WPF's own Control (as real WPF's identical helper does) doesn't
+    // work here since ButtonBase-derived shim types don't route through this shim's
+    // separate System.Windows.Controls.Control class — cast to ButtonBase instead, the
+    // actual common ancestor of every type that could reference this callback.
+    internal static void OnVisualStatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => (d as ButtonBase)?.UpdateVisualState();
 
     internal void ChangeValidationVisualState(bool useTransitions)
     {

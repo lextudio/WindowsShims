@@ -2759,7 +2759,40 @@ public partial class DataGrid
                 MoveSelectionByOffset(ShimPageSize);
                 e.Handled = true;
                 break;
+            default:
+                // Real WPF wires TextSearch.DoSearch from ItemsControl.OnTextInput (a
+                // separate routed event carrying composed/IME text). WinUI's
+                // KeyRoutedEventArgs only carries a VirtualKey, so this maps the
+                // unmodified-letter/digit subset directly instead of hooking a second
+                // event — sufficient for the prefix-search use case (typed names),
+                // without pulling in full IME composition handling.
+                if (modifiers == Input.ModifierKeys.None && IsTextSearchEnabled)
+                {
+                    var ch = ShimVirtualKeyToChar(e.Key);
+                    if (ch is not null)
+                    {
+                        TextSearch.EnsureInstance(this)?.DoSearch(ch);
+                        e.Handled = true;
+                    }
+                }
+                break;
         }
+    }
+
+    private static string? ShimVirtualKeyToChar(global::Windows.System.VirtualKey key)
+    {
+        var value = (int)key;
+        if (key >= global::Windows.System.VirtualKey.A && key <= global::Windows.System.VirtualKey.Z)
+        {
+            return ((char)value).ToString();
+        }
+
+        if (key >= global::Windows.System.VirtualKey.Number0 && key <= global::Windows.System.VirtualKey.Number9)
+        {
+            return ((char)value).ToString();
+        }
+
+        return null;
     }
 
     internal void MoveSelectionByOffset(int delta)
@@ -2777,6 +2810,20 @@ public partial class DataGrid
             : Math.Clamp(current + delta, 0, Items.Count - 1);
 
         MoveSelectionToIndex(target);
+    }
+
+    // Overrides the spine's focus-only fallback: reuses the real scroll-into-view +
+    // row-click selection path (MoveSelectionToIndex), so TextSearch's incremental
+    // search realizes and selects a virtualized/off-screen match, not just focuses
+    // an already-generated one.
+    internal override void NavigateToItem(object? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        MoveSelectionToIndex(Items.IndexOf(item));
     }
 
     internal void MoveSelectionToIndex(int index)

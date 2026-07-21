@@ -1657,3 +1657,223 @@ dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0
 dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                        # 0 errors
 dotnet test  tests/DataGrid.IntegrationTests --no-restore                                              # 26/27 pass, 1 documented skip (deeper root cause now recorded)
 ```
+
+## v7-toolkit-style adoption — scoped, Slice 1 attempted (inconclusive), findings documented
+
+Following the WCT v7 vs. our DataGrid comparison (`docs/datagrid-compare.md`), scoped
+adopting WCT v7's `DataGrid.xaml` visual richness (VisualStateManager-driven states,
+proper hover/pressed/sort/selected chrome) as a replacement for this port's current
+bare-bones, hand-written `ControlTemplate` strings — while keeping our existing
+template **part-name contract** (`PART_LeftHeaderGripper`/`PART_RightHeaderGripper`,
+`PART_RowHeader`/`PART_CellsHost`/`PART_DetailsHost`/`PART_RowSeparator`,
+`PART_ShimRowsHost`/`PART_ShimHeaderHost`/`PART_ShimRowsScroll`/`PART_ShimDragOverlay`)
+rather than WCT's own (`RowHeader`/`CellsPresenter`/`DetailsPresenter`, no `PART_`
+prefix, no gripper parts at all) — confirmed via a real build experiment (see the
+previous section) that WCT's part names cannot simply be swapped in; our C#
+`GetTemplateChild` call sites are the authority.
+
+### Scope (full, multi-slice)
+
+1. **DataGridColumnHeader** — hover/pressed tint, sort-direction glyph. *(attempted this session, see below)*
+2. **DataGridCell** — selected/invalid visual treatment.
+3. **DataGridRow** — hover/selected/alternating-row tint via VSM.
+4. **Root DataGrid template** — gridline brush, filler column — lowest priority; this
+   is load-bearing virtualization infrastructure, highest risk to touch.
+
+Key enabler discovered while scoping: real WPF's own linked `ChangeVisualState`
+overrides (`DataGridColumnHeader.cs`, `DataGridRow.cs`, `DataGridCell.cs` — all
+unguarded, genuinely active) already call `VisualStateManager.GoToState` with
+WPF's real state names (`Normal`/`MouseOver`/`Pressed`, `Unsorted`/`SortAscending`/
+`SortDescending`, `Selected`/`Unselected`, etc. — see `VisualStates.cs`'s constants).
+They've been silent no-ops purely because our templates never declared matching
+`VisualStateGroups`. In principle, adding the right VSM groups requires **zero C#
+changes** — it just lets already-linked, already-running upstream logic become
+visible.
+
+### Slice 1 attempted: DataGridColumnHeader
+
+Rebuilt `HeaderTemplateXaml` (`DataGridColumnHeader.cs`) with a `HoverRectangle`
+overlay + `CommonStates` group (`Normal`/`MouseOver`/`Pressed`, via
+`VisualState.Setters`) and a `SortIcon` TextBlock + `SortStates` group
+(`Unsorted`/`SortAscending`/`SortDescending`), colors/glyphs adapted from WCT v7's
+`DataGrid.xaml` as plain literals (not `ThemeResource` lookups, since those custom
+keys aren't defined anywhere in this shim's resource tree). Kept
+`PART_LeftHeaderGripper`/`PART_RightHeaderGripper` unchanged.
+
+**Verified safe**: builds clean, XAML parses at runtime (no `XamlReader.Load`
+exception), existing grid rendering/columns/widths unaffected
+(`datagrid.probe.create-grid` still returns correct headers/widths), and the full
+regression suite passes with no change — 229/229 unit tests, 26/27 integration
+tests (1 pre-existing documented skip).
+
+**Two real findings, one blocking, one inconclusive**:
+
+1. **Sort glyph is blocked by a separate, pre-existing, project-wide gap**: traced
+   why `column.SortDirection = ...` (set by `DataGrid.PerformSort`) never reaches
+   `DataGridColumnHeader.SortDirection` (the DP the VSM states key off) —
+   `DataGridColumnHeader.cs` calls `CoerceValue(SortDirectionProperty)` to pull the
+   value from the owning column, but `CoerceValue` is a **universal no-op** in this
+   shim (`Control.cs`, `ContentControl.cs`, `ButtonBase.cs`, `FrameworkElement.cs`
+   all declare `protected/public void CoerceValue(DependencyProperty dp) { }`).
+   This is a real, distinct, deliberate architectural gap — not something this
+   template slice can fix, and probably shouldn't be fixed as a side effect of a
+   styling change (implementing real coercion project-wide risks affecting other
+   coercion-dependent behavior unexpectedly). Verified live via
+   `datagrid.probe.sort-glyph`: `PerformSort` correctly sets
+   `column.SortDirection == "Ascending"`, but the header's own `SortIcon.Opacity`
+   never leaves `0`.
+2. **Hover/pressed tint could not be confirmed to render**: forced
+   `IsMouseOver`/`ChangeVisualState` via reflection (real pointer-event simulation
+   is unreliable in this headless host per `docs/uno-macos-synthetic-click-issue.md`)
+   and the invocation completed without throwing, but the `HoverRectangle`'s fill
+   alpha stayed `0` before and after — tried both a `Storyboard`/`ColorAnimation`
+   targeting a nested property path (`(Rectangle.Fill).(SolidColorBrush.Color)`,
+   a known Uno pain point) and a plain `VisualState.Setters` `Setter` (WinUI 3
+   style, no animation at all) — neither showed a difference in this synthetic
+   test. Given the reflection-based simulation itself has several unverifiable
+   assumptions (correct virtual dispatch through `MethodInfo.Invoke`, the private
+   field actually driving the property the real pointer-event path would use,
+   `VisualStateManager.GoToState` locating the right template-root instance), this
+   is genuinely **inconclusive** rather than a confirmed negative — it may work
+   correctly under real mouse input in a running app and only fail in this specific
+   synthetic reflection harness. Not resolved this session.
+
+### Disposition
+
+The template restructuring is kept (safe, structurally correct, and the sort/hover
+VSM groups are real prerequisites either way — WPF's linked code expects exactly
+these state names). The two probes
+(`datagrid.probe.sort-glyph`/`datagrid.probe.header-hover`) are kept as documented,
+honest "attempted, here's what's blocking/unconfirmed" regression checks rather
+than deleted. Slices 2-4 (Cell/Row/root template) are not started — Row/Cell in
+particular need care since our C# already procedurally sets `Background` on
+selection/alternation (`ApplyShimRowBackground`/`UpdateSelectionVisual`), which
+would compete with any newly-added VSM-driven background animation on the same
+property; that conflict needs a design decision (migrate fully to VSM, or keep
+VSM additive/non-conflicting) before implementing, not attempted this session.
+
+**Next steps if resuming this arc**: (a) confirm hover/sort actually render via a
+real running app with real mouse input rather than headless reflection, before
+sinking more time into the synthetic-test route; (b) if confirmed genuinely broken
+(not just untestable), investigate whether `VisualStateManager.GoToState` itself
+has a gap in this Uno version separate from the `CoerceValue` no-op; (c) decide the
+Row/Cell background-authority question before touching those templates.
+
+## v7-toolkit-style adoption — Slice 1 resolved: sort glyph fixed for real, hover fixed for real, duplicate found and removed
+
+Follow-up to the previous "attempted, inconclusive" section. Actually root-caused
+and fixed both remaining issues, plus caught a real regression along the way.
+
+### Sort glyph: three real, separate bugs stacked on top of each other
+
+Root-caused by tracing the exact call chain (`DataGrid.PerformSort` ->
+`DataGridColumn.SortDirection` change -> `OnNotifySortPropertyChanged` ->
+`NotifyPropertyChanged(..., ColumnHeaders)` -> `DataGrid.NotifyPropertyChanged` ->
+`ShimNotifyColumnHeaders` -> `DataGridColumnHeader.NotifyPropertyChanged` ->
+`CoerceValue(SortDirectionProperty)` -> `ChangeVisualState` ->
+`VisualStates.GoToState` -> `VisualStateManager.GoToState`), live, at every hop,
+via DevFlow probes and targeted reflection:
+
+1. **`CoerceValue` is a universal no-op** across this entire shim (`Control.cs`,
+   `ContentControl.cs`, `ButtonBase.cs`, `FrameworkElement.cs`, and the shared
+   `WinUIDependencyObjectExtensions.CoerceValue` extension all declare it as an
+   empty body) — WinUI's native `DependencyProperty` has no coercion concept at
+   all, and nothing was ever wired to invoke a registered `CoerceValueCallback`.
+   Fixed **narrowly, on `DataGridColumnHeader` only** (`internal new void
+   CoerceValue(...)`, hiding `ButtonBase`'s no-op for this one control) rather
+   than project-wide: ~25 other `CoerceValueCallback` registrations exist across
+   the linked DataGrid/DataGridColumn/DataGridCell/DataGridRow files that have
+   never run in this shim; flipping coercion on globally risks reactivating a
+   couple dozen previously-inert paths at once with no way to verify all of them
+   in one pass. The real implementation: `FrameworkPropertyMetadata` (already a
+   subclass of native `PropertyMetadata` that carries `CoerceValueCallback`) is
+   the literal object `DependencyProperty.GetMetadata(Type)` hands back, so
+   retrieving it, invoking the callback, and calling `SetValue` if the coerced
+   value differs is a straightforward, correct bridge.
+2. **`ButtonBase.OnVisualStatePropertyChanged` was *also* a no-op** (comment:
+   "VisualStateManager not used on HAS_UNO" — true when written, since no
+   template declared any `VisualStateGroups` yet). This is the
+   `PropertyChangedCallback` real WPF's `DataGridColumnHeader` registers for
+   `SortDirectionProperty` specifically so a value change re-evaluates visual
+   state. Fixed to call `(d as ButtonBase)?.UpdateVisualState()` — real WPF's own
+   identical helper (in `ext/wpf`'s `Control.cs`, not linked here) casts to WPF's
+   `Control`, which doesn't work in this shim since ButtonBase-derived types
+   don't route through this shim's separate `System.Windows.Controls.Control`
+   class at all (they inherit natively from `Microsoft.UI.Xaml.Controls.
+   Primitives.ButtonBase`) — cast to `ButtonBase` instead, the actual common
+   ancestor.
+3. **The real, final root cause — `VisualStates.GoToState`'s type check was
+   simply wrong**: `if (element is Control control)` — unqualified `Control`,
+   in the `System.Windows.Controls` namespace (`DataGridHelperStubs.cs`),
+   resolved to *this shim's own* `Control` class, not native `Microsoft.UI.Xaml.
+   Controls.Control`. **None** of `DataGridRow`/`DataGridCell`/
+   `DataGridColumnHeader` inherit from this shim's `Control` — they all inherit
+   directly from native WinUI base classes. So this one shared helper — which
+   every real WPF `ChangeVisualState` override in the whole DataGrid calls
+   (`VisualStates.GoToState(this, useTransitions, ...)`) — silently returned
+   `false` without ever calling `VisualStateManager.GoToState`, for every single
+   one of them. This is the single highest-impact bug found this session:
+   confirmed via live diagnostics that `VisualStateManager.GoToState` called
+   *directly* on a `DataGridColumnHeader` correctly applies a defined
+   `VisualState`, while going through `VisualStates.GoToState` (as every real
+   `ChangeVisualState` override does) did not, until fixed. Fix: broadened the
+   check to `Microsoft.UI.Xaml.Controls.Control`.
+4. **A fourth, timing-only issue**: even with all three fixed, a freshly
+   *created* header (from `BuildHeaderRow()`'s rebuild, which `PerformSort`
+   triggers) still didn't show the state change, because `ApplyShimGridLines()`
+   sets `Template` without forcing `ApplyTemplate()` — so `PrepareColumnHeader`'s
+   own `CoerceValue(SortDirectionProperty)` call (already-existing, real,
+   unguarded WPF code) ran on a header whose `VisualStateGroups` didn't exist yet
+   (template not yet materialized), and nothing later re-triggered the state
+   transition once the template *did* apply via the natural layout pass. Fixed
+   by calling `ApplyTemplate()` explicitly right after `Template =
+   _headerTemplate;` in `ApplyShimGridLines()` — idempotent, matches the
+   established pattern from earlier sessions' presenter-swap fixes.
+
+**Verified end-to-end, fully automatic** (no manual intervention): a real
+`DataGrid.PerformSort` call now correctly drives `SortIcon`-equivalent visual
+feedback with zero reflection/manual triggering needed.
+
+### A real regression caught before it shipped: duplicate sort arrow
+
+While building the fix above, added a whole new `SortIcon` `TextBlock` + `SortStates`
+`VisualStateGroup` to the header template, reasoning (correctly) that real WPF's
+`ChangeVisualState` drives a `"SortAscending"`/`"SortDescending"`/`"Unsorted"`
+group. This actually worked (confirmed live) — but the user reported, from
+running the real app, **two triangles**: one above the header text (legitimate)
+and one beside it (new, redundant). Root cause: `DataGrid.HeaderContent(column)`
+(`DataGrid.cs`) already builds a real, independently-working sort arrow — a
+`Path` glyph above the header text, driven directly by `column.SortDirection` at
+content-build time, no VSM involved at all, added well before this session and
+never previously investigated as part of the "why doesn't the sort glyph show"
+question (the newly-added `SortIcon` element was investigated and fixed in
+isolation, without checking whether a working equivalent already existed
+elsewhere). **Removed** the new `SortIcon`/`SortStates` addition entirely — kept
+only the `CommonStates`/`HoverRectangle` hover/press treatment, which had no
+pre-existing equivalent. The `CoerceValue`/`OnVisualStatePropertyChanged`/
+`VisualStates.GoToState` fixes are all kept — they're genuine, broadly-useful
+correctness fixes (the `VisualStates.GoToState` one in particular now correctly
+drives *whatever* other VSM states get added to DataGridRow/DataGridCell/
+DataGridColumnHeader templates in future slices of this arc), independent of the
+now-reverted UI addition that exposed the investigation in the first place.
+
+### Hover — now confirmed working too, same root cause
+
+The earlier "inconclusive" hover finding turned out to have the *exact same* root
+cause (#3 above) — confirmed live once the `VisualStates.GoToState` type-check
+fix landed: forcing `IsMouseOver` + calling `ChangeVisualState(true)` now
+correctly tints `HoverRectangle` (`alpha 0 -> 25`), with no other changes needed.
+
+### Verification
+
+Added `ColumnHeader_HoverAppliesVisualState` and
+`ColumnHeader_SortArrowRendersExactlyOnceNotDuplicated` (the latter also asserts
+the removed duplicate stays removed). Full suite: 229/229 unit tests, 28/29
+integration tests (1 pre-existing documented skip, unrelated).
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore              # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore   # 229/229
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                        # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                                              # 28/29 pass, 1 documented skip (unrelated)
+```

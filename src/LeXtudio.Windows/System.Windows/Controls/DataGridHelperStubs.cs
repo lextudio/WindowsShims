@@ -96,9 +96,21 @@ internal static class VisualStates
     public const string DATAGRIDROWHEADER_stateSelectedCurrentRowFocused = "Normal_CurrentRow_Selected";
     public const string DATAGRIDROWHEADER_stateSelectedFocused = "Normal_Selected";
 
+    // Session 122: root cause of every real WPF ChangeVisualState override (DataGridRow,
+    // DataGridCell, DataGridColumnHeader all call VisualStates.GoToState(this, ...)) silently
+    // never applying any visual state. `Control` here — unqualified, same namespace as this
+    // file (System.Windows.Controls) — resolved to *this shim's own* `Control` class, not
+    // native `Microsoft.UI.Xaml.Controls.Control`. None of DataGridRow/DataGridCell/
+    // DataGridColumnHeader inherit from this shim's Control (they inherit directly from
+    // native WinUI base classes — e.g. DataGridColumnHeader : ButtonBase :
+    // Microsoft.UI.Xaml.Controls.Primitives.ButtonBase), so `element is Control` was always
+    // false and VisualStateManager.GoToState was never even called. Confirmed live: calling
+    // VisualStateManager.GoToState directly on a DataGridColumnHeader instance correctly
+    // applies a defined VisualState; going through this helper (as every real ChangeVisualState
+    // override does) did not, until this fix.
     public static bool GoToState(Microsoft.UI.Xaml.FrameworkElement element, bool useTransitions, params string[] states)
     {
-        if (element is Control control)
+        if (element is Microsoft.UI.Xaml.Controls.Control control)
         {
             foreach (var state in states)
             {
@@ -111,10 +123,30 @@ internal static class VisualStates
 }
 
 // TextSearch: WPF attached-property based incremental-search support on
-// ItemsControl. DataGrid holds an instance and calls DoSearch on key input.
+// ItemsControl. DataGrid.OnKeyDown maps unmodified letter/digit keys to calls
+// into DoSearch (see DataGrid.cs; real WPF instead hooks a separate OnTextInput
+// routed event carrying IME-composed text, which WinUI's KeyRoutedEventArgs
+// doesn't expose).
 public class TextSearch
 {
+    // Session 122: real WPF's TextSearch resets the accumulated prefix via a
+    // DispatcherTimer (ResetTimeout/OnTimeout) after 2x the OS double-click
+    // interval elapses since the last keystroke — so pausing mid-search starts
+    // a fresh prefix instead of matching against a stale, unbounded-length
+    // string. The prior local shim instead just truncated the prefix to a
+    // fixed length, which doesn't reset on a pause at all. WinUI's own
+    // DispatcherTimer (no separate shim needed — resolved via the project's
+    // global `using Microsoft.UI.Xaml`) has the same Interval/Tick/Start/Stop
+    // shape real WPF's System.Windows.Threading.DispatcherTimer does, so this
+    // reuses it directly rather than hand-rolling a timer. Session 122 (follow-up):
+    // reads System.Windows.SystemParameters.DoubleClickTime (already shimmed for
+    // TextEditor.cs, stubbed at 500ms) instead of a hardcoded 1000ms, matching
+    // real WPF's `2 * GetDoubleClickTime()` formula exactly rather than just its
+    // typical result.
+    private static TimeSpan ResetTimeout => TimeSpan.FromMilliseconds(SystemParameters.DoubleClickTime * 2);
+
     private readonly ItemsControl _owner;
+    private DispatcherTimer? _resetTimer;
 
     private TextSearch(ItemsControl owner) => _owner = owner;
 
@@ -128,16 +160,34 @@ public class TextSearch
     public static void SetText(DependencyObject element, string? value)
         => element.SetValue(TextProperty, value);
 
+    // Session 122 (follow-up): real WPF's TextSearch.TextPath, settable on the
+    // ItemsControl itself, names a property path evaluated against each *item*
+    // (not the item's container) to get its search text — this is how
+    // ComboBox/ListBox's DisplayMemberPath-driven search works for plain POCOs
+    // that aren't DependencyObjects and don't override ToString(). Only a plain
+    // single-level property name is supported here (reflection, not a full
+    // PropertyPath/BindingExpression walk — dotted multi-level paths aren't
+    // resolved), which covers the common "search by this property" case without
+    // the much larger PropertyPath-parsing effort real WPF's version pulls in.
+    public static readonly DependencyProperty TextPathProperty =
+        DependencyProperty.RegisterAttached("TextPath", typeof(string), typeof(TextSearch),
+            new PropertyMetadata(null));
+
+    public static string? GetTextPath(DependencyObject element)
+        => (string?)element.GetValue(TextPathProperty);
+
+    public static void SetTextPath(DependencyObject element, string? value)
+        => element.SetValue(TextPathProperty, value);
+
     internal static TextSearch? EnsureInstance(ItemsControl owner) => new TextSearch(owner);
 
     private string _prefix = string.Empty;
 
     internal void DoSearch(string nextChar)
     {
-        _prefix += nextChar;
-        if (_prefix.Length > 20)
-            _prefix = _prefix[^20..];
+        ResetTimer();
 
+        _prefix += nextChar;
         if (TryMatchAndSelect(_prefix))
             return;
 
@@ -146,28 +196,70 @@ public class TextSearch
         TryMatchAndSelect(_prefix);
     }
 
+    private void ResetTimer()
+    {
+        if (_resetTimer is null)
+        {
+            _resetTimer = new DispatcherTimer { Interval = ResetTimeout };
+            _resetTimer.Tick += (_, _) =>
+            {
+                _resetTimer?.Stop();
+                _prefix = string.Empty;
+            };
+        }
+        else
+        {
+            _resetTimer.Stop();
+        }
+
+        _resetTimer.Start();
+    }
+
     private bool TryMatchAndSelect(string prefix)
     {
-        var gen = _owner?.ItemContainerGenerator;
-        if (gen is null)
-            return false;
-
+        var textPath = GetTextPath(_owner);
         for (int i = 0; i < _owner.Items.Count; i++)
         {
             var item = _owner.Items[i];
-            var text = item is DependencyObject d ? GetText(d) : null
-                       ?? item?.ToString();
+            var text = GetItemText(item, textPath);
             if (text is not null && text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                var container = gen.ContainerFromIndex(i);
-                if (container is Microsoft.UI.Xaml.FrameworkElement fe)
-                {
-                    fe.Focus(Microsoft.UI.Xaml.FocusState.Keyboard);
-                }
+                // Session 122: routes through ItemsControl.NavigateToItem (DataGrid
+                // overrides it to reuse MoveSelectionToIndex — real scroll-into-view +
+                // selection, so a virtualized/off-screen match gets realized) instead
+                // of resolving+focusing a container directly, which silently failed
+                // for any match not already generated.
+                _owner.NavigateToItem(item);
                 return true;
             }
         }
         return false;
+    }
+
+    // Session 122 (follow-up): TextPath beats TextSearch.GetText/ToString() when
+    // set. Resolution reuses System.Windows.Data.BindingExpression.EvaluatePath —
+    // the same dotted-path walker the binding shim's untargeted expressions use —
+    // instead of a single-property-only reflection lookup, so multi-segment paths
+    // ("Owner.Name") work here too, matching real WPF's PropertyPath-based
+    // TextSearch.TextPath rather than a narrower approximation of it. Falls back
+    // to the attached property / ToString() chain unchanged when TextPath is
+    // unset or the path doesn't resolve, so existing callers (Get/SetText, plain
+    // ToString() matching) are unaffected.
+    private static string? GetItemText(object? item, string? textPath)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrEmpty(textPath) &&
+            Data.BindingExpression.EvaluatePath(item, textPath) is { } value &&
+            !ReferenceEquals(value, MS.Internal.Data.BindingValue.UnsetValue))
+        {
+            return value.ToString();
+        }
+
+        return (item is DependencyObject d ? GetText(d) : null) ?? item.ToString();
     }
 }
 

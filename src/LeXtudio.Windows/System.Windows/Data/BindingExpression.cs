@@ -65,7 +65,11 @@ public class BindingExpression : BindingExpressionBase
         _isActive = false;
     }
 
-    private static object? EvaluatePath(object? item, string? path)
+    // Session 122 (follow-up): widened from private to internal so TextSearch's
+    // TextPath lookup (DataGridHelperStubs.cs) can reuse this real dotted-path
+    // walker for multi-segment paths ("Owner.Name") instead of duplicating a
+    // single-property-only reflection lookup.
+    internal static object? EvaluatePath(object? item, string? path)
     {
         if (item is null)
         {

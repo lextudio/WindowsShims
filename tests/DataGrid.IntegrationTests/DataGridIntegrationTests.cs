@@ -431,4 +431,103 @@ public sealed class DataGridIntegrationTests
         Assert.True(tallExtent > baselineExtent + 100,
             $"a real 150px details row should measurably grow the total extent, not just add a uniform row's worth: baseline={rawBaseline} withTallRow={rawTall}");
     }
+
+    [Fact]
+    public async Task ColumnHeader_HoverAppliesVisualState()
+    {
+        // Regression test for a bug affecting every real WPF ChangeVisualState
+        // override in the whole DataGrid (DataGridRow/DataGridCell/
+        // DataGridColumnHeader all use the shared VisualStates.GoToState helper):
+        // its `element is Control` type check resolved to this shim's own
+        // System.Windows.Controls.Control, which none of those types actually
+        // inherit from (they inherit directly from native WinUI base classes),
+        // so VisualStateManager.GoToState was never reached. Fixed by widening
+        // the check to Microsoft.UI.Xaml.Controls.Control.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.header-hover");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("headerControlFound").GetBoolean(), $"header should be found: {raw}");
+        Assert.True(state.GetProperty("hoverRectFound").GetBoolean(), $"HoverRectangle template part should exist: {raw}");
+        Assert.Equal(0, state.GetProperty("beforeAlpha").GetInt32());
+        Assert.True(state.GetProperty("afterAlpha").GetInt32() > 0,
+            $"hover should tint HoverRectangle once IsMouseOver + ChangeVisualState run: {raw}");
+    }
+
+    [Fact]
+    public async Task ColumnHeader_SortArrowRendersExactlyOnceNotDuplicated()
+    {
+        // DataGrid.HeaderContent already builds a real, working sort-direction
+        // arrow (a Path glyph above the header text, driven directly by
+        // column.SortDirection at content-build time — no VisualStateManager
+        // involved). A first attempt at this session's header VSM styling work
+        // added a second, VSM-driven arrow beside the header text without
+        // realizing the first one already existed — producing two visible
+        // triangles. That duplicate was removed; this asserts it stays removed.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.sort-arrow", 0);
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("headerFound").GetBoolean(), $"sorted column's header should be found: {raw}");
+        Assert.Equal("Ascending", state.GetProperty("sortDirection").GetString());
+        Assert.Equal(1, state.GetProperty("arrowCount").GetInt32());
+        Assert.False(state.GetProperty("duplicateSortIconStillPresent").GetBoolean(),
+            $"the removed VSM-driven SortIcon element should not reappear: {raw}");
+    }
+
+    [Fact]
+    public async Task TextSearch_DoSearchNavigatesToMatchedItem()
+    {
+        // Session 122: TextSearch.DoSearch was never actually called from anywhere —
+        // ItemsControlSpine.OnTextInput (the WPF hook real WPF wires to DoSearch) was
+        // an empty stub DataGrid never overrode, and IsTextSearchEnabled/DoSearch
+        // existed only as dead code. README described this as a "simplified
+        // approximation" of real WPF behavior, which understated the actual gap.
+        // Now DataGrid.OnKeyDown maps unmodified letter/digit keys to DoSearch calls
+        // (verified here via the same key-to-char mapping it uses), and a match
+        // routes through DataGrid's new ItemsControl.NavigateToItem override, which
+        // reuses MoveSelectionToIndex (real scroll-into-view + selection) instead of
+        // the old fallback that only focused an already-realized container.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.text-search");
+
+        var raw = state.ToString();
+        Assert.Equal("A", state.GetProperty("mappedA").GetString());
+        Assert.True(state.GetProperty("mappedEnterIsNull").GetBoolean(), $"non-letter/digit keys should not be treated as search input: {raw}");
+        Assert.True(state.GetProperty("selectionMovedByToString").GetBoolean(),
+            $"DoSearch should reach NavigateToItem and move selection to the matched item: {raw}");
+
+        // Session 122 (follow-up): TextSearch.TextPath property-path matching,
+        // closing the README's "no DisplayMemberPath-like lookup" gap for the
+        // common case (a single named property on a plain POCO item).
+        Assert.Equal(14, state.GetProperty("selectedIndexByTextPath").GetInt32());
+        Assert.True(state.GetProperty("textPathMatchedType15").GetBoolean(),
+            $"TextSearch.TextPath=\"Name\" should match the item whose Name is \"Type15\" (RID 15, index 14), not just the first prefix hit: {raw}");
+
+        // Session 122 (follow-up 3): TextPath now resolves through
+        // BindingExpression.EvaluatePath (a real dotted-path walker already used
+        // by the binding shim), so multi-segment paths like "Owner.Name" work too,
+        // not just a single top-level property name.
+        Assert.Equal(14, state.GetProperty("selectedIndexByNestedTextPath").GetInt32());
+        Assert.True(state.GetProperty("nestedTextPathMatchedOwner15").GetBoolean(),
+            $"TextSearch.TextPath=\"Owner.Name\" should match the item whose Owner.Name is \"Owner15\" (RID 15, index 14): {raw}");
+    }
+
+    [Fact]
+    public async Task SystemParameters_DoubleClickTimeQueriesRealOsValue()
+    {
+        // Session 122 (follow-up): SystemParameters.DoubleClickTime was a fixed
+        // 500ms guess; now queries the real OS value (Windows: user32!
+        // GetDoubleClickTime; macOS: AppKit's NSEvent.doubleClickInterval via the
+        // Objective-C runtime — AppKit must be dlopen'd first, verified live: a
+        // first attempt without that returned 0 because objc_getClass("NSEvent")
+        // came back NULL). Not asserting a specific machine-dependent value (this
+        // dev box's actual double-click threshold is a non-default 5000ms) — just
+        // that it's a real, positive, plausible interval, not the old hardcoded
+        // constant or a broken 0.
+        var state = await _app.InvokeAsync("datagrid.probe.double-click-time");
+        var raw = state.ToString();
+        var ms = state.GetProperty("doubleClickTimeMs").GetInt32();
+        Assert.True(ms > 0, $"double-click time should be a real positive interval, not 0: {raw}");
+    }
 }
