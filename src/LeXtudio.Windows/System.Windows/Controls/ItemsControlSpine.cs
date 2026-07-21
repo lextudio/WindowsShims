@@ -215,6 +215,11 @@ public partial class ItemsControl : IGeneratorHost
 
     private System.Collections.ObjectModel.ObservableCollection<GroupStyle>? _groupStyle;
 
+    // Session 121 (DataGrid grouping, Slice 5): mirrors upstream's
+    // ItemsControl.GroupStyleSelector — resolved ahead of the GroupStyle
+    // collection when set (see GroupItem.ResolveGroupStyle).
+    public GroupStyleSelector? GroupStyleSelector { get; set; }
+
     // WPF resolves containers through the item container generator; the shim
     // keeps caller-provided state until one exists.
     internal ItemInfo NewItemInfo(object? item, DependencyObject? container = null, int index = -1)

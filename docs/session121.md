@@ -1319,3 +1319,341 @@ dotnet test  src/LeXtudio.Windows.Tests -f net10.0-desktop --no-build           
 dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore   # 0 errors
 dotnet test  tests/DataGrid.IntegrationTests --no-restore                         # 16/16 pass
 ```
+
+## Frozen columns, Slice 6 — closing the 3 remaining loose ends
+
+Moved this arc's remaining probes from `Roma.Host` into `DataGrid.IntegrationTestHost`/
+`DataGrid.IntegrationTests` (per direction to stop touching Roma for this work) —
+a standalone, editable, 40-row `FrozenEditRow` grid with `FrozenColumnCount`, so all
+3 items are exercised without depending on Roma's read-only metadata tables.
+
+### 1. Real cell editing — root-caused and fixed (was `beganEdit: false`)
+
+`DataGridCell.BeginEdit(RoutedEventArgs)` routes through the real, linked upstream
+`DataGrid.BeginEdit(RoutedEventArgs)`, which calls `BeginEditCommand.CanExecute`/
+`Execute` — a routed command whose shim (`RoutedCommand`/`CommandBinding`) resolves
+class-scoped bindings by walking `VisualTreeHelper` parents from the target cell
+looking for a `DataGrid` ancestor (`CommandBinding.AppliesTo`). `CanExecute` returns
+`true` even when no binding applies (a shim looseness — `anyHandled` stays `false`),
+which is why the earlier probe's `canExecuteBeginEdit: true` reading was a false
+signal; `Execute` is the one that actually gates on `AppliesTo`, and it silently
+no-ops when the walk fails.
+
+Diagnosed live by walking the ancestor chain from the editing cell: it terminated at
+`DataGridRow` (parent `null`) instead of reaching `grid`, while the frozen cell's
+walk (computed *before* a `grid.SelectedItem = ...` assignment) succeeded. Root
+cause: the probe was reading the editing cell from a `trackedRow` reference fetched
+*before* the selection assignment — selecting the row retemplates it, and the held
+reference became a detached subtree. This is the same class of bug already
+documented earlier this session ("never hold a row/cell reference across a call that
+might trigger a visual-tree rebuild") — it reoccurred here because the editing-cell
+fetch was one line above the selection line instead of below it.
+
+**Fix**: re-fetch the row via `ItemContainerGenerator.ContainerFromItem(trackedItem)`
+(item-identity based) immediately after `SelectedItem` is set, before calling
+`TryGetCell(1)`. With a fresh reference, `gridIsAncestor: true`,
+`beganEdit: true`, `isEditingAfterBegin: true`, `committed: true`,
+`committedValue: "EDITED"` — real, working end-to-end cell edit under the frozen-
+columns cells-presenter host.
+
+### 2. Boundary-column resize — confirmed genuinely correct
+
+With the same fresh-reference fix applied throughout the probe, resizing both the
+last frozen column and the first non-frozen column (`ShimTryResizeColumn`, +40px
+each) while `FrozenColumnCount > 0` succeeds, and the frozen cell's screen X
+position is unchanged after resize (`frozenX == frozenXAfterResize`), confirming
+the frozen region's arrange math is stable across a boundary resize.
+
+### 3. Vertical scroll — root-caused as a distinct, non-frozen-columns bug (was "inconclusive")
+
+Investigated why `ChangeView(0, 300, ...)` never registers a vertical offset.
+`PART_ShimRowsScroll`'s content (a plain `StackPanel`, manual/non-virtualized
+render path) reports `ExtentHeight == ViewportHeight` regardless of row count,
+so `ScrollableHeight` is always `0`. Diagnosed by reading the `StackPanel`'s
+`DesiredSize.Height` directly: for 40 (+2 header) rows it measured to ~44-85px
+total (~1-2px/row) — the rows are receiving essentially no natural height, so the
+`StackPanel` (`VerticalAlignment` unset → stretch) gets arranged to fill the
+`ScrollViewer`'s viewport instead of its own (tiny) desired size.
+
+Confirmed this reproduces identically with the cells-presenter host *disabled*
+(plain `BuildCells()` manual rendering), so it is **not** a frozen-columns-specific
+regression — it's a pre-existing gap in how the manual (non-virtualized) row host
+sizes itself with many rows, out of scope for this arc. Also confirmed
+`DataGrid.RowHeight` has no effect either way: real WPF applies it via a default
+`Style` setter this shim's runtime-built templates don't have, so nothing currently
+wires `RowHeight` to `DataGridRow.Height` at all (worth a future slice, unrelated to
+frozen columns).
+
+Left as a documented `[Fact(Skip = "...")]` (not deleted) in
+`DataGridIntegrationTests.cs`, naming the real root cause, so re-enabling it is the
+verification step once the manual-mode row-sizing gap is fixed separately.
+
+### State after Slice 6
+
+Frozen columns arc is now closed except for the one item re-scoped out above:
+generation, width/resize, arrange (core), virtualized-row extension, selection,
+real cell editing, and boundary resize are all live-verified. Vertical-scroll
+interaction under frozen columns specifically remains untested, blocked on a
+distinct, now-diagnosed manual-row-sizing gap rather than anything frozen-columns
+specific.
+
+**Verification**:
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore              # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore   # 221/221 (0 pre-existing left)
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                         # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                                               # 19/20 pass, 1 documented skip
+```
+
+## Grouping, Slice 5 — GroupStyle raised to full WPF-API coverage
+
+User direction: raise grouping's scope to fully cover WPF's `GroupStyle` surface,
+closing the gaps Slice 4's "state after" section listed as deliberate cuts:
+`ContainerStyleSelector`, `HeaderTemplateSelector`, `HeaderStringFormat`,
+`HidesIfEmpty`, and `ItemsControl.GroupStyleSelector`.
+
+### What's now real (not stubbed)
+
+- **`GroupStyle.ContainerStyleSelector`** (`System.Windows.Controls.StyleSelector`,
+  already real/linked — proven by this same file compiling and running) and
+  **`HeaderTemplateSelector`** (`DataTemplateSelector`, aliased in this shim
+  directly to native `Microsoft.UI.Xaml.Controls.DataTemplateSelector` — see
+  `GlobalUsings.cs`). Both take precedence over their non-selector counterpart
+  when they return non-null, matching upstream's own selector-wins convention
+  (same pattern `RowDetailsTemplateSelector` already established).
+- **`GroupStyle.HeaderStringFormat`** — applied to the fixed fallback header
+  only (matching upstream's own doc comment: "arises only when no template is
+  available"); `{0}` is the group's `Name`, `{1}` its `ItemCount`. The
+  disclosure triangle (this shim's own addition, not part of upstream) is still
+  prefixed regardless, so expand/collapse stays usable with a custom format.
+- **`GroupStyle.HidesIfEmpty`** — an empty (`ItemCount == 0`) group is omitted
+  entirely (no header, no slot) from both `BuildGroupedRows` (manual path) and
+  `CollectionViewGroupBuilder.FlattenWithHeaders` (virtualized path).
+- **`ItemsControl.GroupStyleSelector`** (new `GroupStyleSelector` delegate type,
+  `System.Windows.Data.CollectionViewGroup group, int level → GroupStyle?`) —
+  resolved ahead of the indexed `GroupStyle` collection when it returns
+  non-null, matching upstream's own fallback order; falls back to the
+  collection when the selector itself returns `null`.
+
+`GroupItem.ResolveGroupStyle` (private → internal) is now the single place both
+the rendered header (`ShimPrepareGroupHeader`) and the group-tree filtering
+(`CollectionViewGroupBuilder.AppendWithHeaders`, `DataGrid.BuildGroupedRows`)
+resolve a group's effective style from — so `HidesIfEmpty` honors
+`GroupStyleSelector` too, not just the static collection.
+
+### What's still not shimmed, and why (deliberate, not an oversight)
+
+**`GroupStyle.Panel`** (`ItemsPanelTemplate`) — investigated first. Real WPF's
+shared ItemsControl grouping machinery *does* let each group's children render
+through a custom nested items panel (this is genuinely used, e.g. for a
+horizontally-wrapping group). But this shim's DataGrid grouping is built the
+opposite way on purpose (Slice 3's reuse-first design): all groups' rows are
+flattened into the *one* row-host list (`DataGridRowsPresenter`/manual
+`StackPanel`) that frozen columns, cell editing, column virtualization, and
+selection all already depend on. Supporting `Panel` for real would mean each
+group's rows living in a *separate* nested `ItemsControl`+panel subtree instead
+of that single flat list — a genuine architectural rewrite of row hosting, not
+a `GroupStyle` gap. Scope-cut, documented, not attempted.
+
+`GroupStyle.AlternationCount` — not in the original gap list this slice closes;
+left alone.
+
+### HidesIfEmpty's real-world reachability caveat
+
+`CollectionViewGroupBuilder.BuildGroups` only ever creates a bucket for a group
+name actually present among the *already-filtered* items (`ItemCollection
+.Refresh()` builds groups from `view`, the post-filter sequence) — so an empty
+group can never arise through ordinary grouping usage in this shim. Verified
+`HidesIfEmpty`'s real skip logic anyway by constructing an explicitly-empty
+`CollectionViewGroupInternal` directly (the same internal type `BuildGroups`
+itself produces) and confirming `FlattenWithHeaders` omits it — see
+`datagrid.probe.hides-if-empty-flatten` / `GroupStyle_HidesIfEmptyOmits...`
+below. Same "unreachable given current construction, but the logic is real and
+correct" shape as `LeafIndexFromItem` in Slice 4 — flagged so it isn't mistaken
+for dead code later.
+
+### Verification
+
+Per direction this session, verification moved to `DataGrid.IntegrationTestHost`
+/`DataGrid.IntegrationTests` (not Roma) — 5 new tests:
+`GroupStyle_HeaderStringFormatAppliesToFixedFallbackHeader`,
+`GroupStyle_HeaderTemplateSelectorAndContainerStyleSelectorAreInvoked`,
+`GroupStyle_GroupStyleSelectorTakesPrecedenceOverGroupStyleCollection`,
+`GroupStyle_HidesIfEmptyOmitsEmptyGroupFromFlattenWithHeaders`,
+`GroupStyle_HidesIfEmptyFalseStillRendersEmptyGroupHeader` — via 3 new probes
+(`datagrid.probe.create-grouped-style-grid`, `-grouped-style-readback`,
+`-hides-if-empty-flatten`).
+
+Found and fixed one probe-authoring mistake along the way, not a product bug:
+an initial 2-group (US/UK) scenario produced `groupNames: "UK,US"` instead of
+insertion order — correctly reproducing Slice 4's own auto-sync
+(`OnItemsGroupDescriptionsChanged` adds a `SortDescription` per grouped
+property), which alphabetizes group order. Simplified the GroupStyle-mechanics
+probe to a single group to remove the ordering variable entirely, since group
+*order* isn't what this slice tests.
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore              # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore   # 221/221
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                        # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                                              # 24/25 pass, 1 documented skip (pre-existing)
+```
+
+### State after Slice 5
+
+Grouping now covers every WPF `GroupStyle` member except `Panel` (deliberate,
+documented architectural scope cut) and `AlternationCount` (out of this arc's
+scope). Combined with Slices 1-4: real data-level grouping, manual + virtualized
+rendering, sort-sync, scroll-into-view, expand/collapse, and now the full
+per-level/per-group style customization surface.
+
+## Row-details variable-height rows under virtualization (gap survey item 8, closed)
+
+The last remaining item from session 119's original gap survey. Root cause:
+`VirtualizingStackPanel` (`VirtualizingPanelStubs.cs`) computed every row's
+screen position as `index * _rowHeight` — one uniform, estimated height for
+every row. `RowDetailsVisibilityMode` breaks that assumption the moment any
+row's details panel is taller (or shorter) than another's — the offset math
+was simply wrong for every row after the first one whose actual height
+differed from the running estimate.
+
+### The fix — cumulative offsets instead of uniform arithmetic
+
+`VirtualizingRowsLayout.Compute` (the existing, unit-tested, uniform-height
+math `Realize()` uses) is left completely untouched — still used wherever a
+caller has a genuinely uniform height. Added alongside it:
+
+- **`VirtualizingRowsVariableLayout.Compute`** (new, pure, unit-tested class):
+  same result shape (`FirstIndex`/`Count`/`ExtentHeight`/`FirstItemTop`) and
+  cache-band semantics as `VirtualizingRowsLayout.Compute`, but driven by a
+  caller-supplied cumulative-offset lookup (binary-searched) instead of
+  `index * rowHeight`. Degenerates to the exact same answers as the uniform
+  version when every row really is the same height (verified directly:
+  `UniformHeightsMatchTheUniformLayoutExactly`).
+- **`VirtualizingRowsRealizer<T>.RealizeWindow(firstIndex, endIndex)`**: the
+  existing `Realize()` method's recycle/create/prepare mechanics, extracted
+  so a caller that computed its own window (via the variable layout above)
+  can drive the same realize/recycle behavior without going through
+  `VirtualizingRowsLayout.Compute`. `Realize()` itself is now a two-line
+  wrapper over it — behavior-preserving, so every existing
+  `VirtualizingRowsRealizerTests` case still passes unmodified.
+- **`VirtualizingStackPanel`** (`VirtualizingPanelStubs.cs`): replaced the
+  single `_rowHeight` field with a per-index height cache (`_heightCache`,
+  exact for any row that's actually been measured) plus a running
+  `_averageRowHeight` (WPF's own approach for estimating never-yet-realized
+  rows) and a lazily-rebuilt prefix-sum array (`_prefixSum`, invalidated only
+  when a measured height actually changes by more than half a pixel — not on
+  every measure/arrange pass). `MeasureOverride`/`ArrangeOverride`/
+  `BringIndexIntoView` all go through `OffsetOfIndex(index, itemCount)` now,
+  never raw multiplication. `MeasureOverride` does one bounded extra
+  realize+measure pass if a height actually changed mid-measure (the window
+  computed from the stale prefix sum may no longer be the right window once
+  offsets shift) — mirrors WPF's own iterative refinement rather than trying
+  to solve variable-height layout in a single pass. `ShimResetRealization()`
+  (already called on any filter/sort/group change) also clears the height
+  cache now, since a resorted source maps old indices to different items —
+  a cached height at index 5 described whatever used to be there, not
+  necessarily what's there now.
+
+### Verification
+
+Unit-level (`VirtualizingRowsVariableLayoutTests.cs`, 8 new tests, pure/no UI):
+confirms uniform-height parity with the existing algorithm, confirms an
+expanded 200px row correctly keeps a 100px-tall viewport from reaching row 1
+(`ExpandedRowDetailsPushesLaterRowsDownByTheRealHeightDifference`), and
+confirms scrolling past that row lands on the *correct* later index using real
+cumulative offsets where a uniform model would compute an out-of-range index
+(`ScrollingPastTheExpandedRowRealizesTheCorrectLaterIndex`) — this last one is
+the exact failure mode the uniform model had for RowDetails.
+
+Integration-level (`DataGrid.IntegrationTestHost`/`Tests`,
+`VariableHeightVirtualization_TallRowDetailsIncreaseRealExtentBeyondUniformEstimate`):
+a virtualized 30-row grid with one row's `RowDetailsTemplateSelector`-selected
+panel set to a real, explicit 150px `Border` reports a `ScrollViewer.
+ExtentHeight` measurably larger (100px+) than an otherwise-identical grid with
+no tall row — proving the panel's reported extent is actually responsive to a
+row's real measured content, not a fixed `itemCount * estimatedHeight` guess.
+
+**A verification detour worth recording**: per-row screen-Y and
+`DesiredSize`/`ActualHeight` reads (the first approach tried, mirroring the
+frozen-columns probes' style) proved unreliable in this headless Skia host —
+repeated `UpdateLayout()` calls between probe invocations recycle/reuse
+containers in ways that reset `DesiredSize` before it can be read back
+out-of-band, even though the panel's own internal state (and the derived
+`ScrollViewer.ExtentHeight`) is correct throughout. This is the same class of
+headless-environment quirk already documented for column `ActualWidth`
+(`ColumnWidths_AreReasonable`'s `DisplayValue` fallback) and for frozen
+columns' vertical-scroll gap — not a defect in this feature. Switched to
+reading `ScrollViewer.ExtentHeight` once, right after layout settles, which
+doesn't have that problem and is arguably the more direct signal anyway (it's
+literally the value `MeasureOverride` returns).
+
+### Verification commands
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore              # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore   # 229/229 (8 new)
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                        # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                                              # 25/26 pass, 1 pre-existing documented skip
+```
+
+### DataGrid gap survey — final status
+
+All 8 items from session 119's original survey are now closed except
+accessibility/UI Automation:
+
+1. Row separator under virtualization — done (session 119)
+2. Accessibility / UI Automation — **still fully inert**, the one remaining gap
+3. Grouping — done (this session, Slices 1-5)
+4. Frozen columns — done (this session, Slices 1-6)
+5. Column-header reuse — done (session 120)
+6. Column drag-reorder floating header — done (session 120)
+7. Hyperlink column — done (this session)
+8. Row-details variable-height rows under virtualization — **done (this session)**
+
+## Investigating the skipped vertical-scroll test — real bug found and fixed, deeper one found and documented
+
+Asked to actually dig into (rather than just leave skipped) `FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll`'s root cause. Built a minimal repro (`datagrid.probe.diag-row-stack`, temporary, since removed) creating a plain 1-column manual-mode grid and dumping DesiredSize at every level of the visual tree (StackPanel → DataGridRow → DataGridCell → TextBlock).
+
+### Real bug found and fixed: `DataGridCell.BuildVisualTree()` DataContext never reached generated content
+
+`DataGridBoundColumn.GenerateElement` (upstream, e.g. `DataGridTextColumn`) creates a brand-new, still-unparented `TextBlock`, binds `TextBlock.TextProperty` immediately (`ApplyBinding`), and returns it — a completely idiomatic WPF/WinUI pattern that relies on the element inheriting `DataContext` once its caller parents it. Traced with a diagnostic dump: the *cell's* `DataContext` was correctly set to the row item, but the *TextBlock's* (`Cell.Content`) `DataContext` read back `null` — the inheritance genuinely never propagated in this Uno/Skia-desktop target. Confirmed via `textBlockText: ""` even after 20 `UpdateLayout()` passes.
+
+**Fix** (`DataGridCell.BuildVisualTree()`): set `DataContext` explicitly on the generated content element, not just on the cell:
+
+```csharp
+DataContext = item;
+var content = Column.BuildCellContent(this, item);
+if (content is not null)
+{
+    content.DataContext = item;
+}
+Content = content;
+```
+
+This is a real, previously-unknown correctness bug: bound cell **text values** silently never resolved for *any* programmatically-built grid in this shim (every existing test checked structure — types, widths via a heuristic, counts — never literal bound text). Regression-tested: `CellContent_BindsRealTextNotJustColumnStructure` (new `datagrid.probe.cell-text` probe) confirms `create-grid`'s row 0/column 4 now reads back `"Type1"` instead of empty.
+
+### Deeper, still-open issue: DesiredSize never gets remeasured after content resolves
+
+Confirmed via the same diagnostic dump that with the DataContext fix in place, `TextBlock.Text` is correct ("A0") but `TextBlock.DesiredSize`/`DataGridCell.DesiredSize`/`DataGridRow.DesiredSize` stay stuck at pre-fix, empty-content values (~0/1/2px). Isolated precisely: calling `.Measure()` **directly** on that same TextBlock instance, after everything else settled, gives the correct size (17×20) — so the element is fully capable of measuring correctly; the framework's own layout cascade simply never revisits it.
+
+Ruled out via direct experiment, each independently:
+- `InvalidateMeasure()` on the TextBlock, the Cell, and the Row (all three, together)
+- An explicit forced `Measure()` call on the Row itself, immediately after `BuildCells()` (suspected reentrancy — since this runs from *within* the Row's own `Measure()`/`OnApplyTemplate()` call chain, a self-remeasure here may simply be a no-op)
+- Removing vs. keeping an eager `cell.ApplyTemplate()` call before `BuildVisualTree()` (no difference either way)
+- Up to 20 repeated `UpdateLayout()` calls
+- Splitting across separate dispatcher ticks entirely (separate DevFlow probe HTTP round-trips) — the exact "genuinely async, needs 2 round-trips" pattern this session already established works for other timing issues; it did not help here
+
+This points to a real gap in how this Uno/Skia-desktop target's layout system propagates a **binding-driven** property change into measure invalidation for an element that was unparented at binding-setup time — precisely the pattern `DataGridBoundColumn.GenerateElement` uses universally (create element, attach binding, return for caller to parent). A **direct, non-binding** property assignment (`new TextBlock { Text = "Hello" }`) measures correctly on the first pass; only the binding-driven path exhibits this. Fixing this would require Uno.UI-internals-level investigation beyond what's reasonable from this shim's own code.
+
+**Disposition**: kept the test (`FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll`) skipped rather than deleted — it still correctly demonstrates a real, open gap — but rewrote its skip reason and the surrounding comment to reflect the more precise root cause now understood, and to point at the DataContext fix (which *is* resolved and separately regression-tested) so the two issues aren't conflated going forward.
+
+### Verification
+
+```bash
+dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop --no-restore              # 0 errors
+dotnet test  src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -f net10.0-desktop --no-restore   # 229/229
+dotnet build tests/DataGrid.IntegrationTestHost -f net10.0-desktop --no-restore                        # 0 errors
+dotnet test  tests/DataGrid.IntegrationTests --no-restore                                              # 26/27 pass, 1 documented skip (deeper root cause now recorded)
+```

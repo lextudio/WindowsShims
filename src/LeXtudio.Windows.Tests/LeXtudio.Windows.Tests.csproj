@@ -65,6 +65,7 @@
     <Compile Include="DataGridColumnHeaderNotificationTests.cs" />
     <Compile Include="VirtualizingRowsLayoutTests.cs" />
     <Compile Include="VirtualizingRowsRealizerTests.cs" />
+    <Compile Include="VirtualizingRowsVariableLayoutTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

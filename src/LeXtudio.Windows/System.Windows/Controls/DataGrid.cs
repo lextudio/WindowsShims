@@ -436,6 +436,13 @@ public partial class DataGrid
     {
         foreach (var group in groups)
         {
+            var style = GroupItem.ResolveGroupStyle(this, group, depth);
+            if (style?.HidesIfEmpty == true && group.ItemCount == 0)
+            {
+                // No header, no rows — the group is omitted from rendering entirely.
+                continue;
+            }
+
             var header = new GroupItem();
             header.ShimPrepareGroupHeader(group, depth, this);
             // Session 121 (DataGrid grouping, Slice 4): tapping the header toggles

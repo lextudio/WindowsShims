@@ -86,7 +86,19 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     // Populate the cell's content from its column, binding against the row
     // item. The generated element (e.g. a bound TextBlock for a text column)
-    // inherits DataContext from this cell, so its WinUI binding resolves.
+    // is built by upstream column code (DataGridTextColumn.GenerateElement etc.)
+    // as a brand-new, still-unparented FrameworkElement with its binding already
+    // attached (ApplyBinding(textBlock, TextBlock.TextProperty)) — the WPF-idiomatic
+    // assumption is that it'll inherit DataContext once parented under this cell.
+    // That inheritance genuinely does not reach it here: setting Content assigns
+    // the DP but doesn't itself push DataContext down (the ContentPresenter that
+    // would normally do that only materializes once this cell's own ControlTemplate
+    // is applied, and even calling ApplyTemplate() first isn't sufficient — the
+    // generated element's binding was already wired against a DataContext-less
+    // element before Content ever reaches the template). Root cause of rows
+    // measuring to ~1-2px regardless of content: an empty-text TextBlock has ~0
+    // natural height. Setting DataContext explicitly on the generated element
+    // (not just this cell) sidesteps the inheritance timing entirely.
     internal void BuildVisualTree()
     {
         if (Column is null || IsEditing)
@@ -101,7 +113,13 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         }
 
         DataContext = item;
-        Content = Column.BuildCellContent(this, item);
+        var content = Column.BuildCellContent(this, item);
+        if (content is not null)
+        {
+            content.DataContext = item;
+        }
+
+        Content = content;
     }
 
     private Microsoft.UI.Xaml.Controls.TextBox? _editingBox;

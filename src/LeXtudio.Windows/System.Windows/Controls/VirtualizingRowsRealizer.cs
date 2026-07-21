@@ -68,7 +68,21 @@ internal sealed class VirtualizingRowsRealizer<TContainer>
         int cacheRows = 1)
     {
         var layout = VirtualizingRowsLayout.Compute(itemCount, rowHeight, viewportTop, viewportHeight, cacheRows);
+        RealizeWindow(layout.FirstIndex, layout.EndIndex);
+        return layout;
+    }
 
+    /// <summary>
+    /// The realize/recycle mechanics alone, for a caller that has already computed the
+    /// window bounds itself (e.g. variable-row-height layout, which cannot use the
+    /// uniform-height <see cref="VirtualizingRowsLayout.Compute"/> this <see cref="Realize"/>
+    /// overload relies on). Recycles/removes containers outside [firstIndex, endIndex) and
+    /// realizes any in-range index not already realized, exactly like <see cref="Realize"/>'s
+    /// own loop — kept as a single implementation so both callers get identical
+    /// keep-what's-still-in-window behavior.
+    /// </summary>
+    public void RealizeWindow(int firstIndex, int endIndex)
+    {
         // Recycle/remove containers now outside the window. Snapshot keys first
         // because we mutate _realized while iterating.
         if (_realized.Count > 0)
@@ -76,7 +90,7 @@ internal sealed class VirtualizingRowsRealizer<TContainer>
             var stale = new List<int>();
             foreach (var index in _realized.Keys)
             {
-                if (index < layout.FirstIndex || index >= layout.EndIndex)
+                if (index < firstIndex || index >= endIndex)
                 {
                     stale.Add(index);
                 }
@@ -96,7 +110,7 @@ internal sealed class VirtualizingRowsRealizer<TContainer>
         }
 
         // Realize the window left-to-right, reusing containers already at their index.
-        for (var index = layout.FirstIndex; index < layout.EndIndex; index++)
+        for (var index = firstIndex; index < endIndex; index++)
         {
             if (_realized.ContainsKey(index))
             {
@@ -112,8 +126,6 @@ internal sealed class VirtualizingRowsRealizer<TContainer>
             _itemOf[container] = item;
             _prepare(container, item, index);
         }
-
-        return layout;
     }
 
     /// <summary>Clears all realized containers (e.g. on items reset). Recycling keeps the pool.</summary>

@@ -1,12 +1,13 @@
 namespace System.Windows.Controls;
 
-// Session 121 (DataGrid grouping, Slice 2/4): WPF's generic ItemsControl group
-// container. There is no DataGrid-specific row-group-header class upstream to
-// link (see docs/session121.md) — real WPF reuses this same GroupItem, with
-// GroupStyle supplying ContainerStyle/HeaderTemplate/Panel. Panel (custom items
-// layout per group) is still not shimmed; HeaderTemplate/ContainerStyle are
-// (Slice 4) — when the owning ItemsControl's GroupStyle collection has an entry
-// for this depth, it's used; otherwise this falls back to Slice 2's original
+// Session 121 (DataGrid grouping, Slice 2/4, extended Slice 5): WPF's generic
+// ItemsControl group container. There is no DataGrid-specific row-group-header
+// class upstream to link (see docs/session121.md) — real WPF reuses this same
+// GroupItem, with GroupStyle supplying ContainerStyle/HeaderTemplate/Panel.
+// Panel (custom items layout per group) is deliberately not shimmed — see
+// GroupStyle.cs's class comment. ContainerStyle/ContainerStyleSelector,
+// HeaderTemplate/HeaderTemplateSelector, and HeaderStringFormat are (Slice 5);
+// when none of these resolve anything, this falls back to Slice 2's original
 // fixed header (group name + item count, indented per nesting level).
 public partial class GroupItem : ContentControl
 {
@@ -32,13 +33,16 @@ public partial class GroupItem : ContentControl
             _shimToggleHooked = true;
         }
 
-        var style = ResolveGroupStyle(owner, depth);
-        if (style?.ContainerStyle is { } containerStyle)
+        var style = ResolveGroupStyle(owner, group, depth);
+
+        var containerStyle = style?.ContainerStyleSelector?.SelectStyle(group, this) ?? style?.ContainerStyle;
+        if (containerStyle is not null)
         {
             Style = containerStyle;
         }
 
-        if (style?.HeaderTemplate is { } headerTemplate)
+        var headerTemplate = style?.HeaderTemplateSelector?.SelectTemplate(group, this) ?? style?.HeaderTemplate;
+        if (headerTemplate is not null)
         {
             // A real template defines its own visuals — don't fight it with the
             // fixed-header fallback's hardcoded background/padding/font below.
@@ -51,7 +55,14 @@ public partial class GroupItem : ContentControl
         }
 
         var disclosure = group.IsExpanded ? "▾" : "▸"; // ▾ expanded / ▸ collapsed
-        Content = $"{disclosure} {group.Name} ({group.ItemCount})";
+        // HeaderStringFormat "arises only when no template is available" (matching
+        // upstream's own doc comment) — {0} is Name, {1} ItemCount. The disclosure
+        // marker is this shim's own addition (not part of upstream's fixed header),
+        // so it's still prefixed even with a custom format.
+        var body = style?.HeaderStringFormat is { } format
+            ? string.Format(format, group.Name, group.ItemCount)
+            : $"{group.Name} ({group.ItemCount})";
+        Content = $"{disclosure} {body}";
         Padding = new Microsoft.UI.Xaml.Thickness(8 + depth * 16, 4, 8, 4);
         Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(0xFF, 0xE5, 0xE5, 0xE5));
@@ -70,11 +81,24 @@ public partial class GroupItem : ContentControl
         ShimToggleGroupExpansion?.Invoke();
     }
 
-    private static GroupStyle? ResolveGroupStyle(ItemsControl? owner, int depth)
+    // Internal (not private) so CollectionViewGroupBuilder can resolve the same
+    // per-depth style to honor HidesIfEmpty at build/flatten time — the one other
+    // place in this shim that needs to know a group's effective GroupStyle.
+    internal static GroupStyle? ResolveGroupStyle(ItemsControl? owner, System.Windows.Data.CollectionViewGroup? group, int depth)
     {
         if (owner is null)
         {
             return null;
+        }
+
+        // Real WPF's own fallback order: GroupStyleSelector wins when it returns
+        // a non-null style; otherwise fall back to the indexed GroupStyle collection.
+        if (owner.GroupStyleSelector is { } selector && group is not null)
+        {
+            if (selector(group, depth) is { } selected)
+            {
+                return selected;
+            }
         }
 
         var styles = owner.GroupStyle;

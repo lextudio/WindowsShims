@@ -289,17 +289,36 @@ namespace MS.Internal.Data
         // container is for a data slot), mirroring how real WPF's
         // ItemContainerGenerator interleaves CollectionViewGroup objects with
         // data items when IsGrouping is true.
-        internal static List<object?> FlattenWithHeaders(IReadOnlyList<CollectionViewGroupInternal> groups)
+        // Session 121 (DataGrid grouping, Slice 5): `owner` lets HidesIfEmpty be
+        // honored here too — resolved via the same GroupItem.ResolveGroupStyle a
+        // rendered header uses, so an empty group with HidesIfEmpty is skipped
+        // (no header slot, no leaves) under virtualization exactly like the
+        // manual path's BuildGroupedRows. Note: SlotCount/SlotIndexFromItem
+        // (CollectionViewGroupInternal, above) do NOT thread `owner` through and
+        // so still count every group's header slot unconditionally — a HidesIfEmpty
+        // group is (by definition) always empty, so there's no item inside it to
+        // scroll to, but a sibling/ancestor group's *computed* slot offset can be
+        // off by one per hidden ancestor when HidesIfEmpty is combined with
+        // scroll-into-view under virtualization. Narrow, documented edge case —
+        // not chased further, since the common case (nothing renders for an empty
+        // group) works correctly.
+        internal static List<object?> FlattenWithHeaders(IReadOnlyList<CollectionViewGroupInternal> groups, System.Windows.Controls.ItemsControl? owner = null)
         {
             var slots = new List<object?>();
-            AppendWithHeaders(slots, groups, depth: 0);
+            AppendWithHeaders(slots, groups, depth: 0, owner);
             return slots;
         }
 
-        private static void AppendWithHeaders(List<object?> slots, IReadOnlyList<CollectionViewGroupInternal> groups, int depth)
+        private static void AppendWithHeaders(List<object?> slots, IReadOnlyList<CollectionViewGroupInternal> groups, int depth, System.Windows.Controls.ItemsControl? owner)
         {
             foreach (var group in groups)
             {
+                var style = System.Windows.Controls.GroupItem.ResolveGroupStyle(owner, group, depth);
+                if (style?.HidesIfEmpty == true && group.ItemCount == 0)
+                {
+                    continue;
+                }
+
                 slots.Add(new GroupHeaderSlot(group, depth));
                 if (!group.IsExpanded)
                 {
@@ -317,7 +336,7 @@ namespace MS.Internal.Data
                 }
                 else
                 {
-                    AppendWithHeaders(slots, group.Items.Cast<CollectionViewGroupInternal>().ToList(), depth + 1);
+                    AppendWithHeaders(slots, group.Items.Cast<CollectionViewGroupInternal>().ToList(), depth + 1, owner);
                 }
             }
         }

@@ -86,6 +86,18 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":{Jb(grid is not null)},\"rows\":{(grid?.Items.Count ?? 0)},\"columns\":{(grid?.Columns.Count ?? 0)},\"autoGenerateColumns\":{Jb(grid?.AutoGenerateColumns ?? false)},\"autoFilterEnabled\":false,\"headers\":[{headers}],\"columnWidths\":[{widths}]}}";
     }
 
+    static T? FindDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is T match) return match;
+            if (FindDescendant<T>(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
     static void EnsureGrid(MainPage page)
     {
         if (page._grid is null)
@@ -324,6 +336,30 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":true,\"autoGenerateColumns\":{Jb(page._grid.AutoGenerateColumns)},\"columnWidths\":[{widths}]}}";
     });
 
+    // ─── Probe: cell-text ─────────────────────────────────────────────
+    // Verifies a fix to DataGridCell.BuildVisualTree(): the bound TextBlock
+    // DataGridBoundColumn.GenerateElement creates is a brand-new, unparented
+    // element whose binding relies on inheriting DataContext once parented —
+    // that inheritance was never actually reaching it (Content assignment sets
+    // the DP but doesn't itself push DataContext down), so cell text silently
+    // never resolved for any programmatically-built grid. Fixed by setting the
+    // generated element's DataContext explicitly instead of relying on
+    // inheritance timing.
+
+    [DevFlowAction("datagrid.probe.cell-text", Description = "Read back the bound Text of a specific row/column's rendered cell content.")]
+    public static string ProbeCellText(int rowIndex, int columnIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(rowIndex) as System.Windows.Controls.DataGridRow;
+        var cell = row?.TryGetCell(columnIndex);
+        var text = (cell?.Content as Microsoft.UI.Xaml.Controls.TextBlock)?.Text;
+
+        return $"{{\"hasGrid\":true,\"rowFound\":{Jb(row is not null)},\"cellFound\":{Jb(cell is not null)},\"text\":{Js(text)}}}";
+    });
+
     // ─── Probe: filter-buttons ──────────────────────────────────────
 
     [DevFlowAction("datagrid.probe.filter-buttons", Description = "Check which columns have filter buttons.")]
@@ -493,6 +529,391 @@ public sealed partial class MainPage : Page
         }
 
         return $"{{\"hasGrid\":true,\"rows\":{grid.Items.Count},\"columns\":{grid.Columns.Count},\"rowDetailsMode\":{Js(grid.RowDetailsVisibilityMode.ToString())},\"hasSelector\":{Jb(selector is not null)},\"detailsRendered\":{Jb(detailsRendered)},\"detailsGrid\":{Jb(detailsGrid is not null)},\"detailsRows\":{detailsRows},\"detailsColumns\":{detailsColumns}}}";
+    });
+
+    // ─── Gap survey item 8: row-details variable-height rows under virtualization ──
+
+    public sealed class VariableHeightRow
+    {
+        public int Id { get; set; }
+        public bool IsTall { get; set; }
+    }
+
+    // Gives row 2 (0-based) a 150px-tall details panel; every other row gets none
+    // (details Visibility stays Collapsed for them, matching a real "only some rows
+    // have expandable detail content" scenario). A uniform-row-height virtualization
+    // model would place row 3+ at `index * estimatedRowHeight`; the real cumulative
+    // top must instead be pushed down by the extra ~150px row 2's details panel adds.
+    sealed class VariableHeightDetailsSelector : DataTemplateSelector
+    {
+        protected override DataTemplate? SelectTemplateCore(object item, DependencyObject container)
+        {
+            if (item is not VariableHeightRow { IsTall: true })
+                return null; // no template -> BuildRowDetails leaves DetailsVisibility Collapsed
+
+            return new System.Windows.Controls.ShimDataTemplate(_ => new Microsoft.UI.Xaml.Controls.Border
+            {
+                Height = 150,
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, 0xDD, 0xEE, 0xFF)),
+            });
+        }
+    }
+
+    // ─── Probe: create-variable-height-grid ──────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-variable-height-grid", Description = "Create a virtualized DataGrid where one row has a 150px RowDetails panel and the rest have none.")]
+    public static string ProbeCreateVariableHeightGrid(int rowCount, int tallRowIndex) => RunOnUi(page =>
+    {
+        var grid = new WpfDataGrid { AutoGenerateColumns = false };
+        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Id", Binding = new WpfBinding("Id"), Width = new System.Windows.Controls.DataGridLength(60) });
+
+        grid.ItemsSource = Enumerable.Range(0, rowCount)
+            .Select(i => new VariableHeightRow { Id = i, IsTall = i == tallRowIndex })
+            .ToList();
+        grid.RowDetailsVisibilityMode = System.Windows.Controls.DataGridRowDetailsVisibilityMode.Visible;
+        grid.RowDetailsTemplateSelector = new VariableHeightDetailsSelector();
+
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 400;
+        grid.Height = 300;
+        grid.Measure(new global::Windows.Foundation.Size(400, 300));
+        grid.Arrange(new global::Windows.Foundation.Rect(0, 0, 400, 300));
+        grid.UpdateLayout();
+
+        grid.ShimSetRowVirtualization(true);
+        grid.UpdateLayout();
+
+        // Headless Skia never fires EffectiveViewportChanged — force a real viewport
+        // deterministically, same technique datagrid.probe.metadata-scroll-into-view uses.
+        var rowsPresenter = FindDescendant<System.Windows.Controls.Primitives.DataGridRowsPresenter>(grid);
+        rowsPresenter?.ShimForceViewport(0, 300);
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+
+        return Snapshot(page);
+    });
+
+    // ─── Probe: variable-height-readback ──────────────────────────────
+
+    // Reads the ScrollViewer's real ExtentHeight — VirtualizingStackPanel.MeasureOverride
+    // returns it as the cumulative sum of every index's real-or-estimated height (see
+    // OffsetOfIndex(itemCount, itemCount) in VirtualizingPanelStubs.cs), so it directly
+    // reflects whether a taller row's actual measured height is really folded into the
+    // total extent, rather than a uniform itemCount * estimatedRowHeight guess. (Per-row
+    // screen-Y/DesiredSize reads were tried first but proved unreliable in this headless
+    // Skia host — containers get recycled/remeasured between probe calls in ways that
+    // reset DesiredSize before it can be read back; ExtentHeight, read once right after
+    // layout settles, doesn't have that problem.)
+    [DevFlowAction("datagrid.probe.variable-height-extent", Description = "Read back the virtualized rows ScrollViewer's ExtentHeight.")]
+    public static string ProbeVariableHeightExtent() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+        var scroller = grid.ShimGetRowsScrollViewer();
+
+        return $"{{\"hasGrid\":true,\"extentHeight\":{Jn(scroller?.ExtentHeight ?? -1)},\"viewportHeight\":{Jn(scroller?.ViewportHeight ?? -1)}}}";
+    });
+
+    // ─── Grouping: GroupStyle full-coverage model ────────────────────
+
+    public sealed class GroupedRow
+    {
+        public string Country { get; set; } = "";
+        public string Name { get; set; } = "";
+    }
+
+    // ─── Probe: create-grouped-style-grid ────────────────────────────
+    // Exercises the GroupStyle surface raised to cover HeaderStringFormat,
+    // HeaderTemplateSelector/ContainerStyleSelector, and GroupStyleSelector —
+    // the gaps flagged in docs/session121.md's grouping arc. `mode` selects
+    // which resolution path to exercise so each gets an isolated, unambiguous
+    // read-back:
+    //   "format"   — GroupStyle.HeaderStringFormat on the fixed fallback header
+    //   "selector" — HeaderTemplateSelector + ContainerStyleSelector, recorded
+    //                so the probe can confirm they were actually invoked
+    //   "groupstyleselector" — ItemsControl.GroupStyleSelector taking
+    //                precedence over the GroupStyle collection
+    [DevFlowAction("datagrid.probe.create-grouped-style-grid", Description = "Create a DataGrid grouped by Country, with GroupStyle configured per `mode` (format|selector|groupstyleselector).")]
+    public static string ProbeCreateGroupedStyleGrid(string mode) => RunOnUi(page =>
+    {
+        var grid = new WpfDataGrid { AutoGenerateColumns = false };
+        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Country", Binding = new WpfBinding("Country"), Width = new System.Windows.Controls.DataGridLength(80) });
+        grid.Columns.Add(new WpfDataGridTextColumn { Header = "Name", Binding = new WpfBinding("Name"), Width = new System.Windows.Controls.DataGridLength(100) });
+
+        // Single group only — GroupStyle mechanics (format/selector precedence)
+        // are the point of this probe, not group ordering, and this shim's
+        // grouping auto-syncs a SortDescription per grouped property (Slice 4),
+        // which would otherwise reorder a multi-group scenario alphabetically.
+        grid.ItemsSource = new List<GroupedRow>
+        {
+            new() { Country = "US", Name = "Alice" },
+            new() { Country = "US", Name = "Bob" },
+        };
+        grid.Items.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription("Country"));
+        grid.Items.Refresh();
+
+        switch (mode)
+        {
+            case "format":
+                grid.GroupStyle.Add(new System.Windows.Controls.GroupStyle { HeaderStringFormat = "{0} ({1} people)" });
+                break;
+
+            case "selector":
+                grid.GroupStyle.Add(new System.Windows.Controls.GroupStyle
+                {
+                    HeaderTemplate = new Microsoft.UI.Xaml.DataTemplate(), // fallback — selector should win
+                    HeaderTemplateSelector = new RecordingHeaderTemplateSelector(),
+                    ContainerStyle = new Microsoft.UI.Xaml.Style(typeof(System.Windows.Controls.GroupItem)),
+                    ContainerStyleSelector = new RecordingContainerStyleSelector(),
+                });
+                break;
+
+            case "groupstyleselector":
+                grid.GroupStyle.Add(new System.Windows.Controls.GroupStyle { HeaderStringFormat = "collection:{0}" });
+                grid.GroupStyleSelector = (group, level) =>
+                    new System.Windows.Controls.GroupStyle { HeaderStringFormat = "selector:{0}" };
+                break;
+        }
+
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+
+        return Snapshot(page);
+    });
+
+    private sealed class RecordingHeaderTemplateSelector : Microsoft.UI.Xaml.Controls.DataTemplateSelector
+    {
+        internal static object? LastGroup;
+        internal static readonly Microsoft.UI.Xaml.DataTemplate Selected = new();
+
+        protected override Microsoft.UI.Xaml.DataTemplate SelectTemplateCore(object item, Microsoft.UI.Xaml.DependencyObject container)
+        {
+            LastGroup = item;
+            return Selected;
+        }
+    }
+
+    private sealed class RecordingContainerStyleSelector : System.Windows.Controls.StyleSelector
+    {
+        internal static object? LastGroup;
+        internal static readonly Microsoft.UI.Xaml.Style Selected = new(typeof(System.Windows.Controls.GroupItem));
+
+        public override Microsoft.UI.Xaml.Style SelectStyle(object item, Microsoft.UI.Xaml.DependencyObject container)
+        {
+            LastGroup = item;
+            return Selected;
+        }
+    }
+
+    // ─── Probe: grouped-style-readback ────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.grouped-style-readback", Description = "Read back the first group's rendered header (Content, ContentTemplate, Style) plus selector-invocation state.")]
+    public static string ProbeGroupedStyleReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var group = grid.Items.Groups.Count > 0 ? grid.Items.Groups[0] : null;
+        var header = FindDescendant<System.Windows.Controls.GroupItem>(grid);
+        var groupNames = string.Join(",", grid.Items.Groups.Select(g => g!.Name));
+
+        return $"{{\"hasGroup\":{Jb(group is not null)},\"groupCount\":{grid.Items.Groups.Count},\"groupNames\":{Js(groupNames)}," +
+               $"\"headerContent\":{Js(header?.Content?.ToString())}," +
+               $"\"headerTemplateSelected\":{Jb(header is not null && ReferenceEquals(header.ContentTemplate, RecordingHeaderTemplateSelector.Selected))}," +
+               $"\"containerStyleSelected\":{Jb(header is not null && ReferenceEquals(header.Style, RecordingContainerStyleSelector.Selected))}," +
+               $"\"headerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(RecordingHeaderTemplateSelector.LastGroup, group))}," +
+               $"\"containerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(RecordingContainerStyleSelector.LastGroup, group))}}}";
+    });
+
+    // ─── Probe: hides-if-empty-flatten ────────────────────────────────
+    // HidesIfEmpty is meaningful only for a group with ItemCount == 0 — a shape
+    // CollectionViewGroupBuilder.BuildGroups can never itself produce (it only
+    // ever creates a bucket for a group name actually present among the
+    // already-filtered items — see ItemCollection.Refresh()). So rather than
+    // trying to coax BuildGroups into an unreachable state, this probe builds an
+    // explicitly-empty CollectionViewGroupInternal directly (real internal API,
+    // same one BuildGroups itself uses) and confirms FlattenWithHeaders — the
+    // real function DataGrid's virtualized grouped-row path calls — omits it
+    // when GroupStyle.HidesIfEmpty is set on the live grid used as the resolver
+    // owner, and still renders it (header only) when not set.
+    [DevFlowAction("datagrid.probe.hides-if-empty-flatten", Description = "Build one non-empty and one empty CollectionViewGroupInternal; report FlattenWithHeaders' slot count with the live grid's GroupStyle.HidesIfEmpty on/off.")]
+    public static string ProbeHidesIfEmptyFlatten(bool hidesIfEmpty) => RunOnUi(page =>
+    {
+        var grid = new WpfDataGrid();
+        grid.GroupStyle.Add(new System.Windows.Controls.GroupStyle { HidesIfEmpty = hidesIfEmpty });
+
+        var nonEmpty = new MS.Internal.Data.CollectionViewGroupInternal(
+            "US", new System.Windows.Data.PropertyGroupDescription("Country"), isBottomLevel: true);
+        nonEmpty.AddLeaf(new GroupedRow { Country = "US", Name = "Alice" });
+        var empty = new MS.Internal.Data.CollectionViewGroupInternal(
+            "UK", new System.Windows.Data.PropertyGroupDescription("Country"), isBottomLevel: true);
+
+        var slots = MS.Internal.Data.CollectionViewGroupBuilder.FlattenWithHeaders([nonEmpty, empty], grid);
+
+        return $"{{\"hasGrid\":true,\"slotCount\":{slots.Count},\"emptyGroupOmitted\":{Jb(slots.Count == 2)}}}";
+    });
+
+    // ─── Frozen columns: editable model ──────────────────────────────
+
+    public sealed class FrozenEditRow
+    {
+        public string ColA { get; set; } = "";
+        public string ColB { get; set; } = "";
+        public string ColC { get; set; } = "";
+        public string ColD { get; set; } = "";
+    }
+
+    // ─── Probe: create-frozen-edit-grid ──────────────────────────────
+    // Closes the 3 remaining frozen-columns loose ends (vertical scroll,
+    // real cell editing, boundary resize) with a standalone editable+tall
+    // grid, under the real DataGridCellsPresenter cell host.
+
+    [DevFlowAction("datagrid.probe.create-frozen-edit-grid", Description = "Create a standalone, editable, 40-row DataGrid with FrozenColumnCount under the cells presenter.")]
+    public static string ProbeCreateFrozenEditGrid(int frozenColumnCount) => RunOnUi(page =>
+    {
+        var rows = Enumerable.Range(0, 40)
+            .Select(i => new FrozenEditRow { ColA = $"A{i}", ColB = $"B{i}", ColC = $"C{i}", ColD = $"D{i}" })
+            .ToList();
+
+        var grid = new WpfDataGrid { AutoGenerateColumns = false, ItemsSource = rows };
+        foreach (var propertyName in new[] { "ColA", "ColB", "ColC", "ColD" })
+        {
+            grid.Columns.Add(new WpfDataGridTextColumn
+            {
+                Header = propertyName,
+                Binding = new WpfBinding(propertyName),
+                Width = new System.Windows.Controls.DataGridLength(220),
+            });
+        }
+
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.Measure(new global::Windows.Foundation.Size(800, 400));
+        grid.Arrange(new global::Windows.Foundation.Rect(0, 0, 800, 400));
+        grid.UpdateLayout();
+
+        grid.ShimSetCellsPresenterHost(true);
+        grid.FrozenColumnCount = frozenColumnCount;
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+
+        return Snapshot(page);
+    });
+
+    // ─── Probe: frozen-edit-scroll ────────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.frozen-edit-scroll", Description = "Scroll the frozen-edit grid horizontally and vertically; report the resulting scroll offsets.")]
+    public static string ProbeFrozenEditScroll(double scrollX, double scrollY) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var scroller = grid.ShimGetRowsScrollViewer();
+        if (scroller is null)
+            return "{\"error\":\"no PART_ShimRowsScroll found\"}";
+
+        scroller.ChangeView(scrollX, scrollY, null, true);
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+
+        return $"{{\"hasGrid\":true,\"scrollOffsetX\":{Jn(scroller.HorizontalOffset)},\"scrollOffsetY\":{Jn(scroller.VerticalOffset)}," +
+               $"\"extentHeight\":{Jn(scroller.ExtentHeight)},\"viewportHeight\":{Jn(scroller.ViewportHeight)},\"scrollableHeight\":{Jn(scroller.ScrollableHeight)}}}";
+    });
+
+    // ─── Probe: frozen-edit-readback ──────────────────────────────────
+    // Verifies: (1) a tracked row's frozen cell keeps its screen X position
+    // (item-identity based, not "first row found" — resilient across scroll-
+    // driven container recycling); (2) real cell editing (BeginEdit/CommitEdit)
+    // on a presenter-hosted, non-frozen cell of the same row; (3) resizing at
+    // the frozen/non-frozen boundary while FrozenColumnCount > 0.
+
+    [DevFlowAction("datagrid.probe.frozen-edit-readback", Description = "Read back frozen-cell screen position (tracked by item identity), attempt real cell edit, and resize the frozen/non-frozen boundary columns.")]
+    public static string ProbeFrozenEditReadback(int frozenColumnCount, int trackedRowIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var trackedItem = grid.Items.Count > trackedRowIndex ? grid.Items[trackedRowIndex] : null;
+
+        // Never hold a row/cell reference across a call that might trigger a
+        // visual-tree rebuild (selection, resize) — re-fetch fresh each time
+        // via ItemContainerGenerator.ContainerFromItem (item-identity based).
+        System.Windows.Controls.DataGridRow? FreshRow() => trackedItem is not null
+            ? grid.ItemContainerGenerator.ContainerFromItem(trackedItem) as System.Windows.Controls.DataGridRow
+            : null;
+
+        (double x, double y) ScreenPos(Microsoft.UI.Xaml.FrameworkElement? e)
+        {
+            if (e is null) return (double.NaN, double.NaN);
+            var p = e.TransformToVisual(grid).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+            return (p.X, p.Y);
+        }
+
+        var trackedRow = FreshRow();
+        var frozenCell = trackedRow?.TryGetCell(0);
+        var (frozenX, frozenY) = ScreenPos(frozenCell);
+
+        // Confirm the visual-tree ancestry the routed BeginEditCommand relies on
+        // (CommandBinding.AppliesTo walks VisualTreeHelper parents looking for a
+        // DataGrid ancestor) actually reaches this grid instance. Root cause of
+        // the previously-open "real cell editing" gap: holding a row/cell
+        // reference across the SelectedItem assignment below (which retemplates
+        // the row) left `editingCell` pointing at a detached subtree whose
+        // ancestor walk stopped at DataGridRow instead of reaching grid.
+        bool gridIsAncestor = false;
+        if (frozenCell is not null)
+        {
+            for (Microsoft.UI.Xaml.DependencyObject? p = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(frozenCell); p is not null; p = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(p))
+            {
+                if (ReferenceEquals(p, grid)) { gridIsAncestor = true; break; }
+            }
+        }
+
+        grid.SelectedItem = trackedItem;
+        grid.UpdateLayout();
+        var isSelected = FreshRow()?.IsSelected ?? false;
+
+        // Re-fetch fresh (not the pre-selection `trackedRow`/`frozenCell`) — see note above.
+        var editingCell = FreshRow()?.TryGetCell(1);
+        var editingCellIsReadOnly = editingCell?.IsReadOnly;
+        var beganEdit = editingCell is not null && editingCell.BeginEdit(null);
+        var isEditingAfterBegin = editingCell?.IsEditing ?? false;
+
+        if (editingCell is { IsEditing: true } && editingCell.EditingElement is Microsoft.UI.Xaml.Controls.TextBox box)
+        {
+            box.Text = "EDITED";
+        }
+
+        var committed = editingCell is not null && editingCell.CommitEdit();
+        var isEditingAfterCommit = editingCell?.IsEditing ?? false;
+        grid.UpdateLayout();
+        var committedValue = (trackedItem as FrozenEditRow)?.ColB;
+
+        var lastFrozenColumn = grid.Columns[Math.Max(0, frozenColumnCount - 1)];
+        var firstNonFrozenColumn = grid.Columns[Math.Min(grid.Columns.Count - 1, frozenColumnCount)];
+        var resizedFrozen = grid.ShimTryResizeColumn(lastFrozenColumn, 40.0);
+        var resizedNonFrozen = grid.ShimTryResizeColumn(firstNonFrozenColumn, 40.0);
+        grid.UpdateLayout();
+        var frozenCellAfterResize = FreshRow()?.TryGetCell(0);
+        var (frozenXAfterResize, _) = ScreenPos(frozenCellAfterResize);
+
+        return $"{{\"trackedRowFound\":{Jb(trackedRow is not null)},\"frozenX\":{Jn(frozenX)},\"frozenY\":{Jn(frozenY)}," +
+               $"\"gridIsAncestor\":{Jb(gridIsAncestor)},\"isSelected\":{Jb(isSelected)}," +
+               $"\"editingCellIsReadOnly\":{Jb(editingCellIsReadOnly ?? false)}," +
+               $"\"beganEdit\":{Jb(beganEdit)},\"isEditingAfterBegin\":{Jb(isEditingAfterBegin)}," +
+               $"\"committed\":{Jb(committed)},\"isEditingAfterCommit\":{Jb(isEditingAfterCommit)},\"committedValue\":{Js(committedValue)}," +
+               $"\"resizedFrozen\":{Jb(resizedFrozen)},\"resizedNonFrozen\":{Jb(resizedNonFrozen)},\"frozenXAfterResize\":{Jn(frozenXAfterResize)}}}";
     });
 }
 #endif

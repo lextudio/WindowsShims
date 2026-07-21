@@ -135,7 +135,22 @@ public class VirtualizingStackPanel : VirtualizingPanel
     private double _viewportTop;
     private double _viewportHeight;
     private bool _hasViewport;
-    private double _rowHeight = DefaultRowHeight;
+
+    // Gap survey item 8 (docs/session121.md): variable-height rows under
+    // virtualization (a RowDetailsVisibilityMode-expanded row is taller than a
+    // collapsed one). `_heightCache` holds each realized index's actual measured
+    // height; `_averageRowHeight` (WPF's own approach for estimating unrealized-row
+    // extent) is the running average of everything measured so far, used for rows
+    // never yet realized. `_prefixSum` is a cumulative-offset array over
+    // [0, itemCount] rebuilt from those two whenever a measured height actually
+    // changes — see EnsurePrefixSum/OffsetOfIndex. A grid where every row happens
+    // to be the same height degenerates to the old uniform math exactly (every
+    // cached height equals the average), so this subsumes the earlier
+    // `_rowHeight`-based model rather than sitting alongside it.
+    private readonly Dictionary<int, double> _heightCache = new();
+    private double _averageRowHeight = DefaultRowHeight;
+    private double[]? _prefixSum;
+    private int _prefixSumItemCount = -1;
     private Size _lastViewportSize;
     private Microsoft.UI.Xaml.Controls.ScrollViewer? _scrollOwner;
 
@@ -224,8 +239,46 @@ public class VirtualizingStackPanel : VirtualizingPanel
     {
         _realizer?.Clear();
         _groupedSlots = null;
+        // A resorted/refiltered source maps old indices to different items — a
+        // cached height at index 5 described whatever used to be at index 5, not
+        // necessarily what's there now, so the whole per-index cache is stale too.
+        _heightCache.Clear();
+        _averageRowHeight = DefaultRowHeight;
+        InvalidatePrefixSum();
         InvalidateMeasure();
     }
+
+    private void InvalidatePrefixSum() => _prefixSum = null;
+
+    // Cumulative offsets over [0, itemCount] built from the per-index height cache
+    // (exact where a row has actually been measured) and _averageRowHeight elsewhere
+    // (an estimate — the same approach real WPF's own variable-row-height
+    // virtualization uses for not-yet-realized rows). Rebuilt only when invalidated
+    // (a measured height actually changed, or the item count changed), not on every
+    // measure/arrange pass.
+    private double[] EnsurePrefixSum(int itemCount)
+    {
+        if (_prefixSum is { } cached && _prefixSumItemCount == itemCount)
+        {
+            return cached;
+        }
+
+        var sums = new double[itemCount + 1];
+        for (var i = 0; i < itemCount; i++)
+        {
+            sums[i + 1] = sums[i] + (_heightCache.TryGetValue(i, out var height) ? height : _averageRowHeight);
+        }
+
+        _prefixSum = sums;
+        _prefixSumItemCount = itemCount;
+        return sums;
+    }
+
+    private double OffsetOfIndex(int index, int itemCount)
+        => EnsurePrefixSum(itemCount)[Math.Clamp(index, 0, itemCount)];
+
+    private int ItemCount(ItemsControl owner)
+        => owner.IsGrouping ? EnsureGroupedSlots(owner).Count : owner.Items.Count;
 
     // Session 121 (DataGrid grouping, Slice 3): the flattened visual-slot list for
     // owner.Items.Groups, cached until ShimResetRealization() (called after any
@@ -233,7 +286,7 @@ public class VirtualizingStackPanel : VirtualizingPanel
     // clears it. Rebuilding is O(n) over the current group tree; fine for a
     // recompute-on-structural-change cache, not meant to be called per realized row.
     private List<object?> EnsureGroupedSlots(ItemsControl owner)
-        => _groupedSlots ??= MS.Internal.Data.CollectionViewGroupBuilder.FlattenWithHeaders(owner.Items.Groups);
+        => _groupedSlots ??= MS.Internal.Data.CollectionViewGroupBuilder.FlattenWithHeaders(owner.Items.Groups, owner);
 
     private VirtualizingRowsRealizer<UIElement> EnsureRealizer(ItemsControl owner)
     {
@@ -332,7 +385,7 @@ public class VirtualizingStackPanel : VirtualizingPanel
             return base.MeasureOverride(availableSize);
 
         var realizer = EnsureRealizer(owner);
-        var itemCount = owner.IsGrouping ? EnsureGroupedSlots(owner).Count : owner.Items.Count;
+        var itemCount = ItemCount(owner);
 
         // Before the first EffectiveViewportChanged, fall back to the measure
         // constraint so the very first realization shows the top of the list.
@@ -341,24 +394,69 @@ public class VirtualizingStackPanel : VirtualizingPanel
             ? _viewportHeight
             : (double.IsInfinity(availableSize.Height) ? 0d : availableSize.Height);
 
-        var layout = realizer.Realize(itemCount, _rowHeight, viewportTop, viewportHeight, CacheRows);
+        var layout = VirtualizingRowsVariableLayout.Compute(
+            itemCount, index => OffsetOfIndex(index, itemCount), viewportTop, viewportHeight, CacheRows);
+        realizer.RealizeWindow(layout.FirstIndex, layout.EndIndex);
 
-        // Measure realized rows; refine the uniform row-height estimate from them.
+        var maxWidth = MeasureRealized(realizer, availableSize, out var heightsChanged);
+
+        if (heightsChanged)
+        {
+            // A measured height differed from its cached/estimated value, which moved
+            // the average and invalidated the prefix sums the window above was computed
+            // from. Recompute the window against the refreshed offsets and measure
+            // anything newly realized — one bounded extra pass (not a loop), mirroring
+            // WPF's own iterative refinement for variable-height virtualization rather
+            // than trying to solve it in a single measure.
+            layout = VirtualizingRowsVariableLayout.Compute(
+                itemCount, index => OffsetOfIndex(index, itemCount), viewportTop, viewportHeight, CacheRows);
+            realizer.RealizeWindow(layout.FirstIndex, layout.EndIndex);
+            var refinedWidth = MeasureRealized(realizer, availableSize, out _);
+            if (refinedWidth > maxWidth)
+            {
+                maxWidth = refinedWidth;
+            }
+        }
+
+        var width = double.IsInfinity(availableSize.Width) ? maxWidth : Math.Max(maxWidth, availableSize.Width);
+        var extent = OffsetOfIndex(itemCount, itemCount);
+        return new Size(width, extent);
+    }
+
+    // Measures every currently-realized child, updating the per-index height cache
+    // (and, if anything actually changed, the running average + prefix-sum
+    // invalidation) as it goes. Returns the widest child's desired width.
+    private double MeasureRealized(VirtualizingRowsRealizer<UIElement> realizer, Size availableSize, out bool heightsChanged)
+    {
         var maxWidth = 0d;
+        var changed = false;
         foreach (var entry in realizer.Realized)
         {
+            var index = entry.Key;
             var child = entry.Value;
             child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
             var desired = child.DesiredSize;
             if (desired.Width > maxWidth)
+            {
                 maxWidth = desired.Width;
-            if (desired.Height > 0)
-                _rowHeight = desired.Height;
+            }
+
+            if (desired.Height > 0
+                && (!_heightCache.TryGetValue(index, out var previous) || Math.Abs(previous - desired.Height) > 0.5))
+            {
+                _heightCache[index] = desired.Height;
+                changed = true;
+            }
         }
 
-        var width = double.IsInfinity(availableSize.Width) ? maxWidth : Math.Max(maxWidth, availableSize.Width);
-        var extent = _rowHeight > 0 ? itemCount * _rowHeight : layout.ExtentHeight;
-        return new Size(width, extent);
+        if (changed)
+        {
+            _averageRowHeight = _heightCache.Count > 0 ? _heightCache.Values.Average() : DefaultRowHeight;
+            InvalidatePrefixSum();
+        }
+
+        heightsChanged = changed;
+        return maxWidth;
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -366,11 +464,14 @@ public class VirtualizingStackPanel : VirtualizingPanel
         if (_realizer is null)
             return base.ArrangeOverride(finalSize);
 
+        var owner = ItemsControl.GetItemsOwner(this);
+        var itemCount = owner is not null ? ItemCount(owner) : _prefixSumItemCount;
+
         foreach (var entry in _realizer.Realized)
         {
             var child = entry.Value;
-            var top = entry.Key * _rowHeight;
-            var height = child.DesiredSize.Height > 0 ? child.DesiredSize.Height : _rowHeight;
+            var top = OffsetOfIndex(entry.Key, itemCount);
+            var height = child.DesiredSize.Height > 0 ? child.DesiredSize.Height : _averageRowHeight;
             child.Arrange(new Rect(0, top, finalSize.Width, height));
         }
 
@@ -386,9 +487,12 @@ public class VirtualizingStackPanel : VirtualizingPanel
         if (index < 0)
             return;
 
-        var top = index * _rowHeight;
+        var owner = ItemsControl.GetItemsOwner(this);
+        var itemCount = owner is not null ? ItemCount(owner) : index + 1;
+
+        var top = OffsetOfIndex(index, itemCount);
         _scrollOwner?.ChangeView(null, top, null, true);
-        SetViewport(top, _viewportHeight > 0 ? _viewportHeight : DefaultRowHeight * 20);
+        SetViewport(top, _viewportHeight > 0 ? _viewportHeight : _averageRowHeight * 20);
     }
 
     protected override void OnIsItemsHostChanged(bool oldIsItemsHost, bool newIsItemsHost)

@@ -334,13 +334,19 @@ public partial class DataGridRow : Control
 
             var cell = new DataGridCell { Column = column };
             cell.SetOwnerRow(this);
+
+            // Parent BEFORE BuildVisualTree() assigns Content/DataContext below —
+            // see DataGridCell.BuildVisualTree()'s comment for the actual root cause
+            // (DataContext never reaches the generated element via inheritance;
+            // fixed there by setting it explicitly). Parenting first at least gives
+            // the natural, non-reentrant measure cascade a template to flow through.
+            host.Children.Add(cell);
+            _cells.Add(cell);
+
             cell.BuildVisualTree();
             DataGridOwner.TryReselectCell(cell);
             cell.Width = DataGridOwner.ShimColumnWidth(column);
             cell.ApplyShimGridLines();
-
-            host.Children.Add(cell);
-            _cells.Add(cell);
         }
 
         BuildRowDetails(DataGridOwner);

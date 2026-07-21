@@ -37,6 +37,11 @@ internal readonly struct VirtualizingRowsLayout
         FirstItemTop = firstItemTop;
     }
 
+    // Shared constructor access for VirtualizingRowsVariableLayout, which computes the
+    // same four values via cumulative (non-uniform) offsets instead of pure arithmetic.
+    internal static VirtualizingRowsLayout Create(int firstIndex, int count, double extentHeight, double firstItemTop)
+        => new(firstIndex, count, extentHeight, firstItemTop);
+
     /// <summary>
     /// Computes the realized slice for the given viewport.
     /// </summary>
