@@ -56,6 +56,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         "<Border Background='{TemplateBinding Background}' " +
         "BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='{TemplateBinding BorderThickness}'>" +
         "<ContentPresenter Content='{TemplateBinding Content}' " +
+        "Margin='{TemplateBinding Padding}' " +
         "HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' " +
         "VerticalAlignment='{TemplateBinding VerticalContentAlignment}' />" +
         "</Border></ControlTemplate>";
@@ -66,6 +67,13 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     // background to reflect selection, using WinUI's RegisterPropertyChangedCallback.
     partial void OnInitializedShim()
     {
+        MinHeight = 32;
+        FontSize = 14;
+        Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6);
+        HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
+        VerticalContentAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center;
+        Foreground = DataGridFluentTheme.PrimaryText;
+
         if (_cellTemplate == null)
         {
             _cellTemplate = (Microsoft.UI.Xaml.Controls.ControlTemplate)
@@ -78,8 +86,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         {
             var cell = (DataGridCell)sender;
             cell.Background = cell.IsSelected
-                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    global::Windows.UI.Color.FromArgb(0xFF, 0x9C, 0xC9, 0xF5))
+                ? DataGridFluentTheme.Selection
                 : null;
         });
     }

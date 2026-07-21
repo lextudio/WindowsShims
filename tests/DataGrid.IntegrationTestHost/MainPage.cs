@@ -67,6 +67,11 @@ public sealed partial class MainPage : Page
 
     static string Jb(bool b) => b ? "true" : "false";
 
+    static string BrushHex(Microsoft.UI.Xaml.Media.Brush? brush) =>
+        brush is Microsoft.UI.Xaml.Media.SolidColorBrush solid
+            ? $"#{solid.Color.A:X2}{solid.Color.R:X2}{solid.Color.G:X2}{solid.Color.B:X2}"
+            : brush?.GetType().Name ?? "null";
+
     static string RunOnUi(Func<MainPage, string> body)
     {
         var page = _current;
@@ -667,6 +672,26 @@ public sealed partial class MainPage : Page
                $"\"scrollableWidth\":{Jn(scroller.ScrollableWidth)},\"viewportHeight\":{Jn(scroller.ViewportHeight)}," +
                $"\"viewportWidth\":{Jn(scroller.ViewportWidth)},\"actualHeight\":{Jn(scroller.ActualHeight)}," +
                $"\"actualWidth\":{Jn(scroller.ActualWidth)}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.fluent-theme", Description = "Read the effective Fluent DataGrid brushes and control metrics.")]
+    public static string ProbeFluentTheme() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        var cell = row?.TryGetCell(0);
+        var rowHeader = row?.RowHeader as Microsoft.UI.Xaml.FrameworkElement;
+        var columnHeader = FindDescendant<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid);
+        var outerBorder = grid.ShimGetOuterBorder();
+
+        return $"{{\"background\":{Js(BrushHex(grid.Background))},\"outerBorder\":{Js(BrushHex(outerBorder?.BorderBrush))}," +
+               $"\"horizontalGridLine\":{Js(BrushHex(grid.HorizontalGridLinesBrush))},\"verticalGridLine\":{Js(BrushHex(grid.VerticalGridLinesBrush))}," +
+               $"\"columnHeaderBackground\":{Js(BrushHex(columnHeader?.Background))},\"rowHeaderBackground\":{Js(BrushHex((rowHeader as Microsoft.UI.Xaml.Controls.Control)?.Background))}," +
+               $"\"cellMinHeight\":{Jn(cell?.MinHeight ?? double.NaN)},\"columnHeaderMinHeight\":{Jn(columnHeader?.MinHeight ?? double.NaN)}," +
+               $"\"rowHeaderMinHeight\":{Jn(rowHeader?.MinHeight ?? double.NaN)}}}";
     });
 
     // ─── Probe: filter-buttons ──────────────────────────────────────

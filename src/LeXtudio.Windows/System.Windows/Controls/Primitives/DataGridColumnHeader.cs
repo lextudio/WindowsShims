@@ -52,10 +52,10 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
         "<VisualStateGroup x:Name='CommonStates'>" +
         "<VisualState x:Name='Normal' />" +
         "<VisualState x:Name='MouseOver'>" +
-        "<VisualState.Setters><Setter Target='HoverRectangle.Fill' Value='#19000000' /></VisualState.Setters>" +
+        "<VisualState.Setters><Setter Target='HoverRectangle.Fill' Value='{ThemeResource SubtleFillColorSecondaryBrush}' /></VisualState.Setters>" +
         "</VisualState>" +
         "<VisualState x:Name='Pressed'>" +
-        "<VisualState.Setters><Setter Target='HoverRectangle.Fill' Value='#33000000' /></VisualState.Setters>" +
+        "<VisualState.Setters><Setter Target='HoverRectangle.Fill' Value='{ThemeResource SubtleFillColorTertiaryBrush}' /></VisualState.Setters>" +
         "</VisualState>" +
         "</VisualStateGroup>" +
         "</VisualStateManager.VisualStateGroups>" +
@@ -170,6 +170,9 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
         }
 
         Template = _headerTemplate;
+        MinHeight = 32;
+        Background ??= DataGridFluentTheme.HeaderBackground;
+        Foreground = DataGridFluentTheme.SecondaryText;
         // Session 122: force the template to actually materialize now (VisualStateGroups
         // included) rather than relying on the framework's own lazy application timing.
         // PrepareColumnHeader (upstream, ext/wpf) calls CoerceValue(SortDirectionProperty)

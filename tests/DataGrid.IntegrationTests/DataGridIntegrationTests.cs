@@ -81,6 +81,22 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task DefaultTheme_UsesFluentBrushesAndMetrics()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.fluent-theme");
+        var raw = state.ToString();
+
+        Assert.NotEqual("#FF000000", state.GetProperty("outerBorder").GetString());
+        Assert.NotEqual("#FF000000", state.GetProperty("horizontalGridLine").GetString());
+        Assert.NotEqual("#FF000000", state.GetProperty("verticalGridLine").GetString());
+        Assert.NotEqual(state.GetProperty("background").GetString(), state.GetProperty("columnHeaderBackground").GetString());
+        Assert.True(state.GetProperty("cellMinHeight").GetDouble() >= 32, raw);
+        Assert.True(state.GetProperty("columnHeaderMinHeight").GetDouble() >= 32, raw);
+        Assert.True(state.GetProperty("rowHeaderMinHeight").GetDouble() >= 32, raw);
+    }
+
+    [Fact]
     public async Task State_ReturnsGridSnapshot()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

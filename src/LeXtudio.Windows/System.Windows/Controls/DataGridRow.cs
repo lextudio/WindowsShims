@@ -136,9 +136,7 @@ public partial class DataGridRow : Control
     }
 
     // Selection highlight (WinUI list-accent-ish light blue).
-    private static readonly Microsoft.UI.Xaml.Media.Brush _selectedBrush =
-        new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            global::Windows.UI.Color.FromArgb(0xFF, 0xCC, 0xE8, 0xFF));
+    private static Microsoft.UI.Xaml.Media.Brush SelectedBrush => DataGridFluentTheme.Selection;
 
     // Session 69: apply the stripe background (RowBackground or AlternatingRowBackground).
     // Called from BuildShimVisualTree after ShimRowIndex is set, and from
@@ -168,7 +166,7 @@ public partial class DataGridRow : Control
         // Row-level selection tints the row; cells stay transparent so the
         // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
         // the cell itself and is managed separately on DataGridCell.
-        Background = IsSelected ? _selectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
+        Background = IsSelected ? SelectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
         RefreshRowHeaderGlyph();
 
         // VisibleWhenSelected: selection toggles the details section. Recompute
@@ -213,6 +211,16 @@ public partial class DataGridRow : Control
             row.RaiseEvent(new RoutedEventArgs(sel ? SelectedEvent : UnselectedEvent, row));
         });
         RegisterPropertyChangedCallback(IsEditingProperty, (_, __) => RefreshRowHeaderGlyph());
+        PointerEntered += (_, _) =>
+        {
+            if (!IsSelected)
+                Background = DataGridFluentTheme.RowHover;
+        };
+        PointerExited += (_, _) =>
+        {
+            if (!IsSelected)
+                Background = DataGridOwner?.ShimRowBackground(ShimRowIndex);
+        };
     }
 
     protected override void OnApplyTemplate()
