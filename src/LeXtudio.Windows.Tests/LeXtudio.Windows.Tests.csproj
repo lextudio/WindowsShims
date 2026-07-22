@@ -66,6 +66,7 @@
     <Compile Include="VirtualizingRowsLayoutTests.cs" />
     <Compile Include="VirtualizingRowsRealizerTests.cs" />
     <Compile Include="VirtualizingRowsVariableLayoutTests.cs" />
+    <Compile Include="RichTextBoxDocumentsTests.cs" />
   </ItemGroup>
 
   <ItemGroup>
