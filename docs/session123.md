@@ -68,9 +68,59 @@ are distinct, and cell/header minimum heights are at least 32px. The line-coordi
 regressions remain in the same suite, preventing appearance work from breaking the
 bottom-line geometry.
 
-Final DevFlow integration result: 33 passed, 1 skipped, 0 failed. The skipped
+Final DevFlow integration result after the scenario follow-up: 34 passed, 1 skipped,
+0 failed. The skipped
 frozen-column vertical-scroll case was pre-existing and remains unrelated to the
 theme port.
+
+## Follow-up: representative gallery scenarios and selection contrast
+
+The first shared gallery still exposed implementation-shaped sample data. It was
+reworked into domain scenarios without changing the APIs under test:
+
+- Row Details is now a customer-order table whose details contain nested product
+  line items. The outer and nested grids disable new-item placeholders.
+- Variable Height is now a service-health list where one incident expands a real
+  150px operational-context panel. Routine checks stay at normal row height, and
+  the grid disables new-item placeholders.
+- Grouped is now a 32-person directory across four countries with role and office
+  columns, rather than two rows in one group. Expanding the data exposed and fixed
+  a DevFlow probe that incorrectly assumed the selector's last invocation must be
+  the first group.
+- Frozen Edit is now an inventory sheet with SKU and Product frozen by default,
+  followed by editable Warehouse and On hand columns across 40 rows. Existing
+  DevFlow coverage verifies horizontal frozen coordinates, edit/commit, and resize.
+
+Selection contrast was also corrected. WCT v7 paints SystemAccentColor through a
+separate translucent selection layer; it does not replace the row surface with an
+opaque accent brush or switch all foregrounds to white. The first port incorrectly
+resolved AccentFillColorSecondaryBrush directly, which can be an opaque dark blue.
+DataGridFluentTheme now extracts SystemAccentColor and creates a fixed low-alpha
+tint, preserving readable themed foreground text and row-header glyphs. The new
+datagrid.probe.fluent-selection regression asserts that the live selected-row fill
+is translucent and distinct from both foreground brushes.
+
+## Follow-up: null RowDetails templates rendered model type names
+
+The Sample's manual Variable Height path exposed rows containing the text
+DataGrid.TestScenarios.DataGridScenarios+VariableHeightRow. DevFlow inspection of
+the shared scenario identified a row-details lifecycle bug: with
+RowDetailsVisibilityMode.Visible, a selector returning null still left a visible
+DataGridDetailsPresenter whose Content was the row item. WinUI then rendered the
+item through ToString(), exposing its fully-qualified model type.
+
+DataGridRow.BuildRowDetails now treats a null selector result as no details for that
+row: it collapses the details host and clears the presenter/content. This is fixed in
+the control rather than hidden with a model ToString override. New manual-path
+DevFlow actions create the same non-virtualized grid used by the Sample and count
+details/model-object content. Direct verification returned 40 rows, exactly 1 real
+details row, 0 model-object content rows, and 0 matching type-name TextBlocks in the
+DevFlow UI tree. Final suite: 35 passed, 1 skipped, 0 failed.
+
+The grouped gallery data was subsequently refined so all 32 people have unique
+names. Each eight-person country group now uses locally appropriate names and city
+offices: Canadian names/cities, German names with native spelling, Japanese names,
+and US names/cities. GroupStyle coverage remains unchanged at four groups of eight.
 
 ## Files added
 

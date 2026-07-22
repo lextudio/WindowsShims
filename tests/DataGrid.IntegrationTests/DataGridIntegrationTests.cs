@@ -97,6 +97,22 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task SelectedRow_UsesTranslucentAccentWithReadableForeground()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.fluent-selection");
+        var raw = state.ToString();
+        var background = state.GetProperty("rowBackground").GetString();
+
+        Assert.NotNull(background);
+        Assert.StartsWith("#", background);
+        Assert.True(Convert.ToByte(background![1..3], 16) < 0x80,
+            $"selection should tint the surface instead of replacing it with opaque accent: {raw}");
+        Assert.NotEqual(background, state.GetProperty("cellForeground").GetString());
+        Assert.NotEqual(background, state.GetProperty("rowHeaderForeground").GetString());
+    }
+
+    [Fact]
     public async Task State_ReturnsGridSnapshot()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");
@@ -408,7 +424,7 @@ public sealed class DataGridIntegrationTests
 
         var raw = state.ToString();
         Assert.True(state.GetProperty("hasGroup").GetBoolean(), $"grid should have groups: {raw}");
-        Assert.Equal("▾ US (2 people)", state.GetProperty("headerContent").GetString());
+        Assert.Equal("▾ Canada (8 people)", state.GetProperty("headerContent").GetString());
     }
 
     [Fact]
@@ -436,7 +452,7 @@ public sealed class DataGridIntegrationTests
         var state = await _app.InvokeAsync("datagrid.probe.grouped-style-readback");
 
         var raw = state.ToString();
-        Assert.Equal("▾ selector:US", state.GetProperty("headerContent").GetString());
+        Assert.Equal("▾ selector:Canada", state.GetProperty("headerContent").GetString());
     }
 
     [Fact]
@@ -481,6 +497,18 @@ public sealed class DataGridIntegrationTests
         Assert.True(baselineExtent > 0, $"baseline extent should be positive: {rawBaseline}");
         Assert.True(tallExtent > baselineExtent + 100,
             $"a real 150px details row should measurably grow the total extent, not just add a uniform row's worth: baseline={rawBaseline} withTallRow={rawTall}");
+    }
+
+    [Fact]
+    public async Task VariableHeight_ManualRowsDoNotRenderModelTypeNames()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-variable-height-manual-grid", 40, 5);
+        var state = await _app.InvokeAsync("datagrid.probe.variable-height-content");
+        var raw = state.ToString();
+
+        Assert.Equal(40, state.GetProperty("rows").GetInt32());
+        Assert.Equal(1, state.GetProperty("detailsRows").GetInt32());
+        Assert.Equal(0, state.GetProperty("modelObjectContentRows").GetInt32());
     }
 
     [Fact]

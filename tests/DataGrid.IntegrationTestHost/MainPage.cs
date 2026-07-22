@@ -694,6 +694,21 @@ public sealed partial class MainPage : Page
                $"\"rowHeaderMinHeight\":{Jn(rowHeader?.MinHeight ?? double.NaN)}}}";
     });
 
+    [DevFlowAction("datagrid.probe.fluent-selection", Description = "Read selected-row fill and foreground contrast colors.")]
+    public static string ProbeFluentSelection() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.SelectedIndex = 0;
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        var cell = row?.TryGetCell(0);
+        var rowHeader = row?.RowHeader as Microsoft.UI.Xaml.Controls.Control;
+        return $"{{\"rowBackground\":{Js(BrushHex(row?.Background))},\"cellForeground\":{Js(BrushHex(cell?.Foreground))}," +
+               $"\"rowHeaderForeground\":{Js(BrushHex(rowHeader?.Foreground))}}}";
+    });
+
     // ─── Probe: filter-buttons ──────────────────────────────────────
 
     [DevFlowAction("datagrid.probe.filter-buttons", Description = "Check which columns have filter buttons.")]
@@ -950,6 +965,47 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("datagrid.probe.create-variable-height-manual-grid", Description = "Create the Sample gallery's non-virtualized variable-height grid.")]
+    public static string ProbeCreateVariableHeightManualGrid(int rowCount, int tallRowIndex) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildVariableHeightGrid(rowCount, tallRowIndex);
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 500;
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.variable-height-content", Description = "Count real detail presenters and accidental model-object text in realized rows.")]
+    public static string ProbeVariableHeightContent() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+        var detailsRows = 0;
+        var modelObjectContentRows = 0;
+
+        for (var index = 0; index < grid.Items.Count; index++)
+        {
+            if (grid.ItemContainerGenerator.ContainerFromIndex(index) is not System.Windows.Controls.DataGridRow row)
+                continue;
+
+            if (row.DetailsPresenter is { } presenter)
+            {
+                detailsRows++;
+                if (presenter.Content is DataGridScenarios.VariableHeightRow
+                    || presenter.Content?.ToString()?.Contains(nameof(DataGridScenarios.VariableHeightRow), StringComparison.Ordinal) == true)
+                {
+                    modelObjectContentRows++;
+                }
+            }
+        }
+
+        return $"{{\"rows\":{grid.Items.Count},\"detailsRows\":{detailsRows},\"modelObjectContentRows\":{modelObjectContentRows}}}";
+    });
+
     // ─── Probe: variable-height-readback ──────────────────────────────
 
     // Reads the ScrollViewer's real ExtentHeight — VirtualizingStackPanel.MeasureOverride
@@ -1092,8 +1148,8 @@ public sealed partial class MainPage : Page
                $"\"headerContent\":{Js(header?.Content?.ToString())}," +
                $"\"headerTemplateSelected\":{Jb(header is not null && ReferenceEquals(header.ContentTemplate, DataGridScenarios.RecordingHeaderTemplateSelector.Selected))}," +
                $"\"containerStyleSelected\":{Jb(header is not null && ReferenceEquals(header.Style, DataGridScenarios.RecordingContainerStyleSelector.Selected))}," +
-               $"\"headerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(DataGridScenarios.RecordingHeaderTemplateSelector.LastGroup, group))}," +
-               $"\"containerSelectorInvokedWithGroup\":{Jb(group is not null && ReferenceEquals(DataGridScenarios.RecordingContainerStyleSelector.LastGroup, group))}}}";
+               $"\"headerSelectorInvokedWithGroup\":{Jb(grid.Items.Groups.Any(candidate => ReferenceEquals(DataGridScenarios.RecordingHeaderTemplateSelector.LastGroup, candidate)))}," +
+               $"\"containerSelectorInvokedWithGroup\":{Jb(grid.Items.Groups.Any(candidate => ReferenceEquals(DataGridScenarios.RecordingContainerStyleSelector.LastGroup, candidate)))}}}";
     });
 
     // ─── Probe: hides-if-empty-flatten ────────────────────────────────

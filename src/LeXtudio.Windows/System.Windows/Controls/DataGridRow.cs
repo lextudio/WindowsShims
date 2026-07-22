@@ -423,6 +423,17 @@ public partial class DataGridRow : Control
                 presenter.Content = factory(Item);
                 presenter.ShimContentFactory = null;
             }
+            else if (presenter.ContentTemplate is null)
+            {
+                // A selector returning null means this row has no details. Leaving
+                // Content = Item on a visible ContentPresenter makes WinUI render
+                // item.ToString(), leaking the model's fully-qualified type name.
+                DetailsVisibility = Visibility.Collapsed;
+                host.Visibility = Visibility.Collapsed;
+                DetailsPresenter = null;
+                host.Content = null;
+                return;
+            }
             else
             {
                 // Normal DataTemplate path — WinUI ContentPresenter applies ContentTemplate.

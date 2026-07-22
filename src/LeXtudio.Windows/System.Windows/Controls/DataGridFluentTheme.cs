@@ -27,7 +27,7 @@ internal static class DataGridFluentTheme
         => Resolve("TextFillColorSecondaryBrush", 0x9E, 0x00, 0x00, 0x00);
 
     internal static Microsoft.UI.Xaml.Media.Brush Selection
-        => Resolve("AccentFillColorSecondaryBrush", 0x33, 0x00, 0x78, 0xD4);
+        => ResolveTint("SystemAccentColor", 0x38, 0x00, 0x78, 0xD4);
 
     internal static Microsoft.UI.Xaml.Media.Brush RowHover
         => Resolve("SubtleFillColorSecondaryBrush", 0x0F, 0x00, 0x00, 0x00);
@@ -50,5 +50,25 @@ internal static class DataGridFluentTheme
 
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(alpha, red, green, blue));
+    }
+
+    private static Microsoft.UI.Xaml.Media.Brush ResolveTint(
+        string key,
+        byte alpha,
+        byte fallbackRed,
+        byte fallbackGreen,
+        byte fallbackBlue)
+    {
+        var color = Microsoft.UI.Xaml.Application.Current?.Resources.TryGetValue(key, out var value) == true
+            ? value switch
+            {
+                global::Windows.UI.Color resourceColor => resourceColor,
+                Microsoft.UI.Xaml.Media.SolidColorBrush resourceBrush => resourceBrush.Color,
+                _ => global::Windows.UI.Color.FromArgb(0xFF, fallbackRed, fallbackGreen, fallbackBlue),
+            }
+            : global::Windows.UI.Color.FromArgb(0xFF, fallbackRed, fallbackGreen, fallbackBlue);
+
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            global::Windows.UI.Color.FromArgb(alpha, color.R, color.G, color.B));
     }
 }
