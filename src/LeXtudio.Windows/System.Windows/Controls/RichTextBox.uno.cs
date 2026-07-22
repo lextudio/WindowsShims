@@ -272,6 +272,21 @@ public partial class RichTextBox
             }
         }
 
+        if (noEditModifier && wpfKey == Key.Return && Document != null && te.Selection != null && te.Selection.IsEmpty)
+        {
+            var current = Document.Blocks.LastBlock as System.Windows.Documents.Paragraph;
+            if (current != null)
+            {
+                var next = new System.Windows.Documents.Paragraph();
+                Document.Blocks.Add(next);
+                te.Selection.Select(next.ContentStart, next.ContentStart);
+                e.Handled = true;
+                UpdateCaretFromSelection();
+                Log($"KeyDown: inserted paragraph break after {DescribeBlock(current)}");
+                return;
+            }
+        }
+
         var args = new KeyEventArgs
         {
             Key = wpfKey,

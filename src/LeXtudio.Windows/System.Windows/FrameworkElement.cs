@@ -75,7 +75,11 @@ public partial class FrameworkContentElement : DependencyObject
 
     // WPF's xml:lang / language property; used by TextRangeSerialization for special-casing xml:lang attribute.
     public static readonly DependencyProperty LanguageProperty =
-        DependencyProperty.Register("Language", typeof(System.Windows.Markup.XmlLanguage), typeof(FrameworkContentElement), null);
+        DependencyProperty.Register(
+            "Language",
+            typeof(System.Windows.Markup.XmlLanguage),
+            typeof(FrameworkContentElement),
+            new PropertyMetadata(System.Windows.Markup.XmlLanguage.GetLanguage(global::System.Globalization.CultureInfo.CurrentCulture.IetfLanguageTag)));
 
     protected internal virtual System.Collections.IEnumerator LogicalChildren =>
         System.Linq.Enumerable.Empty<object>().GetEnumerator();

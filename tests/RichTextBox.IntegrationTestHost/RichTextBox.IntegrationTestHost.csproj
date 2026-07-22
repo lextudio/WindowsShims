@@ -1,0 +1,31 @@
+<Project Sdk="Uno.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UnoSingleProject>true</UnoSingleProject>
+    <ApplicationTitle>RichTextBox.IntegrationTestHost</ApplicationTitle>
+    <ApplicationId>com.lextudio.richtextbox.integrationtesthost</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationPublisher>LeXtudio</ApplicationPublisher>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
+    <ProjectReference Include="..\RichTextBox.TestScenarios\RichTextBox.TestScenarios.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)'=='Debug'">
+    <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" Version="0.1.14" />
+  </ItemGroup>
+
+</Project>
