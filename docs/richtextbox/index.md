@@ -728,3 +728,591 @@ Next session:
   selected inline formatting toggles back to the normal/default state.
 - Then add Ctrl+B/Ctrl+I/Ctrl+U key-path coverage once modifier injection is
   validated through the Uno `KeyRoutedEventArgs` probe.
+
+### Session 13 - Formatting Toggle-Off Coverage
+
+Status: complete.
+
+Scope:
+
+- Cover repeated selected-text formatting commands so Bold, Italic, and
+  Underline are verified in both directions.
+- Remove order-dependent behavior from underline text decoration toggling.
+
+Product fix:
+
+- `TextDecorationCollection.TryRemove(...)` now builds and returns a new
+  collection instead of mutating the source collection in place.
+- This prevents repeated ToggleUnderline from modifying shared static
+  collections such as `TextDecorations.Underline`, which previously made later
+  underline operations order-dependent.
+
+DevFlow additions:
+
+- `ToggleBoldCommand_WhenInvokedTwice_RestoresNormalWeight`
+- `ToggleItalicCommand_WhenInvokedTwice_RestoresNormalStyle`
+- `ToggleUnderlineCommand_WhenInvokedTwice_RemovesUnderline`
+
+Verified behavior:
+
+- ToggleBold applies `700` on the first invocation and a second invocation
+  restores a non-bold inline weight.
+- ToggleItalic applies `Italic` on the first invocation and a second invocation
+  restores a non-italic inline style.
+- ToggleUnderline applies underline on the first invocation and a second
+  invocation removes underline without corrupting shared underline state.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 19/19
+```
+
+Next session:
+
+- Validate whether `KeyRoutedEventArgs` modifier injection can drive
+  Ctrl+B/Ctrl+I/Ctrl+U through the RichTextBox key path.
+- If modifier routing is not available yet, continue with command-level
+  coverage for font size and foreground/background formatting.
+
+### Session 14 - Keyboard Formatting Shortcuts
+
+Status: complete.
+
+Scope:
+
+- Cover the RichTextBox `OnKeyDown(...)` entry point for selected-text
+  formatting shortcuts.
+- Validate Ctrl+B, Ctrl+I, and Ctrl+U against the same inline formatting
+  observability used by command-level tests.
+
+Product fix:
+
+- `RichTextBox.OnKeyDown(...)` now recognizes Ctrl+B, Ctrl+I, and Ctrl+U when
+  Alt is not held and dispatches `EditingCommands.ToggleBold`,
+  `EditingCommands.ToggleItalic`, and `EditingCommands.ToggleUnderline`.
+- The command dispatch reuses the migrated upstream command handlers and the
+  existing Uno inline-formatting fallback.
+
+DevFlow additions:
+
+- `richtextbox.probe.key-down-select-all-modifiers`
+- `KeyDown_ControlB_AppliesBoldToSelectedText`
+- `KeyDown_ControlI_AppliesItalicToSelectedText`
+- `KeyDown_ControlU_AppliesUnderlineToSelectedText`
+
+Notes:
+
+- The current Uno `KeyRoutedEventArgs` target does not expose a public
+  `KeyModifiers` property. The DevFlow probe injects modifiers by temporarily
+  setting the internal `Keyboard.ModifiersOverride`, matching the existing
+  DataGrid test pattern for programmatic modifier state.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 22/22
+```
+
+Next session:
+
+- Add command-level coverage for ApplyFontSize and font size increase/decrease.
+- Add foreground/background formatting observability once brush values can be
+  serialized consistently through the DevFlow snapshot.
+
+### Session 15 - ApplyFontSize Formatting
+
+Status: complete.
+
+Scope:
+
+- Add DevFlow observability for selected-text font size.
+- Cover the upstream `TextEditorCharacters.OnApplyFontSize(...)` command
+  handler for RichTextBox selections.
+
+Product fix:
+
+- `TextEditorCharacters.OnApplyFontSize(...)` now uses the shared `HAS_UNO`
+  inline-formatting fallback for non-empty RichTextBox selections.
+- This makes the applied absolute font size visible on document inlines while
+  `TextSelection.ApplyPropertyValue(...)` is still incomplete.
+
+DevFlow additions:
+
+- Snapshot now reports `firstInlineFontSize`.
+- `richtextbox.probe.apply-font-size-selection-command`
+- `ApplyFontSizeCommand_AppliesFontSizeToSelectedText`
+
+Verified behavior:
+
+- Selecting all text and invoking ApplyFontSize with `24` sets the first
+  inline font size to `24`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 23/23
+```
+
+Next session:
+
+- Cover IncreaseFontSize and DecreaseFontSize by adding relative font-size
+  fallback behavior for selected RichTextBox inlines.
+- Add foreground/background formatting observability once brush serialization
+  is stable enough for DevFlow assertions.
+
+### Session 16 - Relative Font Size Commands
+
+Status: complete.
+
+Scope:
+
+- Cover selected-text IncreaseFontSize and DecreaseFontSize command handlers.
+- Add Uno fallback behavior for relative font-size changes.
+
+Product fix:
+
+- `TextEditorCharacters.OnIncreaseFontSize(...)` now uses a `HAS_UNO`
+  RichTextBox fallback for non-empty selections that increments inline font
+  size by `OneFontPoint`.
+- `TextEditorCharacters.OnDecreaseFontSize(...)` uses the same fallback with a
+  negative delta.
+- The fallback clamps to the upstream min/max font-size bounds and avoids the
+  current `TextRange.ApplyPropertyValue(... Increase/Decrease ...)` exception
+  path for selected RichTextBox text.
+
+DevFlow additions:
+
+- `richtextbox.probe.increase-font-size-selection-command`
+- `richtextbox.probe.decrease-font-size-selection-command`
+- `IncreaseFontSizeCommand_IncreasesSelectedTextFontSize`
+- `DecreaseFontSizeCommand_DecreasesSelectedTextFontSize`
+
+Verified behavior:
+
+- Applying font size `24` and then IncreaseFontSize sets the first inline font
+  size to `24.75`.
+- Applying font size `24` and then DecreaseFontSize sets the first inline font
+  size to `23.25`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 25/25
+```
+
+Next session:
+
+- Add foreground/background formatting observability using stable brush
+  serialization.
+- Add command-level coverage for ApplyForeground and ApplyBackground.
+
+### Session 17 - Foreground and Background Formatting
+
+Status: complete.
+
+Scope:
+
+- Add stable brush observability to the DevFlow RichTextBox snapshot.
+- Cover ApplyForeground and ApplyBackground command handlers for selected
+  RichTextBox text.
+
+Product fix:
+
+- `TextEditorCharacters.OnApplyForeground(...)` now applies the selected brush
+  to RichTextBox document inlines under `HAS_UNO`.
+- `TextEditorCharacters.OnApplyBackground(...)` uses the same inline fallback
+  for selected RichTextBox text.
+- This keeps foreground/background formatting observable while selected
+  `TextSelection.ApplyPropertyValue(...)` behavior remains incomplete.
+
+DevFlow additions:
+
+- Snapshot now reports `firstInlineForeground` and `firstInlineBackground` as
+  `#AARRGGBB` for solid brushes.
+- `richtextbox.probe.apply-foreground-selection-command`
+- `richtextbox.probe.apply-background-selection-command`
+- `ApplyForegroundCommand_AppliesForegroundToSelectedText`
+- `ApplyBackgroundCommand_AppliesBackgroundToSelectedText`
+
+Verified behavior:
+
+- Applying foreground with `LightGreen` sets the first inline foreground to
+  `#FF90EE90`.
+- Applying background with `LightPink` sets the first inline background to
+  `#FFFFB6C1`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 27/27
+```
+
+Next session:
+
+- Add ApplyFontFamily coverage and stable FontFamily snapshot serialization.
+- Then evaluate paragraph formatting commands such as alignment once
+  paragraph-level observability is in place.
+
+### Session 18 - Font Family Formatting
+
+Status: complete.
+
+Scope:
+
+- Add stable FontFamily observability to the DevFlow RichTextBox snapshot.
+- Cover the ApplyFontFamily command handler for selected RichTextBox text.
+
+Product fix:
+
+- `TextEditorCharacters.OnApplyFontFamily(...)` now applies the selected
+  `FontFamily` to RichTextBox document inlines under `HAS_UNO`.
+- This mirrors the existing selected-text fallback used for font size,
+  foreground, and background formatting while selected
+  `TextSelection.ApplyPropertyValue(...)` behavior remains incomplete.
+
+DevFlow additions:
+
+- Snapshot now reports `firstInlineFontFamily`.
+- `richtextbox.probe.apply-font-family-selection-command`
+- `ApplyFontFamilyCommand_AppliesFontFamilyToSelectedText`
+
+Verified behavior:
+
+- Applying `Courier New` sets the first inline font family to `Courier New`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 28/28
+```
+
+Next session:
+
+- Add paragraph-level snapshot fields needed for alignment assertions.
+- Cover paragraph alignment commands once paragraph formatting can be observed
+  through DevFlow.
+
+### Session 19 - Paragraph Alignment Commands
+
+Status: complete.
+
+Scope:
+
+- Add paragraph-level observability to the DevFlow RichTextBox snapshot.
+- Cover AlignLeft, AlignCenter, AlignRight, and AlignJustify command handlers
+  for selected RichTextBox paragraphs.
+
+Product fix:
+
+- `TextEditorParagraphs.OnAlignLeft(...)`, `OnAlignCenter(...)`,
+  `OnAlignRight(...)`, and `OnAlignJustify(...)` now apply
+  `Block.TextAlignmentProperty` directly to RichTextBox document blocks under
+  `HAS_UNO`.
+- This keeps paragraph alignment command behavior observable while the generic
+  paragraph path through `_OnApplyProperty(... applyToParagraphs: true)` is
+  still incomplete.
+
+DevFlow additions:
+
+- Snapshot now reports `firstParagraphTextAlignment`.
+- `richtextbox.probe.align-left-selection-command`
+- `richtextbox.probe.align-center-selection-command`
+- `richtextbox.probe.align-right-selection-command`
+- `richtextbox.probe.align-justify-selection-command`
+- `AlignCommand_AppliesTextAlignmentToSelectedParagraph`
+
+Verified behavior:
+
+- AlignLeft sets the first paragraph text alignment to `Left`.
+- AlignCenter sets the first paragraph text alignment to `Center`.
+- AlignRight sets the first paragraph text alignment to `Right`.
+- AlignJustify sets the first paragraph text alignment to `Justify`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 32/32
+```
+
+Next session:
+
+- Add paragraph line-spacing observability.
+- Cover ApplySingleSpace, ApplyOneAndAHalfSpace, and ApplyDoubleSpace command
+  handlers through DevFlow.
+
+### Session 20 - Remove Formatting Fallbacks and Restore WPF Property Path
+
+Status: complete.
+
+Scope:
+
+- Replace the coarse command-level RichTextBox formatting fallbacks from
+  Sessions 15-19 with lower-level fixes that keep execution on the migrated
+  WPF `TextSelection` / `TextRangeEdit` property path.
+- Keep DevFlow coverage for character and paragraph formatting while asserting
+  the FlowDocument model after WPF-style inline split/wrap behavior.
+
+Product fix:
+
+- Removed document-wide RichTextBox inline/block formatting fallbacks from
+  `TextEditorCharacters` and `TextEditorParagraphs`.
+- `WinUIDependencyPropertyExtensions` now records the real property type for
+  WPF-style `DependencyProperty.Register`, `RegisterAttached`,
+  `RegisterReadOnly`, and `RegisterAttachedReadOnly` calls. This lets WPF
+  `TextSchema` identify incremental properties such as
+  `TextElement.FontSizeProperty`.
+- `TextSchema.ValuesAreEqual(...)` now compares WinUI `FontWeight` values by
+  numeric `Weight` under `HAS_UNO`, preserving WPF toggle semantics for
+  `ToggleBold`.
+- `TextRangeEdit` paragraph formatting now has an Uno TextPointer-compatible
+  block traversal under `HAS_UNO`, while still applying paragraph values
+  through WPF `SetPropertyOnParagraphOrBlockUIContainer(...)`.
+- DevFlow snapshots now observe the first leaf `Run` and inline tree so tests
+  assert the effective formatted text after WPF split/wrap output.
+
+DevFlow coverage:
+
+- Existing formatting and paragraph alignment command tests now exercise the
+  WPF property path rather than command-level fallbacks.
+- Snapshot fields added: `inlineTree`, `firstRunFontWeight`,
+  `firstRunFontStyle`, `firstRunFontSize`, `firstRunFontFamily`,
+  `firstRunForeground`, `firstRunBackground`, and `firstRunHasUnderline`.
+
+Verified behavior:
+
+- ToggleBold and Ctrl+B apply bold through `TextRangeEdit` inline formatting.
+- IncreaseFontSize and DecreaseFontSize use WPF incremental property handling.
+- AlignLeft, AlignCenter, AlignRight, and AlignJustify apply through paragraph
+  property handling.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --no-build
+```
+
+Result:
+
+```text
+Passed: 32/32
+```
+
+Next session:
+
+- Add partial-selection formatting tests to prove selected ranges split
+  precisely and unselected runs keep original values.
+- Then cover line spacing commands through `TextRangeEdit` paragraph handling.
+
+### Session 22 - Partial Selection Formatting and WPF Line Spacing No-Op
+
+Status: complete.
+
+Scope:
+
+- Add DevFlow coverage for formatting only a subrange inside the first `Run`.
+- Lock `ApplySingleSpace`, `ApplyOneAndAHalfSpace`, and `ApplyDoubleSpace` to
+  upstream WPF behavior.
+
+Product notes:
+
+- No command-level formatting fallback was added.
+- Upstream WPF `TextEditorParagraphs.OnApplySingleSpace(...)`,
+  `OnApplyOneAndAHalfSpace(...)`, and `OnApplyDoubleSpace(...)` are empty
+  handlers. The migrated shim should therefore preserve no-op behavior unless
+  upstream WPF changes.
+- While probing paragraph commands, `ApplyParagraphFlowDirectionRTL` exposed a
+  separate Uno compatibility issue: `Block.FlowDirectionProperty` is an
+  `AddOwner` of WinUI `FrameworkElement.FlowDirectionProperty`, and setting it
+  on document content can trigger WinUI's `FrameworkElement` backing-field
+  callback against a non-FrameworkElement target. This needs a focused DP-owner
+  compatibility fix, not a RichTextBox command fallback.
+
+DevFlow additions:
+
+- `richtextbox.probe.toggle-bold-run-range-command`
+- `richtextbox.probe.toggle-italic-run-range-command`
+- `richtextbox.probe.toggle-underline-run-range-command`
+- `richtextbox.probe.apply-single-space-selection-command`
+- `richtextbox.probe.apply-one-and-a-half-space-selection-command`
+- `richtextbox.probe.apply-double-space-selection-command`
+- Snapshot now reports paragraph `LineHeight`, `LineStackingStrategy`, and
+  `FlowDirection`.
+- `inlineTree` now includes per-run text, weight, style, size, and underline
+  state.
+
+Verified behavior:
+
+- Formatting `abcdef` range `[2, 4)` splits the first run so `ab` and `ef`
+  remain unformatted while `cd` receives Bold, Italic, or Underline.
+- WPF line-spacing commands leave paragraph `LineHeight` as `NaN` and
+  `LineStackingStrategy` as `MaxHeight`.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --filter "FullyQualifiedName~WithPartialRunSelection|FullyQualifiedName~LineSpacingCommand_MatchesWpfNoOpBehavior"
+```
+
+Result:
+
+```text
+Passed: 6/6
+```
+
+Next session:
+
+- Fix content-element `FlowDirection` DP owner compatibility so upstream
+  `ApplyParagraphFlowDirectionLTR/RTL` can run through the WPF property path.
+- Add DevFlow coverage for paragraph flow direction once that DP issue is
+  fixed.
+
+### Session 23 - Paragraph FlowDirection Through WPF Editing Path
+
+Status: complete.
+
+Scope:
+
+- Fix `FlowDirection` on migrated document content without adding command
+  fallbacks.
+- Add DevFlow coverage for `ApplyParagraphFlowDirectionLTR` and
+  `ApplyParagraphFlowDirectionRTL`.
+
+Product fixes:
+
+- `Block.FlowDirectionProperty` and `Inline.FlowDirectionProperty` now register
+  Uno-native dependency properties under `HAS_UNO` instead of reusing WinUI
+  `FrameworkElement.FlowDirectionProperty` through `AddOwner`.
+- `TextSchema` now classifies the Uno `Block.FlowDirectionProperty` as an
+  inheritable paragraph property and the Uno `Inline.FlowDirectionProperty` as
+  an inheritable/structural character property.
+- `TextEditorParagraphs.OnApplyParagraphFlowDirectionLTR/RTL` uses
+  `Block.FlowDirectionProperty` under `HAS_UNO`, while preserving upstream WPF's
+  `FrameworkElement.FlowDirectionProperty` path for non-Uno builds.
+- The paragraph property worker keeps applying through
+  `SetPropertyOnParagraphOrBlockUIContainer` and the normal WPF
+  `ClearValue`/`SetValue` path; no RichTextBox-specific fallback was added.
+- Plain paragraphs no longer return early from list splitting when the
+  selection is not inside a list.
+
+DevFlow additions:
+
+- `richtextbox.probe.apply-paragraph-flow-direction-ltr-selection-command`
+- `richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command`
+- `ParagraphFlowDirectionCommand_AppliesFlowDirectionToSelectedParagraph`
+  verifies both `LeftToRight` and `RightToLeft`.
+
+Debugging note:
+
+- A temporary `/tmp/richtextbox-flowdirection.log` probe confirmed that the
+  command reached `TextRangeEdit.SetParagraphPropertyWorker` and set the local
+  `Paragraph` `FlowDirection` value. The temporary file logging was removed
+  before verification.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --logger "console;verbosity=minimal"
+```
+
+Result:
+
+```text
+Passed: 42/42
+```
+
+Next session:
+
+- Continue with inline flow direction command coverage and any remaining
+  caret/selection behavior that still references
+  `FrameworkElement.FlowDirectionProperty`.
+
+### Session 21 - Undo and Redo Key Coverage
+
+Status: complete.
+
+Scope:
+
+- Add DevFlow coverage for the public WPF `TextBoxBase.Undo()` and `Redo()`
+  APIs on RichTextBox.
+- Add real `RichTextBox.OnKeyDown(...)` coverage for Ctrl+Z and Ctrl+Y.
+
+DevFlow additions:
+
+- `richtextbox.probe.undo`
+- `richtextbox.probe.redo`
+- `richtextbox.probe.state` now reports `canUndo` and `canRedo`.
+
+Product fix:
+
+- `RichTextBox.uno.cs` now maps Ctrl+Z to `ApplicationCommands.Undo`,
+  Ctrl+Shift+Z to `ApplicationCommands.Redo`, and Ctrl+Y to
+  `ApplicationCommands.Redo` before falling through to character formatting
+  shortcuts.
+
+Verified behavior:
+
+- Text inserted through `TextEditorTyping.OnTextInput(...)` is removed by
+  public `Undo()` and restored by public `Redo()`.
+- The same mutation is removed/restored through the Uno `OnKeyDown` path for
+  Ctrl+Z/Ctrl+Y.
+
+Command:
+
+```text
+dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj --filter "FullyQualifiedName~UndoRedo_RestoresTextInputMutation|FullyQualifiedName~KeyDown_ControlZAndControlY_InvokeUndoRedo"
+```
+
+Result:
+
+```text
+Passed: 2/2
+```
+
+Next session:
+
+- Add partial-selection formatting tests to prove selected ranges split
+  precisely and unselected runs keep original values.
+- Then cover line spacing commands through `TextRangeEdit` paragraph handling.

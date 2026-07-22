@@ -16,9 +16,25 @@ public sealed class RichTextBoxIntegrationTests
     static string Text(JsonElement state) => state.GetProperty("text").GetString() ?? "";
     static string SelectionText(JsonElement state) => state.GetProperty("selectionText").GetString() ?? "";
     static string? SelectionFontWeight(JsonElement state) => state.GetProperty("selectionFontWeight").GetString();
+    static string? FirstParagraphTextAlignment(JsonElement state) => state.GetProperty("firstParagraphTextAlignment").GetString();
+    static string? FirstParagraphLineHeight(JsonElement state) => state.GetProperty("firstParagraphLineHeight").GetString();
+    static string? FirstParagraphLineStackingStrategy(JsonElement state) => state.GetProperty("firstParagraphLineStackingStrategy").GetString();
+    static string? FirstParagraphFlowDirection(JsonElement state) => state.GetProperty("firstParagraphFlowDirection").GetString();
     static string? FirstInlineFontWeight(JsonElement state) => state.GetProperty("firstInlineFontWeight").GetString();
     static string? FirstInlineFontStyle(JsonElement state) => state.GetProperty("firstInlineFontStyle").GetString();
+    static string? FirstInlineFontSize(JsonElement state) => state.GetProperty("firstInlineFontSize").GetString();
+    static string? FirstInlineFontFamily(JsonElement state) => state.GetProperty("firstInlineFontFamily").GetString();
+    static string? FirstInlineForeground(JsonElement state) => state.GetProperty("firstInlineForeground").GetString();
+    static string? FirstInlineBackground(JsonElement state) => state.GetProperty("firstInlineBackground").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
+    static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
+    static string? FirstRunFontStyle(JsonElement state) => state.GetProperty("firstRunFontStyle").GetString();
+    static string? FirstRunFontSize(JsonElement state) => state.GetProperty("firstRunFontSize").GetString();
+    static string? FirstRunFontFamily(JsonElement state) => state.GetProperty("firstRunFontFamily").GetString();
+    static string? FirstRunForeground(JsonElement state) => state.GetProperty("firstRunForeground").GetString();
+    static string? FirstRunBackground(JsonElement state) => state.GetProperty("firstRunBackground").GetString();
+    static bool FirstRunHasUnderline(JsonElement state) => state.GetProperty("firstRunHasUnderline").GetBoolean();
+    static string InlineTree(JsonElement state) => state.GetProperty("inlineTree").GetString() ?? "";
     static string? RenderScopeType(JsonElement state) => state.GetProperty("renderScopeType").GetString();
     static string? TextViewType(JsonElement state) => state.GetProperty("textViewType").GetString();
 
@@ -31,12 +47,30 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(state.TryGetProperty("hasDocument", out _), state.ToString());
         Assert.True(state.TryGetProperty("blockCount", out _), state.ToString());
         Assert.True(state.TryGetProperty("text", out _), state.ToString());
+        Assert.True(state.TryGetProperty("canUndo", out _), state.ToString());
+        Assert.True(state.TryGetProperty("canRedo", out _), state.ToString());
         Assert.True(state.TryGetProperty("selectionText", out _), state.ToString());
         Assert.True(state.TryGetProperty("selectionFontWeight", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstParagraphTextAlignment", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstParagraphLineHeight", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstParagraphLineStackingStrategy", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstParagraphFlowDirection", out _), state.ToString());
         Assert.True(state.TryGetProperty("firstInlineType", out _), state.ToString());
         Assert.True(state.TryGetProperty("firstInlineFontWeight", out _), state.ToString());
         Assert.True(state.TryGetProperty("firstInlineFontStyle", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstInlineFontSize", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstInlineFontFamily", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstInlineForeground", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstInlineBackground", out _), state.ToString());
         Assert.True(state.TryGetProperty("firstInlineHasUnderline", out _), state.ToString());
+        Assert.True(state.TryGetProperty("inlineTree", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunFontWeight", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunFontStyle", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunFontSize", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunFontFamily", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunForeground", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunBackground", out _), state.ToString());
+        Assert.True(state.TryGetProperty("firstRunHasUnderline", out _), state.ToString());
         Assert.True(state.TryGetProperty("renderScopeType", out _), state.ToString());
         Assert.True(state.TryGetProperty("textViewType", out _), state.ToString());
     }
@@ -161,7 +195,39 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
         Assert.Contains("bold me", SelectionText(state));
-        Assert.Equal("700", FirstInlineFontWeight(state));
+        Assert.True(FirstRunFontWeight(state) == "700", raw);
+    }
+
+    [Fact]
+    public async Task ToggleBoldCommand_WhenInvokedTwice_RestoresNormalWeight()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "bold twice");
+        await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("bold twice", SelectionText(state));
+        Assert.NotEqual("700", FirstRunFontWeight(state));
+    }
+
+    [Fact]
+    public async Task ToggleBoldCommand_WithPartialRunSelection_SplitsOnlySelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-bold-run-range-command", 2, 2);
+        var raw = state.ToString();
+        var inlineTree = InlineTree(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("cd", SelectionText(state));
+        Assert.Contains("Run:ab:", inlineTree);
+        Assert.Contains("Run:cd:w=700", inlineTree);
+        Assert.Contains("Run:ef:", inlineTree);
     }
 
     [Fact]
@@ -175,7 +241,39 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
         Assert.Contains("italic me", SelectionText(state));
-        Assert.Equal("Italic", FirstInlineFontStyle(state));
+        Assert.Equal("Italic", FirstRunFontStyle(state));
+    }
+
+    [Fact]
+    public async Task ToggleItalicCommand_WhenInvokedTwice_RestoresNormalStyle()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "italic twice");
+        await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("italic twice", SelectionText(state));
+        Assert.NotEqual("Italic", FirstRunFontStyle(state));
+    }
+
+    [Fact]
+    public async Task ToggleItalicCommand_WithPartialRunSelection_SplitsOnlySelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-italic-run-range-command", 2, 2);
+        var raw = state.ToString();
+        var inlineTree = InlineTree(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("cd", SelectionText(state));
+        Assert.Contains("Run:ab:", inlineTree);
+        Assert.Contains("Run:cd:w=400:s=Italic", inlineTree);
+        Assert.Contains("Run:ef:", inlineTree);
     }
 
     [Fact]
@@ -189,7 +287,219 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
         Assert.Contains("underline me", SelectionText(state));
-        Assert.True(FirstInlineHasUnderline(state), raw);
+        Assert.True(FirstRunHasUnderline(state), raw);
+    }
+
+    [Fact]
+    public async Task ToggleUnderlineCommand_WhenInvokedTwice_RemovesUnderline()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "underline twice");
+        await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("underline twice", SelectionText(state));
+        Assert.False(FirstRunHasUnderline(state), raw);
+    }
+
+    [Fact]
+    public async Task ToggleUnderlineCommand_WithPartialRunSelection_SplitsOnlySelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-underline-run-range-command", 2, 2);
+        var raw = state.ToString();
+        var inlineTree = InlineTree(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("cd", SelectionText(state));
+        Assert.Contains("Run:ab:", inlineTree);
+        Assert.Contains("Run:cd:w=400:s=Normal:z=14:d=U", inlineTree);
+        Assert.Contains("Run:ef:", inlineTree);
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlB_AppliesBoldToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "ctrl bold");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-select-all-modifiers", "B", "Control");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("ctrl bold", SelectionText(state));
+        Assert.Equal("700", FirstRunFontWeight(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlI_AppliesItalicToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "ctrl italic");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-select-all-modifiers", "I", "Control");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("ctrl italic", SelectionText(state));
+        Assert.Equal("Italic", FirstRunFontStyle(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlU_AppliesUnderlineToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "ctrl underline");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-select-all-modifiers", "U", "Control");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("ctrl underline", SelectionText(state));
+        Assert.True(FirstRunHasUnderline(state), raw);
+    }
+
+    [Fact]
+    public async Task ApplyFontSizeCommand_AppliesFontSizeToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "size me");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 24);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("size me", SelectionText(state));
+        Assert.Equal("24", FirstRunFontSize(state));
+    }
+
+    [Fact]
+    public async Task IncreaseFontSizeCommand_IncreasesSelectedTextFontSize()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "bigger");
+        await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 24);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.increase-font-size-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("bigger", SelectionText(state));
+        Assert.Equal("24.75", FirstRunFontSize(state));
+    }
+
+    [Fact]
+    public async Task DecreaseFontSizeCommand_DecreasesSelectedTextFontSize()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "smaller");
+        await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 24);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.decrease-font-size-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("smaller", SelectionText(state));
+        Assert.Equal("23.25", FirstRunFontSize(state));
+    }
+
+    [Fact]
+    public async Task ApplyFontFamilyCommand_AppliesFontFamilyToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "family");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.apply-font-family-selection-command", "Courier New");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("family", SelectionText(state));
+        Assert.Equal("Courier New", FirstRunFontFamily(state));
+    }
+
+    [Fact]
+    public async Task ApplyForegroundCommand_AppliesForegroundToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "foreground");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.apply-foreground-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("foreground", SelectionText(state));
+        Assert.Equal("#FF90EE90", FirstRunForeground(state));
+    }
+
+    [Fact]
+    public async Task ApplyBackgroundCommand_AppliesBackgroundToSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "background");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.apply-background-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("background", SelectionText(state));
+        Assert.Equal("#FFFFB6C1", FirstRunBackground(state));
+    }
+
+    [Theory]
+    [InlineData("richtextbox.probe.align-left-selection-command", "Left")]
+    [InlineData("richtextbox.probe.align-center-selection-command", "Center")]
+    [InlineData("richtextbox.probe.align-right-selection-command", "Right")]
+    [InlineData("richtextbox.probe.align-justify-selection-command", "Justify")]
+    public async Task AlignCommand_AppliesTextAlignmentToSelectedParagraph(string action, string expectedAlignment)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "align me");
+
+        var state = await _app.InvokeAsync(action);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("align me", SelectionText(state));
+        Assert.Equal(expectedAlignment, FirstParagraphTextAlignment(state));
+    }
+
+    [Theory]
+    [InlineData("richtextbox.probe.apply-single-space-selection-command")]
+    [InlineData("richtextbox.probe.apply-one-and-a-half-space-selection-command")]
+    [InlineData("richtextbox.probe.apply-double-space-selection-command")]
+    public async Task LineSpacingCommand_MatchesWpfNoOpBehavior(string action)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "spacing");
+
+        var state = await _app.InvokeAsync(action);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("spacing", SelectionText(state));
+        Assert.Equal("NaN", FirstParagraphLineHeight(state));
+        Assert.Equal("MaxHeight", FirstParagraphLineStackingStrategy(state));
+    }
+
+    [Theory]
+    [InlineData("richtextbox.probe.apply-paragraph-flow-direction-ltr-selection-command", "LeftToRight")]
+    [InlineData("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command", "RightToLeft")]
+    public async Task ParagraphFlowDirectionCommand_AppliesFlowDirectionToSelectedParagraph(string action, string expectedDirection)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "direction");
+
+        var state = await _app.InvokeAsync(action);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("direction", SelectionText(state));
+        Assert.Equal(expectedDirection, FirstParagraphFlowDirection(state));
     }
 
     [Fact]
@@ -239,6 +549,45 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(BlockCount(state) >= 2, raw);
         Assert.Contains("abc", text);
         Assert.Contains("def", text);
+    }
+
+    [Fact]
+    public async Task UndoRedo_RestoresTextInputMutation()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+
+        var undo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var undoRaw = undo.ToString();
+        Assert.True(HasRichTextBox(undo), undoRaw);
+        Assert.True(HasDocument(undo), undoRaw);
+        Assert.DoesNotContain("abc", Text(undo));
+        Assert.True(undo.GetProperty("canRedo").GetBoolean(), undoRaw);
+
+        var redo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var redoRaw = redo.ToString();
+        Assert.True(HasRichTextBox(redo), redoRaw);
+        Assert.True(HasDocument(redo), redoRaw);
+        Assert.Contains("abc", Text(redo));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlZAndControlY_InvokeUndoRedo()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+
+        var undo = await _app.InvokeAsync("richtextbox.probe.key-down-select-all-modifiers", "Z", "Control");
+        var undoRaw = undo.ToString();
+        Assert.True(HasRichTextBox(undo), undoRaw);
+        Assert.True(HasDocument(undo), undoRaw);
+        Assert.DoesNotContain("abc", Text(undo));
+
+        var redo = await _app.InvokeAsync("richtextbox.probe.key-down-select-all-modifiers", "Y", "Control");
+        var redoRaw = redo.ToString();
+        Assert.True(HasRichTextBox(redo), redoRaw);
+        Assert.True(HasDocument(redo), redoRaw);
+        Assert.Contains("abc", Text(redo));
     }
 
     [Fact]

@@ -33,11 +33,15 @@ namespace System.Windows.Media
         // Returns false if nothing was removed (caller should then add instead).
         public bool TryRemove(TextDecorationCollection toRemove, out TextDecorationCollection result)
         {
-            var before = Count;
+            var locations = new Collections.Generic.List<TextDecorationLocation>();
             foreach (var dec in (toRemove ?? Empty))
-                _items.RemoveAll(d => d.Location == dec.Location);
-            result = this;
-            return Count < before;
+                locations.Add(dec.Location);
+
+            var items = new Collections.Generic.List<TextDecoration>(_items);
+            foreach (var location in locations)
+                items.RemoveAll(d => d.Location == location);
+            result = new TextDecorationCollection(items);
+            return items.Count < Count;
         }
 
         public bool ValueEquals(TextDecorationCollection? other)

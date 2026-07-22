@@ -197,12 +197,57 @@ public partial class RichTextBox
 
         Log($"KeyDown: {e.Key} → {wpfKey}");
 
+        var mods = System.Windows.Input.Keyboard.Modifiers;
+        if ((mods & System.Windows.Input.ModifierKeys.Control) != 0 &&
+            (mods & System.Windows.Input.ModifierKeys.Alt) == 0)
+        {
+            if (wpfKey == Key.Z)
+            {
+                var command = (mods & System.Windows.Input.ModifierKeys.Shift) != 0
+                    ? System.Windows.Input.ApplicationCommands.Redo
+                    : System.Windows.Input.ApplicationCommands.Undo;
+                if (command.CanExecute(null, this))
+                {
+                    command.Execute(null, this);
+                    e.Handled = true;
+                    UpdateCaretFromSelection();
+                    Log($"KeyDown: executed {command.Name}");
+                    return;
+                }
+            }
+
+            if (wpfKey == Key.Y && System.Windows.Input.ApplicationCommands.Redo.CanExecute(null, this))
+            {
+                System.Windows.Input.ApplicationCommands.Redo.Execute(null, this);
+                e.Handled = true;
+                UpdateCaretFromSelection();
+                Log($"KeyDown: executed {System.Windows.Input.ApplicationCommands.Redo.Name}");
+                return;
+            }
+
+            var formattingCommand = wpfKey switch
+            {
+                Key.B => System.Windows.Documents.EditingCommands.ToggleBold,
+                Key.I => System.Windows.Documents.EditingCommands.ToggleItalic,
+                Key.U => System.Windows.Documents.EditingCommands.ToggleUnderline,
+                _ => null,
+            };
+
+            if (formattingCommand != null && formattingCommand.CanExecute(null, this))
+            {
+                formattingCommand.Execute(null, this);
+                e.Handled = true;
+                UpdateCaretFromSelection();
+                Log($"KeyDown: executed {formattingCommand.Name}");
+                return;
+            }
+        }
+
         // Paragraph-merge fast path. The upstream WPF SetText/DeleteContentToPosition path that
         // EditingCommands.Backspace/Delete relies on does not actually merge adjacent paragraphs
         // in this shim — the call returns silently with the document structure unchanged. Until
         // that root cause is fixed, intercept the unmodified Backspace-at-paragraph-start and
         // Delete-at-paragraph-end cases and invoke TextRangeEditLists.MergeParagraphs directly.
-        var mods = System.Windows.Input.Keyboard.Modifiers;
         bool noEditModifier = (mods & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt | System.Windows.Input.ModifierKeys.Shift)) == 0;
         if (noEditModifier && (wpfKey == Key.Back || wpfKey == Key.Delete)
             && te.Selection != null && te.Selection.IsEmpty
