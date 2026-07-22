@@ -46,10 +46,12 @@ public partial class DataGridRowHeader
         HorizontalAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
         VerticalAlignment = Microsoft.UI.Xaml.VerticalAlignment.Stretch;
         MinHeight = 32;
-        Background = DataGridFluentTheme.RowHeaderBackground;
-        Foreground = DataGridFluentTheme.SecondaryText;
-
         var owner = EffectiveRow?.DataGridOwner;
+        var themeElement = owner is Microsoft.UI.Xaml.FrameworkElement ownerElement
+            ? ownerElement
+            : this;
+        Background = DataGridFluentTheme.RowHeaderBackgroundFor(themeElement);
+        Foreground = DataGridFluentTheme.SecondaryTextFor(themeElement);
         var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
         var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
         var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;

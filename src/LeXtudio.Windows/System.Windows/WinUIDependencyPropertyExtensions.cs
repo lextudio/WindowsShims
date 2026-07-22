@@ -1,5 +1,7 @@
 namespace System.Windows;
 
+using System.Collections.Concurrent;
+
 /// <summary>Thin wrapper for WPF read-only dependency property key — WinUI has no concept of read-only DPs.</summary>
 public sealed class DependencyPropertyKey
 {
@@ -21,6 +23,14 @@ public sealed class DependencyPropertyKey
 /// </summary>
 public static class WinUIDependencyPropertyExtensions
 {
+    private static readonly ConcurrentDictionary<Microsoft.UI.Xaml.DependencyProperty, Type> PropertyTypes = new();
+
+    private static Microsoft.UI.Xaml.DependencyProperty TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty property, Type propertyType)
+    {
+        PropertyTypes[property] = propertyType;
+        return property;
+    }
+
     // C# 14 static extensions: add WPF 5-arg Register/RegisterAttached overloads (with ValidateValueCallback)
     // and a GlobalIndex property to Microsoft.UI.Xaml.DependencyProperty.
     extension(Microsoft.UI.Xaml.DependencyProperty)
@@ -31,42 +41,49 @@ public static class WinUIDependencyPropertyExtensions
 
         public static Microsoft.UI.Xaml.DependencyProperty Register(
             string name, System.Type propertyType, System.Type ownerType)
-            => Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType,
-                new Microsoft.UI.Xaml.PropertyMetadata(null));
+            => TrackPropertyType(
+                Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null)),
+                propertyType);
 
         public static Microsoft.UI.Xaml.DependencyProperty Register(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
-            => Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata);
+            => TrackPropertyType(
+                Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata),
+                propertyType);
 
         public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
             string name, System.Type propertyType, System.Type ownerType)
-            => Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null));
+            => TrackPropertyType(
+                Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null)),
+                propertyType);
 
         public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
-            => Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata);
+            => TrackPropertyType(
+                Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata),
+                propertyType);
 
         public static DependencyPropertyKey RegisterReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             Microsoft.UI.Xaml.PropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata));
+            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType));
 
         public static DependencyPropertyKey RegisterReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata));
+            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType));
 
         public static DependencyPropertyKey RegisterAttachedReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             Microsoft.UI.Xaml.PropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata));
+            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType));
 
         public static DependencyPropertyKey RegisterAttachedReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata));
+            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType));
     }
 
     // GlobalIndex: WPF assigns each DP a unique int. Shim returns a hash of the property name.
@@ -76,7 +93,7 @@ public static class WinUIDependencyPropertyExtensions
 
         public string Name => property.ToString();
 
-        public Type PropertyType => typeof(object);
+        public Type PropertyType => PropertyTypes.TryGetValue(property, out var propertyType) ? propertyType : typeof(object);
 
         public bool IsValidValue(object? value) => true;
 

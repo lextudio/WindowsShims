@@ -7,6 +7,8 @@ namespace System.Windows.Controls;
 // upstream file is compiled as a partial on HAS_UNO so both parts merge.
 public partial class DataGrid
 {
+    private Microsoft.UI.Xaml.ElementTheme _shimFluentDefaultsTheme = Microsoft.UI.Xaml.ElementTheme.Default;
+
     // Session 52: when the linked WPF CommitEdit command calls back into the
     // current cell, let the cell run only its local value-write/validation/end
     // logic instead of re-entering DataGrid.CommitEdit().
@@ -262,17 +264,19 @@ public partial class DataGrid
 
     private void EnsureShimStyleKey()
     {
-        if (!_shimFluentDefaultsApplied)
+        var theme = RequestedTheme != Microsoft.UI.Xaml.ElementTheme.Default ? RequestedTheme : ActualTheme;
+        if (!_shimFluentDefaultsApplied || _shimFluentDefaultsTheme != theme)
         {
             _shimFluentDefaultsApplied = true;
-            Background = DataGridFluentTheme.GridBackground;
-            BorderBrush = DataGridFluentTheme.OuterBorder;
+            _shimFluentDefaultsTheme = theme;
+            Background = DataGridFluentTheme.GridBackgroundFor(this);
+            BorderBrush = DataGridFluentTheme.OuterBorderFor(this);
             BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
-            HorizontalGridLinesBrush = DataGridFluentTheme.GridLine;
-            VerticalGridLinesBrush = DataGridFluentTheme.GridLine;
-            RowBackground = DataGridFluentTheme.GridBackground;
-            AlternatingRowBackground = DataGridFluentTheme.AlternatingRow;
-            Foreground = DataGridFluentTheme.PrimaryText;
+            HorizontalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
+            VerticalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
+            RowBackground = DataGridFluentTheme.GridBackgroundFor(this);
+            AlternatingRowBackground = DataGridFluentTheme.AlternatingRowFor(this);
+            Foreground = DataGridFluentTheme.PrimaryTextFor(this);
         }
 
         if (Template is not null)
@@ -1353,8 +1357,8 @@ public partial class DataGrid
                 FontSize = 12,
                 MinHeight = 32,
                 Padding = new Microsoft.UI.Xaml.Thickness(12, 0, 8, 0),
-                Background = DataGridFluentTheme.HeaderBackground,
-                Foreground = DataGridFluentTheme.SecondaryText,
+                Background = DataGridFluentTheme.HeaderBackgroundFor(this),
+                Foreground = DataGridFluentTheme.SecondaryTextFor(this),
             };
             headerCell.PrepareColumnHeader(column.Header, column);
             headerCell.Content = HeaderContent(column);

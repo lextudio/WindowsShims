@@ -72,6 +72,38 @@ public sealed partial class MainPage : Page
             ? $"#{solid.Color.A:X2}{solid.Color.R:X2}{solid.Color.G:X2}{solid.Color.B:X2}"
             : brush?.GetType().Name ?? "null";
 
+    static double RelativeLuminance(Microsoft.UI.Xaml.Media.Brush? brush, bool darkBase = false)
+    {
+        if (brush is not Microsoft.UI.Xaml.Media.SolidColorBrush solid)
+            return double.NaN;
+
+        static double Channel(byte value)
+        {
+            var c = value / 255.0;
+            return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+        }
+
+        var color = solid.Color;
+        var baseChannel = darkBase ? 0x20 : 0xFA;
+        var alpha = color.A / 255.0;
+        var r = (byte)Math.Round(color.R * alpha + baseChannel * (1 - alpha));
+        var g = (byte)Math.Round(color.G * alpha + baseChannel * (1 - alpha));
+        var b = (byte)Math.Round(color.B * alpha + baseChannel * (1 - alpha));
+        return 0.2126 * Channel(r) + 0.7152 * Channel(g) + 0.0722 * Channel(b);
+    }
+
+    static double ContrastRatio(Microsoft.UI.Xaml.Media.Brush? first, Microsoft.UI.Xaml.Media.Brush? second, bool darkBase = false)
+    {
+        var a = RelativeLuminance(first, darkBase);
+        var b = RelativeLuminance(second, darkBase);
+        if (double.IsNaN(a) || double.IsNaN(b))
+            return double.NaN;
+
+        var lighter = Math.Max(a, b);
+        var darker = Math.Min(a, b);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
     static string RunOnUi(Func<MainPage, string> body)
     {
         var page = _current;
@@ -122,6 +154,25 @@ public sealed partial class MainPage : Page
     {
         if (page._grid is null)
             throw new InvalidOperationException("DataGrid not created. Call datagrid.probe.create-grid first.");
+    }
+
+    static void RefreshLikeSample(Microsoft.UI.Xaml.UIElement target)
+    {
+        if (target is WpfDataGrid grid)
+        {
+            grid.InvalidateMeasure();
+            grid.UpdateLayout();
+            return;
+        }
+
+        target.InvalidateMeasure();
+        target.UpdateLayout();
+    }
+
+    static System.Windows.Controls.DataGridRow? FirstRealizedRow(WpfDataGrid grid)
+    {
+        grid.UpdateLayout();
+        return grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
     }
 
     // ─── Shared scenario factories ───────────────────────────────────
@@ -207,6 +258,300 @@ public sealed partial class MainPage : Page
         grid.ApplyTemplate();
         grid.UpdateLayout();
         return Snapshot(page);
+    });
+
+    // ─── Probe: create-sorting-grid ──────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-sorting-grid", Description = "Create a DataGrid with CanUserSortColumns enabled.")]
+    public static string ProbeCreateSortingGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildSortingGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.sorting-readback", Description = "Read back CanUserSortColumns and current sort directions.")]
+    public static string ProbeSortingReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var directions = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.SortDirection?.ToString())));
+        return $"{{\"hasGrid\":true,\"canUserSortColumns\":{Jb(grid.CanUserSortColumns)},\"sortDirections\":[{directions}],\"columnCount\":{grid.Columns.Count}}}";
+    });
+
+    // ─── Probe: create-selection-grid ────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-selection-grid", Description = "Create a DataGrid with Extended selection and CellOrRowHeader unit.")]
+    public static string ProbeCreateSelectionGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildSelectionGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.selection-readback", Description = "Read back SelectionMode and SelectionUnit.")]
+    public static string ProbeSelectionReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        return $"{{\"hasGrid\":true,\"selectionMode\":{Js(grid.SelectionMode.ToString())},\"selectionUnit\":{Js(grid.SelectionUnit.ToString())}}}";
+    });
+
+    // ─── Probe: create-reorder-grid ──────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-reorder-grid", Description = "Create a DataGrid with CanUserReorderColumns enabled.")]
+    public static string ProbeCreateReorderGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildReorderGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.reorder-readback", Description = "Read back CanUserReorderColumns and column order.")]
+    public static string ProbeReorderReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var headers = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.Header?.ToString())));
+        return $"{{\"hasGrid\":true,\"canUserReorderColumns\":{Jb(grid.CanUserReorderColumns)},\"canUserResizeColumns\":{Jb(grid.CanUserResizeColumns)},\"headers\":[{headers}]}}";
+    });
+
+    // ─── Probe: create-clipboard-grid ────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-clipboard-grid", Description = "Create a DataGrid with ClipboardCopyMode.IncludeHeader.")]
+    public static string ProbeCreateClipboardGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildClipboardGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.clipboard-readback", Description = "Read back ClipboardCopyMode.")]
+    public static string ProbeClipboardReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        return $"{{\"hasGrid\":true,\"clipboardCopyMode\":{Js(grid.ClipboardCopyMode.ToString())}}}";
+    });
+
+    // ─── Probe: create-gridlines-grid ────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-gridlines-grid", Description = "Create a DataGrid with horizontal-only blue grid lines.")]
+    public static string ProbeCreateGridLinesGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildGridLinesGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.gridlines-readback", Description = "Read back GridLinesVisibility and line brush colors.")]
+    public static string ProbeGridLinesReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        return $"{{\"hasGrid\":true,\"gridLinesVisibility\":{Js(grid.GridLinesVisibility.ToString())},\"horizontalBrush\":{Js(BrushHex(grid.HorizontalGridLinesBrush))},\"verticalBrush\":{Js(BrushHex(grid.VerticalGridLinesBrush))}}}";
+    });
+
+    // ─── Probe: create-headers-grid ──────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-headers-grid", Description = "Create a DataGrid with HeadersVisibility set to Column only.")]
+    public static string ProbeCreateHeadersGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildHeadersGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.headers-readback", Description = "Read back HeadersVisibility.")]
+    public static string ProbeHeadersReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        return $"{{\"hasGrid\":true,\"headersVisibility\":{Js(grid.HeadersVisibility.ToString())}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.sample-option-refresh", Description = "Change sample-exposed DataGrid options and verify realized visuals refresh immediately.")]
+    public static string ProbeSampleOptionRefresh() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildHeadersGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+
+        var rowBefore = FirstRealizedRow(grid);
+        var rowHeaderBefore = rowBefore?.RowHeader is not null;
+        grid.HeadersVisibility = System.Windows.Controls.DataGridHeadersVisibility.All;
+        RefreshLikeSample(grid);
+        var rowAfter = FirstRealizedRow(grid);
+        var rowHeaderAfter = rowAfter?.RowHeader is not null;
+
+        grid.GridLinesVisibility = System.Windows.Controls.DataGridGridLinesVisibility.Horizontal;
+        RefreshLikeSample(grid);
+        var cellBefore = FirstRealizedRow(grid)?.TryGetCell(0);
+        var beforeRight = cellBefore?.BorderThickness.Right ?? -1;
+        var beforeBottom = cellBefore?.BorderThickness.Bottom ?? -1;
+
+        grid.GridLinesVisibility = System.Windows.Controls.DataGridGridLinesVisibility.All;
+        RefreshLikeSample(grid);
+        var cellAfter = FirstRealizedRow(grid)?.TryGetCell(0);
+        var afterRight = cellAfter?.BorderThickness.Right ?? -1;
+        var afterBottom = cellAfter?.BorderThickness.Bottom ?? -1;
+
+        return $"{{\"hasGrid\":true,\"rowHeaderBefore\":{Jb(rowHeaderBefore)},\"rowHeaderAfter\":{Jb(rowHeaderAfter)},\"beforeRight\":{Jn(beforeRight)},\"beforeBottom\":{Jn(beforeBottom)},\"afterRight\":{Jn(afterRight)},\"afterBottom\":{Jn(afterBottom)},\"headersVisibility\":{Js(grid.HeadersVisibility.ToString())},\"gridLinesVisibility\":{Js(grid.GridLinesVisibility.ToString())}}}";
+    });
+
+    // ─── Probe: create-column-types-grid ─────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-column-types-grid", Description = "Create a DataGrid with text, checkbox, combobox, and hyperlink columns.")]
+    public static string ProbeCreateColumnTypesGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildColumnTypesGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.column-types-readback", Description = "Read back each column's type name.")]
+    public static string ProbeColumnTypesReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var types = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.GetType().Name)));
+        return $"{{\"hasGrid\":true,\"columnTypes\":[{types}],\"columnCount\":{grid.Columns.Count}}}";
+    });
+
+    // ─── Probe: create-column-sizing-grid ────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-column-sizing-grid", Description = "Create a DataGrid with fixed, SizeToHeader, Star, and 2* column widths.")]
+    public static string ProbeCreateColumnSizingGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildColumnSizingGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.column-sizing-readback", Description = "Read back each column's width unit type.")]
+    public static string ProbeColumnSizingReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var units = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.Width.UnitType.ToString())));
+        var values = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Jn(c.Width.DisplayValue)));
+        return $"{{\"hasGrid\":true,\"widthUnits\":[{units}],\"widthValues\":[{values}],\"columnCount\":{grid.Columns.Count}}}";
+    });
+
+    // ─── Probe: create-alternating-row-grid ──────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-alternating-row-grid", Description = "Create a DataGrid with AlternatingRowBackground set.")]
+    public static string ProbeCreateAlternatingRowGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildAlternatingRowGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.alternating-row-readback", Description = "Read back AlternatingRowBackground brush.")]
+    public static string ProbeAlternatingRowReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        return $"{{\"hasGrid\":true,\"alternatingRowBackground\":{Js(BrushHex(grid.AlternatingRowBackground))}}}";
+    });
+
+    // ─── Probe: create-large-data-grid ───────────────────────────────
+
+    [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]
+    public static string ProbeCreateLargeDataGrid() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildLargeDataGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.Measure(new global::Windows.Foundation.Size(800, 400));
+        grid.Arrange(new global::Windows.Foundation.Rect(0, 0, 800, 400));
+        grid.UpdateLayout();
+        grid.ShimSetRowVirtualization(true);
+        grid.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("datagrid.probe.large-data-readback", Description = "Read back total row count, virtualization flags, and scroll extent.")]
+    public static string ProbeLargeDataReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+        var scroller = grid.ShimGetRowsScrollViewer();
+        return $"{{\"hasGrid\":true,\"rowCount\":{grid.Items.Count},\"enableRowVirtualization\":{Jb(grid.EnableRowVirtualization)},\"enableColumnVirtualization\":{Jb(grid.EnableColumnVirtualization)},\"hasScroller\":{Jb(scroller is not null)},\"scrollableHeight\":{Jn(scroller?.ScrollableHeight ?? -1)},\"extentHeight\":{Jn(scroller?.ExtentHeight ?? -1)}}}";
     });
 
     // ─── Probe: state ───────────────────────────────────────────────
@@ -692,6 +1037,31 @@ public sealed partial class MainPage : Page
                $"\"columnHeaderBackground\":{Js(BrushHex(columnHeader?.Background))},\"rowHeaderBackground\":{Js(BrushHex((rowHeader as Microsoft.UI.Xaml.Controls.Control)?.Background))}," +
                $"\"cellMinHeight\":{Jn(cell?.MinHeight ?? double.NaN)},\"columnHeaderMinHeight\":{Jn(columnHeader?.MinHeight ?? double.NaN)}," +
                $"\"rowHeaderMinHeight\":{Jn(rowHeader?.MinHeight ?? double.NaN)}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.dark-theme-contrast", Description = "Switch the host and DataGrid to Dark and read realized row/cell contrast colors.")]
+    public static string ProbeDarkThemeContrast() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildMetadataGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        page.RequestedTheme = ElementTheme.Dark;
+        page._root.RequestedTheme = ElementTheme.Dark;
+        grid.RequestedTheme = ElementTheme.Dark;
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        var cell = row?.TryGetCell(0);
+        var columnHeader = FindDescendant<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid);
+
+        return $"{{\"hasGrid\":true,\"pageTheme\":{Js(page.ActualTheme.ToString())},\"gridTheme\":{Js(grid.ActualTheme.ToString())}," +
+               $"\"gridBackground\":{Js(BrushHex(grid.Background))},\"rowBackground\":{Js(BrushHex(row?.Background))}," +
+               $"\"cellForeground\":{Js(BrushHex(cell?.Foreground))},\"columnHeaderBackground\":{Js(BrushHex(columnHeader?.Background))}," +
+               $"\"rowCellContrast\":{Jn(ContrastRatio(row?.Background ?? grid.Background, cell?.Foreground, darkBase: true))}}}";
     });
 
     [DevFlowAction("datagrid.probe.fluent-selection", Description = "Read selected-row fill and foreground contrast colors.")]

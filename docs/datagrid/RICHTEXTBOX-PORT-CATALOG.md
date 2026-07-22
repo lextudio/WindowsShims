@@ -21,7 +21,7 @@ the next migration step.
 ## Current Baseline
 
 - Project: `src/LeXtudio.Windows/LeXtudio.Windows.csproj`
-- Target: `net9.0-desktop`
+- Target: `net10.0-desktop`
 - Baseline build status: green according to `PLAN.md`.
 - Current Uno-side test path: dispatcher-bound document/control tests run
   through `LeXtudio.RichText.Tests --uno-runtime-tests`; plain VSTest skips

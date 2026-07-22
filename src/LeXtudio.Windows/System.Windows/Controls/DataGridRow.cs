@@ -135,9 +135,6 @@ public partial class DataGridRow : Control
         RefreshRowHeaderGlyph();
     }
 
-    // Selection highlight (WinUI list-accent-ish light blue).
-    private static Microsoft.UI.Xaml.Media.Brush SelectedBrush => DataGridFluentTheme.Selection;
-
     // Session 69: apply the stripe background (RowBackground or AlternatingRowBackground).
     // Called from BuildShimVisualTree after ShimRowIndex is set, and from
     // DataGridRow.NotifyPropertyChanged when grid.RowBackground / AlternatingRowBackground changes.
@@ -166,7 +163,12 @@ public partial class DataGridRow : Control
         // Row-level selection tints the row; cells stay transparent so the
         // tint shows through. Cell-level selection (SelectionUnit.Cell) paints
         // the cell itself and is managed separately on DataGridCell.
-        Background = IsSelected ? SelectedBrush : DataGridOwner?.ShimRowBackground(ShimRowIndex);
+        var themeElement = DataGridOwner is Microsoft.UI.Xaml.FrameworkElement themeOwner
+            ? themeOwner
+            : this;
+        Background = IsSelected
+            ? DataGridFluentTheme.SelectionFor(themeElement)
+            : DataGridOwner?.ShimRowBackground(ShimRowIndex);
         RefreshRowHeaderGlyph();
 
         // VisibleWhenSelected: selection toggles the details section. Recompute
@@ -214,7 +216,12 @@ public partial class DataGridRow : Control
         PointerEntered += (_, _) =>
         {
             if (!IsSelected)
-                Background = DataGridFluentTheme.RowHover;
+            {
+                var themeElement = DataGridOwner is Microsoft.UI.Xaml.FrameworkElement owner
+                    ? owner
+                    : this;
+                Background = DataGridFluentTheme.RowHoverFor(themeElement);
+            }
         };
         PointerExited += (_, _) =>
         {

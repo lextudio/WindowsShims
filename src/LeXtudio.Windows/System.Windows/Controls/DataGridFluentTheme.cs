@@ -1,46 +1,82 @@
 namespace System.Windows.Controls;
 
-// Fluent visual tokens adapted from WCT v7's DataGrid.xaml. Keep these in one
-// place because the shim's runtime ControlTemplates cannot reliably resolve a
-// library Generic.xaml from every Uno consumer.
+// Fluent visual tokens adapted from WPF's PresentationFramework.Fluent
+// Light/Dark dictionaries. Keep these in one place because the shim's runtime
+// ControlTemplates cannot reliably resolve library Generic.xaml resources from
+// every Uno consumer.
 internal static class DataGridFluentTheme
 {
     internal static Microsoft.UI.Xaml.Media.Brush GridBackground
-        => Resolve("CardBackgroundFillColorDefaultBrush", 0xFF, 0xFF, 0xFF, 0xFF);
+        => GridBackgroundFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush GridBackgroundFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "CardBackgroundFillColorDefaultBrush", 0xB3, 0xFF, 0xFF, 0xFF, 0x0D, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush HeaderBackground
-        => Resolve("SubtleFillColorSecondaryBrush", 0xFF, 0xF3, 0xF3, 0xF3);
+        => HeaderBackgroundFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush HeaderBackgroundFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "SubtleFillColorTertiaryBrush", 0x06, 0x00, 0x00, 0x00, 0x0A, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush RowHeaderBackground
-        => Resolve("SubtleFillColorTertiaryBrush", 0xFF, 0xF8, 0xF8, 0xF8);
+        => RowHeaderBackgroundFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush RowHeaderBackgroundFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => HeaderBackgroundFor(element);
 
     internal static Microsoft.UI.Xaml.Media.Brush GridLine
-        => Resolve("ControlStrokeColorSecondaryBrush", 0x24, 0x00, 0x00, 0x00);
+        => GridLineFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush GridLineFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "ControlStrokeColorSecondaryBrush", 0x29, 0x00, 0x00, 0x00, 0x18, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush OuterBorder
-        => Resolve("ControlStrokeColorDefaultBrush", 0x33, 0x00, 0x00, 0x00);
+        => OuterBorderFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush OuterBorderFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "ControlStrokeColorDefaultBrush", 0x0F, 0x00, 0x00, 0x00, 0x12, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush PrimaryText
-        => Resolve("TextFillColorPrimaryBrush", 0xE4, 0x00, 0x00, 0x00);
+        => PrimaryTextFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush PrimaryTextFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "TextFillColorPrimaryBrush", 0xE4, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush SecondaryText
-        => Resolve("TextFillColorSecondaryBrush", 0x9E, 0x00, 0x00, 0x00);
+        => SecondaryTextFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush SecondaryTextFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "TextFillColorSecondaryBrush", 0x9E, 0x00, 0x00, 0x00, 0xC5, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush Selection
-        => ResolveTint("SystemAccentColor", 0x38, 0x00, 0x78, 0xD4);
+        => SelectionFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush SelectionFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => ResolveTint(element, "SystemAccentColor", 0xCC, 0x00, 0x78, 0xD4);
 
     internal static Microsoft.UI.Xaml.Media.Brush RowHover
-        => Resolve("SubtleFillColorSecondaryBrush", 0x0F, 0x00, 0x00, 0x00);
+        => RowHoverFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush RowHoverFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "SubtleFillColorSecondaryBrush", 0x09, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xFF);
 
     internal static Microsoft.UI.Xaml.Media.Brush AlternatingRow
-        => Resolve("SubtleFillColorTransparentBrush", 0x08, 0x00, 0x00, 0x00);
+        => AlternatingRowFor(null);
+
+    internal static Microsoft.UI.Xaml.Media.Brush AlternatingRowFor(Microsoft.UI.Xaml.FrameworkElement? element)
+        => Resolve(element, "SubtleFillColorSecondaryBrush", 0x09, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0xFF, 0xFF);
 
     private static Microsoft.UI.Xaml.Media.Brush Resolve(
+        Microsoft.UI.Xaml.FrameworkElement? element,
         string key,
-        byte alpha,
-        byte red,
-        byte green,
-        byte blue)
+        byte lightAlpha,
+        byte lightRed,
+        byte lightGreen,
+        byte lightBlue,
+        byte darkAlpha,
+        byte darkRed,
+        byte darkGreen,
+        byte darkBlue)
     {
         if (Microsoft.UI.Xaml.Application.Current?.Resources.TryGetValue(key, out var value) == true
             && value is Microsoft.UI.Xaml.Media.Brush brush)
@@ -48,11 +84,15 @@ internal static class DataGridFluentTheme
             return brush;
         }
 
+        var dark = IsDark(element);
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            global::Windows.UI.Color.FromArgb(alpha, red, green, blue));
+            dark
+                ? global::Windows.UI.Color.FromArgb(darkAlpha, darkRed, darkGreen, darkBlue)
+                : global::Windows.UI.Color.FromArgb(lightAlpha, lightRed, lightGreen, lightBlue));
     }
 
     private static Microsoft.UI.Xaml.Media.Brush ResolveTint(
+        Microsoft.UI.Xaml.FrameworkElement? element,
         string key,
         byte alpha,
         byte fallbackRed,
@@ -70,5 +110,16 @@ internal static class DataGridFluentTheme
 
         return new Microsoft.UI.Xaml.Media.SolidColorBrush(
             global::Windows.UI.Color.FromArgb(alpha, color.R, color.G, color.B));
+    }
+
+    private static bool IsDark(Microsoft.UI.Xaml.FrameworkElement? element)
+    {
+        if (element?.RequestedTheme == Microsoft.UI.Xaml.ElementTheme.Dark
+            || element?.ActualTheme == Microsoft.UI.Xaml.ElementTheme.Dark)
+        {
+            return true;
+        }
+
+        return false;
     }
 }

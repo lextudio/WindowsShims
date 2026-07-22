@@ -29,4 +29,8 @@
   <ItemGroup>
     <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\tests\DataGrid.TestScenarios\DataGridScenarios.cs" Link="Resources\DataGridScenarios.cs" />
+  </ItemGroup>
 </Project>

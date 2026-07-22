@@ -72,7 +72,7 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         Padding = new Microsoft.UI.Xaml.Thickness(12, 6, 12, 6);
         HorizontalContentAlignment = Microsoft.UI.Xaml.HorizontalAlignment.Stretch;
         VerticalContentAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center;
-        Foreground = DataGridFluentTheme.PrimaryText;
+        Foreground = DataGridFluentTheme.PrimaryTextFor(this);
 
         if (_cellTemplate == null)
         {
@@ -85,8 +85,11 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         RegisterPropertyChangedCallback(IsSelectedProperty, (sender, dp) =>
         {
             var cell = (DataGridCell)sender;
+            var themeElement = cell._owner?.DataGridOwner is Microsoft.UI.Xaml.FrameworkElement owner
+                ? owner
+                : cell;
             cell.Background = cell.IsSelected
-                ? DataGridFluentTheme.Selection
+                ? DataGridFluentTheme.SelectionFor(themeElement)
                 : null;
         });
     }
@@ -121,6 +124,10 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             return;
         }
 
+        var themeElement = _owner?.DataGridOwner is Microsoft.UI.Xaml.FrameworkElement owner
+            ? owner
+            : this;
+        Foreground = DataGridFluentTheme.PrimaryTextFor(themeElement);
         DataContext = item;
         var content = Column.BuildCellContent(this, item);
         if (content is not null)

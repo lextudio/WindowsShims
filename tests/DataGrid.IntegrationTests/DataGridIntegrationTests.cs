@@ -106,8 +106,7 @@ public sealed class DataGridIntegrationTests
 
         Assert.NotNull(background);
         Assert.StartsWith("#", background);
-        Assert.True(Convert.ToByte(background![1..3], 16) < 0x80,
-            $"selection should tint the surface instead of replacing it with opaque accent: {raw}");
+        Assert.Equal(0xCC, Convert.ToByte(background![1..3], 16));
         Assert.NotEqual(background, state.GetProperty("cellForeground").GetString());
         Assert.NotEqual(background, state.GetProperty("rowHeaderForeground").GetString());
     }
@@ -608,5 +607,231 @@ public sealed class DataGridIntegrationTests
         var raw = state.ToString();
         var ms = state.GetProperty("doubleClickTimeMs").GetInt32();
         Assert.True(ms > 0, $"double-click time should be a real positive interval, not 0: {raw}");
+    }
+
+    // ─── Sorting ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SortingGrid_HasSortEnabled()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-sorting-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.sorting-readback");
+        var raw = readback.ToString();
+        Assert.True(readback.GetProperty("canUserSortColumns").GetBoolean(), $"CanUserSortColumns should be true: {raw}");
+        Assert.True(readback.GetProperty("columnCount").GetInt32() >= 4, $"should have at least 4 columns: {raw}");
+    }
+
+    [Fact]
+    public async Task SortingGrid_SortArrowRendersAfterPerformSort()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-sorting-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.sort-arrow", 0);
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("headerFound").GetBoolean(), $"header should be found: {raw}");
+        Assert.Equal(1, state.GetProperty("arrowCount").GetInt32());
+        Assert.True(state.GetProperty("sortDirection").GetString() is not null && state.GetProperty("sortDirection").GetString() != "", $"sort direction should be set: {raw}");
+    }
+
+    // ─── Selection ───────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SelectionGrid_UsesExtendedModeAndCellOrRowHeaderUnit()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.selection-readback");
+        var raw = readback.ToString();
+        Assert.Equal("Extended", readback.GetProperty("selectionMode").GetString());
+        Assert.Equal("CellOrRowHeader", readback.GetProperty("selectionUnit").GetString());
+    }
+
+    [Fact]
+    public async Task SelectionGrid_SelectsRowAndReportsSelectedCells()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.keyboard-selection");
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("selected").GetBoolean(), $"selection should be accepted: {raw}");
+        Assert.True(state.GetProperty("selectedCells").GetInt32() > 0, $"should populate selected cells: {raw}");
+    }
+
+    // ─── Column Reorder ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task ReorderGrid_HasReorderEnabled()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-reorder-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.reorder-readback");
+        var raw = readback.ToString();
+        Assert.True(readback.GetProperty("canUserReorderColumns").GetBoolean(), $"CanUserReorderColumns should be true: {raw}");
+        Assert.True(readback.GetProperty("canUserResizeColumns").GetBoolean(), $"CanUserResizeColumns should be true: {raw}");
+    }
+
+    // ─── Clipboard Copy ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task ClipboardGrid_HasIncludeHeaderMode()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-clipboard-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.clipboard-readback");
+        var raw = readback.ToString();
+        Assert.Equal("IncludeHeader", readback.GetProperty("clipboardCopyMode").GetString());
+    }
+
+    [Fact]
+    public async Task ClipboardGrid_CopySelectionProducesSelectedState()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-clipboard-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.copy-selection");
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("copied").GetBoolean(), $"copy should select a row: {raw}");
+        Assert.True(state.GetProperty("selectedItems").GetInt32() > 0, $"probe should select a row: {raw}");
+    }
+
+    // ─── Grid Lines ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GridLinesGrid_UsesHorizontalOnlyWithCustomBrush()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-gridlines-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.gridlines-readback");
+        var raw = readback.ToString();
+        Assert.Equal("Horizontal", readback.GetProperty("gridLinesVisibility").GetString());
+        var hBrush = readback.GetProperty("horizontalBrush").GetString();
+        Assert.NotNull(hBrush);
+        Assert.NotEqual("#FF000000", hBrush);
+    }
+
+    // ─── Headers Visibility ──────────────────────────────────────────
+
+    [Fact]
+    public async Task HeadersGrid_ShowsColumnHeadersOnly()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-headers-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.headers-readback");
+        var raw = readback.ToString();
+        Assert.Equal("Column", readback.GetProperty("headersVisibility").GetString());
+    }
+
+    [Fact]
+    public async Task SampleOptionRefresh_ImmediatelyUpdatesRealizedVisuals()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.sample-option-refresh");
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), raw);
+        Assert.False(state.GetProperty("rowHeaderBefore").GetBoolean(), raw);
+        Assert.True(state.GetProperty("rowHeaderAfter").GetBoolean(), raw);
+        Assert.Equal(0, state.GetProperty("beforeRight").GetDouble());
+        Assert.Equal(1, state.GetProperty("beforeBottom").GetDouble());
+        Assert.Equal(1, state.GetProperty("afterRight").GetDouble());
+        Assert.Equal(1, state.GetProperty("afterBottom").GetDouble());
+        Assert.Equal("All", state.GetProperty("headersVisibility").GetString());
+        Assert.Equal("All", state.GetProperty("gridLinesVisibility").GetString());
+    }
+
+    [Fact]
+    public async Task DarkTheme_UsesReadableWpfFluentDataGridBrushes()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.dark-theme-contrast");
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), raw);
+        Assert.Equal("Dark", state.GetProperty("gridTheme").GetString());
+        Assert.True(state.GetProperty("rowCellContrast").GetDouble() >= 4.5, raw);
+        Assert.NotEqual(
+            state.GetProperty("rowBackground").GetString(),
+            state.GetProperty("cellForeground").GetString());
+    }
+
+    // ─── Column Types ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ColumnTypesGrid_HasAllFourColumnTypes()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-column-types-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.column-types-readback");
+        var raw = readback.ToString();
+        var types = readback.GetProperty("columnTypes").EnumerateArray().Select(t => t.GetString()).ToArray();
+        Assert.Contains("DataGridTextColumn", types);
+        Assert.Contains("DataGridCheckBoxColumn", types);
+        Assert.Contains("DataGridComboBoxColumn", types);
+        Assert.Contains("DataGridHyperlinkColumn", types);
+    }
+
+    // ─── Column Sizing ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task ColumnSizingGrid_HasMixedWidthUnits()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-column-sizing-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.column-sizing-readback");
+        var raw = readback.ToString();
+        var units = readback.GetProperty("widthUnits").EnumerateArray().Select(u => u.GetString()).ToArray();
+        Assert.Contains("Pixel", units);
+        Assert.Contains("Star", units);
+        Assert.Equal(4, readback.GetProperty("columnCount").GetInt32());
+    }
+
+    // ─── Alternating Row ─────────────────────────────────────────────
+
+    [Fact]
+    public async Task AlternatingRowGrid_HasCustomBackground()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-alternating-row-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.alternating-row-readback");
+        var raw = readback.ToString();
+        var brush = readback.GetProperty("alternatingRowBackground").GetString();
+        Assert.NotNull(brush);
+        Assert.StartsWith("#", brush);
+        Assert.NotEqual("#00000000", brush);
+    }
+
+    // ─── Large Data (10K) ────────────────────────────────────────────
+
+    [Fact]
+    public async Task LargeDataGrid_HasTenThousandRows()
+    {
+        var state = await _app.InvokeAsync("datagrid.probe.create-large-data-grid");
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var readback = await _app.InvokeAsync("datagrid.probe.large-data-readback");
+        var raw = readback.ToString();
+        Assert.Equal(10_000, readback.GetProperty("rowCount").GetInt32());
+        Assert.True(readback.GetProperty("enableRowVirtualization").GetBoolean(), $"row virtualization should be enabled: {raw}");
+    }
+
+    [Fact]
+    public async Task LargeDataGrid_ScrollsToBottom()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-large-data-grid");
+        var readback = await _app.InvokeAsync("datagrid.probe.large-data-readback");
+        Assert.True(readback.GetProperty("hasScroller").GetBoolean(), $"scroller should exist: {readback}");
+        var scroll = await _app.InvokeAsync("datagrid.probe.scroll-to-bottom");
+        var raw = scroll.ToString();
+        Assert.True(scroll.GetProperty("hasScroller").GetBoolean(), $"scroller should still exist: {raw}");
+        Assert.True(scroll.GetProperty("verticalOffset").GetDouble() > 0, $"scroll should have moved: {raw}");
+    }
+
+    [Fact]
+    public async Task LargeDataGrid_ColumnWidthsAreReasonable()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-large-data-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.column-widths");
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean());
+        var widths = state.GetProperty("columnWidths").EnumerateArray().Select(w => w.GetDouble()).ToArray();
+        Assert.NotEmpty(widths);
+        foreach (var (w, i) in widths.Select((w, i) => (w, i)))
+        {
+            Assert.True(w > 20, $"column [{i}] width {w} should be > 20px: {raw}");
+        }
     }
 }

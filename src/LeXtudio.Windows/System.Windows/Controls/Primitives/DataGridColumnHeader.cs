@@ -171,8 +171,11 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
 
         Template = _headerTemplate;
         MinHeight = 32;
-        Background ??= DataGridFluentTheme.HeaderBackground;
-        Foreground = DataGridFluentTheme.SecondaryText;
+        var themeElement = owner is Microsoft.UI.Xaml.FrameworkElement ownerElement
+            ? ownerElement
+            : this;
+        Background ??= DataGridFluentTheme.HeaderBackgroundFor(themeElement);
+        Foreground = DataGridFluentTheme.SecondaryTextFor(themeElement);
         // Session 122: force the template to actually materialize now (VisualStateGroups
         // included) rather than relying on the framework's own lazy application timing.
         // PrepareColumnHeader (upstream, ext/wpf) calls CoerceValue(SortDirectionProperty)

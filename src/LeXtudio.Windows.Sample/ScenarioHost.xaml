@@ -1,0 +1,75 @@
+<UserControl x:Class="LeXtudio.Windows.Sample.ScenarioHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+
+    <Grid Margin="24"
+          RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="300" />
+            <RowDefinition x:Name="sourceRow"
+                           Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="8">
+            <TextBlock x:Name="TitleText"
+                       Style="{StaticResource TitleTextBlockStyle}" />
+            <TextBlock x:Name="DescriptionText"
+                       Style="{StaticResource BodyTextBlockStyle}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1"
+              Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="GridFrame"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <ContentPresenter x:Name="GridHost"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalContentAlignment="Stretch" />
+            </Border>
+
+            <Border x:Name="OptionsFrame"
+                    Grid.Column="1"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="16,0,0,0"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    Visibility="Collapsed">
+                <ScrollViewer>
+                    <StackPanel x:Name="OptionsPanel" Spacing="12" Width="260" />
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Expander x:Name="SourceExpander"
+                  Grid.Row="2"
+                  Grid.ColumnSpan="2"
+                  Header="Source code"
+                  Visibility="Collapsed"
+                  Expanding="OnSourceExpanderExpanded"
+                  Collapsed="OnSourceExpanderCollapsed"
+                  VerticalAlignment="Stretch"
+                  HorizontalAlignment="Stretch"
+                  VerticalContentAlignment="Top">
+            <Pivot x:Name="SourcePivot">
+                <Pivot.Resources>
+                    <x:Double x:Key="PivotHeaderItemFontSize">14</x:Double>
+                </Pivot.Resources>
+            </Pivot>
+        </Expander>
+    </Grid>
+</UserControl>

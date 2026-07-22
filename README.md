@@ -29,8 +29,8 @@ Install-Package LeXtudio.Windows
 
 ## Supported Platforms
 
-- **Uno Platform (net9.0-desktop)**: Linux, macOS, iOS, Android
-- **WinUI 3 (net9.0-windows10.0.19041.0)**: Windows 10+
+- **Uno Platform (net10.0-desktop)**: Linux, macOS, iOS, Android
+- **WinUI 3 (net10.0-windows10.0.19041.0)**: Windows 10+
 
 ## Ported WPF Controls
 
@@ -103,7 +103,7 @@ The library automatically provides the correct implementation for your target pl
 
 ## Architecture Notes
 
-- **Target Frameworks**: `net9.0-desktop` (Uno) and `net9.0-windows10.0.19041.0` (WinUI)
+- **Target Frameworks**: `net10.0-desktop` (Uno) and `net10.0-windows10.0.19041.0` (WinUI)
 - **Nullable**: Disabled for broader compatibility with older WPF libraries
 - **Documentation**: Includes XML docs for all public types
 - **License**: MIT

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Use upstream WPF source files as the primary implementation wherever possible, and keep local Uno compatibility shims only where they are currently required for net9.0-desktop builds.
+Use upstream WPF source files as the primary implementation wherever possible, and keep local Uno compatibility shims only where they are currently required for net10.0-desktop builds.
 
 This document captures the migration patterns that have already worked so future porting can continue with low risk and fast feedback.
 
@@ -12,7 +12,7 @@ history and method; the catalog records current file/family status.
 
 ## Current Baseline
 
-- Build target: net9.0-desktop in LeXtudio.Windows
+- Build target: net10.0-desktop in LeXtudio.Windows
 - Baseline status: green (warnings only)
 - Working approach: compile-frontier migration
   - Keep upstream includes enabled in project file
@@ -87,7 +87,7 @@ Use this exact sequence for each next candidate:
 	- Remove local duplicate if type collision is expected
 
 3. Build immediately
-	- dotnet build .\LeXtudio.Windows.csproj -f net9.0-desktop | Tee-Object -FilePath .\build-upstream-pass.log
+	- dotnet build .\LeXtudio.Windows.csproj -f net10.0-desktop | Tee-Object -FilePath .\build-upstream-pass.log
 
 4. Triage compile errors into buckets
 	- Missing SR/resource key
@@ -146,7 +146,7 @@ TextEditor, TextTree, and related internals can pull large dependency surfaces q
 
 Baseline build:
 
-dotnet build .\LeXtudio.Windows.csproj -f net9.0-desktop | Tee-Object -FilePath .\build-upstream-pass.log
+dotnet build .\LeXtudio.Windows.csproj -f net10.0-desktop | Tee-Object -FilePath .\build-upstream-pass.log
 
 Quick error summary:
 
@@ -160,7 +160,7 @@ git status --short
 
 A candidate migration is done only when all are true:
 
-1. Net9.0-desktop build succeeds with zero errors.
+1. Net10.0-desktop build succeeds with zero errors.
 2. No new broad upstream divergence introduced.
 3. Change is minimal and understandable.
 4. Result is documented in this file with blocker notes if partial.
@@ -195,7 +195,7 @@ When finishing each migration unit, append:
 - `System.Windows.FrameworkContentElement.IsLogicalChildrenIterationInProgress` → `false`.
 - `System.Windows.WinUIFrameworkElementExtensions.IsLogicalChildrenIterationInProgress` (C# 14 extension property on `Microsoft.UI.Xaml.FrameworkElement`) → `false`. Only reachable through the dead branch behind the never-tripped generation check, but the symbol has to exist for the upstream file to compile.
 
-**Build outcome:** `dotnet build LeXtudio.Windows.csproj -f net9.0-desktop` → **0 errors**, warnings only (baseline preserved).
+**Build outcome:** `dotnet build LeXtudio.Windows.csproj -f net10.0-desktop` → **0 errors**, warnings only (baseline preserved).
 
 **Blockers:** None.
 
@@ -255,7 +255,7 @@ When finishing each migration unit, append:
 
 ## Session Summary (this pass)
 
-Five migrations completed, all green on net9.0-desktop:
+Five migrations completed, all green on net10.0-desktop:
 
 1. **RangeContentEnumerator** — biggest pass. Required minimal bridge additions on `TextContainer`, `TextPointer`, `FrameworkElement`, `FrameworkContentElement` (all returning safe-default values).
 2. **TextElementEditingBehaviorAttribute** — zero-bridge swap; the only divergence was default values that no caller relied on.
@@ -324,7 +324,7 @@ Patterns reinforced:
 
 ## Session 2 Summary
 
-Five new migrations completed, all green on net9.0-desktop:
+Five new migrations completed, all green on net10.0-desktop:
 
 1. **TextContainerChangeEventArgs + TextElementEnumerator + TextParentUndoUnit + ChangeBlockUndoRecord** — UndoManager API surface extension.
 2. **Typography + TypographyProperties** — WinUI typography enum aliasing via `GlobalUsings.cs`.

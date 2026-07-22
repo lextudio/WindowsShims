@@ -67,8 +67,8 @@ GlobalUsings.cs                     // Central place for all type-forwarding ali
 
 ## Supported Targets
 
-- **net9.0-desktop** (Uno Platform): Uses Microsoft.UI.Xaml via aliases
-- **net9.0-windows10.0.19041.0** (Windows App SDK): Uses Microsoft.UI.Xaml directly
+- **net10.0-desktop** (Uno Platform): Uses Microsoft.UI.Xaml via aliases
+- **net10.0-windows10.0.19041.0** (Windows App SDK): Uses Microsoft.UI.Xaml directly
 
 Both targets get the same WPF API surface but powered by modern WinUI underneath.
 
