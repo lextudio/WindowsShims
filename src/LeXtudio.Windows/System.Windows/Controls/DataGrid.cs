@@ -8,6 +8,7 @@ namespace System.Windows.Controls;
 public partial class DataGrid
 {
     private Microsoft.UI.Xaml.ElementTheme _shimFluentDefaultsTheme = Microsoft.UI.Xaml.ElementTheme.Default;
+    private bool _shimFluentThemeHooked;
 
     // Session 52: when the linked WPF CommitEdit command calls back into the
     // current cell, let the cell run only its local value-write/validation/end
@@ -264,20 +265,18 @@ public partial class DataGrid
 
     private void EnsureShimStyleKey()
     {
-        var theme = RequestedTheme != Microsoft.UI.Xaml.ElementTheme.Default ? RequestedTheme : ActualTheme;
-        if (!_shimFluentDefaultsApplied || _shimFluentDefaultsTheme != theme)
+        if (!_shimFluentThemeHooked)
         {
-            _shimFluentDefaultsApplied = true;
-            _shimFluentDefaultsTheme = theme;
-            Background = DataGridFluentTheme.GridBackgroundFor(this);
-            BorderBrush = DataGridFluentTheme.OuterBorderFor(this);
-            BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
-            HorizontalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
-            VerticalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
-            RowBackground = DataGridFluentTheme.GridBackgroundFor(this);
-            AlternatingRowBackground = DataGridFluentTheme.AlternatingRowFor(this);
-            Foreground = DataGridFluentTheme.PrimaryTextFor(this);
+            _shimFluentThemeHooked = true;
+            ActualThemeChanged += (_, _) =>
+            {
+                ApplyShimFluentDefaults(force: true);
+                BuildShimVisualTree();
+                base.UpdateLayout();
+            };
         }
+
+        ApplyShimFluentDefaults(force: false);
 
         if (Template is not null)
         {
@@ -294,6 +293,26 @@ public partial class DataGrid
         {
             Console.WriteLine($"[DataGrid] shim template load failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    private void ApplyShimFluentDefaults(bool force)
+    {
+        var theme = RequestedTheme != Microsoft.UI.Xaml.ElementTheme.Default ? RequestedTheme : ActualTheme;
+        if (!force && _shimFluentDefaultsApplied && _shimFluentDefaultsTheme == theme)
+        {
+            return;
+        }
+
+        _shimFluentDefaultsApplied = true;
+        _shimFluentDefaultsTheme = theme;
+        Background = DataGridFluentTheme.GridBackgroundFor(this);
+        BorderBrush = DataGridFluentTheme.OuterBorderFor(this);
+        BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+        HorizontalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
+        VerticalGridLinesBrush = DataGridFluentTheme.GridLineFor(this);
+        RowBackground = new Microsoft.UI.Xaml.Media.SolidColorBrush(global::Windows.UI.Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF));
+        AlternatingRowBackground = DataGridFluentTheme.AlternatingRowFor(this);
+        Foreground = DataGridFluentTheme.PrimaryTextFor(this);
     }
 
     // Session 25/26 — shim render path. Populates PART_ShimRowsHost with a

@@ -115,6 +115,7 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         BuildNavCategories();
+        ApplyShellTheme();
     }
 
     private void BuildNavCategories()
@@ -190,7 +191,26 @@ public sealed partial class MainPage : Page
             : ElementTheme.Dark;
         RequestedTheme = _sampleTheme;
         Root.RequestedTheme = _sampleTheme;
+        ApplyShellTheme();
+        if (ScenarioContent.Content is Microsoft.UI.Xaml.UIElement content)
+        {
+            content.InvalidateMeasure();
+            content.UpdateLayout();
+        }
     }
+
+    private void ApplyShellTheme()
+    {
+        var dark = _sampleTheme == ElementTheme.Dark;
+        Root.Background = Brush(dark ? 0xFF202020 : 0xFFF3F3F3);
+    }
+
+    internal static SolidColorBrush Brush(uint argb) =>
+        new(global::Windows.UI.Color.FromArgb(
+            (byte)(argb >> 24),
+            (byte)(argb >> 16),
+            (byte)(argb >> 8),
+            (byte)argb));
 }
 
 internal static class OptionsPanelExtensions

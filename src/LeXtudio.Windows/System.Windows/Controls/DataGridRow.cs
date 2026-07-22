@@ -169,6 +169,10 @@ public partial class DataGridRow : Control
         Background = IsSelected
             ? DataGridFluentTheme.SelectionFor(themeElement)
             : DataGridOwner?.ShimRowBackground(ShimRowIndex);
+        foreach (var cell in EffectiveCells())
+        {
+            cell.ApplyRowSelectionForeground(IsSelected);
+        }
         RefreshRowHeaderGlyph();
 
         // VisibleWhenSelected: selection toggles the details section. Recompute
@@ -502,6 +506,13 @@ public partial class DataGridRow : Control
             _rowHeaderElement.Content = "▶";
         else
             _rowHeaderElement.Content = null;
+
+        var themeElement = DataGridOwner is Microsoft.UI.Xaml.FrameworkElement owner
+            ? owner
+            : this;
+        _rowHeaderElement.Foreground = IsSelected
+            ? DataGridFluentTheme.SelectionForegroundFor(themeElement)
+            : DataGridFluentTheme.SecondaryTextFor(themeElement);
     }
 
     // WPF UIElement.MoveFocus; routes to keyboard navigation.

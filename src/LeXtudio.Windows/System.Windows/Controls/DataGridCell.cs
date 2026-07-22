@@ -91,6 +91,9 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
             cell.Background = cell.IsSelected
                 ? DataGridFluentTheme.SelectionFor(themeElement)
                 : null;
+            cell.Foreground = cell.IsSelected
+                ? DataGridFluentTheme.SelectionForegroundFor(themeElement)
+                : DataGridFluentTheme.PrimaryTextFor(themeElement);
         });
     }
 
@@ -136,6 +139,16 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
         }
 
         Content = content;
+    }
+
+    internal void ApplyRowSelectionForeground(bool rowSelected)
+    {
+        var themeElement = _owner?.DataGridOwner is Microsoft.UI.Xaml.FrameworkElement owner
+            ? owner
+            : this;
+        Foreground = rowSelected
+            ? DataGridFluentTheme.SelectionForegroundFor(themeElement)
+            : DataGridFluentTheme.PrimaryTextFor(themeElement);
     }
 
     private Microsoft.UI.Xaml.Controls.TextBox? _editingBox;

@@ -97,7 +97,7 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
-    public async Task SelectedRow_UsesTranslucentAccentWithReadableForeground()
+    public async Task SelectedRow_UsesWpfFluentAccentWithReadableForeground()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");
         var state = await _app.InvokeAsync("datagrid.probe.fluent-selection");
@@ -106,9 +106,9 @@ public sealed class DataGridIntegrationTests
 
         Assert.NotNull(background);
         Assert.StartsWith("#", background);
-        Assert.Equal(0xCC, Convert.ToByte(background![1..3], 16));
-        Assert.NotEqual(background, state.GetProperty("cellForeground").GetString());
-        Assert.NotEqual(background, state.GetProperty("rowHeaderForeground").GetString());
+        Assert.Equal(0xFF, Convert.ToByte(background![1..3], 16));
+        Assert.Equal("#FFFFFFFF", state.GetProperty("cellForeground").GetString());
+        Assert.Equal("#FFFFFFFF", state.GetProperty("rowHeaderForeground").GetString());
     }
 
     [Fact]

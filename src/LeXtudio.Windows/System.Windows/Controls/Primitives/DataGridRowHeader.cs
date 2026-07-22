@@ -51,7 +51,9 @@ public partial class DataGridRowHeader
             ? ownerElement
             : this;
         Background = DataGridFluentTheme.RowHeaderBackgroundFor(themeElement);
-        Foreground = DataGridFluentTheme.SecondaryTextFor(themeElement);
+        Foreground = EffectiveRow?.IsSelected == true
+            ? DataGridFluentTheme.SelectionForegroundFor(themeElement)
+            : DataGridFluentTheme.SecondaryTextFor(themeElement);
         var visibility = owner?.GridLinesVisibility ?? DataGridGridLinesVisibility.None;
         var horizontal = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Horizontal;
         var vertical = visibility is DataGridGridLinesVisibility.All or DataGridGridLinesVisibility.Vertical;

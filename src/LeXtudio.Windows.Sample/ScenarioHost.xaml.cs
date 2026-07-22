@@ -60,6 +60,8 @@ public sealed partial class ScenarioHost : UserControl
     public ScenarioHost()
     {
         InitializeComponent();
+        ActualThemeChanged += (_, _) => ApplyShellTheme();
+        ApplyShellTheme();
     }
 
     public void Show(string title, string description, UIElement grid, UIElement? options = null)
@@ -77,6 +79,16 @@ public sealed partial class ScenarioHost : UserControl
         }
 
         PopulateSourceCode();
+        ApplyShellTheme();
+    }
+
+    private void ApplyShellTheme()
+    {
+        var dark = ActualTheme == ElementTheme.Dark || RequestedTheme == ElementTheme.Dark;
+        GridFrame.Background = MainPage.Brush(dark ? 0x4C3A3A3Au : 0x80FFFFFFu);
+        GridFrame.BorderBrush = MainPage.Brush(dark ? 0x19FFFFFFu : 0x0F000000u);
+        OptionsFrame.Background = MainPage.Brush(dark ? 0x4C3A3A3Au : 0x80FFFFFFu);
+        OptionsFrame.BorderBrush = MainPage.Brush(dark ? 0x19FFFFFFu : 0x0F000000u);
     }
 
     private void OnSourceExpanderExpanded(Expander sender, ExpanderExpandingEventArgs args)
