@@ -47,7 +47,44 @@ public sealed class RichTextBoxIntegrationTests
     static bool FirstRunHasUnderline(JsonElement state) => state.GetProperty("firstRunHasUnderline").GetBoolean();
     static string InlineTree(JsonElement state) => state.GetProperty("inlineTree").GetString() ?? "";
     static string? RenderScopeType(JsonElement state) => state.GetProperty("renderScopeType").GetString();
+    static string? FirstBlockType(JsonElement state) => state.GetProperty("firstBlockType").GetString();
+    static string? FirstListMarkerStyle(JsonElement state) => state.GetProperty("firstListMarkerStyle").GetString();
+    static int? FirstListItemCount(JsonElement state) =>
+        state.GetProperty("firstListItemCount").ValueKind == JsonValueKind.Null
+            ? null
+            : state.GetProperty("firstListItemCount").GetInt32();
+    static string? FirstListItemText(JsonElement state) => state.GetProperty("firstListItemText").GetString();
     static string? TextViewType(JsonElement state) => state.GetProperty("textViewType").GetString();
+
+    [Fact]
+    public async Task SetListDocument_BuildsListWithoutCrashing()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal("Disc", FirstListMarkerStyle(state));
+        Assert.Equal(2, FirstListItemCount(state));
+        Assert.Contains("one", Text(state));
+        Assert.Contains("two", Text(state));
+    }
+
+    [Theory]
+    [InlineData("richtextbox.probe.toggle-bullets-selection-command")]
+    [InlineData("richtextbox.probe.toggle-numbering-selection-command")]
+    public async Task ToggleListCommand_OnPlainParagraphs_FailsPredictablyUnderUno(string action)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _app.InvokeAsync(action));
+
+        // List.Apply (TextRangeEditLists.ConvertParagraphsToListItems, used to create a NEW
+        // list from plain paragraphs) is explicitly gated under HAS_UNO with a documented
+        // NotSupportedException — this is a known scope boundary, not a crash to fix here.
+        Assert.Contains("NotSupportedException", ex.Message);
+    }
 
     [Fact]
     public async Task State_ReturnsRichTextBoxSnapshot()
@@ -160,6 +197,35 @@ public sealed class RichTextBoxIntegrationTests
         await _app.InvokeAsync("richtextbox.probe.create-plain", "old text");
 
         var state = await _app.InvokeAsync("richtextbox.probe.replace-selection-text-input-event", "new");
+        var raw = state.ToString();
+        var text = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("new", text);
+        Assert.DoesNotContain("old text", text);
+    }
+
+    [Fact]
+    public async Task CharacterReceived_MutatesDocumentThroughRealUnoInputPath()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.character-received", "abc");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("abc", Text(state));
+    }
+
+    [Fact]
+    public async Task CharacterReceived_ReplacesSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "old text");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 0, 8);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.character-received", "new");
         var raw = state.ToString();
         var text = Text(state);
 

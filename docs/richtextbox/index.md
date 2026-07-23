@@ -199,3 +199,5 @@ Each session is tracked as a separate file:
 | 33 | [session33.md](session33.md) | Paragraph-Merge Crash Found and Fixed (Backspace/Delete at Paragraph Boundary) |
 | 34 | [session34.md](session34.md) | Clipboard/Serialization Format Coverage (M4) |
 | 35 | [session35.md](session35.md) | Root-Caused Logical Tree Parent Gap; Removed Both Editing Fast Paths |
+| 36 | [session36.md](session36.md) | Real Character-Received Input Path Coverage |
+| 37 | [session37.md](session37.md) | List/ListItem Construction Crash Found and Fixed; List Command Scope Documented |

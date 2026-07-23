@@ -193,6 +193,13 @@ public sealed partial class MainPage : Page
         var selectionEndRunOffset = firstRun is null || selection is null
             ? (int?)null
             : firstRun.ContentStart.GetOffsetToPosition(selection.End);
+        var firstBlockType = document?.Blocks.FirstBlock?.GetType().Name;
+        var firstList = document?.Blocks.FirstBlock as System.Windows.Documents.List;
+        var firstListMarkerStyle = firstList?.MarkerStyle.ToString();
+        var firstListItemCount = firstList?.ListItems.Count;
+        var firstListItemText = firstList?.ListItems.FirstListItem?.Blocks.FirstBlock is WpfParagraph listItemParagraph
+            ? new WpfTextRange(listItemParagraph.ContentStart, listItemParagraph.ContentEnd).Text
+            : null;
         var firstParagraphTextAlignment = firstParagraph?.TextAlignment.ToString();
         var firstParagraphLineHeight = firstParagraph?.LineHeight.ToString();
         var firstParagraphLineStackingStrategy = firstParagraph?.LineStackingStrategy.ToString();
@@ -245,7 +252,7 @@ public sealed partial class MainPage : Page
         var firstRunHasUnderline = firstRun is not null
             && HasUnderline(firstRun.GetValue(WpfInline.TextDecorationsProperty));
 
-        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
     }
 
     static object? GetInternalProperty(object instance, string name)
@@ -309,6 +316,22 @@ public sealed partial class MainPage : Page
             System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
             ?? throw new InvalidOperationException($"TextEditorParagraphs.{methodName} not found.");
         method.Invoke(null, args);
+    }
+
+    static void InvokeTextEditorListsOnListCommand(WpfRichTextBox box, System.Windows.Input.RoutedUICommand command)
+    {
+        var listsType = typeof(WpfRichTextBox).Assembly.GetType("System.Windows.Documents.TextEditorLists")
+            ?? throw new InvalidOperationException("TextEditorLists type not found.");
+        var method = listsType.GetMethod(
+            "OnListCommand",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("TextEditorLists.OnListCommand not found.");
+        var args = new WpfExecutedRoutedEventArgs(command, null)
+        {
+            Source = box,
+            OriginalSource = box,
+        };
+        method.Invoke(null, [box, args]);
     }
 
     static void InvokeRichTextBoxOnKeyDown(
@@ -404,6 +427,76 @@ public sealed partial class MainPage : Page
 
     [DevFlowAction("richtextbox.probe.state", Description = "RichTextBox state snapshot as JSON.")]
     public static string ProbeState() => RunOnUi(Snapshot);
+
+    [DevFlowAction("richtextbox.probe.set-list-document", Description = "Create a RichTextBox with a FlowDocument containing a two-item List built directly (bypassing List.Apply).")]
+    public static string ProbeSetListDocument(string firstItemText, string secondItemText) => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 240,
+            AcceptsReturn = true,
+            Document = RichTextBoxScenarios.BuildListDocument(firstItemText, secondItemText),
+        };
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.select-second-list-item", Description = "Select a range inside the second ListItem's Run for list command probes.")]
+    public static string ProbeSelectSecondListItem(int start, int length) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.set-list-document first.");
+        if (page._box.Document?.Blocks.FirstBlock is not System.Windows.Documents.List list)
+            throw new InvalidOperationException("Current document's first block is not a List.");
+        if (list.ListItems.Count < 2)
+            throw new InvalidOperationException("List has fewer than 2 items.");
+
+        var secondItem = list.ListItems.FirstListItem!.NextListItem!;
+        if (secondItem.Blocks.FirstBlock is not WpfParagraph paragraph || paragraph.Inlines.FirstInline is not WpfRun run)
+            throw new InvalidOperationException("Second ListItem does not contain a plain Run.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        var rangeStart = run.ContentStart.GetPositionAtOffset(start) ?? run.ContentStart;
+        var rangeEnd = length == 0 ? rangeStart : (run.ContentStart.GetPositionAtOffset(start + length) ?? run.ContentEnd);
+        page._box.Selection.Select(rangeStart, rangeEnd);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.character-received", Description = "Invoke RichTextBox.OnCharacterReceived with a real Uno CharacterReceivedRoutedEventArgs for the current RichTextBox.")]
+    public static string ProbeCharacterReceived(string text) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        var ctor = typeof(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs).GetConstructor(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(char), typeof(global::Windows.UI.Core.CorePhysicalKeyStatus)],
+            modifiers: null)
+            ?? throw new InvalidOperationException("CharacterReceivedRoutedEventArgs constructor not found.");
+        var method = typeof(WpfRichTextBox).GetMethod(
+            "OnCharacterReceived",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs)],
+            modifiers: null)
+            ?? throw new InvalidOperationException("RichTextBox.OnCharacterReceived not found.");
+
+        foreach (var c in text)
+        {
+            var args = ctor.Invoke([c, default(global::Windows.UI.Core.CorePhysicalKeyStatus)]);
+            method.Invoke(page._box, [args]);
+        }
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 
     [DevFlowAction("richtextbox.probe.create-plain", Description = "Create a RichTextBox and append plain text.")]
     public static string ProbeCreatePlain(string text) => RunOnUi(page =>
@@ -926,6 +1019,58 @@ public sealed partial class MainPage : Page
     [DevFlowAction("richtextbox.probe.align-justify-selection-command", Description = "Select all text and invoke TextEditorParagraphs' AlignJustify command handler for the current RichTextBox.")]
     public static string ProbeAlignJustifySelectionCommand() =>
         ProbeAlignSelectionCommand("OnAlignJustify", WpfDocumentEditingCommands.AlignJustify);
+
+    [DevFlowAction("richtextbox.probe.toggle-bullets-selection-command", Description = "Select all text and invoke TextEditorLists' ToggleBullets command handler for the current RichTextBox.")]
+    public static string ProbeToggleBulletsSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleBullets);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.toggle-numbering-selection-command", Description = "Select all text and invoke TextEditorLists' ToggleNumbering command handler for the current RichTextBox.")]
+    public static string ProbeToggleNumberingSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleNumbering);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.increase-indentation-selection-command", Description = "Select all text and invoke TextEditorLists' IncreaseIndentation command handler for the current RichTextBox.")]
+    public static string ProbeIncreaseIndentationSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.IncreaseIndentation);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.decrease-indentation-selection-command", Description = "Select all text and invoke TextEditorLists' DecreaseIndentation command handler for the current RichTextBox.")]
+    public static string ProbeDecreaseIndentationSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.DecreaseIndentation);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 
     [DevFlowAction("richtextbox.probe.apply-single-space-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplySingleSpace command handler for the current RichTextBox.")]
     public static string ProbeApplySingleSpaceSelectionCommand() =>

@@ -25,7 +25,13 @@ public partial class TextElementCollection<TextElementType> : INotifyCollectionC
     {
         if (item is Run run)
         {
-            if (!string.IsNullOrEmpty(new TextRange(run.ContentStart, run.ContentEnd).Text))
+            // "Already hydrated?" must not go through TextRange's plain-text getter: that
+            // walks the full document plain-text serializer (list marker computation
+            // included), which null-derefs on ListItem.SiblingListItems when this Run's
+            // enclosing ListItem hasn't been added to a List yet — a normal, transient
+            // state while building a ListItem via its constructor. A raw symbol-count
+            // check has nothing to do with list/marker formatting and is always safe.
+            if (run.ContentStart.GetOffsetToPosition(run.ContentEnd) > 0)
                 return;
 
             string text = run.GetValue(Run.TextProperty) as string ?? string.Empty;

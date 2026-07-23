@@ -25,4 +25,20 @@ public static class RichTextBoxScenarios
         document.Blocks.Add(new Paragraph(new Run(text)));
         return document;
     }
+
+    // Builds the List/ListItem tree directly via constructors, bypassing List.Apply
+    // (TextRangeEditLists.ConvertParagraphsToListItems), which throws NotSupportedException
+    // under HAS_UNO. This lets tests exercise indent/outdent and marker-removal on an
+    // already-existing list without needing new-list creation to be implemented.
+    public static FlowDocument BuildListDocument(params string[] itemTexts)
+    {
+        var document = new FlowDocument();
+        var list = new List();
+        foreach (var text in itemTexts)
+        {
+            list.ListItems.Add(new ListItem(new Paragraph(new Run(text))));
+        }
+        document.Blocks.Add(list);
+        return document;
+    }
 }
