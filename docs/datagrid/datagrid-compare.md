@@ -1,13 +1,13 @@
 # DataGrid comparison: WCT v7 / WinUI.TableView / CommunityToolkit DataTable / this project's WPF-ported DataGrid
 
-Four independent DataGrid-family implementations exist in the Uno/WinUI ecosystem.
+Four independent DataGrid-family implementations exist in the [Uno Platform](https://github.com/unoplatform/uno)/ [WinUI](https://github.com/microsoft/microsoft-ui-xaml) ecosystem.
 This document compares all four: **WindowsCommunityToolkit v7's** `DataGrid`
 (`Microsoft.Toolkit.Uwp.UI.Controls.DataGrid`, removed from the toolkit in v8),
 **WinUI.TableView** (`WinUI.TableView.TableView`, a `ListView`-based grid from
 the community), **CommunityToolkit DataTable** (`CommunityToolkit.WinUI.Controls.
 DataTable`, a lightweight Panel-based column-alignment helper from
 CommunityToolkit Labs-Windows), and **this repository's** `DataGrid`
-(`System.Windows.Controls.DataGrid`, a real WPF source port running on Uno/WinUI
+(`System.Windows.Controls.DataGrid`, a real WPF source port running on Uno Platform/WinUI
 via the shim types in this library).
 
 They are **not variants of the same code** — they solve "give me a grid on UWP/WinUI"
@@ -67,7 +67,7 @@ how collections are viewed) is a shimmed approximation that mirrors WPF's model
 behaviorally rather than reusing its source code.
 
 **However**, the shim layer is not invisible. Several areas deviate from real WPF
-because the underlying platform (WinUI/Uno) differs from WPF's:
+because the underlying platform (WinUI/Uno Platform) differs from WPF's:
 - **UI Automation** — completely stubbed (the single largest gap; see below).
 - **Style/theme system** — WPF's `System.Windows.Style` is shimmed over WinUI's
   `Microsoft.UI.Xaml.Style`, which has different precedence, lookup, and trigger rules.
@@ -210,7 +210,7 @@ tried linking WCT v7's `DataGridAutomationPeer.cs` straight into this project's
 be adapted cheaply. It cannot — the build produced 60+ compile errors, none fixable
 by adding `using` aliases:
 - WCT targets `Windows.UI.Xaml.Automation.*` (old UWP namespace); this project
-  only has `Microsoft.UI.Xaml.*` (WinUI3/Uno) — none of `IGridProvider`,
+  only has `Microsoft.UI.Xaml.*` (WinUI3/Uno Platform) — none of `IGridProvider`,
   `IScrollProvider`, `ISelectionProvider`, `ITableProvider`, `AutomationPeer`,
   `AutomationControlType`, `PatternInterface`, `ScrollAmount`,
   `IRawElementProviderSimple`, etc. exist in this build.
