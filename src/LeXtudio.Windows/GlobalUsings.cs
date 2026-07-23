@@ -132,4 +132,6 @@ global using CoreTextTextRequest                   = LeXtudio.UI.Text.Core.CoreT
 global using CoreTextCompositionStartedEventArgs    = LeXtudio.UI.Text.Core.CoreTextCompositionStartedEventArgs;
 global using CoreTextCompositionCompletedEventArgs  = LeXtudio.UI.Text.Core.CoreTextCompositionCompletedEventArgs;
 global using CoreTextCommandReceivedEventArgs       = LeXtudio.UI.Text.Core.CoreTextCommandReceivedEventArgs;
+global using CoreTextRect                            = LeXtudio.UI.Text.Core.CoreTextRect;
+global using CoreTextLayoutBounds                    = LeXtudio.UI.Text.Core.CoreTextLayoutBounds;
 #endif
