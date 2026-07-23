@@ -124,7 +124,11 @@ public partial class RichTextBox
             var start = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition);
             var end = GetPositionAtPlainTextOffset(document, e.Range.EndCaretPosition);
             var range = new System.Windows.Documents.TextRange(start, end);
+#if WINDOWS_APP_SDK
+            range.Text = e.Text;
+#else
             range.Text = e.NewText;
+#endif
 
             var newCaret = range.End;
             if (te.Selection is { } selection)
@@ -133,7 +137,11 @@ public partial class RichTextBox
                 UpdateCaretFromSelection();
             }
 
+#if WINDOWS_APP_SDK
+            Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.Text}'");
+#else
             Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.NewText}'");
+#endif
         }
         catch (Exception ex)
         {
@@ -148,8 +156,14 @@ public partial class RichTextBox
         if (te?.Selection is not { } selection || document is null)
             return;
 
+#if WINDOWS_APP_SDK
+        var selStart = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
+        var selEnd = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End);
+        e.Request.Selection = new CoreTextRange { StartCaretPosition = selStart, EndCaretPosition = selEnd };
+#else
         e.Request.Start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
         e.Request.Length = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End) - e.Request.Start;
+#endif
     }
 
     private void OnImeSelectionUpdating(CoreTextEditContext sender, CoreTextSelectionUpdatingEventArgs e)
@@ -161,8 +175,13 @@ public partial class RichTextBox
 
         try
         {
+#if WINDOWS_APP_SDK
+            var start = GetPositionAtPlainTextOffset(document, e.Selection.StartCaretPosition);
+            var end = GetPositionAtPlainTextOffset(document, e.Selection.EndCaretPosition);
+#else
             var start = GetPositionAtPlainTextOffset(document, e.NewStart);
             var end = GetPositionAtPlainTextOffset(document, e.NewStart + e.NewLength);
+#endif
             selection.Select(start, end);
             UpdateCaretFromSelection();
         }
