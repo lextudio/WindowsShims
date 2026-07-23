@@ -273,7 +273,7 @@ public partial class RichTextBox
         {
             bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
             bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
-            if (_imeContext.ProcessKeyEvent((int)e.Key, shift, ctrl))
+            if (ProcessImeKeyEvent(_imeContext, (int)e.Key, shift, ctrl))
             {
                 e.Handled = true;
                 Log($"KeyDown: {e.Key} consumed by IME");

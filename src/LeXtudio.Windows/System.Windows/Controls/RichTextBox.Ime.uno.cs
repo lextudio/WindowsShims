@@ -1,12 +1,13 @@
 #if HAS_UNO
 using System.Reflection;
-using LeXtudio.UI.Text.Core;
+using Microsoft.UI.Xaml;
 
 namespace System.Windows.Controls;
 
-// Bridges RichTextBox to real OS-level IME composition via LeXtudio.UI.Text.Core's
-// CoreTextEditContext (macOS/Linux-IBus/Win32 native adapters, no dependency on WPF's
-// unimplemented TSF/TextServices/ImmComposition family — see docs/RICHTEXTBOX-PORT-CATALOG.md).
+// Bridges RichTextBox to real OS-level IME composition via CoreTextEditContext.
+// On Uno/Skia desktop: uses LeXtudio.UI.Text.Core cross-platform IME bridge.
+// On WinUI/Windows App SDK: uses Windows.UI.Text.Core (native WinRT API).
+// See docs/RICHTEXTBOX-PORT-CATALOG.md for design.
 // The document itself stays the single source of truth: TextRequested/SelectionRequested
 // read from TextEditor.Selection/Document, TextUpdating/SelectionUpdating write back into
 // them via TextPointer character offsets, exactly like the rest of RichTextBox.uno.cs.
@@ -24,6 +25,7 @@ public partial class RichTextBox
 
         try
         {
+            var window = global::Microsoft.UI.Xaml.Window.Current;
             _imeContext = CoreTextServicesManager.GetForCurrentView().CreateEditContext();
             _imeContext.TextRequested += OnImeTextRequested;
             _imeContext.TextUpdating += OnImeTextUpdating;
@@ -32,18 +34,12 @@ public partial class RichTextBox
             _imeContext.LayoutRequested += OnImeLayoutRequested;
             _imeContext.CompositionStarted += (_, _) => _imeComposing = true;
             _imeContext.CompositionCompleted += (_, _) => _imeComposing = false;
+#if !WINDOWS_APP_SDK
             _imeContext.CommandReceived += OnImeCommandReceived;
+#endif
 
-            var (windowHandle, displayHandle) = ResolveNativeWindowHandles();
-            if (windowHandle != 0)
-            {
-                bool attached = _imeContext.AttachToWindowHandle(windowHandle, displayHandle);
-                Log($"Ime: AttachToWindowHandle(0x{windowHandle:X}) -> {attached}");
-            }
-            else
-            {
-                Log("Ime: no native window handle available, IME composition will not activate");
-            }
+            bool attached = AttachImeToWindow(_imeContext, window);
+            Log($"Ime: ensure -> attached={attached}");
         }
         catch (Exception ex)
         {
@@ -51,59 +47,38 @@ public partial class RichTextBox
         }
     }
 
-    private (nint windowHandle, nint displayHandle) ResolveNativeWindowHandles()
+    private void NotifyImeOfCaretAndSelection()
     {
+        if (_imeContext is null)
+            return;
+
         try
         {
-            var window = global::Microsoft.UI.Xaml.Window.Current;
+            var te = TextEditor;
+            var document = Document;
+            if (te?.Selection is not { } selection || document is null)
+                return;
 
-            var windowHelperType = Type.GetType("Uno.UI.Xaml.WindowHelper, Uno.UI");
-            var getNativeWindow = windowHelperType?.GetMethod("GetNativeWindow", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            object? nativeWindow = window is not null
-                ? getNativeWindow?.Invoke(null, [window])
-                : null;
+            var start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
+            var end = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End);
+            _imeContext.NotifySelectionChanged(new CoreTextRange { StartCaretPosition = start, EndCaretPosition = end });
 
-            if (nativeWindow is null)
-                return (0, 0);
-
-            nint handle = 0;
-            foreach (var name in new[] { "Hwnd", "HWnd", "Handle", "WindowHandle", "NativeHandle", "Pointer", "hwnd", "_hwnd" })
-            {
-                var prop = nativeWindow.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                var value = prop?.GetValue(nativeWindow);
-                handle = value switch
-                {
-                    nint n => n,
-                    long l => (nint)l,
-                    int i => (nint)i,
-                    _ => 0,
-                };
-                if (handle != 0)
-                    break;
-            }
-
-            return (handle, 0);
+            var rect = selection.MovingPosition.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+            NotifyImeCaretRect(_imeContext, new Rect(rect.X, rect.Y, rect.Width, rect.Height));
+            _imeContext.NotifyLayoutChanged();
         }
         catch (Exception ex)
         {
-            Log($"Ime: ResolveNativeWindowHandles THREW {ex.GetType().Name}: {ex.Message}");
-            return (0, 0);
+            Log($"Ime: NotifyImeOfCaretAndSelection THREW {ex.GetType().Name}: {ex.Message}");
         }
     }
 
-    // IME composition offsets are indices into the plain-text string TextRequested hands
-    // back (paragraph breaks as "\n", list markers inserted, etc. — see
-    // TextRangeBase.PlainConvertParagraphEnd/PlainConvertListItemStart), not raw
-    // TextContainer symbol offsets. Rather than hand-walking that same
-    // ElementStart/ElementEnd/Text switch a second time (error-prone — see session 43's
-    // single-paragraph off-by-N bugs), reuse the already-correct forward mapping
-    // (symbol offset -> plain text, via the linked TextRange.Text getter) and invert it:
-    // plain-text length as a function of symbol offset is monotonically non-decreasing,
-    // so the offset producing a given plain-text length can be found by binary search.
-    private static int GetPlainTextOffset(System.Windows.Documents.FlowDocument document, System.Windows.Documents.TextPointer position) =>
+    // ── Plain-text offset helpers (shared with DragDrop) ─────────────────────
+
+    internal static int GetPlainTextOffset(System.Windows.Documents.FlowDocument document, System.Windows.Documents.TextPointer position) =>
         new System.Windows.Documents.TextRange(document.ContentStart, position).Text?.Length ?? 0;
 
-    private static System.Windows.Documents.TextPointer GetPositionAtPlainTextOffset(System.Windows.Documents.FlowDocument document, int targetOffset)
+    internal static System.Windows.Documents.TextPointer GetPositionAtPlainTextOffset(System.Windows.Documents.FlowDocument document, int targetOffset)
     {
         if (targetOffset <= 0)
             return document.ContentStart;
@@ -113,7 +88,6 @@ public partial class RichTextBox
         if (GetPlainTextOffset(document, document.ContentEnd) <= targetOffset)
             return document.ContentEnd;
 
-        // Smallest symbol offset `s` such that the plain text up to `s` has length >= targetOffset.
         while (lo < hi)
         {
             int mid = lo + (hi - lo) / 2;
@@ -127,7 +101,9 @@ public partial class RichTextBox
         return document.ContentStart.GetPositionAtOffset(lo) ?? document.ContentStart;
     }
 
-    private void OnImeTextRequested(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextTextRequestedEventArgs e)
+    // ── CoreText event handlers ─────────────────────────────────────────────
+
+    private void OnImeTextRequested(CoreTextEditContext sender, CoreTextTextRequestedEventArgs e)
     {
         var document = Document;
         if (document is null)
@@ -136,7 +112,7 @@ public partial class RichTextBox
         e.Request.Text = new System.Windows.Documents.TextRange(document.ContentStart, document.ContentEnd).Text ?? string.Empty;
     }
 
-    private void OnImeTextUpdating(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextTextUpdatingEventArgs e)
+    private void OnImeTextUpdating(CoreTextEditContext sender, CoreTextTextUpdatingEventArgs e)
     {
         var te = TextEditor;
         var document = Document;
@@ -150,11 +126,6 @@ public partial class RichTextBox
             var range = new System.Windows.Documents.TextRange(start, end);
             range.Text = e.NewText;
 
-            // Use the just-mutated range's own End position instead of recomputing an offset
-            // from basePointer: for a document that had no Run yet (e.g. freshly empty),
-            // basePointer was a pre-insertion fallback position, so a second offset-based
-            // lookup here would land on stale/misaligned geometry. range.End reflects exactly
-            // where the TextRange.Text setter left the content, with no such staleness.
             var newCaret = range.End;
             if (te.Selection is { } selection)
             {
@@ -170,7 +141,7 @@ public partial class RichTextBox
         }
     }
 
-    private void OnImeSelectionRequested(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextSelectionRequestedEventArgs e)
+    private void OnImeSelectionRequested(CoreTextEditContext sender, CoreTextSelectionRequestedEventArgs e)
     {
         var te = TextEditor;
         var document = Document;
@@ -181,7 +152,7 @@ public partial class RichTextBox
         e.Request.Length = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End) - e.Request.Start;
     }
 
-    private void OnImeSelectionUpdating(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextSelectionUpdatingEventArgs e)
+    private void OnImeSelectionUpdating(CoreTextEditContext sender, CoreTextSelectionUpdatingEventArgs e)
     {
         var te = TextEditor;
         var document = Document;
@@ -201,7 +172,7 @@ public partial class RichTextBox
         }
     }
 
-    private void OnImeLayoutRequested(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextLayoutRequestedEventArgs e)
+    private void OnImeLayoutRequested(CoreTextEditContext sender, CoreTextLayoutRequestedEventArgs e)
     {
         try
         {
@@ -211,8 +182,13 @@ public partial class RichTextBox
                 return;
 
             var rect = position.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+#if WINDOWS_APP_SDK
+            e.Request.LayoutBounds.TextBounds = new Rect(rect.X, rect.Y, rect.Width, rect.Height);
+            e.Request.LayoutBounds.ControlBounds = new Rect(0, 0, ActualWidth, ActualHeight);
+#else
             e.Request.LayoutBounds.TextBounds = new CoreTextRect { X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height };
             e.Request.LayoutBounds.ControlBounds = new CoreTextRect { X = 0, Y = 0, Width = ActualWidth, Height = ActualHeight };
+#endif
         }
         catch (Exception ex)
         {
@@ -220,6 +196,7 @@ public partial class RichTextBox
         }
     }
 
+#if !WINDOWS_APP_SDK
     private void OnImeCommandReceived(object? sender, CoreTextCommandReceivedEventArgs e)
     {
         var command = e.Command switch
@@ -251,31 +228,6 @@ public partial class RichTextBox
         e.Handled = true;
         Log($"Ime: CommandReceived '{e.Command}' -> executed {command.Name}");
     }
-
-    private void NotifyImeOfCaretAndSelection()
-    {
-        if (_imeContext is null)
-            return;
-
-        try
-        {
-            var te = TextEditor;
-            var document = Document;
-            if (te?.Selection is not { } selection || document is null)
-                return;
-
-            var start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
-            var end = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End);
-            _imeContext.NotifySelectionChanged(new CoreTextRange { StartCaretPosition = start, EndCaretPosition = end });
-
-            var rect = selection.MovingPosition.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
-            _imeContext.NotifyCaretRectChanged(rect.X, rect.Y, rect.Width, rect.Height);
-            _imeContext.NotifyLayoutChanged();
-        }
-        catch (Exception ex)
-        {
-            Log($"Ime: NotifyImeOfCaretAndSelection THREW {ex.GetType().Name}: {ex.Message}");
-        }
-    }
+#endif
 }
 #endif

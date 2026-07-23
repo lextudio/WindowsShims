@@ -1,4 +1,4 @@
-#if !WINDOWS_APP_SDK
+#if HAS_UNO
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using UnoUIElement = Microsoft.UI.Xaml.UIElement;
