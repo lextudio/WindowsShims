@@ -362,6 +362,33 @@ public partial class RichTextBox
         }
     }
 
+    protected override void OnKeyUp(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        base.OnKeyUp(e);
+
+        var te = TextEditor;
+        if (te == null) return;
+
+        var wpfKey = MapVirtualKey(e.Key);
+        if (wpfKey == Key.None) return;
+
+        Log($"KeyUp: {e.Key} → {wpfKey}");
+
+        var args = new KeyEventArgs
+        {
+            Key = wpfKey,
+            OriginalSource = this,
+            IsRepeat = e.KeyStatus.RepeatCount > 1,
+        };
+        TextEditorTyping.OnKeyUp(this, args);
+
+        if (args.Handled)
+        {
+            e.Handled = true;
+            UpdateCaretFromSelection();
+        }
+    }
+
     private static System.Windows.Documents.Block? FindEditingBlock(
         FlowDocument document,
         System.Windows.Documents.TextPointer caret,
@@ -483,6 +510,12 @@ public partial class RichTextBox
         global::Windows.System.VirtualKey.Enter     => Key.Return,
         global::Windows.System.VirtualKey.Tab       => Key.Tab,
         global::Windows.System.VirtualKey.Escape    => Key.Escape,
+        global::Windows.System.VirtualKey.Shift     => Key.LeftShift,
+        global::Windows.System.VirtualKey.LeftShift => Key.LeftShift,
+        global::Windows.System.VirtualKey.RightShift => Key.RightShift,
+        global::Windows.System.VirtualKey.Control   => Key.LeftCtrl,
+        global::Windows.System.VirtualKey.LeftControl => Key.LeftCtrl,
+        global::Windows.System.VirtualKey.RightControl => Key.RightCtrl,
         // Letter keys — needed so Ctrl+A/C/V/X/Z/Y/B/I/U reach TextEditorTyping
         global::Windows.System.VirtualKey.A         => Key.A,
         global::Windows.System.VirtualKey.B         => Key.B,

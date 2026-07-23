@@ -12,7 +12,11 @@ internal sealed class DeferredRunTextReference
 
     internal DeferredRunTextReference(Run run) => _run = run;
 
-    // The value Run.Text should expose: the run's current content text. Reads the backing store
-    // directly (via TextRange), never Run.Text, so it cannot re-enter OnTextUpdated.
-    internal string Resolve() => new TextRange(_run.ContentStart, _run.ContentEnd).Text ?? string.Empty;
+    // The value Run.Text should expose: the run's current content text. Matches upstream WPF's
+    // DeferredRunTextReference.GetValue, which reads via TextRangeBase.GetTextInternal instead of
+    // constructing a TextRange. GetTextInternal walks TextPointers directly and never calls
+    // TextRangeBase.Select/TextRangeEditTables.BuildTableRange, so it stays safe to call from
+    // inside a reposition (e.g. TextRangeEditLists.MergeParagraphs) where a Run's TextElement.Parent
+    // chain is transiently inconsistent under this Uno shim.
+    internal string Resolve() => TextRangeBase.GetTextInternal(_run.ContentStart, _run.ContentEnd) ?? string.Empty;
 }

@@ -121,14 +121,16 @@ public sealed partial class MainPage : Page
                 var style = run.GetValue(WpfTextElement.FontStyleProperty)?.ToString();
                 var size = run.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
                 var underline = HasUnderline(run.GetValue(WpfInline.TextDecorationsProperty)) ? "U" : "-";
-                parts.Add($"Run:{InlineText(run.Text)}:w={FormatFontWeight(run.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}");
+                var flowDirection = run.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
+                parts.Add($"Run:{InlineText(run.Text)}:w={FormatFontWeight(run.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:fd={flowDirection}");
             }
             else if (inline is WpfSpan span)
             {
                 var style = span.GetValue(WpfTextElement.FontStyleProperty)?.ToString();
                 var size = span.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
                 var underline = HasUnderline(span.GetValue(WpfInline.TextDecorationsProperty)) ? "U" : "-";
-                parts.Add($"{span.GetType().Name}:w={FormatFontWeight(span.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}");
+                var flowDirection = span.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
+                parts.Add($"{span.GetType().Name}:w={FormatFontWeight(span.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:fd={flowDirection}");
                 AppendInlineTree(parts, span.Inlines.FirstInline);
             }
             else
@@ -179,15 +181,22 @@ public sealed partial class MainPage : Page
         var selectionFontWeight = selection is null
             ? null
             : FormatFontWeight(selection.GetPropertyValue(WpfTextElement.FontWeightProperty));
+        var clipboardText = System.Windows.Clipboard.GetText();
         var firstParagraph = document?.Blocks.FirstBlock as WpfParagraph;
-        var firstParagraphTextAlignment = firstParagraph?.TextAlignment.ToString();
-        var firstParagraphLineHeight = firstParagraph?.LineHeight.ToString();
-        var firstParagraphLineStackingStrategy = firstParagraph?.LineStackingStrategy.ToString();
-        var firstParagraphFlowDirection = firstParagraph?.FlowDirection.ToString();
         var firstInline = firstParagraph is not null
             ? firstParagraph.Inlines.FirstInline
             : null;
         var firstRun = FirstRun(firstInline);
+        var selectionStartRunOffset = firstRun is null || selection is null
+            ? (int?)null
+            : firstRun.ContentStart.GetOffsetToPosition(selection.Start);
+        var selectionEndRunOffset = firstRun is null || selection is null
+            ? (int?)null
+            : firstRun.ContentStart.GetOffsetToPosition(selection.End);
+        var firstParagraphTextAlignment = firstParagraph?.TextAlignment.ToString();
+        var firstParagraphLineHeight = firstParagraph?.LineHeight.ToString();
+        var firstParagraphLineStackingStrategy = firstParagraph?.LineStackingStrategy.ToString();
+        var firstParagraphFlowDirection = firstParagraph?.FlowDirection.ToString();
         var inlineTree = FormatInlineTree(firstInline);
         var firstInlineFontWeight = firstInline is null
             ? null
@@ -207,6 +216,9 @@ public sealed partial class MainPage : Page
         var firstInlineBackground = firstInline is null
             ? null
             : FormatBrush(firstInline.GetValue(WpfTextElement.BackgroundProperty));
+        var firstInlineFlowDirection = firstInline is null
+            ? null
+            : firstInline.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
         var firstInlineHasUnderline = firstInline is not null
             && HasUnderline(firstInline.GetValue(WpfInline.TextDecorationsProperty));
         var firstRunFontWeight = firstRun is null
@@ -227,10 +239,13 @@ public sealed partial class MainPage : Page
         var firstRunBackground = firstRun is null
             ? null
             : FormatBrush(firstRun.GetValue(WpfTextElement.BackgroundProperty));
+        var firstRunFlowDirection = firstRun is null
+            ? null
+            : firstRun.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
         var firstRunHasUnderline = firstRun is not null
             && HasUnderline(firstRun.GetValue(WpfInline.TextDecorationsProperty));
 
-        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
     }
 
     static object? GetInternalProperty(object instance, string name)
@@ -300,6 +315,19 @@ public sealed partial class MainPage : Page
         WpfRichTextBox box,
         global::Windows.System.VirtualKey key,
         global::Windows.System.VirtualKeyModifiers modifiers = global::Windows.System.VirtualKeyModifiers.None)
+        => InvokeRichTextBoxKeyMethod(box, "OnKeyDown", key, modifiers);
+
+    static void InvokeRichTextBoxOnKeyUp(
+        WpfRichTextBox box,
+        global::Windows.System.VirtualKey key,
+        global::Windows.System.VirtualKeyModifiers modifiers = global::Windows.System.VirtualKeyModifiers.None)
+        => InvokeRichTextBoxKeyMethod(box, "OnKeyUp", key, modifiers);
+
+    static void InvokeRichTextBoxKeyMethod(
+        WpfRichTextBox box,
+        string methodName,
+        global::Windows.System.VirtualKey key,
+        global::Windows.System.VirtualKeyModifiers modifiers)
     {
         var ctor = typeof(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs).GetConstructor(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
@@ -323,12 +351,12 @@ public sealed partial class MainPage : Page
             null,
         ]);
         var method = typeof(WpfRichTextBox).GetMethod(
-            "OnKeyDown",
+            methodName,
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
             binder: null,
             types: [typeof(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs)],
             modifiers: null)
-            ?? throw new InvalidOperationException("RichTextBox.OnKeyDown not found.");
+            ?? throw new InvalidOperationException($"RichTextBox.{methodName} not found.");
         var modifiersProperty = typeof(System.Windows.Input.Keyboard).GetProperty(
             "ModifiersOverride",
             System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
@@ -513,6 +541,83 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.copy-run-range", Description = "Select a range inside the first Run and invoke RichTextBox.Copy.")]
+    public static string ProbeCopyRunRange(int start, int length) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SelectFirstRunTextRange(page._box, start, length);
+        page._box.Copy();
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.cut-run-range", Description = "Select a range inside the first Run and invoke RichTextBox.Cut.")]
+    public static string ProbeCutRunRange(int start, int length) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SelectFirstRunTextRange(page._box, start, length);
+        page._box.Cut();
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.paste-text", Description = "Set shim clipboard text and invoke RichTextBox.Paste at the current selection.")]
+    public static string ProbePasteText(string text) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        System.Windows.Clipboard.SetText(text);
+        page._box.Paste();
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.paste-text-at-run-offset", Description = "Place the caret inside the first Run, set shim clipboard text, and invoke RichTextBox.Paste.")]
+    public static string ProbePasteTextAtRunOffset(string text, int offset) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SelectFirstRunTextRange(page._box, offset, 0);
+        System.Windows.Clipboard.SetText(text);
+        page._box.Paste();
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.set-caret-run-offset", Description = "Place the caret at an offset inside the first Run.")]
+    public static string ProbeSetCaretRunOffset(int offset) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SelectFirstRunTextRange(page._box, offset, 0);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.select-run-range", Description = "Select a non-empty range inside the first Run.")]
+    public static string ProbeSelectRunRange(int start, int length) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        SelectFirstRunTextRange(page._box, start, length);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.undo", Description = "Invoke RichTextBox.Undo and read back document text and undo state.")]
     public static string ProbeUndo() => RunOnUi(page =>
     {
@@ -616,6 +721,31 @@ public sealed partial class MainPage : Page
             OriginalSource = page._box,
         };
         InvokeTextEditorCharacters("OnToggleUnderline", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-ltr-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyInlineFlowDirectionLTR command handler for the current RichTextBox.")]
+    public static string ProbeApplyInlineFlowDirectionLtrSelectionCommand() =>
+        ProbeApplyInlineFlowDirectionSelectionCommand("OnApplyInlineFlowDirectionLTR");
+
+    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-rtl-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyInlineFlowDirectionRTL command handler for the current RichTextBox.")]
+    public static string ProbeApplyInlineFlowDirectionRtlSelectionCommand() =>
+        ProbeApplyInlineFlowDirectionSelectionCommand("OnApplyInlineFlowDirectionRTL");
+
+    static string ProbeApplyInlineFlowDirectionSelectionCommand(string methodName) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorCharacters(methodName, page._box, args);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
@@ -793,6 +923,18 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.key-down-modifiers", Description = "Invoke RichTextBox.OnKeyDown with a Uno KeyRoutedEventArgs and modifiers for the current RichTextBox.")]
+    public static string ProbeKeyDownModifiers(string key, string modifiers) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        InvokeRichTextBoxOnKeyDown(page._box, ParseVirtualKey(key), ParseVirtualKeyModifiers(modifiers));
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.key-down-select-all", Description = "Select all text and invoke RichTextBox.OnKeyDown with a Uno KeyRoutedEventArgs for the current RichTextBox.")]
     public static string ProbeKeyDownSelectAll(string key) => RunOnUi(page =>
     {
@@ -815,6 +957,22 @@ public sealed partial class MainPage : Page
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
         InvokeRichTextBoxOnKeyDown(page._box, ParseVirtualKey(key), ParseVirtualKeyModifiers(modifiers));
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.key-down-up-select-all-modifiers", Description = "Select all text and invoke RichTextBox.OnKeyDown followed by OnKeyUp with modifiers.")]
+    public static string ProbeKeyDownUpSelectAllModifiers(string key, string modifiers) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var parsedKey = ParseVirtualKey(key);
+        var parsedModifiers = ParseVirtualKeyModifiers(modifiers);
+        InvokeRichTextBoxOnKeyDown(page._box, parsedKey, parsedModifiers);
+        InvokeRichTextBoxOnKeyUp(page._box, parsedKey, parsedModifiers);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
