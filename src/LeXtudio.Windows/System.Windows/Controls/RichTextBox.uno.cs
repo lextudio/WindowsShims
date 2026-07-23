@@ -11,6 +11,7 @@ public partial class RichTextBox
     private System.Windows.Documents.Hyperlink? _pressedHyperlink;
     private Point _pressedPoint;
     private bool _pointerMovedSincePress;
+    private bool _pressWasInsideSelection;
 
     private static readonly string _logPath =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
@@ -37,6 +38,7 @@ public partial class RichTextBox
             base.OnApplyTemplate();
             Log($"OnApplyTemplate: done, Template={Template}");
             EnsureImeContext();
+            EnsureDragDrop();
         }
         catch (Exception ex)
         {
@@ -64,7 +66,32 @@ public partial class RichTextBox
         Log($"PointerPressed at ({unoPoint.X:F1},{unoPoint.Y:F1})");
         _pressedPoint = new Point(unoPoint.X, unoPoint.Y);
         _pointerMovedSincePress = false;
+        _pressWasInsideSelection = false;
         _pressedHyperlink = (renderScope as MS.Internal.Documents.FlowDocumentView)?.GetHyperlinkAt(unoPoint);
+
+        // A press landing inside the existing (non-empty) selection is a candidate drag-start,
+        // not a new selection gesture — mirrors WPF's _DragDropProcess.SourceOnMouseLeftButtonDown.
+        // Leave the selection and caret untouched so a subsequent pointer move can raise
+        // DragStarting with the original selection intact instead of collapsing it immediately.
+        if (_dragDrop is not null && te.Selection is { IsEmpty: false } selection)
+        {
+            var pressOffset = ((IRichTextDragDropHost)this).HitTest(new Point(unoPoint.X, unoPoint.Y));
+            var (selMin, selMax) = ((IRichTextDragDropHost)this).GetSelectionRange();
+            bool pressInsideSelection = pressOffset >= selMin && pressOffset < selMax;
+            _dragDrop.UpdateCanDrag(pressInsideSelection);
+            if (pressInsideSelection)
+            {
+                // Do not capture the pointer here: WinUI's own drag-gesture recognizer needs
+                // to see the subsequent pointer-move-with-button-down itself to raise
+                // DragStarting; capturing it now would starve that recognizer. If no drag
+                // actually happens, OnPointerReleased collapses the selection to the release
+                // point instead, matching WPF's plain-click-inside-selection behavior.
+                _pressWasInsideSelection = true;
+                Log("PointerPressed: inside existing selection, deferring to drag-start");
+                e.Handled = true;
+                return;
+            }
+        }
 
         try
         {
@@ -109,17 +136,21 @@ public partial class RichTextBox
             fdv.UpdatePointerCursor(point.Position);
         }
 
+        // Track movement past the drag threshold even when a press-inside-selection deferred
+        // to drag-start (which leaves _isPointerSelecting false and the pointer uncaptured) —
+        // OnPointerReleased needs this to distinguish a plain click from a drag attempt.
+        if (point.Properties.IsLeftButtonPressed
+            && !_pointerMovedSincePress
+            && (Math.Abs(point.Position.X - _pressedPoint.X) > 4 || Math.Abs(point.Position.Y - _pressedPoint.Y) > 4))
+        {
+            _pointerMovedSincePress = true;
+        }
+
         if (!_isPointerSelecting)
             return;
 
         if (!point.Properties.IsLeftButtonPressed)
             return;
-
-        if (!_pointerMovedSincePress
-            && (Math.Abs(point.Position.X - _pressedPoint.X) > 4 || Math.Abs(point.Position.Y - _pressedPoint.Y) > 4))
-        {
-            _pointerMovedSincePress = true;
-        }
 
         try
         {
@@ -146,7 +177,40 @@ public partial class RichTextBox
         base.OnPointerReleased(e);
 
         if (!_isPointerSelecting)
+        {
+            // A press that landed inside the existing selection deferred to a possible
+            // drag-start (see OnPointerPressed) instead of starting a normal selection
+            // gesture. If the pointer never moved past the drag threshold, no drag actually
+            // happened — collapse the selection to the release point here, matching WPF's
+            // plain-click-inside-selection behavior (_DragDropProcess never got a DragStarting
+            // to consume the click, so the click behaves like an ordinary caret placement).
+            if (_pressWasInsideSelection && !_pointerMovedSincePress)
+            {
+                var teForClick = TextEditor;
+                if (teForClick?.TextView?.RenderScope is Microsoft.UI.Xaml.UIElement clickRenderScope)
+                {
+                    var clickPoint = e.GetCurrentPoint(clickRenderScope).Position;
+                    try
+                    {
+                        TextEditorMouse.SetCaretPositionOnMouseEvent(
+                            teForClick,
+                            new Point(clickPoint.X, clickPoint.Y),
+                            MouseButton.Left,
+                            1);
+                        if (clickRenderScope is MS.Internal.Documents.FlowDocumentView clickFdv)
+                            clickFdv.SetCaretAt(new Point(clickPoint.X, clickPoint.Y));
+                        Log("PointerReleased: plain click inside selection, collapsed to click point");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"PointerReleased: collapse-on-click THREW {ex.GetType().Name}: {ex.Message}");
+                    }
+                }
+            }
+
+            _pressWasInsideSelection = false;
             return;
+        }
 
         var te = TextEditor;
         if (te?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)

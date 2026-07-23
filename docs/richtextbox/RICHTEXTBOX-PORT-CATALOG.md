@@ -152,13 +152,15 @@ TSF/TextServices/ImmComposition family. See
 `src/LeXtudio.Windows/System.Windows/Controls/RichTextBox.Ime.uno.cs` and
 `docs/richtextbox/session43.md` for the integration shape, the offset-space
 bug found and fixed (IME range offsets are plain-text-string indices, not
-raw `TextContainer` symbol offsets — they must be resolved from the first
-`Run`'s `ContentStart`, not `document.ContentStart`), and the verification
-methodology (`CoreTextEditContext`'s own public `Raise*` methods invoked
-directly in tests, since real OS keystroke-driven composition can't be
-scripted headlessly). Known limitation: the offset mapping is only correct
-for single-paragraph content; multi-paragraph/list/table documents need a
-proper plain-text-offset walk, not yet implemented.
+raw `TextContainer` symbol offsets), and the verification methodology
+(`CoreTextEditContext`'s own public `Raise*` methods invoked directly in
+tests, since real OS keystroke-driven composition can't be scripted
+headlessly). Offset mapping (`GetPlainTextOffset`/`GetPositionAtPlainTextOffset`
+in `RichTextBox.Ime.uno.cs`) works generally for any document structure the
+`.Text` getter already handles correctly (paragraphs, lists, tables) — it
+reuses that getter's forward mapping and inverts it via binary search rather
+than reimplementing WPF's plain-text walk by hand, and is verified for
+multi-paragraph documents.
 
 ## Open threads
 
@@ -180,9 +182,9 @@ proper plain-text-offset walk, not yet implemented.
   don't depend on the `OnNewParent` side effect for the normal construction/
   editing path. Not chased further: no crash found, no rendering to verify
   against, and no current consumer need.
-- IME composition offset mapping only works correctly for single-paragraph
-  content (see "IME integration" above) — extend if a consumer needs
-  multi-paragraph composition.
+- IME composition offset mapping now works generally (see "IME integration"
+  above); `CompositionStarted`/`CompositionCompleted` still have no visual
+  underline/highlight for in-progress composition text (cosmetic).
 - `docs/richtextbox/index.md`'s milestone-driven backlog is largely exhausted
   as of session 42 — next work should be prioritized against actual consumer
   needs rather than continuing to mine the milestone list speculatively.

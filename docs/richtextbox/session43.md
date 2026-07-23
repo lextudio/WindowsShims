@@ -114,13 +114,33 @@ no `Run` at all until the first character is inserted, so any base pointer
 computed *before* the insertion is unreliable for computing a position
 *after* it.
 
-**Known limitation**: this offset mapping is only correct for single-paragraph
-content (which is what 96 of this suite's tests already exercise). Multi-paragraph/
-list/table documents would need a proper plain-text-offset walk (WPF's own
-`TextRangeBase.GetTextInternal`-style logic, which already handles paragraph
-breaks/list markers correctly for the `.Text` getter) rather than a fixed
-structural-descent shortcut — left as a follow-up if a consumer needs
-multi-paragraph IME composition.
+**Update (later same session)**: the single-paragraph-only limitation above
+was resolved. Rather than hand-walking `TextRangeBase.GetTextInternal`'s own
+`ElementStart`/`ElementEnd`/`Text` switch a second time (risking the same
+class of subtle off-by-N bug just found), `GetImeOffsetBase` was replaced
+with two general helpers that reuse the already-correct forward mapping
+instead of reimplementing it:
+
+- `GetPlainTextOffset(document, position)` — just
+  `new TextRange(document.ContentStart, position).Text.Length`, i.e. the
+  existing, upstream-linked `.Text` getter already used everywhere else.
+- `GetPositionAtPlainTextOffset(document, targetOffset)` — inverts it via
+  binary search: plain-text length is a monotonically non-decreasing
+  function of raw symbol offset, so the smallest symbol offset whose
+  plain-text length reaches `targetOffset` can be found by bisecting the
+  symbol-offset range `[0, document.ContentStart.GetOffsetToPosition(document.ContentEnd)]`
+  and calling `GetPlainTextOffset` at each midpoint.
+
+This is correct by construction for any document structure the `.Text`
+getter already handles correctly (paragraphs, lists, tables), at the cost of
+O(log n) `.Text` calls (each O(n)) per lookup — acceptable for interactive
+editing at realistic document sizes. Verified with
+`SimulateImeTextUpdating_OnMultiParagraphDocument_InsertsAtCorrectParagraph`:
+composing into the second paragraph of a two-paragraph document (`"abc\ndef\n"`)
+at the plain-text offset just past the paragraph break correctly produces
+`"abc\n字def\n"`. All four existing (single-paragraph) IME tests continued
+to pass unchanged, confirming the generalization didn't regress the
+original case.
 
 ### Verification methodology
 
@@ -175,9 +195,8 @@ LeXtudio.Windows.Tests (NUnitLite): 233/233
 
 Next session:
 
-- Extend the offset mapping to handle multi-paragraph documents correctly
-  (proper plain-text-offset walk) if a consumer needs IME composition beyond
-  single-paragraph content.
+- Multi-paragraph offset mapping is now handled generally (see the update
+  above) — no longer an open item.
 - `CompositionStarted`/`CompositionCompleted` currently only toggle
   `_imeComposing`; there's no visual underline/highlight for in-progress
   (uncommitted) composition text the way real IMEs show it — cosmetic, not

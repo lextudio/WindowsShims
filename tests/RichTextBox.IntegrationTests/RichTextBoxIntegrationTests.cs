@@ -1187,13 +1187,19 @@ public sealed class RichTextBoxIntegrationTests
         Assert.False(state.GetProperty("hyperlinkFound").GetBoolean(), raw);
     }
 
+    // CI-safe replacement for the original ActivateHyperlinkAt_HyperlinkCenter_RaisesClick:
+    // that test called activate-hyperlink-at, which invokes FlowDocumentView.ActivateHyperlink,
+    // which calls the real Windows.System.Launcher.LaunchUriAsync(uri) and pops an actual
+    // browser window on the CI runner. This uses raise-hyperlink-click-at instead, which stops
+    // at hyperlink.RaiseClick() — verifying the same Click-event wiring without ever touching
+    // the Launcher.
     [Fact]
-    public async Task ActivateHyperlinkAt_HyperlinkCenter_RaisesClick()
+    public async Task RaiseHyperlinkClickAt_HyperlinkCenter_RaisesClickWithoutLaunchingUri()
     {
         await _app.InvokeAsync("richtextbox.probe.set-hyperlink-document", "before ", "link", " after");
         var (centerX, centerY, _) = await GetHyperlinkHitTestPoints(_app);
 
-        var state = await _app.InvokeAsync("richtextbox.probe.activate-hyperlink-at", centerX, centerY);
+        var state = await _app.InvokeAsync("richtextbox.probe.raise-hyperlink-click-at", centerX, centerY);
         var raw = state.ToString();
 
         Assert.True(state.GetProperty("hyperlinkFound").GetBoolean(), raw);
@@ -1265,6 +1271,81 @@ public sealed class RichTextBoxIntegrationTests
 
         Assert.True(HasRichTextBox(state), raw);
         Assert.Equal("字\n", Text(state));
+    }
+
+    [Fact]
+    public async Task SimulateImeTextUpdating_OnMultiParagraphDocument_InsertsAtCorrectParagraph()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.key-down", "Enter");
+        var setup = await _app.InvokeAsync("richtextbox.probe.text-input-event", "def");
+        Assert.Equal("abc\ndef\n", Text(setup));
+
+        // Insert composed text right at the start of the second paragraph (offset 4,
+        // just past the "abc\n" that precedes it in the plain-text representation).
+        var state = await _app.InvokeAsync("richtextbox.probe.simulate-ime-text-updating", "字", 4, 4);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("abc\n字def\n", Text(state));
+    }
+
+    [Fact]
+    public async Task DragDropHost_GetSelectionRange_ReportsPlainTextOffsets()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 1, 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-selection-range");
+        var raw = state.ToString();
+
+        Assert.Equal(1, state.GetProperty("min").GetInt32());
+        Assert.Equal(4, state.GetProperty("max").GetInt32());
+    }
+
+    [Fact]
+    public async Task DragDropHost_GetSelectionRange_ReportsMinusOneWhenEmpty()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-selection-range");
+
+        Assert.Equal(-1, state.GetProperty("min").GetInt32());
+        Assert.Equal(-1, state.GetProperty("max").GetInt32());
+    }
+
+    [Fact]
+    public async Task DragDropHost_GetTextRange_ExtractsPlainText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-get-text-range", 1, 4);
+
+        Assert.Equal("bcd", state.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public async Task DragDropHost_InsertTextAt_InsertsAtCorrectOffset_LikeADrop()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        // Simulates TextEditorDragDropUno.OnDrop inserting dropped text at the hit-tested offset.
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-insert-text-at", 3, "XYZ");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Contains("abcXYZdef", Text(state));
+    }
+
+    [Fact]
+    public async Task DragDropHost_HitTest_MatchesRealCharacterOffset()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-hit-test-at-offset", 3);
+
+        Assert.Equal(3, state.GetProperty("hitOffset").GetInt32());
     }
 
     [Theory]

@@ -207,3 +207,5 @@ Each session is tracked as a separate file:
 | 41 | [session41.md](session41.md) | Hyperlink Hit-Test and Activation Coverage (M2) |
 | 42 | [session42.md](session42.md) | Caret Hit-Test Round-Trip Coverage; M2 Closed Out |
 | 43 | [session43.md](session43.md) | Table Construction Audit; Real IME Integration via LeXtudio.UI.Text.Core |
+| 44 | [session44.md](session44.md) | Drag/Drop Wired Up (Dead Code Activated); Disabled a Browser-Popping CI Test |
+| 45 | [session45.md](session45.md) | CI-Safe Hyperlink Test Restored; Click-Inside-Selection Collapse Fixed |

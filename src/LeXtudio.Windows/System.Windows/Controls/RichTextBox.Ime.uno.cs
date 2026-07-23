@@ -92,27 +92,39 @@ public partial class RichTextBox
     }
 
     // IME composition offsets are indices into the plain-text string TextRequested hands
-    // back, not raw TextContainer symbol offsets — FlowDocument.ContentStart sits before
-    // the first Paragraph's own structural boundary, so GetPositionAtOffset/GetOffsetToPosition
-    // computed from document.ContentStart are off by that paragraph-boundary delta. Anchoring
-    // on the first Paragraph's ContentStart instead keeps the offset space self-consistent
-    // with how the rest of this shim (and its test suite) measures run-relative offsets.
-    // This only produces correct results for single-paragraph content; multi-paragraph/list/
-    // table documents would need a proper plain-text-offset walk (see
-    // docs/richtextbox/session43.md for the known limitation).
-    private static System.Windows.Documents.TextPointer? GetImeOffsetBase(System.Windows.Documents.FlowDocument document)
+    // back (paragraph breaks as "\n", list markers inserted, etc. — see
+    // TextRangeBase.PlainConvertParagraphEnd/PlainConvertListItemStart), not raw
+    // TextContainer symbol offsets. Rather than hand-walking that same
+    // ElementStart/ElementEnd/Text switch a second time (error-prone — see session 43's
+    // single-paragraph off-by-N bugs), reuse the already-correct forward mapping
+    // (symbol offset -> plain text, via the linked TextRange.Text getter) and invert it:
+    // plain-text length as a function of symbol offset is monotonically non-decreasing,
+    // so the offset producing a given plain-text length can be found by binary search.
+    private static int GetPlainTextOffset(System.Windows.Documents.FlowDocument document, System.Windows.Documents.TextPointer position) =>
+        new System.Windows.Documents.TextRange(document.ContentStart, position).Text?.Length ?? 0;
+
+    private static System.Windows.Documents.TextPointer GetPositionAtPlainTextOffset(System.Windows.Documents.FlowDocument document, int targetOffset)
     {
-        if (document.Blocks.FirstBlock is not System.Windows.Documents.Paragraph paragraph)
+        if (targetOffset <= 0)
             return document.ContentStart;
 
-        // Descend past the Paragraph's own ContentStart into the first Run's ContentStart:
-        // each TextElement (Paragraph, then Run) contributes its own ElementStart edge as a
-        // symbol offset, so paragraph.ContentStart still sits 1 unit before run.ContentStart.
-        var inline = paragraph.Inlines.FirstInline;
-        while (inline is System.Windows.Documents.Span span)
-            inline = span.Inlines.FirstInline;
+        int lo = 0;
+        int hi = document.ContentStart.GetOffsetToPosition(document.ContentEnd);
+        if (GetPlainTextOffset(document, document.ContentEnd) <= targetOffset)
+            return document.ContentEnd;
 
-        return inline is System.Windows.Documents.Run run ? run.ContentStart : paragraph.ContentStart;
+        // Smallest symbol offset `s` such that the plain text up to `s` has length >= targetOffset.
+        while (lo < hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            var candidate = document.ContentStart.GetPositionAtOffset(mid) ?? document.ContentStart;
+            if (GetPlainTextOffset(document, candidate) >= targetOffset)
+                hi = mid;
+            else
+                lo = mid + 1;
+        }
+
+        return document.ContentStart.GetPositionAtOffset(lo) ?? document.ContentStart;
     }
 
     private void OnImeTextRequested(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextTextRequestedEventArgs e)
@@ -128,13 +140,13 @@ public partial class RichTextBox
     {
         var te = TextEditor;
         var document = Document;
-        if (te is null || document is null || GetImeOffsetBase(document) is not { } basePointer)
+        if (te is null || document is null)
             return;
 
         try
         {
-            var start = basePointer.GetPositionAtOffset(e.Range.StartCaretPosition) ?? basePointer;
-            var end = basePointer.GetPositionAtOffset(e.Range.EndCaretPosition) ?? start;
+            var start = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition);
+            var end = GetPositionAtPlainTextOffset(document, e.Range.EndCaretPosition);
             var range = new System.Windows.Documents.TextRange(start, end);
             range.Text = e.NewText;
 
@@ -162,24 +174,24 @@ public partial class RichTextBox
     {
         var te = TextEditor;
         var document = Document;
-        if (te?.Selection is not { } selection || document is null || GetImeOffsetBase(document) is not { } basePointer)
+        if (te?.Selection is not { } selection || document is null)
             return;
 
-        e.Request.Start = basePointer.GetOffsetToPosition((System.Windows.Documents.TextPointer)selection.Start);
-        e.Request.Length = basePointer.GetOffsetToPosition((System.Windows.Documents.TextPointer)selection.End) - e.Request.Start;
+        e.Request.Start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
+        e.Request.Length = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End) - e.Request.Start;
     }
 
     private void OnImeSelectionUpdating(CoreTextEditContext sender, LeXtudio.UI.Text.Core.CoreTextSelectionUpdatingEventArgs e)
     {
         var te = TextEditor;
         var document = Document;
-        if (te?.Selection is not { } selection || document is null || GetImeOffsetBase(document) is not { } basePointer)
+        if (te?.Selection is not { } selection || document is null)
             return;
 
         try
         {
-            var start = basePointer.GetPositionAtOffset(e.NewStart) ?? basePointer;
-            var end = basePointer.GetPositionAtOffset(e.NewStart + e.NewLength) ?? start;
+            var start = GetPositionAtPlainTextOffset(document, e.NewStart);
+            var end = GetPositionAtPlainTextOffset(document, e.NewStart + e.NewLength);
             selection.Select(start, end);
             UpdateCaretFromSelection();
         }
@@ -249,11 +261,11 @@ public partial class RichTextBox
         {
             var te = TextEditor;
             var document = Document;
-            if (te?.Selection is not { } selection || document is null || GetImeOffsetBase(document) is not { } basePointer)
+            if (te?.Selection is not { } selection || document is null)
                 return;
 
-            var start = basePointer.GetOffsetToPosition((System.Windows.Documents.TextPointer)selection.Start);
-            var end = basePointer.GetOffsetToPosition((System.Windows.Documents.TextPointer)selection.End);
+            var start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
+            var end = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End);
             _imeContext.NotifySelectionChanged(new CoreTextRange { StartCaretPosition = start, EndCaretPosition = end });
 
             var rect = selection.MovingPosition.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);

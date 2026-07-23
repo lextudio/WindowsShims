@@ -579,6 +579,37 @@ public sealed partial class MainPage : Page
         return $"{{\"hyperlinkFound\":{Jb(hyperlink is not null)},\"linkText\":{Js(linkText)}}}";
     });
 
+    [DevFlowAction("richtextbox.probe.raise-hyperlink-click-at", Description = "Hit-test for a Hyperlink at the given point and, if found, raise its Click event directly (does NOT call ActivateHyperlink / launch the NavigateUri — CI-safe).")]
+    public static string ProbeRaiseHyperlinkClickAt(double x, double y) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.set-hyperlink-document first.");
+
+        var renderScope = RequireRenderScope(page._box);
+        var hitTestMethod = renderScope.GetType().GetMethod("GetHyperlinkAt", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("FlowDocumentView.GetHyperlinkAt not found.");
+        var point = new Windows.Foundation.Point(x, y);
+        var hyperlink = hitTestMethod.Invoke(renderScope, [point]) as System.Windows.Documents.Hyperlink;
+        if (hyperlink is null)
+            return "{\"hyperlinkFound\":false,\"clickRaised\":false}";
+
+        var clickRaised = false;
+        System.Windows.RoutedEventHandler handler = (_, _) => clickRaised = true;
+        hyperlink.Click += handler;
+        try
+        {
+            var raiseClickMethod = typeof(System.Windows.Documents.Hyperlink).GetMethod("RaiseClick", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("Hyperlink.RaiseClick not found.");
+            raiseClickMethod.Invoke(hyperlink, null);
+        }
+        finally
+        {
+            hyperlink.Click -= handler;
+        }
+
+        return $"{{\"hyperlinkFound\":true,\"clickRaised\":{Jb(clickRaised)}}}";
+    });
+
     [DevFlowAction("richtextbox.probe.activate-hyperlink-at", Description = "Hit-test for a Hyperlink at the given point and, if found, activate it, reporting whether Click fired.")]
     public static string ProbeActivateHyperlinkAt(double x, double y) => RunOnUi(page =>
     {
@@ -639,6 +670,59 @@ public sealed partial class MainPage : Page
         var hitOffset = run.ContentStart.GetOffsetToPosition(hitPosition);
 
         return $"{{\"rectX\":{rect.X.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectY\":{rect.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectWidth\":{rect.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectHeight\":{rect.Height.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"requestedOffset\":{offset},\"hitOffset\":{hitOffset}}}";
+    });
+
+    static System.Windows.Documents.IRichTextDragDropHost RequireDragDropHost(WpfRichTextBox box) =>
+        box as System.Windows.Documents.IRichTextDragDropHost
+            ?? throw new InvalidOperationException("RichTextBox does not implement IRichTextDragDropHost.");
+
+    [DevFlowAction("richtextbox.probe.drag-drop-selection-range", Description = "Call IRichTextDragDropHost.GetSelectionRange() for the current RichTextBox.")]
+    public static string ProbeDragDropSelectionRange() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var (min, max) = RequireDragDropHost(page._box).GetSelectionRange();
+        return $"{{\"min\":{min},\"max\":{max}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.drag-drop-get-text-range", Description = "Call IRichTextDragDropHost.GetTextRange(start, end) for the current RichTextBox.")]
+    public static string ProbeDragDropGetTextRange(int start, int end) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var text = RequireDragDropHost(page._box).GetTextRange(start, end);
+        return $"{{\"text\":{Js(text)}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.drag-drop-insert-text-at", Description = "Call IRichTextDragDropHost.InsertTextAt(offset, text) for the current RichTextBox, simulating a drop.")]
+    public static string ProbeDragDropInsertTextAt(int offset, string text) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        RequireDragDropHost(page._box).InsertTextAt(offset, text);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.drag-drop-hit-test-at-offset", Description = "Compute the character rect at an offset in the first Run and call IRichTextDragDropHost.HitTest at its point.")]
+    public static string ProbeDragDropHitTestAtOffset(int offset) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        var paragraph = document.Blocks.FirstBlock as WpfParagraph ?? throw new InvalidOperationException("First block is not a Paragraph.");
+        var run = FirstRun(paragraph.Inlines.FirstInline) ?? throw new InvalidOperationException("First Paragraph does not contain a plain Run.");
+        var position = run.ContentStart.GetPositionAtOffset(offset)
+            ?? throw new InvalidOperationException($"Offset {offset} is not a valid position in the first Run.");
+        var rect = position.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+        var point = new Windows.Foundation.Point(rect.X + 1, rect.Y + rect.Height / 2);
+
+        var hitOffset = RequireDragDropHost(page._box).HitTest(point);
+        return $"{{\"hitOffset\":{hitOffset}}}";
     });
 
     [DevFlowAction("richtextbox.probe.select-first-list-item", Description = "Select a range inside the first ListItem's Run for list command probes.")]
