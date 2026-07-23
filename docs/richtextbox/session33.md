@@ -37,16 +37,42 @@ Finding:
   full table-aware `TextRange` construction machinery just to read a run's own
   text.
 
-Action taken:
+Product fix:
 
-- Did not attempt a fix this session; the underlying `TextElement.Parent`
-  walking gap is a deeper Uno-shim compatibility issue, not something to patch
-  around locally without risking further corruption of `TextRangeEditTables`
-  callers.
-- The two new tests that reproduced the crash were written and confirmed to
-  fail, then removed from the checked-in suite so `dotnet test` stays green
-  per the working rules; the repro steps above are sufficient to reconstruct
-  them.
+- Checked upstream WPF: `ext/wpf/.../Controls/DeferredRunTextReference.cs`
+  already exists there, and its `GetValue` reads via
+  `TextRangeBase.GetTextInternal(_run.ContentStart, _run.ContentEnd)` rather
+  than constructing a `TextRange`. `GetTextInternal` walks `TextPointer`s
+  directly to build plain text and never calls
+  `TextRangeBase.Select`/`TextRangeEditTables.BuildTableRange`, so it never
+  touches the fragile `TextElement.Parent` ancestor walk.
+- `src/LeXtudio.Windows/System.Windows/Documents/DeferredRunTextReference.cs`
+  (`Resolve()`) previously reimplemented this by constructing
+  `new TextRange(_run.ContentStart, _run.ContentEnd)`, which routed through
+  `TextRangeEditTables.FindTableElements` and crashed. It now calls
+  `TextRangeBase.GetTextInternal(...)` directly, matching upstream WPF exactly
+  instead of a local reimplementation. `TextRangeBase.cs` (and
+  `GetTextInternal`) was already linked into `LeXtudio.Windows.csproj`, so no
+  new files were needed.
+
+DevFlow additions: none (reused `set-caret-run-offset`, `key-down`, and
+`key-down-modifiers`, which already existed).
+
+Tests added:
+
+- `KeyDown_DeleteAtParagraphEnd_MergesNextParagraph`
+- `KeyDown_BackspaceAtParagraphStart_MergesPreviousParagraph`
+
+Verified behavior:
+
+- With two paragraphs `abc` / `def`, placing the caret at the end of the first
+  paragraph and pressing `Delete` merges them into a single paragraph
+  `abcdef`.
+- From the same two-paragraph document, moving to the start of the second
+  paragraph (`Ctrl+End` then `Home`) and pressing `Backspace` merges them into
+  a single paragraph `abcdef`.
+- Both directions previously crashed with `NullReferenceException`; both now
+  pass.
 
 Command:
 
@@ -57,15 +83,13 @@ dotnet test tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.cspr
 Result:
 
 ```text
-Passed: 66/66 (paragraph-merge tests removed after confirming the crash; suite unchanged from Session 32)
+Passed: 68/68
 ```
 
 Next session:
 
-- Fix `DeferredRunTextReference.Resolve()` to read a run's text without going
-  through `TextRangeEditTables`-aware `TextRange` construction (e.g. read the
-  backing text buffer directly, or make `FindTableElements`'s ancestor walk
-  tolerate an unreachable `commonAncestor` by returning "no table" instead of
-  asserting/crashing).
-- Once the crash is fixed, re-add the paragraph-merge Backspace/Delete tests
-  from this session's repro steps.
+- Continue selection/editing coverage: consider selection replacement via the
+  real key path (typing over a selection through `OnKeyDown`/character input
+  rather than `OnTextInput` directly), or begin auditing
+  clipboard/serialization format coverage (M4) now that the editing spine has
+  broad key-path coverage including paragraph merging.

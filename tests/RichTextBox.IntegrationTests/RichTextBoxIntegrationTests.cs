@@ -863,6 +863,63 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task CanSaveLoad_Text_IsSupported()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.can-save-load-format", "Text");
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("canSave").GetBoolean(), raw);
+        Assert.True(state.GetProperty("canLoad").GetBoolean(), raw);
+    }
+
+    [Theory]
+    [InlineData("Xaml")]
+    [InlineData("Rtf")]
+    [InlineData("XamlPackage")]
+    public async Task CanSaveLoad_NonTextFormats_AreUnsupportedUnderUno(string format)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.can-save-load-format", format);
+        var raw = state.ToString();
+
+        // TextRangeBase.CanSave/CanLoad only recognize DataFormats.Text under
+        // HAS_UNO; XAML/RTF/XamlPackage serialization is intentionally not
+        // enabled in this shim slice (see TextRangeBase.cs).
+        Assert.False(state.GetProperty("canSave").GetBoolean(), raw);
+        Assert.False(state.GetProperty("canLoad").GetBoolean(), raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_PlainText_RoundTripsThroughAFreshFlowDocument()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello world");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Text");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("hello world", Text(state));
+    }
+
+    [Theory]
+    [InlineData("Xaml")]
+    [InlineData("Rtf")]
+    [InlineData("XamlPackage")]
+    public async Task SaveLoad_NonTextFormats_FailPredictablyUnderUno(string format)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", format));
+
+        Assert.Contains("ArgumentException", ex.Message);
+    }
+
+    [Fact]
     public async Task UndoRedo_RestoresTextInputMutation()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");

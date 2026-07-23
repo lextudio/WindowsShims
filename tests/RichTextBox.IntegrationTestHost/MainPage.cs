@@ -618,6 +618,42 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.save-load-format-roundtrip", Description = "Save the current document to a stream in the given DataFormats value, load it into a fresh FlowDocument, and swap it in.")]
+    public static string ProbeSaveLoadFormatRoundtrip(string format) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+        if (page._box.Document is not { } document)
+            throw new InvalidOperationException("RichTextBox has no Document.");
+
+        using var stream = new System.IO.MemoryStream();
+        var sourceRange = new WpfTextRange(document.ContentStart, document.ContentEnd);
+        sourceRange.Save(stream, format);
+        stream.Position = 0;
+
+        var reloaded = new System.Windows.Documents.FlowDocument();
+        var targetRange = new WpfTextRange(reloaded.ContentStart, reloaded.ContentEnd);
+        targetRange.Load(stream, format);
+
+        page._box.Document = reloaded;
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.can-save-load-format", Description = "Report CanSave/CanLoad for a given DataFormats value against the current document range.")]
+    public static string ProbeCanSaveLoadFormat(string format) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+        if (page._box.Document is not { } document)
+            throw new InvalidOperationException("RichTextBox has no Document.");
+
+        var range = new WpfTextRange(document.ContentStart, document.ContentEnd);
+        var canSave = range.CanSave(format);
+        var canLoad = range.CanLoad(format);
+        return $"{{\"canSave\":{Jb(canSave)},\"canLoad\":{Jb(canLoad)}}}";
+    });
+
     [DevFlowAction("richtextbox.probe.undo", Description = "Invoke RichTextBox.Undo and read back document text and undo state.")]
     public static string ProbeUndo() => RunOnUi(page =>
     {

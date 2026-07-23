@@ -32,8 +32,10 @@ The compile frontier is substantially past the first local-shell milestone:
 Practical completion estimate:
 
 - Source/compile migration: about 70-80%.
-- Uno behavior parity: about 35-45%.
-- Overall deliverable readiness: about 50-60%.
+- Uno behavior parity: about 45-55% (Session 35 fixed the `LogicalTreeHelper`
+  no-op that left every `TextElement.Parent` unset; both remaining
+  `RichTextBox.uno.cs` editing fast paths were then removed as dead code).
+- Overall deliverable readiness: about 55-65%.
 
 The gap is not the presence of the control type anymore. The gap is verified
 editable behavior on Uno: text-tree movement, selection semantics, undo,
@@ -122,6 +124,11 @@ Done when:
 - Behavior is covered by tests or a deterministic runtime probe.
 - The bridge code stops relying on one-off fast paths for common editing cases.
 
+Status: met as of Session 35. All candidate coverage above is tested, and the
+two remaining `RichTextBox.uno.cs` fast paths (paragraph-merge, Enter) were
+removed after Session 35's `LogicalTreeHelper` fix made the real upstream WPF
+command handlers work correctly on their own.
+
 ### M4 - Clipboard and Serialization
 
 Goal: validate the already-linked `TextRangeSerialization` path and document
@@ -189,4 +196,6 @@ Each session is tracked as a separate file:
 | 30 | [session30.md](session30.md) | Word Navigation Coverage |
 | 31 | [session31.md](session31.md) | Word Deletion Coverage |
 | 32 | [session32.md](session32.md) | Non-Empty Selection Word Deletion Coverage |
-| 33 | [session33.md](session33.md) | Paragraph-Merge Crash Found (Backspace/Delete at Paragraph Boundary) |
+| 33 | [session33.md](session33.md) | Paragraph-Merge Crash Found and Fixed (Backspace/Delete at Paragraph Boundary) |
+| 34 | [session34.md](session34.md) | Clipboard/Serialization Format Coverage (M4) |
+| 35 | [session35.md](session35.md) | Root-Caused Logical Tree Parent Gap; Removed Both Editing Fast Paths |
