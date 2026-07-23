@@ -209,3 +209,4 @@ Each session is tracked as a separate file:
 | 43 | [session43.md](session43.md) | Table Construction Audit; Real IME Integration via LeXtudio.UI.Text.Core |
 | 44 | [session44.md](session44.md) | Drag/Drop Wired Up (Dead Code Activated); Disabled a Browser-Popping CI Test |
 | 45 | [session45.md](session45.md) | CI-Safe Hyperlink Test Restored; Click-Inside-Selection Collapse Fixed |
+| 46 | [session46.md](session46.md) | Double/Triple-Click Word/Paragraph Selection Implemented |

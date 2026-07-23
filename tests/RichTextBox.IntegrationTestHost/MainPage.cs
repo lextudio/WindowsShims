@@ -1061,6 +1061,49 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.set-caret-on-mouse-event-at-offset", Description = "Call TextEditorMouse.SetCaretPositionOnMouseEvent directly at the character rect for an offset in the first Run, with an explicit clickCount (1=place caret, 2=select word, 3=select paragraph).")]
+    public static string ProbeSetCaretOnMouseEventAtOffset(int offset, int clickCount) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        var paragraph = document.Blocks.FirstBlock as WpfParagraph ?? throw new InvalidOperationException("First block is not a Paragraph.");
+        var run = FirstRun(paragraph.Inlines.FirstInline) ?? throw new InvalidOperationException("First Paragraph does not contain a plain Run.");
+        var position = run.ContentStart.GetPositionAtOffset(offset)
+            ?? throw new InvalidOperationException($"Offset {offset} is not a valid position in the first Run.");
+        var rect = position.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+        var point = new Windows.Foundation.Point(rect.X + 1, rect.Y + rect.Height / 2);
+
+        var textEditor = RequireTextEditor(page._box);
+        var textEditorTypingType = typeof(WpfRichTextBox).Assembly.GetType("System.Windows.Documents.TextEditorMouse")
+            ?? throw new InvalidOperationException("TextEditorMouse type not found.");
+        var method = textEditorTypingType.GetMethod(
+            "SetCaretPositionOnMouseEvent",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("TextEditorMouse.SetCaretPositionOnMouseEvent not found.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        method.Invoke(null, [textEditor, point, System.Windows.Input.MouseButton.Left, clickCount]);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.compute-click-count", Description = "Call RichTextBox's private ComputeClickCount(timestamp, point) directly to verify double/triple-click detection heuristics.")]
+    public static string ProbeComputeClickCount(long timestampMicroseconds, double x, double y) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var method = typeof(WpfRichTextBox).GetMethod(
+            "ComputeClickCount",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("RichTextBox.ComputeClickCount not found.");
+        var point = new Windows.Foundation.Point(x, y);
+        var clickCount = (int)method.Invoke(page._box, [(ulong)timestampMicroseconds, point])!;
+        return $"{{\"clickCount\":{clickCount}}}";
+    });
+
     [DevFlowAction("richtextbox.probe.save-load-format-roundtrip", Description = "Save the current document to a stream in the given DataFormats value, load it into a fresh FlowDocument, and swap it in.")]
     public static string ProbeSaveLoadFormatRoundtrip(string format) => RunOnUi(page =>
     {

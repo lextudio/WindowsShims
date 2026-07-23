@@ -12,6 +12,9 @@ public partial class RichTextBox
     private Point _pressedPoint;
     private bool _pointerMovedSincePress;
     private bool _pressWasInsideSelection;
+    private ulong _lastPressTimestamp;
+    private Point _lastPressPointForClickCount;
+    private int _clickCount;
 
     private static readonly string _logPath =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rtb-template.log");
@@ -62,12 +65,15 @@ public partial class RichTextBox
             return;
         }
 
-        var unoPoint = e.GetCurrentPoint(renderScope).Position;
+        var currentPoint = e.GetCurrentPoint(renderScope);
+        var unoPoint = currentPoint.Position;
         Log($"PointerPressed at ({unoPoint.X:F1},{unoPoint.Y:F1})");
         _pressedPoint = new Point(unoPoint.X, unoPoint.Y);
         _pointerMovedSincePress = false;
         _pressWasInsideSelection = false;
         _pressedHyperlink = (renderScope as MS.Internal.Documents.FlowDocumentView)?.GetHyperlinkAt(unoPoint);
+        int clickCount = ComputeClickCount(currentPoint.Timestamp, _pressedPoint);
+        Log($"PointerPressed: clickCount={clickCount}");
 
         // A press landing inside the existing (non-empty) selection is a candidate drag-start,
         // not a new selection gesture — mirrors WPF's _DragDropProcess.SourceOnMouseLeftButtonDown.
@@ -99,7 +105,7 @@ public partial class RichTextBox
                 te,
                 new Point(unoPoint.X, unoPoint.Y),
                 MouseButton.Left,
-                1);
+                clickCount);
             Log($"PointerPressed: SetCaretPosition done");
 
             // Drive caret display from Florence hit-test directly (WPF TextContainer
@@ -446,6 +452,34 @@ public partial class RichTextBox
         {
             Log($"UpdateCaretFromSelection THREW {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // Uno/WinUI pointer events have no built-in click-count concept (unlike WPF's
+    // MouseButtonEventArgs.ClickCount), so this reimplements the standard desktop
+    // double/triple-click detection: consecutive presses within a short time window and
+    // close together spatially increment the count; anything else (too slow, moved too far)
+    // restarts at 1. TextEditorMouse.SetCaretPositionOnMouseEvent uses this to distinguish
+    // plain click (1: place caret) / double-click (2: select word) / triple-click
+    // (3: select paragraph) — previously always hardcoded to 1, making word/paragraph
+    // click-to-select entirely unreachable through the real pointer path.
+    private int ComputeClickCount(ulong timestampMicroseconds, Point point)
+    {
+        const ulong maxIntervalMicroseconds = 500_000; // 500ms, typical OS double-click interval
+        const double maxDistance = 4;
+
+        bool sameSpot = Math.Abs(point.X - _lastPressPointForClickCount.X) <= maxDistance
+            && Math.Abs(point.Y - _lastPressPointForClickCount.Y) <= maxDistance;
+        bool withinInterval = _lastPressTimestamp != 0
+            && timestampMicroseconds >= _lastPressTimestamp
+            && timestampMicroseconds - _lastPressTimestamp <= maxIntervalMicroseconds;
+
+        _clickCount = (sameSpot && withinInterval) ? _clickCount + 1 : 1;
+        if (_clickCount > 3)
+            _clickCount = 1;
+
+        _lastPressTimestamp = timestampMicroseconds;
+        _lastPressPointForClickCount = point;
+        return _clickCount;
     }
 
     private static Key MapVirtualKey(global::Windows.System.VirtualKey vk) => vk switch

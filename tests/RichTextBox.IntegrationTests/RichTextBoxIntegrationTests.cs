@@ -1361,4 +1361,64 @@ public sealed class RichTextBoxIntegrationTests
 
         Assert.True(state.GetProperty("handled").GetBoolean(), raw);
     }
+
+    [Fact]
+    public async Task DoubleClick_SelectsWordUnderCaret()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "one two three");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.set-caret-on-mouse-event-at-offset", 5, 2);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("two ", SelectionText(state));
+        Assert.Equal(4, SelectionStartRunOffset(state));
+        Assert.Equal(8, SelectionEndRunOffset(state));
+    }
+
+    [Fact]
+    public async Task TripleClick_SelectsWholeParagraph()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "one two three");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.set-caret-on-mouse-event-at-offset", 5, 3);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("one two three", SelectionText(state));
+        Assert.Equal(0, SelectionStartRunOffset(state));
+        Assert.Equal(13, SelectionEndRunOffset(state));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 100_000, 0, 0, 2)]      // same spot, fast: real 2nd click
+    [InlineData(0, 0, 100_000, 100, 100, 1)]  // moved far away: restarts at 1
+    [InlineData(0, 0, 600_000, 0, 0, 1)]      // same spot, too slow: restarts at 1
+    public async Task ComputeClickCount_DetectsDoubleClickHeuristics(
+        double firstX, double firstY, long secondTimestampDelta, double secondX, double secondY, int expectedFirstCount)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var first = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_000_000L, firstX, firstY);
+        Assert.Equal(1, first.GetProperty("clickCount").GetInt32());
+
+        var second = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_000_000L + secondTimestampDelta, secondX, secondY);
+        Assert.Equal(expectedFirstCount, second.GetProperty("clickCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task ComputeClickCount_ThreeQuickClicksAtSameSpot_CountsUpToThreeThenWraps()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var c1 = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_000_000L, 10.0, 10.0);
+        var c2 = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_100_000L, 10.0, 10.0);
+        var c3 = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_200_000L, 10.0, 10.0);
+        var c4 = await _app.InvokeAsync("richtextbox.probe.compute-click-count", 1_300_000L, 10.0, 10.0);
+
+        Assert.Equal(1, c1.GetProperty("clickCount").GetInt32());
+        Assert.Equal(2, c2.GetProperty("clickCount").GetInt32());
+        Assert.Equal(3, c3.GetProperty("clickCount").GetInt32());
+        Assert.Equal(1, c4.GetProperty("clickCount").GetInt32());
+    }
 }
