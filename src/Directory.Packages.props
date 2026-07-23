@@ -12,5 +12,6 @@
     <PackageVersion Include="NUnitLite" Version="4.5.1" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
     <PackageVersion Include="LeXtudio.Win2D.UnoCompat" Version="0.2.0" />
+    <PackageVersion Include="LeXtudio.UI.Text.Core" Version="1.0.0" />
   </ItemGroup>
 </Project>

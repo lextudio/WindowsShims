@@ -6,7 +6,7 @@ This folder tracks the next phase of the WPF `RichTextBox` /
 The older top-level files still matter:
 
 - `docs/PLAN.md` records the original source-first migration playbook.
-- `docs/RICHTEXTBOX-PORT-CATALOG.md` is a useful catalog, but it is currently
+- `docs/richtextbox/RICHTEXTBOX-PORT-CATALOG.md` is a useful catalog, but it is currently
   stale for several core files. The project file is the source of truth.
 
 ## Current State
@@ -48,7 +48,7 @@ drag/drop, and layout/caret precision.
 2. Prefer one narrow behavior rung per session.
 3. Add tests before changing deep editor code whenever a non-UI test can express
    the expected behavior.
-4. Treat `docs/RICHTEXTBOX-PORT-CATALOG.md` as historical until it is refreshed
+4. Treat `docs/richtextbox/RICHTEXTBOX-PORT-CATALOG.md` as historical until it is refreshed
    from the project file.
 5. Do not chase full WPF document fidelity before the editable spine has a
    repeatable test harness.
@@ -201,3 +201,9 @@ Each session is tracked as a separate file:
 | 35 | [session35.md](session35.md) | Root-Caused Logical Tree Parent Gap; Removed Both Editing Fast Paths |
 | 36 | [session36.md](session36.md) | Real Character-Received Input Path Coverage |
 | 37 | [session37.md](session37.md) | List/ListItem Construction Crash Found and Fixed; List Command Scope Documented |
+| 38 | [session38.md](session38.md) | List Indentation Actually Works; Prior "Bug" Was a Test-Probe Bug |
+| 39 | [session39.md](session39.md) | RemoveListMarkers Coverage on an Existing List |
+| 40 | [session40.md](session40.md) | ToggleBullets/ToggleNumbering Coverage on an Existing List |
+| 41 | [session41.md](session41.md) | Hyperlink Hit-Test and Activation Coverage (M2) |
+| 42 | [session42.md](session42.md) | Caret Hit-Test Round-Trip Coverage; M2 Closed Out |
+| 43 | [session43.md](session43.md) | Table Construction Audit; Real IME Integration via LeXtudio.UI.Text.Core |

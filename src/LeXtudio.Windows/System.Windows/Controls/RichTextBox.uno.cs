@@ -36,6 +36,7 @@ public partial class RichTextBox
         {
             base.OnApplyTemplate();
             Log($"OnApplyTemplate: done, Template={Template}");
+            EnsureImeContext();
         }
         catch (Exception ex)
         {
@@ -195,6 +196,21 @@ public partial class RichTextBox
             (System.Windows.Input.Keyboard.Modifiers & (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt)) == 0)
             return;
 
+        // Give the platform IME first refusal — while composing (or when a modal candidate
+        // window is up), it must see keys like arrows/Enter/Escape before WPF's own
+        // navigation/typing commands do.
+        if (_imeContext is not null)
+        {
+            bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+            bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+            if (_imeContext.ProcessKeyEvent((int)e.Key, shift, ctrl))
+            {
+                e.Handled = true;
+                Log($"KeyDown: {e.Key} consumed by IME");
+                return;
+            }
+        }
+
         Log($"KeyDown: {e.Key} → {wpfKey}");
 
         var mods = System.Windows.Input.Keyboard.Modifiers;
@@ -307,6 +323,10 @@ public partial class RichTextBox
         var te = TextEditor;
         if (te == null) return;
 
+        // While a native IME composition is in progress, composed text arrives through
+        // CoreTextEditContext.TextUpdating instead — handling it here too would double-insert.
+        if (_imeComposing) return;
+
         char c = e.Character;
         // Filter control characters (handled by OnKeyDown / WPF command routing)
         if (c < 0x20 || c == 0x7F) return;
@@ -356,6 +376,7 @@ public partial class RichTextBox
                 return;
             fdv.SetCaretAt(position);
             Log($"UpdateCaretFromSelection: offset={position.CharOffset} dir={position.LogicalDirection}");
+            NotifyImeOfCaretAndSelection();
         }
         catch (Exception ex)
         {

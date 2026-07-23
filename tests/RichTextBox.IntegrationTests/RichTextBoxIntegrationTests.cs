@@ -54,6 +54,12 @@ public sealed class RichTextBoxIntegrationTests
             ? null
             : state.GetProperty("firstListItemCount").GetInt32();
     static string? FirstListItemText(JsonElement state) => state.GetProperty("firstListItemText").GetString();
+    static string? FirstListItemBlockTypes(JsonElement state) => state.GetProperty("firstListItemBlockTypes").GetString();
+    static string? NestedListMarkerStyle(JsonElement state) => state.GetProperty("nestedListMarkerStyle").GetString();
+    static int? NestedListItemCount(JsonElement state) =>
+        state.GetProperty("nestedListItemCount").ValueKind == JsonValueKind.Null
+            ? null
+            : state.GetProperty("nestedListItemCount").GetInt32();
     static string? TextViewType(JsonElement state) => state.GetProperty("textViewType").GetString();
 
     [Fact]
@@ -69,6 +75,115 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Equal(2, FirstListItemCount(state));
         Assert.Contains("one", Text(state));
         Assert.Contains("two", Text(state));
+    }
+
+    [Fact]
+    public async Task IncreaseIndentationCommand_OnSecondListItem_NestsUnderFirstItem()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-second-list-item", 0, 0);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.increase-indentation-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(1, FirstListItemCount(state));
+        Assert.Equal("Paragraph,List", FirstListItemBlockTypes(state));
+        Assert.Equal("Disc", NestedListMarkerStyle(state));
+        Assert.Equal(1, NestedListItemCount(state));
+        Assert.Contains("one", Text(state));
+        Assert.Contains("two", Text(state));
+    }
+
+    [Fact]
+    public async Task IncreaseThenDecreaseIndentation_RestoresFlatTwoItemList()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-second-list-item", 0, 0);
+        await _app.InvokeAsync("richtextbox.probe.increase-indentation-command");
+
+        // The selection persists through the Reposition calls IndentListItems performs, so it
+        // still logically points inside "two" (now nested) without needing to reselect.
+        var state = await _app.InvokeAsync("richtextbox.probe.decrease-indentation-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(2, FirstListItemCount(state));
+        Assert.Equal("Paragraph", FirstListItemBlockTypes(state));
+        Assert.Contains("one", Text(state));
+        Assert.Contains("two", Text(state));
+    }
+
+    [Fact]
+    public async Task RemoveListMarkersCommand_OnFirstItemWithNoLeadingItem_ConvertsItToPlainParagraph()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-first-list-item", 0, 0);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.remove-list-markers-command");
+        var raw = state.ToString();
+        var text = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(2, state.GetProperty("blockCount").GetInt32());
+        Assert.Equal("Paragraph", FirstBlockType(state));
+        Assert.StartsWith("one\n", text);
+        Assert.Contains("•\ttwo", text);
+    }
+
+    [Fact]
+    public async Task RemoveListMarkersCommand_OnSecondItemWithLeadingItem_MergesItAsExtraParagraphInFirstItem()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-second-list-item", 0, 0);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.remove-list-markers-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(1, state.GetProperty("blockCount").GetInt32());
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal(1, FirstListItemCount(state));
+        Assert.Equal("Paragraph,Paragraph", FirstListItemBlockTypes(state));
+        Assert.Equal("•\tone\ntwo\n", Text(state));
+    }
+
+    [Fact]
+    public async Task ToggleBulletsCommand_OnExistingNumberedList_ChangesMarkerStyleToDisc()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-numbered-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-first-list-item", 0, 0);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-bullets-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal("Disc", FirstListMarkerStyle(state));
+        Assert.Equal(2, FirstListItemCount(state));
+    }
+
+    [Fact]
+    public async Task ToggleBulletsCommand_OnExistingBulletedSecondItem_RemovesItFromTheList()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+        await _app.InvokeAsync("richtextbox.probe.select-second-list-item", 0, 0);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-bullets-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(2, state.GetProperty("blockCount").GetInt32());
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal(1, FirstListItemCount(state));
+        Assert.StartsWith("•\tone\n", Text(state));
+        Assert.EndsWith("two\n", Text(state));
     }
 
     [Theory]
@@ -1034,5 +1149,135 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.True(state.GetProperty("blockCount").GetInt32() >= 1, raw);
         Assert.Contains("document text", Text(state));
+    }
+
+    static async Task<(double centerX, double centerY, double beforeX)> GetHyperlinkHitTestPoints(RichTextBoxAppFixture app)
+    {
+        var rect = await app.InvokeAsync("richtextbox.probe.get-hyperlink-rect");
+        Assert.True(rect.GetProperty("found").GetBoolean(), rect.ToString());
+        var x = rect.GetProperty("x").GetDouble();
+        var y = rect.GetProperty("y").GetDouble();
+        var width = rect.GetProperty("width").GetDouble();
+        var height = rect.GetProperty("height").GetDouble();
+        return (x + width / 2, y + height / 2, x - 5);
+    }
+
+    [Fact]
+    public async Task HyperlinkHitTest_AtHyperlinkCenter_FindsTheHyperlink()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-hyperlink-document", "before ", "link", " after");
+        var (centerX, centerY, _) = await GetHyperlinkHitTestPoints(_app);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.hyperlink-hit-test", centerX, centerY);
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("hyperlinkFound").GetBoolean(), raw);
+        Assert.Equal("link", state.GetProperty("linkText").GetString());
+    }
+
+    [Fact]
+    public async Task HyperlinkHitTest_OutsideHyperlinkRun_FindsNoHyperlink()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-hyperlink-document", "before ", "link", " after");
+        var (_, centerY, beforeX) = await GetHyperlinkHitTestPoints(_app);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.hyperlink-hit-test", beforeX, centerY);
+        var raw = state.ToString();
+
+        Assert.False(state.GetProperty("hyperlinkFound").GetBoolean(), raw);
+    }
+
+    [Fact]
+    public async Task ActivateHyperlinkAt_HyperlinkCenter_RaisesClick()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-hyperlink-document", "before ", "link", " after");
+        var (centerX, centerY, _) = await GetHyperlinkHitTestPoints(_app);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.activate-hyperlink-at", centerX, centerY);
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("hyperlinkFound").GetBoolean(), raw);
+        Assert.True(state.GetProperty("clickRaised").GetBoolean(), raw);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task CaretHitTest_AtCharacterRectForOffset_RoundTripsToSameOffset(int offset)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.caret-hit-test-round-trip", offset);
+        var raw = state.ToString();
+
+        Assert.Equal(offset, state.GetProperty("hitOffset").GetInt32());
+        Assert.True(state.GetProperty("rectWidth").GetDouble() > 0, raw);
+        Assert.True(state.GetProperty("rectHeight").GetDouble() > 0, raw);
+    }
+
+    [Fact]
+    public async Task SetTableDocument_BuildsTableWithoutCrashing()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-table-document", "a", "b", "c", "d");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("Table", FirstBlockType(state));
+        Assert.Equal(1, state.GetProperty("blockCount").GetInt32());
+        Assert.Equal("a\tb\nc\td\n", Text(state));
+    }
+
+    [Fact]
+    public async Task CreatePlain_AttachesRealCoreTextEditContext()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.ime-context-state");
+
+        Assert.True(state.GetProperty("hasImeContext").GetBoolean(), state.ToString());
+    }
+
+    [Fact]
+    public async Task SimulateImeTextUpdating_CommittedCjkComposition_InsertsRealText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.simulate-ime-text-updating", "你好", 0, 0);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("你好", Text(state));
+        Assert.Equal(2, state.GetProperty("selectionStartRunOffset").GetInt32());
+    }
+
+    [Fact]
+    public async Task SimulateImeTextUpdating_ReplacesExistingRange()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        // Replace the full 3-character range with a single composed character.
+        var state = await _app.InvokeAsync("richtextbox.probe.simulate-ime-text-updating", "字", 0, 3);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("字\n", Text(state));
+    }
+
+    [Theory]
+    [InlineData("deleteBackward:")]
+    [InlineData("moveLeft:")]
+    public async Task SimulateImeCommand_MapsToEditingCommandAndReportsHandled(string command)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.simulate-ime-command", command);
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("handled").GetBoolean(), raw);
     }
 }

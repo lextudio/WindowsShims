@@ -7,7 +7,7 @@ Use upstream WPF source files as the primary implementation wherever possible, a
 This document captures the migration patterns that have already worked so future porting can continue with low risk and fast feedback.
 
 For the current `RichTextBox`/`System.Windows.Documents` source-first status
-catalog, see `RICHTEXTBOX-PORT-CATALOG.md`. This playbook records migration
+catalog, see `richtextbox/RICHTEXTBOX-PORT-CATALOG.md`. This playbook records migration
 history and method; the catalog records current file/family status.
 
 ## Current Baseline
@@ -174,7 +174,7 @@ When finishing each migration unit, append:
 - Build outcome
 - Any blockers and why they are architectural vs temporary
 - Recommended next candidate
-- Any catalog status update needed in `RICHTEXTBOX-PORT-CATALOG.md`
+- Any catalog status update needed in `richtextbox/RICHTEXTBOX-PORT-CATALOG.md`
 
 ## Session Log
 

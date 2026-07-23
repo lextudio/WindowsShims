@@ -56,6 +56,11 @@
     <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <PackageReference Include="Microsoft.Graphics.Win2D" />
   </ItemGroup>
+  <!-- Cross-platform IME bridge (CoreTextEditContext + native macOS/Linux/Win32 adapters)
+       for RichTextBox IME composition support. See System.Windows/Controls/RichTextBox.Ime.uno.cs. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <PackageReference Include="LeXtudio.UI.Text.Core" />
+  </ItemGroup>
     <!-- Linked WPF source-of-truth artifacts (non-compiling in Uno).
        These files are intentionally linked for audit/diff workflows while
        Uno-compilable behavior lives in local *.uno.cs partials. -->
