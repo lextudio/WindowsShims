@@ -21,44 +21,13 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         _current = this;
+        // Optional diagnostic hook for DataGrid's drag-reorder shim (see docs/devflow's
+        // technote-uno-macos-drag.md) — near-zero cost, only fires on actual header
+        // press/move/release/capture-lost, so it stays wired even outside active debugging.
         System.Windows.Controls.DataGrid.ReorderLogger = msg =>
         {
             try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[reorder] {msg}\n"); } catch { }
         };
-        // Comprehensive pointer event logging at page level and grid level
-        this.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
-        {
-            var pPage = e.GetCurrentPoint(this).Position;
-            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-pressed] page=({pPage.X:F1},{pPage.Y:F1}) originalSource={e.OriginalSource?.GetType().Name}\n"); } catch { }
-        }), true);
-
-        this.AddHandler(UIElement.PointerMovedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
-        {
-            var pPage = e.GetCurrentPoint(this).Position;
-            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-moved] page=({pPage.X:F1},{pPage.Y:F1})\n"); } catch { }
-        }), true);
-
-        this.AddHandler(UIElement.PointerReleasedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
-        {
-            var pPage = e.GetCurrentPoint(this).Position;
-            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-released] page=({pPage.X:F1},{pPage.Y:F1})\n"); } catch { }
-        }), true);
-
-        // Also log at grid level
-        if (_grid != null)
-        {
-            _grid.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
-            {
-                var pGrid = e.GetCurrentPoint(_grid).Position;
-                try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[grid-pressed] grid=({pGrid.X:F1},{pGrid.Y:F1}) originalSource={e.OriginalSource?.GetType().Name}\n"); } catch { }
-            }), true);
-
-            _grid.AddHandler(UIElement.PointerMovedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
-            {
-                var pGrid = e.GetCurrentPoint(_grid).Position;
-                try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[grid-moved] grid=({pGrid.X:F1},{pGrid.Y:F1})\n"); } catch { }
-            }), true);
-        }
         _root = new Grid();
         // The scenario gallery (ScenarioGallery.cs) wraps _root in a left-nav +
         // card layout for manual visual inspection; _root itself stays the

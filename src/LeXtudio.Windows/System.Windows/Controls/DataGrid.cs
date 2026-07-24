@@ -733,21 +733,27 @@ public partial class DataGrid
     // DataGrid-level pointer handlers that drive interactive column drag-reorder. Called from
     // DataGridColumnHeadersPresenter.PrepareContainerForItemOverride/ClearContainerForItemOverride
     // (ext/wpf, HAS_UNO branch) as headers are realized/cleared.
-    // EXPERIMENT: per-header handledEventsToo + CapturePointer (no grid-level fallback) — testing
-    // whether this is reliable now that DevFlow drag itself is fixed (proper origin/focus/split-release).
+    //
+    // Cached routed-event delegates so AddHandler/RemoveHandler pair by instance.
     private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderPressed;
     private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderMoved;
     private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderReleased;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderCaptureLost;
     private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderPressed => _reorderPressed ??= OnHeaderPointerPressed;
     private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderMoved => _reorderMoved ??= OnHeaderPointerMoved;
     private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderReleased => _reorderReleased ??= OnHeaderPointerReleased;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderCaptureLost => _reorderCaptureLost ??= OnHeaderPointerCaptureLost;
 
     internal void ShimHookHeaderReorderHandlers(DataGridColumnHeader header)
     {
         ShimUnhookHeaderReorderHandlers(header);
+        // handledEventsToo:true — the header's ControlTemplate / inner TextBlock can mark
+        // PointerPressed/Released Handled before a CLR `+=` subscription (which skips handled
+        // events) would ever see it. AddHandler with handledEventsToo sees the event regardless.
         header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed, true);
         header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved, true);
         header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased, true);
+        header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, ReorderCaptureLost, true);
         header.PointerExited += OnHeaderPointerExited;
     }
 
@@ -756,6 +762,7 @@ public partial class DataGrid
         header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed);
         header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved);
         header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased);
+        header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, ReorderCaptureLost);
         header.PointerExited -= OnHeaderPointerExited;
     }
 
@@ -1391,9 +1398,12 @@ public partial class DataGrid
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();
+            // handledEventsToo:true — see ShimHookHeaderReorderHandlers for why the CLR `+=`
+            // events miss handled events.
             headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed, true);
             headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved, true);
             headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased, true);
+            headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerCaptureLostEvent, ReorderCaptureLost, true);
             headerCell.PointerExited += OnHeaderPointerExited;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
@@ -2088,9 +2098,8 @@ public partial class DataGrid
         {
             var slot = ComputeDropSlot(e.GetCurrentPoint(reference).Position.X, out _);
             var target = _visibleColumns[Math.Clamp(slot, 0, _visibleColumns.Count - 1)].DisplayIndex;
-            // Grid-level handler: release capture on the header that took it (best-effort; capture
-            // may already have been lost, which is fine — the drop still commits from here).
-            try { _reorderHeader?.ReleasePointerCapture(e.Pointer); } catch { }
+            if (sender is DataGridColumnHeader hdr)
+                hdr.ReleasePointerCapture(e.Pointer);
             EndReorder();
             ReorderLog($"PointerReleased col='{col.Header}' slot={slot} target={target}");
             ShimTryReorderColumn(col, target);
@@ -2101,6 +2110,17 @@ public partial class DataGrid
             ReorderLog($"PointerReleased no-op reorderActive={_reorderActive} col={_reorderColumn?.Header}");
             EndReorder();
         }
+    }
+
+    private void OnHeaderPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        // Do NOT end the reorder session here. On Uno-Skia-macOS, PointerCaptureLost can fire
+        // mid-gesture — before the real PointerReleased that follows it — even though the header
+        // keeps receiving that subsequent release just fine. Treating capture-lost as a hard abort
+        // reset _reorderActive before the release arrived, turning a real drop into a no-op. Capture
+        // loss alone is not a reliable "the gesture ended" signal here; only PointerReleased (or a
+        // genuinely new PointerPressed) should end the session.
+        ReorderLog($"PointerCaptureLost (ignored) reorderActive={_reorderActive} col={_reorderColumn?.Header}");
     }
 
     private void OnHeaderPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
