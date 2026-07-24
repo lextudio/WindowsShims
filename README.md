@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/LeXtudio.Windows.svg?label=LeXtudio.Windows&&style=flat-square)](https://www.nuget.org/packages/LeXtudio.Windows)
 
-A compatibility library providing WPF namespace shims for the **Uno Platform**, enabling straightforward porting of WPF code without source modification.
+A compatibility library providing WPF namespace shims for the [**Uno Platform**](https://platform.uno), enabling straightforward porting of WPF code without source modification.
 
 ## Overview
 
