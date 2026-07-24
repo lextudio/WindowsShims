@@ -1164,7 +1164,7 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-bold-selection-command", Description = "Select all text and invoke TextEditorCharacters' ToggleBold command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.toggle-bold-selection-command", Description = "Select all text and invoke ToggleBold command on the RichTextBox.")]
     public static string ProbeToggleBoldSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1172,12 +1172,7 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnToggleBold", page._box, args);
+        WpfDocumentEditingCommands.ToggleBold.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
@@ -1194,24 +1189,19 @@ public sealed partial class MainPage : Page
     public static string ProbeToggleUnderlineRunRangeCommand(int start, int length) =>
         ProbeToggleRunRangeCommand("OnToggleUnderline", WpfDocumentEditingCommands.ToggleUnderline, start, length);
 
-    static string ProbeToggleRunRangeCommand(string methodName, System.Windows.Input.ICommand command, int start, int length) => RunOnUi(page =>
+    static string ProbeToggleRunRangeCommand(string methodName, System.Windows.Input.RoutedCommand command, int start, int length) => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         SelectFirstRunTextRange(page._box, start, length);
-        var args = new WpfExecutedRoutedEventArgs(command, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters(methodName, page._box, args);
+        command.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-italic-selection-command", Description = "Select all text and invoke TextEditorCharacters' ToggleItalic command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.toggle-italic-selection-command", Description = "Select all text and invoke ToggleItalic command on the RichTextBox.")]
     public static string ProbeToggleItalicSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1219,17 +1209,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleItalic, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnToggleItalic", page._box, args);
+        WpfDocumentEditingCommands.ToggleItalic.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-underline-selection-command", Description = "Select all text and invoke TextEditorCharacters' ToggleUnderline command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.toggle-underline-selection-command", Description = "Select all text and invoke ToggleUnderline command on the RichTextBox.")]
     public static string ProbeToggleUnderlineSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1237,42 +1222,41 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleUnderline, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnToggleUnderline", page._box, args);
+        WpfDocumentEditingCommands.ToggleUnderline.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-ltr-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyInlineFlowDirectionLTR command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-ltr-selection-command", Description = "Select all text and invoke ApplyInlineFlowDirectionLTR command on the RichTextBox.")]
     public static string ProbeApplyInlineFlowDirectionLtrSelectionCommand() =>
-        ProbeApplyInlineFlowDirectionSelectionCommand("OnApplyInlineFlowDirectionLTR");
+        ProbeApplyInlineFlowDirectionSelectionCommand(GetEditingCommand("ApplyInlineFlowDirectionLTR"));
 
-    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-rtl-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyInlineFlowDirectionRTL command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-inline-flow-direction-rtl-selection-command", Description = "Select all text and invoke ApplyInlineFlowDirectionRTL command on the RichTextBox.")]
     public static string ProbeApplyInlineFlowDirectionRtlSelectionCommand() =>
-        ProbeApplyInlineFlowDirectionSelectionCommand("OnApplyInlineFlowDirectionRTL");
+        ProbeApplyInlineFlowDirectionSelectionCommand(GetEditingCommand("ApplyInlineFlowDirectionRTL"));
 
-    static string ProbeApplyInlineFlowDirectionSelectionCommand(string methodName) => RunOnUi(page =>
+    static System.Windows.Input.RoutedUICommand GetEditingCommand(string propertyName)
+    {
+        var prop = typeof(WpfDocumentEditingCommands).GetProperty(
+            propertyName,
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException($"EditingCommands.{propertyName} not found.");
+        return (System.Windows.Input.RoutedUICommand)prop.GetValue(null)!;
+    }
+
+    static string ProbeApplyInlineFlowDirectionSelectionCommand(System.Windows.Input.RoutedCommand command) => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters(methodName, page._box, args);
+        command.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-font-size-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyFontSize command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-font-size-selection-command", Description = "Select all text and invoke ApplyFontSize command on the RichTextBox.")]
     public static string ProbeApplyFontSizeSelectionCommand(double fontSize) => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1280,17 +1264,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, fontSize)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnApplyFontSize", page._box, args);
+        GetEditingCommand("ApplyFontSize").Execute(fontSize, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.increase-font-size-selection-command", Description = "Select all text and invoke TextEditorCharacters' IncreaseFontSize command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.increase-font-size-selection-command", Description = "Select all text and invoke IncreaseFontSize command on the RichTextBox.")]
     public static string ProbeIncreaseFontSizeSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1298,17 +1277,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnIncreaseFontSize", page._box, args);
+        WpfDocumentEditingCommands.IncreaseFontSize.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.decrease-font-size-selection-command", Description = "Select all text and invoke TextEditorCharacters' DecreaseFontSize command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.decrease-font-size-selection-command", Description = "Select all text and invoke DecreaseFontSize command on the RichTextBox.")]
     public static string ProbeDecreaseFontSizeSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1316,17 +1290,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnDecreaseFontSize", page._box, args);
+        WpfDocumentEditingCommands.DecreaseFontSize.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-font-family-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyFontFamily command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-font-family-selection-command", Description = "Select all text and invoke ApplyFontFamily command on the RichTextBox.")]
     public static string ProbeApplyFontFamilySelectionCommand(string fontFamily) => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1334,17 +1303,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, new Microsoft.UI.Xaml.Media.FontFamily(fontFamily))
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnApplyFontFamily", page._box, args);
+        GetEditingCommand("ApplyFontFamily").Execute(new Microsoft.UI.Xaml.Media.FontFamily(fontFamily), page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-foreground-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyForeground command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-foreground-selection-command", Description = "Select all text and invoke ApplyForeground command on the RichTextBox.")]
     public static string ProbeApplyForegroundSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1352,17 +1316,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, System.Windows.Media.Brushes.LightGreen)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnApplyForeground", page._box, args);
+        GetEditingCommand("ApplyForeground").Execute(System.Windows.Media.Brushes.LightGreen, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-background-selection-command", Description = "Select all text and invoke TextEditorCharacters' ApplyBackground command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.apply-background-selection-command", Description = "Select all text and invoke ApplyBackground command on the RichTextBox.")]
     public static string ProbeApplyBackgroundSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1370,50 +1329,40 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.ToggleBold, System.Windows.Media.Brushes.LightPink)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorCharacters("OnApplyBackground", page._box, args);
+        GetEditingCommand("ApplyBackground").Execute(System.Windows.Media.Brushes.LightPink, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    static string ProbeAlignSelectionCommand(string methodName, System.Windows.Input.ICommand command) => RunOnUi(page =>
+    static string ProbeAlignSelectionCommand(System.Windows.Input.RoutedCommand command) => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        var args = new WpfExecutedRoutedEventArgs(command, null)
-        {
-            Source = page._box,
-            OriginalSource = page._box,
-        };
-        InvokeTextEditorParagraphs(methodName, page._box, args);
+        command.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.align-left-selection-command", Description = "Select all text and invoke TextEditorParagraphs' AlignLeft command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.align-left-selection-command", Description = "Select all text and invoke AlignLeft command on the RichTextBox.")]
     public static string ProbeAlignLeftSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnAlignLeft", WpfDocumentEditingCommands.AlignLeft);
+        ProbeAlignSelectionCommand(WpfDocumentEditingCommands.AlignLeft);
 
-    [DevFlowAction("richtextbox.probe.align-center-selection-command", Description = "Select all text and invoke TextEditorParagraphs' AlignCenter command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.align-center-selection-command", Description = "Select all text and invoke AlignCenter command on the RichTextBox.")]
     public static string ProbeAlignCenterSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnAlignCenter", WpfDocumentEditingCommands.AlignCenter);
+        ProbeAlignSelectionCommand(WpfDocumentEditingCommands.AlignCenter);
 
-    [DevFlowAction("richtextbox.probe.align-right-selection-command", Description = "Select all text and invoke TextEditorParagraphs' AlignRight command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.align-right-selection-command", Description = "Select all text and invoke AlignRight command on the RichTextBox.")]
     public static string ProbeAlignRightSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnAlignRight", WpfDocumentEditingCommands.AlignRight);
+        ProbeAlignSelectionCommand(WpfDocumentEditingCommands.AlignRight);
 
-    [DevFlowAction("richtextbox.probe.align-justify-selection-command", Description = "Select all text and invoke TextEditorParagraphs' AlignJustify command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.align-justify-selection-command", Description = "Select all text and invoke AlignJustify command on the RichTextBox.")]
     public static string ProbeAlignJustifySelectionCommand() =>
-        ProbeAlignSelectionCommand("OnAlignJustify", WpfDocumentEditingCommands.AlignJustify);
+        ProbeAlignSelectionCommand(WpfDocumentEditingCommands.AlignJustify);
 
-    [DevFlowAction("richtextbox.probe.toggle-bullets-selection-command", Description = "Select all text and invoke TextEditorLists' ToggleBullets command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.toggle-bullets-selection-command", Description = "Select all text and invoke ToggleBullets command on the RichTextBox.")]
     public static string ProbeToggleBulletsSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1421,12 +1370,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleBullets);
+        WpfDocumentEditingCommands.ToggleBullets.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-numbering-selection-command", Description = "Select all text and invoke TextEditorLists' ToggleNumbering command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.toggle-numbering-selection-command", Description = "Select all text and invoke ToggleNumbering command on the RichTextBox.")]
     public static string ProbeToggleNumberingSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1434,12 +1383,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleNumbering);
+        WpfDocumentEditingCommands.ToggleNumbering.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.increase-indentation-selection-command", Description = "Select all text and invoke TextEditorLists' IncreaseIndentation command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.increase-indentation-selection-command", Description = "Select all text and invoke IncreaseIndentation command on the RichTextBox.")]
     public static string ProbeIncreaseIndentationSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1447,12 +1396,12 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.IncreaseIndentation);
+        WpfDocumentEditingCommands.IncreaseIndentation.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.decrease-indentation-selection-command", Description = "Select all text and invoke TextEditorLists' DecreaseIndentation command handler for the current RichTextBox.")]
+    [DevFlowAction("richtextbox.probe.decrease-indentation-selection-command", Description = "Select all text and invoke DecreaseIndentation command on the RichTextBox.")]
     public static string ProbeDecreaseIndentationSelectionCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1460,7 +1409,7 @@ public sealed partial class MainPage : Page
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
         page._box.SelectAll();
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.DecreaseIndentation);
+        WpfDocumentEditingCommands.DecreaseIndentation.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
@@ -1487,7 +1436,7 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.remove-list-markers-command", Description = "Invoke TextEditorLists' RemoveListMarkers command handler for the current selection, without changing it first.")]
+    [DevFlowAction("richtextbox.probe.remove-list-markers-command", Description = "Invoke RemoveListMarkers command on the RichTextBox for the current selection.")]
     public static string ProbeRemoveListMarkersCommand() => RunOnUi(page =>
     {
         if (page._box is null)
@@ -1498,52 +1447,122 @@ public sealed partial class MainPage : Page
             System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("EditingCommands.RemoveListMarkers not found.");
         var removeListMarkers = (System.Windows.Input.RoutedUICommand)removeListMarkersProperty.GetValue(null)!;
-        InvokeTextEditorListsOnListCommand(page._box, removeListMarkers);
+        removeListMarkers.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-bullets-command", Description = "Invoke TextEditorLists' ToggleBullets command handler for the current selection, without changing it first.")]
+    [DevFlowAction("richtextbox.probe.toggle-bullets-command", Description = "Invoke ToggleBullets command on the RichTextBox for the current selection.")]
     public static string ProbeToggleBulletsCommand() => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.set-list-document first.");
 
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleBullets);
+        WpfDocumentEditingCommands.ToggleBullets.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.toggle-numbering-command", Description = "Invoke TextEditorLists' ToggleNumbering command handler for the current selection, without changing it first.")]
+    [DevFlowAction("richtextbox.probe.toggle-numbering-command", Description = "Invoke ToggleNumbering command on the RichTextBox for the current selection.")]
     public static string ProbeToggleNumberingCommand() => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.set-list-document first.");
 
-        InvokeTextEditorListsOnListCommand(page._box, WpfDocumentEditingCommands.ToggleNumbering);
+        WpfDocumentEditingCommands.ToggleNumbering.Execute(null, page._box);
         page._box.UpdateLayout();
         return Snapshot(page);
     });
 
-    [DevFlowAction("richtextbox.probe.apply-single-space-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplySingleSpace command handler for the current RichTextBox.")]
-    public static string ProbeApplySingleSpaceSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnApplySingleSpace", WpfDocumentEditingCommands.AlignLeft);
+    [DevFlowAction("richtextbox.probe.apply-single-space-selection-command", Description = "Select all text and invoke ApplySingleSpace command on the RichTextBox.")]
+    public static string ProbeApplySingleSpaceSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
-    [DevFlowAction("richtextbox.probe.apply-one-and-a-half-space-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplyOneAndAHalfSpace command handler for the current RichTextBox.")]
-    public static string ProbeApplyOneAndAHalfSpaceSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnApplyOneAndAHalfSpace", WpfDocumentEditingCommands.AlignLeft);
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.AlignLeft, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorParagraphs("OnApplySingleSpace", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 
-    [DevFlowAction("richtextbox.probe.apply-double-space-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplyDoubleSpace command handler for the current RichTextBox.")]
-    public static string ProbeApplyDoubleSpaceSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnApplyDoubleSpace", WpfDocumentEditingCommands.AlignLeft);
+    [DevFlowAction("richtextbox.probe.apply-one-and-a-half-space-selection-command", Description = "Select all text and invoke ApplyOneAndAHalfSpace command on the RichTextBox.")]
+    public static string ProbeApplyOneAndAHalfSpaceSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
-    [DevFlowAction("richtextbox.probe.apply-paragraph-flow-direction-ltr-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplyParagraphFlowDirectionLTR command handler for the current RichTextBox.")]
-    public static string ProbeApplyParagraphFlowDirectionLtrSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnApplyParagraphFlowDirectionLTR", WpfDocumentEditingCommands.AlignLeft);
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.AlignLeft, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorParagraphs("OnApplyOneAndAHalfSpace", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 
-    [DevFlowAction("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command", Description = "Select all text and invoke TextEditorParagraphs' ApplyParagraphFlowDirectionRTL command handler for the current RichTextBox.")]
-    public static string ProbeApplyParagraphFlowDirectionRtlSelectionCommand() =>
-        ProbeAlignSelectionCommand("OnApplyParagraphFlowDirectionRTL", WpfDocumentEditingCommands.AlignLeft);
+    [DevFlowAction("richtextbox.probe.apply-double-space-selection-command", Description = "Select all text and invoke ApplyDoubleSpace command on the RichTextBox.")]
+    public static string ProbeApplyDoubleSpaceSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.AlignLeft, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorParagraphs("OnApplyDoubleSpace", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.apply-paragraph-flow-direction-ltr-selection-command", Description = "Select all text and invoke ApplyParagraphFlowDirectionLTR command on the RichTextBox.")]
+    public static string ProbeApplyParagraphFlowDirectionLtrSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.AlignLeft, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorParagraphs("OnApplyParagraphFlowDirectionLTR", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command", Description = "Select all text and invoke ApplyParagraphFlowDirectionRTL command on the RichTextBox.")]
+    public static string ProbeApplyParagraphFlowDirectionRtlSelectionCommand() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        var args = new WpfExecutedRoutedEventArgs(WpfDocumentEditingCommands.AlignLeft, null)
+        {
+            Source = page._box,
+            OriginalSource = page._box,
+        };
+        InvokeTextEditorParagraphs("OnApplyParagraphFlowDirectionRTL", page._box, args);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 
     [DevFlowAction("richtextbox.probe.set-accepts-tab", Description = "Set RichTextBox.AcceptsTab to true or false.")]
     public static string ProbeSetAcceptsTab(bool value) => RunOnUi(page =>

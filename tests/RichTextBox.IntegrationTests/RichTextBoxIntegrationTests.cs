@@ -1140,6 +1140,142 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task UndoRedo_BoldFormat_RestoresNormalWeight()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "bold undo");
+        await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("700", FirstRunFontWeight(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("700", FirstRunFontWeight(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_ItalicFormat_RestoresNormalStyle()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "italic undo");
+        await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("Italic", FirstRunFontStyle(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("Italic", FirstRunFontStyle(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_UnderlineFormat_RestoresNoUnderline()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "underline undo");
+        await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.False(FirstRunHasUnderline(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.True(FirstRunHasUnderline(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_FontSizeChange_RestoresOriginalSize()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "fontsize undo");
+        await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 24);
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("24", FirstRunFontSize(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("24", FirstRunFontSize(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_ForegroundChange_RestoresOriginalColor()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "fg undo");
+        await _app.InvokeAsync("richtextbox.probe.apply-foreground-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("#FF90EE90", FirstRunForeground(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("#FF90EE90", FirstRunForeground(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_BackgroundChange_RestoresOriginalColor()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "bg undo");
+        await _app.InvokeAsync("richtextbox.probe.apply-background-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("#FFFFB6C1", FirstRunBackground(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("#FFFFB6C1", FirstRunBackground(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_TextAlignmentChange_RestoresOriginalAlignment()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "align undo");
+        await _app.InvokeAsync("richtextbox.probe.align-center-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("Center", FirstParagraphTextAlignment(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("Center", FirstParagraphTextAlignment(afterRedo));
+    }
+
+    [Fact]
+    public async Task UndoRedo_ParagraphFlowDirection_RestoresOriginalDirection()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "direction undo");
+        await _app.InvokeAsync("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command");
+
+        var afterUndo = await _app.InvokeAsync("richtextbox.probe.undo");
+        var afterUndoRaw = afterUndo.ToString();
+        Assert.True(HasRichTextBox(afterUndo), afterUndoRaw);
+        Assert.NotEqual("RightToLeft", FirstParagraphFlowDirection(afterUndo));
+
+        var afterRedo = await _app.InvokeAsync("richtextbox.probe.redo");
+        var afterRedoRaw = afterRedo.ToString();
+        Assert.True(HasRichTextBox(afterRedo), afterRedoRaw);
+        Assert.Equal("RightToLeft", FirstParagraphFlowDirection(afterRedo));
+    }
+
+    [Fact]
     public async Task SetDocument_ReadsParagraphRunText()
     {
         var state = await _app.InvokeAsync("richtextbox.probe.set-document", "document text");

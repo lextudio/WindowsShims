@@ -211,6 +211,6 @@ Each session is tracked as a separate file:
 | 45 | [session45.md](session45.md) | CI-Safe Hyperlink Test Restored; Click-Inside-Selection Collapse Fixed |
 | 46 | [session46.md](session46.md) | Double/Triple-Click Word/Paragraph Selection Implemented |
 | 47 | [session47.md](session47.md) | AcceptsTab / Tab-Key Behavior Coverage |
-| 48 | [session48.md](session48.md) | Context Menu Integration (planned) |
-| 49 | [session49.md](session49.md) | Undo/Redo Coverage for Formatting Commands (planned) |
+| 48 | [session48.md](session48.md) | Context Menu Integration (completed) |
+| 49 | [session49.md](session49.md) | Undo/Redo Coverage for Formatting Commands (completed) |
 | 50 | [session50.md](session50.md) | Ctrl+A SelectAll and Clipboard Keyboard Shortcuts (planned) |
