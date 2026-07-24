@@ -16,21 +16,20 @@ in fundamentally different ways, and none is a superset of another. Understandin
 
 ## Sources
 
-- **WCT v7**: `CommunityToolkit/WindowsCommunityToolkit` (archived), path
-  `Microsoft.Toolkit.Uwp.UI.Controls.DataGrid/`. Vendored into this repo as the
-  `ext/wct-v7` git submodule (shallow, `main` branch — the last state before v8
-  removed the control) purely for reference/comparison; nothing in it is currently
-  linked into the build.
+- **WCT v7**: `CommunityToolkit/WindowsCommunityToolkit` (archived) at
+  `https://github.com/CommunityToolkit/WindowsCommunityToolkit`, path
+  `Microsoft.Toolkit.Uwp.UI.Controls.DataGrid/`.
 - **WinUI.TableView**: independent community project at
-  `https://github.com/w-ahmad/WinUI.TableView` (MIT). Not vendored into this repo.
+  `https://github.com/w-ahmad/WinUI.TableView` (MIT).
   Referenced here for architectural and feature comparison only.
-- **CommunityToolkit DataTable**: `CommunityToolkit/Labs-Windows` (experimental),
-  path `components/DataTable/`. Present on this machine at
-  `/Users/lextm/Labs-Windows/components/DataTable/`. Not vendored into this repo
-  or the build — referenced here for comparison.
-- **Ours**: real WPF source (`System.Windows.Controls.DataGrid` and friends) linked
-  directly from the `ext/wpf` submodule (a `dotnet/wpf` fork), `#if HAS_UNO`-guarded,
-  supplemented by local `.uno.cs` bridge files in `src/LeXtudio.Windows/`.
+- **CommunityToolkit DataTable**: `CommunityToolkit/Labs-Windows` (experimental) at
+  `https://github.com/CommunityToolkit/Labs-Windows`, path
+  `components/DataTable/`. Referenced
+  here for comparison.
+- **Ours**: real WPF source (`System.Windows.Controls.DataGrid` and friends) at
+  `https://github.com/lextudio/wpf` (a `dotnet/wpf` fork), vendored as the
+  `ext/wpf` submodule, `#if HAS_UNO`-guarded, supplemented by local `.uno.cs`
+  bridge files in `src/LeXtudio.Windows/`.
 
 ## Fundamental architectural difference
 

@@ -27,7 +27,7 @@ public partial class DataGridColumnHeader : ButtonBase, IProvideDataGridColumn
     // CommonStates here doesn't touch any C#; it just lets already-linked,
     // already-running upstream logic become visible. Hover/press tint (a
     // HoverRectangle overlay) is adapted from WindowsCommunityToolkit v7's
-    // DataGrid.xaml (vendored for reference at ext/wct-v7) using a plain literal
+    // DataGrid.xaml using a plain literal
     // color instead of its ThemeResource lookup, since that key isn't defined
     // anywhere in this shim's resource tree.
     //
