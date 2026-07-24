@@ -8,8 +8,14 @@ namespace System.Windows.Controls;
 /// write path — so that ContentControl subclasses (DataGridCell, ButtonBase, etc.) compile
 /// upstream WPF source without per-class workarounds.
 /// </summary>
-public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
+public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl, IInputElement
 {
+    bool IInputElement.Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    void IInputElement.AddHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.AddHandler(this, routedEvent, handler);
+    void IInputElement.RemoveHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.RemoveHandler(this, routedEvent, handler);
+
     public static readonly DependencyProperty ContentStringFormatProperty =
         DependencyProperty.Register(nameof(ContentStringFormat), typeof(string), typeof(ContentControl),
             new PropertyMetadata(null));
@@ -18,6 +24,12 @@ public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
     {
         PointerEntered += (_, _) => { _isMouseOver = true;  UpdateVisualState(); };
         PointerExited  += (_, _) => { _isMouseOver = false; UpdateVisualState(); };
+        GotFocus += (_, _) => Keyboard.CurrentFocusedElement = this;
+        LostFocus += (_, _) =>
+        {
+            if (Keyboard.CurrentFocusedElement == this)
+                Keyboard.CurrentFocusedElement = null;
+        };
     }
 
     private bool _isMouseOver;
@@ -94,9 +106,11 @@ public class ContentControl : Microsoft.UI.Xaml.Controls.ContentControl
     protected Microsoft.UI.Xaml.DependencyObject? VisualParent
         => Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(this);
 
-    public bool IsKeyboardFocusWithin => false;
-    public bool IsKeyboardFocused => false;
+    public bool IsKeyboardFocusWithin => this == Keyboard.CurrentFocusedElement;
+    public bool IsKeyboardFocused => this == Keyboard.CurrentFocusedElement;
     public bool IsMouseOver => _isMouseOver;
+    public bool IsMouseCaptured => PointerCaptures?.Count > 0;
+    public void ReleaseMouseCapture() => ReleasePointerCaptures();
 
     public string? ContentStringFormat
     {

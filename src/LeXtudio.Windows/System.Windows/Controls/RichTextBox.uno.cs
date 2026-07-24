@@ -555,6 +555,8 @@ public partial class RichTextBox
             (Key.Back,   _, _)         => System.Windows.Documents.EditingCommands.Backspace,
             (Key.Return, true, _)      => System.Windows.Documents.EditingCommands.EnterLineBreak,
             (Key.Return, _,    _)      => System.Windows.Documents.EditingCommands.EnterParagraphBreak,
+            (Key.Tab,    true, _)      => System.Windows.Documents.EditingCommands.TabBackward,
+            (Key.Tab,    _,    _)      => System.Windows.Documents.EditingCommands.TabForward,
             _                          => null,
         };
     }

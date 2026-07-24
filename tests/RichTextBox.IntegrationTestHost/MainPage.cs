@@ -1545,6 +1545,16 @@ public sealed partial class MainPage : Page
     public static string ProbeApplyParagraphFlowDirectionRtlSelectionCommand() =>
         ProbeAlignSelectionCommand("OnApplyParagraphFlowDirectionRTL", WpfDocumentEditingCommands.AlignLeft);
 
+    [DevFlowAction("richtextbox.probe.set-accepts-tab", Description = "Set RichTextBox.AcceptsTab to true or false.")]
+    public static string ProbeSetAcceptsTab(bool value) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.AcceptsTab = value;
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.key-down", Description = "Invoke RichTextBox.OnKeyDown with a Uno KeyRoutedEventArgs for the current RichTextBox.")]
     public static string ProbeKeyDown(string key) => RunOnUi(page =>
     {

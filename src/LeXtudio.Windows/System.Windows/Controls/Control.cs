@@ -9,8 +9,14 @@ namespace System.Windows.Controls;
 /// event-override pattern (On*) that WPF source files like TextBoxBase override.
 /// On HAS_UNO these are no-op stubs; actual input wiring is done by Uno's event model.
 /// </summary>
-public abstract class Control : Microsoft.UI.Xaml.Controls.Control
+public abstract class Control : Microsoft.UI.Xaml.Controls.Control, IInputElement
 {
+    bool IInputElement.Focus() => Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    void IInputElement.AddHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.AddHandler(this, routedEvent, handler);
+    void IInputElement.RemoveHandler(System.Windows.RoutedEvent routedEvent, Delegate handler) =>
+        WinUIDependencyObjectExtensions.RemoveHandler(this, routedEvent, handler);
+
     protected static readonly DependencyProperty FocusableProperty =
         DependencyProperty.Register("Focusable", typeof(bool), typeof(Control), new PropertyMetadata(true));
 
@@ -30,6 +36,12 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
         InitializeDefaultStyleKey();
         PointerEntered += (_, _) => { _isMouseOver = true;  UpdateVisualState(); };
         PointerExited  += (_, _) => { _isMouseOver = false; UpdateVisualState(); };
+        GotFocus += (_, _) => Keyboard.CurrentFocusedElement = this;
+        LostFocus += (_, _) =>
+        {
+            if (Keyboard.CurrentFocusedElement == this)
+                Keyboard.CurrentFocusedElement = null;
+        };
     }
 
     private bool _isMouseOver;
@@ -50,9 +62,11 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control
     internal virtual void UpdateVisualState(bool useTransitions) => ChangeVisualState(useTransitions);
     internal virtual void ChangeVisualState(bool useTransitions) { }
 
-    public bool IsKeyboardFocusWithin => false;
-    public bool IsKeyboardFocused => false;
+    public bool IsKeyboardFocusWithin => this == Keyboard.CurrentFocusedElement;
+    public bool IsKeyboardFocused => this == Keyboard.CurrentFocusedElement;
     public bool IsMouseOver => _isMouseOver;
+    public bool IsMouseCaptured => PointerCaptures?.Count > 0;
+    public void ReleaseMouseCapture() => ReleasePointerCaptures();
 
     protected virtual void OnTemplateChanged(ControlTemplate oldTemplate, ControlTemplate newTemplate) { }
 

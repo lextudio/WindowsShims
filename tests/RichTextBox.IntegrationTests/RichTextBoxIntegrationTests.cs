@@ -1421,4 +1421,67 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Equal(3, c3.GetProperty("clickCount").GetInt32());
         Assert.Equal(1, c4.GetProperty("clickCount").GetInt32());
     }
+
+    [Fact]
+    public async Task AcceptsTab_WhenTrue_InsertsTabCharacter()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-tab", true);
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down", "Tab");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("a\tbc", Text(state));
+    }
+
+    [Fact]
+    public async Task AcceptsTab_WhenFalse_DoesNotInsertTabCharacter()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-tab", false);
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down", "Tab");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("abc\n", Text(state));
+    }
+
+    [Fact]
+    public async Task AcceptsTab_ShiftTab_DoesNotInsertTabCharacter()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Tab", "Shift");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("abc\n", Text(state));
+    }
+
+    [Fact]
+    public async Task AcceptsTab_AfterEnterInNewParagraph_AtParagraphStartIncreasesIndentation()
+    {
+        // At paragraph start, Tab increases indentation rather than
+        // inserting a literal tab character.
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.key-down", "Enter");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-tab", true);
+        await _app.InvokeAsync("richtextbox.probe.key-down", "Tab");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.state");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.True(BlockCount(state) >= 2, raw);
+    }
 }

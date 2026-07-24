@@ -53,8 +53,6 @@ namespace System.Windows.Input
                 return true;
             }
 
-            bool anyHandled = false;
-            bool canExecute = true;
             foreach (CommandBinding binding in _bindings)
             {
                 if (!binding.AppliesTo(target))
@@ -70,18 +68,18 @@ namespace System.Windows.Input
                     OriginalSource = target,
                 };
                 binding.OnCanExecute(invocationTarget, args);
-                if (args.Handled)
+                if (args.ContinueRouting)
                 {
-                    anyHandled = true;
-                    canExecute = args.CanExecute;
-                    if (!args.ContinueRouting)
-                    {
-                        return args.CanExecute;
-                    }
+                    // Handler asked to continue routing — try the next binding.
+                    continue;
                 }
+                // Return the handler's decision (whether or not it set
+                // args.Handled; many WPF handlers only set CanExecute).
+                return args.CanExecute;
             }
 
-            return !anyHandled || canExecute;
+            // No binding claimed this command.
+            return false;
         }
 
         public void Execute(object parameter, object? target)

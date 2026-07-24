@@ -58,7 +58,10 @@ namespace System.Windows.Input
 #endif
             }
         }
-        public static IInputElement? FocusedElement => null;
+        // Tracked by shim Control/ContentControl GotFocus/LostFocus events.
+        internal static object? CurrentFocusedElement { get; set; }
+
+        public static IInputElement? FocusedElement => CurrentFocusedElement as IInputElement;
 
         public static KeyboardDevice PrimaryDevice => KeyboardDevice.Empty;
 

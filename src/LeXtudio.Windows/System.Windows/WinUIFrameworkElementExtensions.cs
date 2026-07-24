@@ -14,7 +14,7 @@ public static class WinUIFrameworkElementExtensions
 
         public bool IsFocused => false;
 
-        public bool IsKeyboardFocused => false;
+        public bool IsKeyboardFocused => self == System.Windows.Input.Keyboard.CurrentFocusedElement;
 
         // WPF property consulted while a logical-tree walk is in progress.
         // We don't model the walk, so it's always false; callers gate stale-tree
@@ -49,7 +49,7 @@ public static class WinUIFrameworkElementExtensions
 
     extension(Microsoft.UI.Xaml.UIElement self)
     {
-        public bool IsKeyboardFocusWithin => false;
+        public bool IsKeyboardFocusWithin => self == System.Windows.Input.Keyboard.CurrentFocusedElement;
         public bool IsEnabled => true;
     }
 
