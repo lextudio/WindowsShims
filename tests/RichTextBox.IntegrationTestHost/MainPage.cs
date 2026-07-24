@@ -1620,6 +1620,74 @@ public sealed partial class MainPage : Page
         page._box.UpdateLayout();
         return Snapshot(page);
     });
+
+    // ── Context Menu Probes ────────────────────────────────────────
+
+    static readonly Lazy<Type> _editorContextMenuType = new(() =>
+        typeof(WpfRichTextBox).Assembly.GetType("System.Windows.Documents.TextEditorContextMenu+EditorContextMenu")
+        ?? throw new InvalidOperationException("TextEditorContextMenu+EditorContextMenu not found."));
+
+    [DevFlowAction("richtextbox.probe.create-context-menu", Description = "Create an EditorContextMenu and populate it with menu items. Returns item commands and headers.")]
+    public static string ProbeCreateContextMenu() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var textEditor = RequireTextEditor(page._box);
+        var ctor = _editorContextMenuType.Value.GetConstructor(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
+            null, [], null)
+            ?? throw new InvalidOperationException("EditorContextMenu constructor not found.");
+        var menu = ctor.Invoke(null);
+        var addMenuItems = _editorContextMenuType.Value.GetMethod("AddMenuItems",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("AddMenuItems not found.");
+        addMenuItems.Invoke(menu, [textEditor]);
+
+        // Cast to shim ContextMenu (which extends shim ItemsControl) to
+        // reach the shadowed Items property without reflection ambiguity.
+        var contextMenu = (System.Windows.Controls.ContextMenu)menu;
+        var items = (System.Collections.IList)contextMenu.Items;
+        var itemList = new List<string>();
+        foreach (var item in items)
+        {
+            if (item is System.Windows.Controls.MenuItem mi)
+            {
+                var cmd = mi.Command as System.Windows.Input.RoutedUICommand;
+                itemList.Add($"{{\"cmd\":\"{cmd?.Name ?? ""}\",\"header\":\"{mi.Header?.ToString() ?? ""}\"}}");
+            }
+            else if (item is System.Windows.Controls.Separator)
+            {
+                itemList.Add($"{{\"type\":\"separator\"}}");
+            }
+        }
+        return $"{{\"itemCount\":{itemList.Count},\"items\":[{string.Join(",", itemList)}]}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.execute-command", Description = "Execute an ApplicationCommands or EditingCommands command by name (Cut, Copy, Paste, Delete, SelectAll) on the current RichTextBox.")]
+    public static string ProbeExecuteCommand(string commandName) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var command = commandName switch
+        {
+            "Cut" => System.Windows.Input.ApplicationCommands.Cut,
+            "Copy" => System.Windows.Input.ApplicationCommands.Copy,
+            "Paste" => System.Windows.Input.ApplicationCommands.Paste,
+            "Delete" => System.Windows.Documents.EditingCommands.Delete,
+            "SelectAll" => System.Windows.Input.ApplicationCommands.SelectAll,
+            _ => throw new ArgumentException($"Unknown command: {commandName}", nameof(commandName)),
+        };
+
+        if (command.CanExecute(null, page._box))
+        {
+            command.Execute(null, page._box);
+        }
+
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
 }
 #else
 public sealed partial class MainPage : Microsoft.UI.Xaml.Controls.Page

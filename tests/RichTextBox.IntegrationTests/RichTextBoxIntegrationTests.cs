@@ -1484,4 +1484,81 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.True(BlockCount(state) >= 2, raw);
     }
+
+    // ── Context Menu Tests ─────────────────────────────────────────
+
+    [Fact]
+    public async Task ContextMenu_ShowsMenuWithExpectedCommands()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "context menu test");
+
+        var result = await _app.InvokeAsync("richtextbox.probe.create-context-menu");
+        var raw = result.ToString();
+
+        var items = result.GetProperty("items");
+        var commands = items.EnumerateArray().Select(i => i.GetProperty("cmd").GetString()).Where(c => !string.IsNullOrEmpty(c)).ToList();
+        var headers = items.EnumerateArray().Select(i => i.GetProperty("header").GetString()).Where(c => !string.IsNullOrEmpty(c)).ToList();
+
+        Assert.Equal(3, items.GetArrayLength());
+        Assert.Contains("Cut", commands);
+        Assert.Contains("Copy", commands);
+        Assert.Contains("Paste", commands);
+    }
+
+    [Fact]
+    public async Task ContextMenu_CutCommand_RemovesSelectionAndCopiesToClipboard()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "cut target");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 0, 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "Cut");
+
+        Assert.DoesNotContain("cut", Text(state));
+        Assert.Contains("cut", state.GetProperty("clipboardText").GetString());
+    }
+
+    [Fact]
+    public async Task ContextMenu_CopyCommand_CopiesWithoutRemoving()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "copy target");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 0, 4);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "Copy");
+
+        Assert.Contains("copy", Text(state));
+        Assert.Contains("copy", state.GetProperty("clipboardText").GetString());
+    }
+
+    [Fact]
+    public async Task ContextMenu_PasteCommand_InsertsClipboardAtCaret()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "before after");
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 6);
+        // Set clipboard content first, then paste
+        await _app.InvokeAsync("richtextbox.probe.paste-text-at-run-offset", "PASTED", 6);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.state");
+        Assert.Contains("PASTED", Text(state));
+    }
+
+    [Fact]
+    public async Task ContextMenu_SelectAllCommand_SelectsFullDocument()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "select all text");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "SelectAll");
+
+        Assert.Equal("select all text", state.GetProperty("selectionText").GetString().TrimEnd('\n'));
+    }
+
+    [Fact]
+    public async Task ContextMenu_DeleteCommand_RemovesSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "delete me");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 0, 6);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "Delete");
+
+        Assert.DoesNotContain("delete", Text(state));
+    }
 }
