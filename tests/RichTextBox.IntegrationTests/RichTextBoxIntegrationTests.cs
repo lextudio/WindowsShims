@@ -15,7 +15,7 @@ public sealed class RichTextBoxIntegrationTests
     static int BlockCount(JsonElement state) => state.GetProperty("blockCount").GetInt32();
     static string Text(JsonElement state) => state.GetProperty("text").GetString() ?? "";
     static string SelectionText(JsonElement state) => state.GetProperty("selectionText").GetString() ?? "";
-    static string? SelectionFontWeight(JsonElement state) => state.GetProperty("selectionFontWeight").GetString();
+    static string SelectionTextTrimmed(JsonElement state) => SelectionText(state).TrimEnd('\n', '\r');
     static int? SelectionStartRunOffset(JsonElement state) =>
         state.GetProperty("selectionStartRunOffset").ValueKind == JsonValueKind.Null
             ? null
@@ -1137,6 +1137,93 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(redo), redoRaw);
         Assert.True(HasDocument(redo), redoRaw);
         Assert.Contains("abc", Text(redo));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlA_SelectsAllDocumentText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "select all");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("select all", SelectionTextTrimmed(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlA_Twice_KeepsAllSelected()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "still selected");
+        await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("still selected", SelectionTextTrimmed(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlC_CopiesSelectionToClipboard()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "copy via ctrl c");
+        await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "C", "Cmd");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("copy via ctrl c", Text(state));
+        Assert.Contains("copy via ctrl c", ClipboardText(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlX_CutsSelectionToClipboard()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "cut via ctrl x");
+        await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "X", "Cmd");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.DoesNotContain("cut via ctrl x", Text(state));
+        Assert.Contains("cut via ctrl x", ClipboardText(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlV_PastesClipboardAtCaret()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "before ");
+        // Seed clipboard with known text
+        await _app.InvokeAsync("richtextbox.probe.paste-text-at-run-offset", "PASTED", 7);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "V", "Cmd");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("before PASTED", Text(state));
+    }
+
+    [Fact]
+    public async Task KeyDown_ControlAThenShiftLeft_ShrinksSelectionFromRight()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcd");
+        // SelectAll places the caret at document end
+        await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "A", "Cmd");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Left", "Shift");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("abcd", SelectionTextTrimmed(state));
     }
 
     [Fact]

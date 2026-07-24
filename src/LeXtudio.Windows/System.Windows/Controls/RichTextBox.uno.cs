@@ -327,6 +327,24 @@ public partial class RichTextBox
                 Log($"KeyDown: executed {formattingCommand.Name}");
                 return;
             }
+
+            var clipboardCommand = wpfKey switch
+            {
+                Key.A => System.Windows.Input.ApplicationCommands.SelectAll,
+                Key.C => System.Windows.Input.ApplicationCommands.Copy,
+                Key.X => System.Windows.Input.ApplicationCommands.Cut,
+                Key.V => System.Windows.Input.ApplicationCommands.Paste,
+                _ => null,
+            };
+
+            if (clipboardCommand != null && clipboardCommand.CanExecute(null, this))
+            {
+                clipboardCommand.Execute(null, this);
+                e.Handled = true;
+                UpdateCaretFromSelection();
+                Log($"KeyDown: executed {clipboardCommand.Name}");
+                return;
+            }
         }
 
         var args = new KeyEventArgs

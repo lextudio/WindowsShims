@@ -431,6 +431,13 @@ public sealed partial class MainPage : Page
         var result = global::Windows.System.VirtualKeyModifiers.None;
         foreach (var part in modifiers.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
+            if (string.Equals(part, "Cmd", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(part, "Command", StringComparison.OrdinalIgnoreCase))
+            {
+                // Cmd/Command on macOS → VirtualKeyModifiers.Windows in Uno/WinUI
+                result |= global::Windows.System.VirtualKeyModifiers.Windows;
+                continue;
+            }
             if (!Enum.TryParse<global::Windows.System.VirtualKeyModifiers>(part, ignoreCase: true, out var parsed))
                 throw new ArgumentException($"Unsupported modifier '{part}'.", nameof(modifiers));
             result |= parsed;
@@ -448,6 +455,10 @@ public sealed partial class MainPage : Page
             result |= System.Windows.Input.ModifierKeys.Shift;
         if ((modifiers & global::Windows.System.VirtualKeyModifiers.Menu) != 0)
             result |= System.Windows.Input.ModifierKeys.Alt;
+        // On macOS the physical Cmd key reports as Windows/Command; map it to
+        // Control so WPF command key-gestures (Ctrl+A, Ctrl+C, etc.) resolve.
+        if ((modifiers & global::Windows.System.VirtualKeyModifiers.Windows) != 0)
+            result |= System.Windows.Input.ModifierKeys.Control;
         return result;
     }
 
