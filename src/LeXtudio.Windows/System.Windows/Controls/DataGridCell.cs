@@ -358,11 +358,32 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
     protected override void OnPointerPressed(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (DataGridOwner is { } owner)
+        if (ShimHandleCellPointerPressed())
         {
-            owner.HandleShimCellClicked(this);
             e.Handled = true;
         }
+    }
+
+    // Extracted so a probe can exercise the exact click-to-focus behavior without needing a real
+    // PointerRoutedEventArgs (which cannot be constructed standalone outside a live pointer
+    // event). Returns whether there was an owning grid to click into.
+    internal bool ShimHandleCellPointerPressed()
+    {
+        if (DataGridOwner is not { } owner)
+        {
+            return false;
+        }
+
+        owner.HandleShimCellClicked(this);
+        // Clicking a cell must grant it keyboard focus so a subsequent keydown bubbles up
+        // through this cell to DataGrid.OnKeyDown. Unlike WPF's Control, WinUI does not
+        // auto-focus a ContentControl on pointer press — without this, arrow-key navigation
+        // and the Ctrl+C/Cmd+C, Ctrl+A/Cmd+A shortcuts silently do nothing after a mouse
+        // click (confirmed root cause of a reported "Cmd+C works sometimes" bug: it only
+        // worked when focus happened to already be inside the grid from some earlier action).
+        IsTabStop = true;
+        Focus(Microsoft.UI.Xaml.FocusState.Pointer);
+        return true;
     }
 
     // Called from the upstream NotifyCurrentCellContainerChanged whenever the

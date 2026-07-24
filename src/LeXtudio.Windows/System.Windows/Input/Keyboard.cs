@@ -27,12 +27,31 @@ namespace System.Windows.Input
                     global::Windows.System.VirtualKey.Control);
                 var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
                     global::Windows.System.VirtualKey.Menu);
+                // On Uno's macOS backend, the physical Cmd (⌘) key is reported through the
+                // WinRT virtual-key model as VirtualKey.LeftWindows/RightWindows (see
+                // UNOWindow.m's native keycode map — there is no separate "Command" VirtualKey).
+                // Populate ModifierKeys.Windows from it so callers can recognize Cmd on macOS.
+                //
+                // KNOWN UPSTREAM BUG (confirmed via diagnostic logging, not yet fixed in Uno):
+                // Uno's get_virtual_key() native keycode table maps LEFT Command (macOS scancode
+                // 55) to VirtualKeyLeftWindows, but never maps RIGHT Command (scancode 54) to
+                // VirtualKeyRightWindows — it falls through to VirtualKeyNone, so the RIGHT ⌘ key
+                // is silently invisible here (rightWin never reports Down) even though the key
+                // event genuinely fired. Left Cmd works correctly; right Cmd does not, until Uno's
+                // native macOS backend adds that mapping.
+                var leftWin = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                    global::Windows.System.VirtualKey.LeftWindows);
+                var rightWin = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+                    global::Windows.System.VirtualKey.RightWindows);
                 if ((shift & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
                     modifiers |= ModifierKeys.Shift;
                 if ((ctrl & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
                     modifiers |= ModifierKeys.Control;
                 if ((alt & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
                     modifiers |= ModifierKeys.Alt;
+                if ((leftWin & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0
+                    || (rightWin & global::Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+                    modifiers |= ModifierKeys.Windows;
                 return modifiers;
 #else
                 return ModifierKeys.None;

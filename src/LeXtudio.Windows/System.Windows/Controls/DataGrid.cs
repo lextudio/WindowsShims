@@ -2523,10 +2523,32 @@ public partial class DataGrid
         _editingRow = null;
     }
 
+    // Translates the LIVE keyboard modifier state at click time into what the linked upstream
+    // WPF selection engine (HandleSelectionForCellInput) expects for Shift-extend / Ctrl-toggle
+    // mouse-click multi-select. Shift passes through unchanged (same physical key on every OS);
+    // the "toggle selection" modifier is translated via IsPrimaryShortcutModifierDown — the same
+    // exact-match-the-OS rule used for Ctrl+C/Cmd+C — so a macOS Cmd-click toggles selection (not
+    // Ctrl-click), and a Windows/Linux Ctrl-click does (not Cmd/Windows-click).
+    private static Input.ModifierKeys ToSelectionModifiers(Input.ModifierKeys liveModifiers)
+    {
+        var result = Input.ModifierKeys.None;
+        if ((liveModifiers & Input.ModifierKeys.Shift) != 0)
+            result |= Input.ModifierKeys.Shift;
+        if (IsPrimaryShortcutModifierDown(liveModifiers))
+            result |= Input.ModifierKeys.Control;
+        return result;
+    }
+
     internal void HandleShimCellClicked(DataGridCell cell)
+        => HandleShimCellClicked(cell, Input.Keyboard.Modifiers);
+
+    // Overload accepting explicit modifiers so a probe can simulate a Cmd/Ctrl-click without
+    // real OS-level modifier-key injection (see docs/devflow's technote-uno-macos-drag.md for why
+    // DevFlow can't inject held-modifier chords).
+    internal void HandleShimCellClicked(DataGridCell cell, Input.ModifierKeys liveModifiers)
     {
         var previousModifiers = Input.Keyboard.ModifiersOverride;
-        Input.Keyboard.ModifiersOverride = Input.ModifierKeys.None;
+        Input.Keyboard.ModifiersOverride = ToSelectionModifiers(liveModifiers);
         try
         {
             var oldCurrentCell = CurrentCellContainer;
@@ -2819,21 +2841,51 @@ public partial class DataGrid
     // Up/Down arrows move the single selection between rows.
     private const int ShimPageSize = 5;
 
+    // The platform's "primary" shortcut modifier: Cmd (⌘) on macOS, Ctrl everywhere else — matching
+    // each OS's own convention exactly (macOS apps don't treat Ctrl+C as copy; recognizing both
+    // would be inconsistent with the system, not more compatible). Cmd surfaces as
+    // ModifierKeys.Windows (see Keyboard.Modifiers: Uno's macOS backend reports the physical Cmd
+    // key through the WinRT LeftWindows/RightWindows virtual keys, there being no separate
+    // "Command" VirtualKey).
+    private static bool IsPrimaryShortcutModifierDown(Input.ModifierKeys modifiers)
+    {
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.OSX))
+        {
+            return (modifiers & Input.ModifierKeys.Windows) != 0;
+        }
+
+        return (modifiers & Input.ModifierKeys.Control) != 0;
+    }
+
+    // Extracted so a probe can exercise the exact Ctrl+C/Ctrl+A-vs-Cmd shortcut logic OnKeyDown
+    // uses without needing real OS-level modifier-key injection (which DevFlow's key action does
+    // not support — it simulates text entry, not held modifier chords). Returns whether the key
+    // was handled as a shortcut.
+    internal bool ShimHandleKeyboardShortcut(global::Windows.System.VirtualKey key, Input.ModifierKeys modifiers)
+    {
+        if (key == global::Windows.System.VirtualKey.C
+            && IsPrimaryShortcutModifierDown(modifiers)
+            && ShimCopySelectionToClipboard())
+        {
+            return true;
+        }
+
+        if (key == global::Windows.System.VirtualKey.A
+            && IsPrimaryShortcutModifierDown(modifiers)
+            && ShimSelectAllCells())
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         base.OnKeyDown(e);
         var modifiers = Input.Keyboard.Modifiers;
-        if (e.Key == global::Windows.System.VirtualKey.C
-            && (modifiers & Input.ModifierKeys.Control) != 0
-            && ShimCopySelectionToClipboard())
-        {
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == global::Windows.System.VirtualKey.A
-            && (modifiers & Input.ModifierKeys.Control) != 0
-            && ShimSelectAllCells())
+        if (ShimHandleKeyboardShortcut(e.Key, modifiers))
         {
             e.Handled = true;
             return;

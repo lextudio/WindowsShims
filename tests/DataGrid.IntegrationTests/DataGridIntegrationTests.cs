@@ -767,6 +767,107 @@ public sealed class DataGridIntegrationTests
         Assert.True(state.GetProperty("selectedItems").GetInt32() > 0, $"probe should select a row: {raw}");
     }
 
+    // DataGrid's copy/select-all shortcut matches each OS's own convention exactly — Ctrl+C on
+    // Windows/Linux, Cmd+C (⌘C) on macOS — not both everywhere. Recognizing Ctrl+C on macOS too
+    // would be inconsistent with the system (real macOS apps don't treat Ctrl+C as copy), so on
+    // macOS Ctrl+C must be a no-op and only Cmd+C works; on Windows/Linux it's the reverse.
+    [Fact]
+    public async Task ClipboardGrid_CtrlC_CopiesSelectionToClipboardOnNonMacOS()
+    {
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+            return; // Ctrl+C is not the copy shortcut on macOS — see ClipboardGrid_CtrlC_IsNotTheCopyShortcutOnMacOS.
+
+        await _app.InvokeAsync("datagrid.probe.create-clipboard-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.keyboard-copy-shortcut", false);
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("handled").GetBoolean(), $"Ctrl+C should be handled as the copy shortcut: {raw}");
+        Assert.False(string.IsNullOrEmpty(state.GetProperty("clipboardText").GetString()), $"Ctrl+C should populate the clipboard: {raw}");
+    }
+
+    // Regression test: macOS users press Cmd (⌘), not Ctrl, to copy. Uno's macOS backend reports
+    // the physical Cmd key through the WinRT LeftWindows/RightWindows virtual keys (there is no
+    // separate "Command" VirtualKey), which System.Windows.Input.Keyboard.Modifiers surfaces as
+    // ModifierKeys.Windows — DataGrid.OnKeyDown must recognize that on macOS for the copy/select-all
+    // shortcuts, or Cmd+C silently does nothing.
+    [Fact]
+    public async Task ClipboardGrid_CmdC_CopiesSelectionToClipboardOnMacOS()
+    {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+            return; // Cmd (ModifierKeys.Windows) is only treated as the copy shortcut on macOS.
+
+        await _app.InvokeAsync("datagrid.probe.create-clipboard-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.keyboard-copy-shortcut", true);
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("handled").GetBoolean(), $"Cmd+C should be handled as the copy shortcut on macOS: {raw}");
+        Assert.False(string.IsNullOrEmpty(state.GetProperty("clipboardText").GetString()), $"Cmd+C should populate the clipboard on macOS: {raw}");
+    }
+
+    // The other half of the platform-exact design: Ctrl+C must NOT trigger copy on macOS (only
+    // Cmd+C does) — this is what distinguishes "match the system exactly" from "accept both".
+    [Fact]
+    public async Task ClipboardGrid_CtrlC_IsNotTheCopyShortcutOnMacOS()
+    {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+            return;
+
+        await _app.InvokeAsync("datagrid.probe.create-clipboard-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.keyboard-copy-shortcut", false);
+        var raw = state.ToString();
+        Assert.False(state.GetProperty("handled").GetBoolean(), $"Ctrl+C should NOT be the copy shortcut on macOS: {raw}");
+        Assert.True(string.IsNullOrEmpty(state.GetProperty("clipboardText").GetString()), $"Ctrl+C should not populate the clipboard on macOS: {raw}");
+    }
+
+    // ─── Click-based cell multi-select ────────────────────────────────
+    // DataGrid.HandleShimCellClicked used to force keyboard modifiers to None on every click,
+    // so mouse-driven toggle-select (Ctrl-click / Cmd-click) never worked on any platform even
+    // though the linked upstream WPF selection engine (HandleSelectionForCellInput) fully
+    // implements it. Fixed to read the live modifiers and translate the platform's own toggle
+    // modifier (Cmd on macOS, Ctrl elsewhere — same rule as the copy shortcut) into what that
+    // engine expects.
+
+    [Fact]
+    public async Task SelectionGrid_PlainClicks_ReplaceSelectionWithOneCell()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.click-multiselect", 0, 0, false, 1, 1, false);
+        var raw = state.ToString();
+        Assert.Equal(1, state.GetProperty("selectedCells").GetInt32());
+    }
+
+    [Fact]
+    public async Task SelectionGrid_ToggleClickSecondCell_AddsToSelection()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.click-multiselect", 0, 0, false, 1, 1, true);
+        var raw = state.ToString();
+        Assert.Equal(2, state.GetProperty("selectedCells").GetInt32());
+    }
+
+    [Fact]
+    public async Task SelectionGrid_ToggleClickSameCellTwice_DeselectsIt()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.click-multiselect", 0, 0, true, 0, 0, true);
+        var raw = state.ToString();
+        Assert.Equal(0, state.GetProperty("selectedCells").GetInt32());
+    }
+
+    // Regression test for a confirmed bug: clicking a cell used to select it but never grant
+    // keyboard focus, so Ctrl+C/Cmd+C, Ctrl+A/Cmd+A, and arrow-key navigation all silently did
+    // nothing after a mouse click (the click path never reached DataGrid.OnKeyDown at all). This
+    // exercises the real click-to-focus code path (DataGridCell.OnPointerPressed's logic) —
+    // ClipboardGrid_CmdC_CopiesSelectionToClipboardOnMacOS and friends call
+    // ShimHandleKeyboardShortcut directly and would NOT have caught this gap.
+    [Fact]
+    public async Task SelectionGrid_ClickingACell_GrantsItKeyboardFocus()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.click-grants-focus", 0, 0);
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("handled").GetBoolean(), $"click should be handled: {raw}");
+        Assert.NotEqual("Unfocused", state.GetProperty("focusState").GetString());
+    }
+
     // ─── Grid Lines ──────────────────────────────────────────────────
 
     [Fact]

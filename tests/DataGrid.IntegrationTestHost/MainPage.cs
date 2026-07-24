@@ -318,6 +318,62 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":true,\"selectionMode\":{Js(grid.SelectionMode.ToString())},\"selectionUnit\":{Js(grid.SelectionUnit.ToString())}}}";
     });
 
+    // Exercises DataGrid.HandleShimCellClicked(cell, modifiers) directly — the toggle-select-on-
+    // click path a real Ctrl-click (Windows/Linux) or Cmd-click (macOS) drives — without needing
+    // real OS-level modifier-key injection. args: [rowIndex1, colIndex1, useToggleModifier1,
+    // rowIndex2, colIndex2, useToggleModifier2] simulates two sequential clicks and reports the
+    // resulting SelectedCells count (a toggle-modified second click should ADD to the selection;
+    // a plain click should REPLACE it with just the second cell).
+    [DevFlowAction("datagrid.probe.click-multiselect",
+        Description = "Simulate two sequential cell clicks (args: r1,c1,useToggle1,r2,c2,useToggle2) and report resulting SelectedCells.Count.")]
+    public static string ProbeClickMultiSelect(int r1, int c1, bool useToggle1, int r2, int c2, bool useToggle2) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var gen = grid.ItemContainerGenerator;
+
+        System.Windows.Controls.DataGridCell? CellAt(int row, int col) =>
+            gen.ContainerFromIndex(row) is System.Windows.Controls.DataGridRow r ? r.TryGetCell(col) : null;
+
+        var cell1 = CellAt(r1, c1);
+        var cell2 = CellAt(r2, c2);
+        if (cell1 is null || cell2 is null)
+            return $"{{\"hasGrid\":true,\"error\":\"cell not found\",\"cell1Found\":{Jb(cell1 != null)},\"cell2Found\":{Jb(cell2 != null)}}}";
+
+        // Toggle-select modifier = whatever this OS's own convention is (Cmd on macOS, Ctrl
+        // elsewhere) — same platform mapping DataGrid.IsPrimaryShortcutModifierDown uses.
+        var toggleModifier = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.OSX)
+            ? System.Windows.Input.ModifierKeys.Windows
+            : System.Windows.Input.ModifierKeys.Control;
+
+        grid.HandleShimCellClicked(cell1, useToggle1 ? toggleModifier : System.Windows.Input.ModifierKeys.None);
+        grid.HandleShimCellClicked(cell2, useToggle2 ? toggleModifier : System.Windows.Input.ModifierKeys.None);
+
+        return $"{{\"hasGrid\":true,\"selectedCells\":{grid.SelectedCells.Count}}}";
+    });
+
+    // Regression guard for a confirmed bug: clicking a cell (DataGridCell.OnPointerPressed) used
+    // to select it but never grant keyboard focus, so no subsequent keydown (arrow-key nav,
+    // Ctrl+C/Cmd+C, Ctrl+A/Cmd+A) ever reached DataGrid.OnKeyDown at all after a mouse click.
+    // Exercises DataGridCell.ShimHandleCellPointerPressed() — the exact method OnPointerPressed
+    // calls — and reads back FocusState directly, closing the coverage gap the keyboard-shortcut
+    // probes have: those call ShimHandleKeyboardShortcut directly and never touch the click path,
+    // so they could not have caught this.
+    [DevFlowAction("datagrid.probe.click-grants-focus",
+        Description = "Simulate a cell click (args: row, col) and report the cell's resulting FocusState.")]
+    public static string ProbeClickGrantsFocus(int row, int col) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var gen = grid.ItemContainerGenerator;
+        if (gen.ContainerFromIndex(row) is not System.Windows.Controls.DataGridRow r || r.TryGetCell(col) is not { } cell)
+            return "{\"hasGrid\":true,\"error\":\"cell not found\"}";
+
+        var handled = cell.ShimHandleCellPointerPressed();
+        return $"{{\"hasGrid\":true,\"handled\":{Jb(handled)},\"focusState\":{Js(cell.FocusState.ToString())}}}";
+    });
+
     // ─── Probe: create-reorder-grid ──────────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-reorder-grid", Description = "Create a DataGrid with CanUserReorderColumns enabled.")]
@@ -487,6 +543,33 @@ public sealed partial class MainPage : Page
         EnsureGrid(page);
         var grid = page._grid!;
         return $"{{\"hasGrid\":true,\"clipboardCopyMode\":{Js(grid.ClipboardCopyMode.ToString())}}}";
+    });
+
+    // Exercises DataGrid.ShimHandleKeyboardShortcut directly — the same logic OnKeyDown uses for
+    // Ctrl+C/Cmd+C — rather than real OS key injection, which DevFlow's key action does not
+    // support for held-modifier chords. Regression test for: macOS users press Cmd (⌘), not Ctrl,
+    // to copy; the shortcut check must recognize System.Windows.Input.ModifierKeys.Windows (the
+    // WinRT slot Uno's macOS backend reports the physical Cmd key through) as well as Control.
+    [DevFlowAction("datagrid.probe.keyboard-copy-shortcut",
+        Description = "Simulate the Ctrl+C / Cmd+C keyboard shortcut (args: [useWindowsModifier: bool]) and report whether it copied to the clipboard.")]
+    public static string ProbeKeyboardCopyShortcut(bool useWindowsModifier) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.SelectionUnit = System.Windows.Controls.DataGridSelectionUnit.FullRow;
+        if (grid.Items.Count == 0)
+            return "{\"hasGrid\":true,\"handled\":false,\"clipboardText\":\"\"}";
+        grid.SelectedIndex = 0;
+
+        System.Windows.Clipboard.SetText(string.Empty);
+
+        var modifiers = useWindowsModifier
+            ? System.Windows.Input.ModifierKeys.Windows
+            : System.Windows.Input.ModifierKeys.Control;
+        var handled = grid.ShimHandleKeyboardShortcut(global::Windows.System.VirtualKey.C, modifiers);
+        var clipboardText = System.Windows.Clipboard.GetText();
+
+        return $"{{\"hasGrid\":true,\"handled\":{Jb(handled)},\"clipboardText\":{Js(clipboardText)}}}";
     });
 
     // ─── Probe: create-gridlines-grid ────────────────────────────────

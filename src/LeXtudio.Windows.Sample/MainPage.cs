@@ -15,6 +15,15 @@ public sealed partial class MainPage : Page
         Func<WpfDataGrid> Build,
         Action<WpfDataGrid, Panel>? Optionize = null);
 
+    // DataGrid's "primary shortcut" modifier matches each OS's own convention exactly: Cmd (⌘) on
+    // macOS, Ctrl elsewhere — see DataGrid.IsPrimaryShortcutModifierDown (copy/select-all) and
+    // ToSelectionModifiers (click-to-toggle-select). The instructional text below must say
+    // whichever one this OS actually responds to.
+    private static readonly bool IsMacOS =
+        System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
+    private static readonly string PrimaryModifierLabel = IsMacOS ? "Cmd" : "Ctrl";
+    private static readonly string CopyShortcutLabel = $"{PrimaryModifierLabel}+C";
+
     private static readonly Scenario[] Scenarios =
     [
         new("basic", "Basic Grid",
@@ -31,7 +40,7 @@ public sealed partial class MainPage : Page
             DataGridScenarios.BuildSortingGrid,
             (g, p) => p.AddToggle("CanUserSortColumns", g, nameof(WpfDataGrid.CanUserSortColumns))),
         new("selection", "Selection",
-            "Change selection mode and unit. Ctrl+click to select multiple in Extended mode.",
+            $"Change selection mode and unit. {PrimaryModifierLabel}+click to select multiple in Extended mode.",
             DataGridScenarios.BuildSelectionGrid,
             (g, p) =>
             {
@@ -49,7 +58,7 @@ public sealed partial class MainPage : Page
                 p.AddToggle("CanUserResizeColumns", g, nameof(WpfDataGrid.CanUserResizeColumns));
             }),
         new("clipboard", "Clipboard",
-            "Select cells and press Ctrl+C to copy. Change clipboard mode below.",
+            $"Select cells and press {CopyShortcutLabel} to copy. Change clipboard mode below.",
             DataGridScenarios.BuildClipboardGrid,
             (g, p) => p.AddCombo("ClipboardCopyMode", g, nameof(WpfDataGrid.ClipboardCopyMode),
                 ["Disabled", "EnableWithoutHeader", "IncludeHeader"])),
