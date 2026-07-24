@@ -1,6 +1,6 @@
 #if DEBUG
 using System.Threading;
-using LeXtudio.DevFlow.Agent.Core;
+using Microsoft.Maui.DevFlow.Agent.Core;
 using Microsoft.UI.Xaml.Controls;
 using RichTextBox.TestScenarios;
 using WpfDocumentEditingCommands = System.Windows.Documents.EditingCommands;

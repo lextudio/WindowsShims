@@ -1,7 +1,7 @@
 #if DEBUG
 using System.Threading;
 using DataGrid.TestScenarios;
-using LeXtudio.DevFlow.Agent.Core;
+using Microsoft.Maui.DevFlow.Agent.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using WpfDataGrid = System.Windows.Controls.DataGrid;
@@ -21,6 +21,44 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         _current = this;
+        System.Windows.Controls.DataGrid.ReorderLogger = msg =>
+        {
+            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[reorder] {msg}\n"); } catch { }
+        };
+        // Comprehensive pointer event logging at page level and grid level
+        this.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
+        {
+            var pPage = e.GetCurrentPoint(this).Position;
+            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-pressed] page=({pPage.X:F1},{pPage.Y:F1}) originalSource={e.OriginalSource?.GetType().Name}\n"); } catch { }
+        }), true);
+
+        this.AddHandler(UIElement.PointerMovedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
+        {
+            var pPage = e.GetCurrentPoint(this).Position;
+            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-moved] page=({pPage.X:F1},{pPage.Y:F1})\n"); } catch { }
+        }), true);
+
+        this.AddHandler(UIElement.PointerReleasedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
+        {
+            var pPage = e.GetCurrentPoint(this).Position;
+            try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[page-released] page=({pPage.X:F1},{pPage.Y:F1})\n"); } catch { }
+        }), true);
+
+        // Also log at grid level
+        if (_grid != null)
+        {
+            _grid.AddHandler(UIElement.PointerPressedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
+            {
+                var pGrid = e.GetCurrentPoint(_grid).Position;
+                try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[grid-pressed] grid=({pGrid.X:F1},{pGrid.Y:F1}) originalSource={e.OriginalSource?.GetType().Name}\n"); } catch { }
+            }), true);
+
+            _grid.AddHandler(UIElement.PointerMovedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler((s, e) =>
+            {
+                var pGrid = e.GetCurrentPoint(_grid).Position;
+                try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", $"[grid-moved] grid=({pGrid.X:F1},{pGrid.Y:F1})\n"); } catch { }
+            }), true);
+        }
         _root = new Grid();
         // The scenario gallery (ScenarioGallery.cs) wraps _root in a left-nav +
         // card layout for manual visual inspection; _root itself stays the
@@ -335,7 +373,127 @@ public sealed partial class MainPage : Page
         var headers = string.Join(",",
             grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
                 .Select(c => Js(c.Header?.ToString())));
-        return $"{{\"hasGrid\":true,\"canUserReorderColumns\":{Jb(grid.CanUserReorderColumns)},\"canUserResizeColumns\":{Jb(grid.CanUserResizeColumns)},\"headers\":[{headers}]}}";
+        var displayHeaders = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .OrderBy(c => c.DisplayIndex)
+                .Select(c => Js(c.Header?.ToString())));
+        var displayIndices = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => c.DisplayIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return $"{{\"hasGrid\":true,\"canUserReorderColumns\":{Jb(grid.CanUserReorderColumns)},\"canUserResizeColumns\":{Jb(grid.CanUserResizeColumns)},\"headers\":[{headers}],\"displayHeaders\":[{displayHeaders}],\"displayIndices\":[{displayIndices}]}}";
+    });
+
+    [DevFlowAction("datagrid.probe.reorder-column", Description = "Move a column to a target DisplayIndex through DataGrid.ShimTryReorderColumn.")]
+    public static string ProbeReorderColumn(int columnIndex, int targetDisplayIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        if (columnIndex < 0 || columnIndex >= grid.Columns.Count)
+            throw new ArgumentOutOfRangeException(nameof(columnIndex));
+
+        var moved = grid.ShimTryReorderColumn(grid.Columns[columnIndex], targetDisplayIndex);
+        var headers = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.Header?.ToString())));
+        var displayHeaders = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .OrderBy(c => c.DisplayIndex)
+                .Select(c => Js(c.Header?.ToString())));
+        var displayIndices = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => c.DisplayIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return $"{{\"hasGrid\":true,\"moved\":{Jb(moved)},\"headers\":[{headers}],\"displayHeaders\":[{displayHeaders}],\"displayIndices\":[{displayIndices}]}}";
+    });
+
+    [DevFlowAction("datagrid.probe.drag-reorder-column", Description = "Simulate a column-header drag through DataGrid's drag drop-slot calculation and reorder commit.")]
+    public static string ProbeDragReorderColumn(int sourceDisplayIndex, int releaseHeaderIndex) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var ordered = grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+            .OrderBy(c => c.DisplayIndex)
+            .ToList();
+        if (sourceDisplayIndex < 0 || sourceDisplayIndex >= ordered.Count)
+            throw new ArgumentOutOfRangeException(nameof(sourceDisplayIndex));
+        if (releaseHeaderIndex < 0 || releaseHeaderIndex >= ordered.Count)
+            throw new ArgumentOutOfRangeException(nameof(releaseHeaderIndex));
+
+        static double WidthOf(System.Windows.Controls.DataGridColumn column) =>
+            column.ActualWidth > 0 ? column.ActualWidth : column.Width.DisplayValue;
+
+        var startX = 0.0;
+        for (var i = 0; i < sourceDisplayIndex; i++)
+        {
+            startX += WidthOf(ordered[i]);
+        }
+        startX += WidthOf(ordered[sourceDisplayIndex]) / 2.0;
+
+        var releaseX = 0.0;
+        for (var i = 0; i <= releaseHeaderIndex; i++)
+        {
+            releaseX += WidthOf(ordered[i]);
+        }
+        releaseX += 8.0;
+
+        var moved = grid.ShimTryReorderColumnByHeaderDrag(
+            sourceDisplayIndex,
+            startX,
+            releaseX,
+            out var dropSlot,
+            out var targetDisplayIndex);
+
+        var headers = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => Js(c.Header?.ToString())));
+        var displayHeaders = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .OrderBy(c => c.DisplayIndex)
+                .Select(c => Js(c.Header?.ToString())));
+        var displayIndices = string.Join(",",
+            grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+                .Select(c => c.DisplayIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return $"{{\"hasGrid\":true,\"moved\":{Jb(moved)},\"startX\":{Jn(startX)},\"releaseX\":{Jn(releaseX)},\"dropSlot\":{dropSlot},\"targetDisplayIndex\":{targetDisplayIndex},\"headers\":[{headers}],\"displayHeaders\":[{displayHeaders}],\"displayIndices\":[{displayIndices}]}}";
+    });
+
+    [DevFlowAction("datagrid.probe.header-rects-for-drag", Description = "Return page-local bounding boxes for all column headers.")]
+    public static string ProbeHeaderRectsForDrag() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var scale = page._root.XamlRoot?.RasterizationScale ?? 1.0;
+
+        // Get headers and measure them directly relative to PAGE (not global screen)
+        // Then test will compute global coords by measuring page's screen position
+        var headers = new System.Collections.Generic.List<(double x, double y, double w, double h)>();
+        foreach (var d in EnumerateVisualTree(grid))
+        {
+            if (d is System.Windows.Controls.Primitives.DataGridColumnHeader header)
+            {
+                // Get position relative to PAGE (the root element we care about)
+                var pToPage = header.TransformToVisual(page).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+                headers.Add((pToPage.X, pToPage.Y, header.ActualWidth, header.ActualHeight));
+            }
+        }
+
+        // Sort by X position (display order)
+        headers.Sort((a, b) => a.x.CompareTo(b.x));
+
+        var log = $"[probe] Column headers (relative to page):\n";
+        for (var i = 0; i < headers.Count; i++)
+            log += $"  [{i}] page=({headers[i].x:F1},{headers[i].y:F1}) size={headers[i].w:F1}x{headers[i].h:F1}\n";
+        try { System.IO.File.AppendAllText("/tmp/datagrid-drag.log", log); } catch { }
+
+        // Return as JSON arrays
+        var xs = string.Join(",", headers.ConvertAll(h => Jn(h.x)));
+        var ys = string.Join(",", headers.ConvertAll(h => Jn(h.y)));
+        var ws = string.Join(",", headers.ConvertAll(h => Jn(h.w)));
+        var hs = string.Join(",", headers.ConvertAll(h => Jn(h.h)));
+
+        return $"{{\"hasGrid\":true,\"scale\":{Jn(scale)},\"count\":{headers.Count},\"xs\":[{xs}],\"ys\":[{ys}],\"widths\":[{ws}],\"heights\":[{hs}]}}";
     });
 
     // ─── Probe: create-clipboard-grid ────────────────────────────────

@@ -3,4 +3,9 @@
   <Project Path="LeXtudio.Windows.Sample/LeXtudio.Windows.Sample.csproj" />
   <Project Path="LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj" />
   <Project Path="../tests/DataGrid.TestScenarios/DataGrid.TestScenarios.csproj" />
+  <Project Path="../tests/DataGrid.IntegrationTestHost/DataGrid.IntegrationTestHost.csproj" />
+  <Project Path="../tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj" />
+  <Project Path="../tests/RichTextBox.TestScenarios/RichTextBox.TestScenarios.csproj" />
+  <Project Path="../tests/RichTextBox.IntegrationTestHost/RichTextBox.IntegrationTestHost.csproj" />
+  <Project Path="../tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj" />
 </Solution>

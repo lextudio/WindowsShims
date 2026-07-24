@@ -733,22 +733,29 @@ public partial class DataGrid
     // DataGrid-level pointer handlers that drive interactive column drag-reorder. Called from
     // DataGridColumnHeadersPresenter.PrepareContainerForItemOverride/ClearContainerForItemOverride
     // (ext/wpf, HAS_UNO branch) as headers are realized/cleared.
+    // EXPERIMENT: per-header handledEventsToo + CapturePointer (no grid-level fallback) — testing
+    // whether this is reliable now that DevFlow drag itself is fixed (proper origin/focus/split-release).
+    private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderPressed;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderMoved;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler? _reorderReleased;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderPressed => _reorderPressed ??= OnHeaderPointerPressed;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderMoved => _reorderMoved ??= OnHeaderPointerMoved;
+    private Microsoft.UI.Xaml.Input.PointerEventHandler ReorderReleased => _reorderReleased ??= OnHeaderPointerReleased;
+
     internal void ShimHookHeaderReorderHandlers(DataGridColumnHeader header)
     {
         ShimUnhookHeaderReorderHandlers(header);
-        header.PointerPressed += OnHeaderPointerPressed;
-        header.PointerMoved += OnHeaderPointerMoved;
-        header.PointerReleased += OnHeaderPointerReleased;
-        header.PointerCaptureLost += OnHeaderPointerCaptureLost;
+        header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed, true);
+        header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved, true);
+        header.AddHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased, true);
         header.PointerExited += OnHeaderPointerExited;
     }
 
     internal void ShimUnhookHeaderReorderHandlers(DataGridColumnHeader header)
     {
-        header.PointerPressed -= OnHeaderPointerPressed;
-        header.PointerMoved -= OnHeaderPointerMoved;
-        header.PointerReleased -= OnHeaderPointerReleased;
-        header.PointerCaptureLost -= OnHeaderPointerCaptureLost;
+        header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed);
+        header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved);
+        header.RemoveHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased);
         header.PointerExited -= OnHeaderPointerExited;
     }
 
@@ -1384,10 +1391,9 @@ public partial class DataGrid
             headerCell.ApplyShimFrozenState();
             headerCell.ApplyShimColumnHeaderStyle();
             headerCell.ApplyShimGridLines();
-            headerCell.PointerPressed += OnHeaderPointerPressed;
-            headerCell.PointerMoved += OnHeaderPointerMoved;
-            headerCell.PointerReleased += OnHeaderPointerReleased;
-            headerCell.PointerCaptureLost += OnHeaderPointerCaptureLost;
+            headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerPressedEvent, ReorderPressed, true);
+            headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerMovedEvent, ReorderMoved, true);
+            headerCell.AddHandler(Microsoft.UI.Xaml.UIElement.PointerReleasedEvent, ReorderReleased, true);
             headerCell.PointerExited += OnHeaderPointerExited;
             _headerCells.Add(headerCell);
             header.Children.Add(headerCell);
@@ -2022,16 +2028,33 @@ public partial class DataGrid
     private Microsoft.UI.Xaml.UIElement? EffectiveHeaderReferenceElement()
         => _shimUseHeaderPresenter ? _headerPresenterOverlay : _headerHostPanel;
 
+    internal static Action<string>? ReorderLogger;
+    private static void ReorderLog(string msg) => ReorderLogger?.Invoke(msg);
+
     private void OnHeaderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        ReorderLog($"OnHeaderPointerPressed CALLED sender={sender?.GetType().Name}");
         // Reorder: record candidate but don't capture yet (plain click still sorts).
-        if (CanUserReorderColumns && EffectiveHeaderReferenceElement() is { } reference
-            && sender is DataGridColumnHeader hdr && hdr.Column is { CanUserReorder: true } col)
+        var canReorder = CanUserReorderColumns;
+        var refElem = EffectiveHeaderReferenceElement();
+        var hdr = sender as DataGridColumnHeader;
+        var col = hdr?.Column;
+        var canColReorder = col?.CanUserReorder ?? false;
+
+        ReorderLog($"  conditions: canReorder={canReorder} refElem={refElem != null} hdr={hdr != null} col={col != null} canColReorder={canColReorder}");
+
+        if (canReorder && refElem is { } reference
+            && hdr is not null && col is { CanUserReorder: true })
         {
             _reorderHeader = hdr;
             _reorderColumn = col;
             _reorderStartX = e.GetCurrentPoint(reference).Position.X;
             _reorderActive = false;
+            ReorderLog($"  PointerPressed col='{col.Header}' startX={_reorderStartX:F1}");
+        }
+        else
+        {
+            ReorderLog($"  PointerPressed IGNORED");
         }
     }
 
@@ -2044,11 +2067,15 @@ public partial class DataGrid
         if (!_reorderActive)
         {
             if (Math.Abs(x - _reorderStartX) <= ReorderDragThreshold)
+            {
+                ReorderLog($"PointerMoved below threshold x={x:F1} start={_reorderStartX:F1}");
                 return;
+            }
             _reorderActive = true;
-            _reorderHeader.CapturePointer(e.Pointer);
+            var captureResult = _reorderHeader.CapturePointer(e.Pointer);
             _reorderHeader.Opacity = 0.5;
             StartFloatingHeader(_reorderHeader, _reorderColumn);
+            ReorderLog($"PointerMoved -> reorderActive x={x:F1} captureResult={captureResult}");
         }
 
         UpdateFloatingHeader(x - _reorderStartX);
@@ -2061,21 +2088,19 @@ public partial class DataGrid
         {
             var slot = ComputeDropSlot(e.GetCurrentPoint(reference).Position.X, out _);
             var target = _visibleColumns[Math.Clamp(slot, 0, _visibleColumns.Count - 1)].DisplayIndex;
-            if (sender is DataGridColumnHeader hdr)
-                hdr.ReleasePointerCapture(e.Pointer);
+            // Grid-level handler: release capture on the header that took it (best-effort; capture
+            // may already have been lost, which is fine — the drop still commits from here).
+            try { _reorderHeader?.ReleasePointerCapture(e.Pointer); } catch { }
             EndReorder();
+            ReorderLog($"PointerReleased col='{col.Header}' slot={slot} target={target}");
             ShimTryReorderColumn(col, target);
             e.Handled = true;
         }
         else
         {
+            ReorderLog($"PointerReleased no-op reorderActive={_reorderActive} col={_reorderColumn?.Header}");
             EndReorder();
         }
-    }
-
-    private void OnHeaderPointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        EndReorder();
     }
 
     private void OnHeaderPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
@@ -2107,6 +2132,35 @@ public partial class DataGrid
 
         dropOffset = offset;
         return Math.Max(0, _visibleColumns.Count - 1);
+    }
+
+    internal bool ShimTryReorderColumnByHeaderDrag(
+        int sourceDisplayIndex,
+        double startX,
+        double releaseX,
+        out int dropSlot,
+        out int targetDisplayIndex)
+    {
+        dropSlot = -1;
+        targetDisplayIndex = -1;
+
+        if (!CanUserReorderColumns
+            || sourceDisplayIndex < 0
+            || sourceDisplayIndex >= _visibleColumns.Count
+            || EffectiveHeaderReferenceElement() is null)
+        {
+            return false;
+        }
+
+        if (Math.Abs(releaseX - startX) <= ReorderDragThreshold)
+        {
+            return false;
+        }
+
+        dropSlot = ComputeDropSlot(releaseX, out _);
+        targetDisplayIndex = _visibleColumns[Math.Clamp(dropSlot, 0, _visibleColumns.Count - 1)].DisplayIndex;
+        var sourceColumn = ColumnFromDisplayIndex(sourceDisplayIndex);
+        return ShimTryReorderColumn(sourceColumn, targetDisplayIndex);
     }
 
     private void UpdateReorderIndicator(int slot, double offset)

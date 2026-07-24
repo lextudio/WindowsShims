@@ -21,11 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(Configuration)'=='Debug'">
-    <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" Version="0.1.14" />
+    <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" />
   </ItemGroup>
 
 </Project>

@@ -13,5 +13,8 @@
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
     <PackageVersion Include="LeXtudio.Win2D.UnoCompat" Version="0.2.0" />
     <PackageVersion Include="LeXtudio.UI.Text.Core" Version="1.0.0" />
+    <PackageVersion Include="LeXtudio.DevFlow.Agent.Uno" Version="0.2.2" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 </Project>

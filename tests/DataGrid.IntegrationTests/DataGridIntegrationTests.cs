@@ -669,6 +669,82 @@ public sealed class DataGridIntegrationTests
         Assert.True(readback.GetProperty("canUserResizeColumns").GetBoolean(), $"CanUserResizeColumns should be true: {raw}");
     }
 
+    [Fact]
+    public async Task ReorderGrid_CoreReorderCommitUpdatesDisplayOrder()
+    {
+        await _app.InvokeAsync("datagrid.probe.create-reorder-grid");
+
+        var state = await _app.InvokeAsync("datagrid.probe.reorder-column", 0, 2);
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"grid should exist: {raw}");
+        Assert.True(state.GetProperty("moved").GetBoolean(), $"reorder should move a column: {raw}");
+        Assert.Equal("Task", state.GetProperty("displayHeaders")[0].GetString());
+        Assert.Equal("Assigned To", state.GetProperty("displayHeaders")[1].GetString());
+        Assert.Equal("Priority", state.GetProperty("displayHeaders")[2].GetString());
+        Assert.Equal("Status", state.GetProperty("displayHeaders")[3].GetString());
+        Assert.Equal(2, state.GetProperty("displayIndices")[0].GetInt32());
+        Assert.Equal(0, state.GetProperty("displayIndices")[1].GetInt32());
+        Assert.Equal(1, state.GetProperty("displayIndices")[2].GetInt32());
+        Assert.Equal(3, state.GetProperty("displayIndices")[3].GetInt32());
+    }
+
+    [Fact]
+    public async Task ReorderGrid_HeaderDragDevFlowUpdatesDisplayOrder()
+    {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+            return; // Drag injection is only supported on macOS
+
+        await _app.InvokeAsync("datagrid.probe.create-reorder-grid");
+
+        // Header positions are PAGE-LOCAL points (probe uses TransformToVisual(page)); adding the
+        // natively-measured window content origin yields global Quartz screen points for cliclick.
+        var rects = await _app.InvokeAsync("datagrid.probe.header-rects-for-drag");
+        var rawRects = rects.ToString();
+        Assert.True(rects.GetProperty("hasGrid").GetBoolean(), $"grid should exist: {rawRects}");
+        Assert.True(rects.GetProperty("count").GetInt32() >= 4, $"expected >=4 headers: {rawRects}");
+
+        var xs = rects.GetProperty("xs");
+        var ws = rects.GetProperty("widths");
+        var ys = rects.GetProperty("ys");
+        var hs = rects.GetProperty("heights");
+
+        var (originX, originY, _) = await _app.GetWindowContentOriginAsync();
+
+        // Drag first header ("Task") to just past the right edge of the third header ("Status"),
+        // so display order becomes Assigned To, Status, Task, Priority ... but the test asserts the
+        // committed order below. All coordinates are global = content origin + page-local point.
+        var fromX = originX + xs[0].GetDouble() + ws[0].GetDouble() / 2.0;
+        var fromY = originY + ys[0].GetDouble() + hs[0].GetDouble() / 2.0;
+        var toX = originX + xs[2].GetDouble() + ws[2].GetDouble() + 8.0;
+        var toY = originY + ys[2].GetDouble() + hs[2].GetDouble() / 2.0;
+
+        // Focus the window first: its first click would otherwise be consumed by macOS to
+        // activate it rather than delivered to the header. Click the title bar (just above the
+        // content top, horizontally over the first header).
+        await _app.FocusWindowAsync(fromX, originY - 14.0);
+
+        var dragResult = await _app.DragAsync(fromX, fromY, toX, toY, global: true);
+        Assert.True(dragResult.GetProperty("ok").GetBoolean(),
+            $"drag should succeed: {dragResult}");
+
+        // The drag's PointerReleased is processed on the UI thread AFTER DragAsync (the cliclick
+        // process) returns, so the reorder commit lands slightly later — poll until the moved
+        // column arrives at the end rather than reading back immediately (which would race it).
+        var readback = await _app.PollAsync(
+            "datagrid.probe.reorder-readback",
+            s => s.TryGetProperty("displayHeaders", out var h) && h.GetArrayLength() >= 1
+                 && h[0].GetString() == "Task",
+            timeoutMs: 5000);
+        var raw = readback.ToString();
+
+        Assert.True(readback.GetProperty("hasGrid").GetBoolean(), $"grid should exist: {raw}");
+        Assert.Equal("Task", readback.GetProperty("displayHeaders")[0].GetString());
+        Assert.Equal("Assigned To", readback.GetProperty("displayHeaders")[1].GetString());
+        Assert.Equal("Status", readback.GetProperty("displayHeaders")[2].GetString());
+        Assert.Equal("Priority", readback.GetProperty("displayHeaders")[3].GetString());
+    }
+
     // ─── Clipboard Copy ──────────────────────────────────────────────
 
     [Fact]

@@ -149,6 +149,50 @@ public sealed class DataGridAppFixture : IAsyncLifetime
         return last;
     }
 
+    /// <summary>
+    /// Window CONTENT origin in Quartz global points (top-left), as measured natively by the
+    /// agent (capabilities.windowContentOrigin). Adding a page-local point to this gives the
+    /// global screen coordinate a cliclick drag needs.
+    /// </summary>
+    public async Task<(double X, double Y, double Scale)> GetWindowContentOriginAsync()
+    {
+        using var resp = await _http.GetAsync($"{BaseUrl}/api/v1/agent/status");
+        resp.EnsureSuccessStatusCode();
+        var root = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var origin = root.TryGetProperty("capabilities", out var caps) && caps.TryGetProperty("windowContentOrigin", out var o)
+            ? o
+            : (root.TryGetProperty("windowContentOrigin", out var o2) ? o2 : default);
+        if (origin.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException($"windowContentOrigin not found in agent status: {root}");
+        return (origin.GetProperty("x").GetDouble(), origin.GetProperty("y").GetDouble(),
+            origin.TryGetProperty("scale", out var s) ? s.GetDouble() : 1.0);
+    }
+
+    /// <summary>
+    /// Bring the app window to the foreground by clicking its title bar. A background window's
+    /// first click is consumed by macOS to activate it (not delivered to content), so injected
+    /// drags need the window already focused. Implemented as a zero-length drag (click) via the
+    /// same cliclick path the real drag uses.
+    /// </summary>
+    public async Task FocusWindowAsync(double titleX, double titleY)
+    {
+        await DragAsync(titleX, titleY, titleX, titleY, global: true);
+        await Task.Delay(300);
+    }
+
+    public async Task<JsonElement> DragAsync(double fromX, double fromY, double toX, double toY, bool global = false)
+    {
+        var body = JsonSerializer.Serialize(new { fromX, fromY, toX, toY, global });
+        using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+        using var resp = await _http.PostAsync($"{BaseUrl}/api/v1/ui/actions/drag", content);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var err = await resp.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Drag failed ({(int)resp.StatusCode}). Response: {err}");
+        }
+        return await resp.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
     static string LocateHostProject()
     {
         var dir = AppContext.BaseDirectory;
