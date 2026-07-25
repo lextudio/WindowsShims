@@ -133,7 +133,7 @@ public sealed class VirtualizingRowsRealizerTests
         r.Realize(1000, 20, 0, 200, cacheRows: 0); // 10 realized
         r.Clear();
 
-        Assert.Equal(0, r.Realized.Count);
+        Assert.Empty(r.Realized);
         Assert.Equal(10, h.Cleared);
         Assert.Equal(10, r.RecyclePoolCount);
     }

@@ -43,7 +43,8 @@ public sealed class DataGridAppFixture : IAsyncLifetime
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", "net10.0-desktop", "--configuration", "Debug" })
+        var tfm = Environment.GetEnvironmentVariable("DOTNET_HOST_TFM") ?? "net10.0-desktop";
+        foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", tfm, "--configuration", "Debug" })
             psi.ArgumentList.Add(a);
         _app = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start DataGrid.IntegrationTestHost");
         _app.OutputDataReceived += (_, _) => { };

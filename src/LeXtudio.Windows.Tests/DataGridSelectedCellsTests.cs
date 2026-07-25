@@ -50,7 +50,7 @@ public sealed class DataGridSelectedCellsTests
 
         var args = new SelectedCellsChangedEventArgs(added, removed);
 
-        Assert.Equal(1, args.AddedCells.Count);
+        Assert.Single(args.AddedCells);
         Assert.Empty(args.RemovedCells);
         Assert.True(args.AddedCells.IsReadOnly);
     }

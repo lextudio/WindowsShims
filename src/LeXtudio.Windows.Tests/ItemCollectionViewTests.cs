@@ -175,7 +175,7 @@ public sealed class ItemCollectionViewTests
         items.GroupDescriptions.Add(new PropertyGroupDescription("Country"));
         items.Refresh();
 
-        Assert.Equal(1, items.Groups.Count);
+        Assert.Single(items.Groups);
         Assert.Equal(new object[] { us1, us2 }, items.Groups[0].Items);
     }
 

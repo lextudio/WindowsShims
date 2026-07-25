@@ -33,9 +33,22 @@ jobs:
       - name: Build (macOS/Linux)
         if: runner.os != 'Windows'
         run: dotnet build -c Release ${{ matrix.solution }}
-      - name: Run unit tests
-        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -- --parallel none
-      - name: Run RichTextBox integration tests
-        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -- --parallel none
-      - name: Run DataGrid integration tests
-        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -- --parallel none
+      - name: Run unit tests (desktop)
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-desktop -- --parallel none
+      - name: Run unit tests (WinUI)
+        if: runner.os == 'Windows'
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -- --parallel none
+      - name: Run RichTextBox integration tests (desktop)
+        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+      - name: Run RichTextBox integration tests (WinUI)
+        if: runner.os == 'Windows'
+        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+        env:
+          DOTNET_HOST_TFM: net10.0-windows10.0.19041.0
+      - name: Run DataGrid integration tests (desktop)
+        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+      - name: Run DataGrid integration tests (WinUI)
+        if: runner.os == 'Windows'
+        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+        env:
+          DOTNET_HOST_TFM: net10.0-windows10.0.19041.0

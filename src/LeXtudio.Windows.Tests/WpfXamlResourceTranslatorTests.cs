@@ -57,9 +57,9 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             WpfResourceSpec.Value("Template", "fallback"));
 
-        Assert.Equal(1, specs.Length);
-        Assert.Equal("Template", specs[0].Key);
-        Assert.Equal("fallback", specs[0].CreateValue());
+        var single = Assert.Single(specs);
+        Assert.Equal("Template", single.Key);
+        Assert.Equal("fallback", single.CreateValue());
     }
 
     [Fact]
@@ -198,8 +198,8 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.Equal(1, specs.Length);
-        Assert.Equal(typeof(SampleRow), specs[0].Key);
+        var single = Assert.Single(specs);
+        Assert.Equal(typeof(SampleRow), single.Key);
         Assert.Equal(new[] { typeof(SampleRow).FullName }, report.TranslatedKeys);
     }
 
