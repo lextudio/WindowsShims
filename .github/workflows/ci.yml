@@ -34,4 +34,4 @@ jobs:
         if: runner.os != 'Windows'
         run: dotnet build -c Release ${{ matrix.solution }}
       - name: Run unit tests
-        run: dotnet test --solution ${{ matrix.solution }} --no-build -c Release --verbosity minimal -- RunConfiguration.DisableParallelization=true
+        run: dotnet test --solution ${{ matrix.solution }} --no-build -c Release --verbosity minimal -- --parallel none
