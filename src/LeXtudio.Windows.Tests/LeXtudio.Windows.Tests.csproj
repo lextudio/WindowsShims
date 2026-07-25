@@ -4,8 +4,8 @@
     <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <WinUISDKReferences>false</WinUISDKReferences>
     <UnoSingleProject>true</UnoSingleProject>
+    <WinUISDKReferences>false</WinUISDKReferences>
     <UnoFeatures>SkiaRenderer;</UnoFeatures>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -77,4 +77,11 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
     <ProjectReference Include="..\LeXtudio.Windows\LeXtudio.Windows.csproj" SetTargetFramework="TargetFramework=net10.0-windows10.0.19041.0" />
   </ItemGroup>
+
+  <!-- Uno.Sdk may override OutputType to WinExe; restore to Exe before xUnit v3 validates -->
+  <Target Name="EnsureExeOutputType" BeforeTargets="_XunitValidateBuild">
+    <PropertyGroup>
+      <OutputType>Exe</OutputType>
+    </PropertyGroup>
+  </Target>
 </Project>
