@@ -1,5 +1,6 @@
 #if HAS_UNO
 using System.Windows.Documents;
+using Windows.Foundation;
 
 namespace System.Windows.Controls;
 
@@ -88,10 +89,17 @@ public partial class RichTextBox : IRichTextDragDropHost
             return;
 
         if (offset < 0)
+        {
+            fdv.ClearDropCaret();
             return;
+        }
 
         var position = GetPositionAtPlainTextOffset(document, offset);
-        fdv.SetCaretAt(position);
+        var textView = TextEditor.TextView;
+        if (textView is null) return;
+        var rect = textView.GetRectangleFromTextPosition(position);
+        if (rect.IsEmpty) return;
+        fdv.SetDropCaretAt(new global::Windows.Foundation.Point(rect.X, rect.Y));
     }
 }
 #endif

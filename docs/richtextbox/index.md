@@ -231,5 +231,7 @@ Each session is tracked as a separate file:
 | 65 | [session65.md](session65.md) | Catalog Refresh and Consumer Gap Prioritization (completed) |
 | 66 | [session66.md](session66.md) | Flowing Document Pagination / Printing (planned) |
 | 67 | [session67.md](session67.md) | InlineUIContainer / BlockUIContainer Embedding (planned) |
-| 68 | [session68.md](session68.md) | Performance Stress Testing (planned) |
-| 69 | [session69.md](session69.md) | Consumer Gap Triage and Documentation (planned) |
+| 68 | [session68.md](session68.md) | Performance Stress Testing (completed) |
+| 69 | [session69.md](session69.md) | Caret Visual Polish (completed) |
+| 70 | [session70.md](session70.md) | Drag/Drop Visual Feedback (Drop Caret) (planned) |
+| 71 | [session71.md](session71.md) | Auto-Scroll During Typing (planned) |

@@ -30,6 +30,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // Caret overlay. The visual lives here, but hit-testing and geometry come
     // from the WPF-facing ITextView adapter.
     private readonly Microsoft.UI.Xaml.Shapes.Rectangle _caret;
+    private readonly Microsoft.UI.Xaml.Shapes.Rectangle _dropCaret;
     private DispatcherTimer? _blinkTimer;
     private bool _caretVisible;
     private Rect _caretRect = Rect.Empty;
@@ -47,6 +48,15 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             IsHitTestVisible = false,
         };
         Children.Add(_caret);
+
+        _dropCaret = new Microsoft.UI.Xaml.Shapes.Rectangle
+        {
+            Width = 2,
+            Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black),
+            Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        Children.Add(_dropCaret);
 
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(530) };
         _blinkTimer.Tick += (_, _) =>
@@ -234,7 +244,36 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         _caretVisible = true;
         _caret.Opacity = 1;
+
+        // Hide caret during active selection
+        if (_document?.StructuralCache?.TextContainer?.TextSelection is ITextSelection sel && !sel.IsEmpty)
+        {
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            _caretVisible = false;
+        }
+
         _blinkTimer?.Start();
+        InvalidateArrange();
+        StartBringIntoView();
+    }
+
+    internal void SetDropCaretAt(Windows.Foundation.Point point)
+    {
+        var textView = _textView ??= new UnoFlowDocumentTextView(this);
+        var position = textView.GetTextPositionFromPoint(point, snapToText: true);
+        position = textView.NormalizeToVisiblePosition(position);
+        var rect = textView.GetRectangleFromTextPosition(position);
+        if (rect.IsEmpty)
+            return;
+
+        _dropCaret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+        _dropCaret.Arrange(new Windows.Foundation.Rect(rect.X, rect.Y, 2, rect.Height > 0 ? rect.Height : 14));
+        InvalidateArrange();
+    }
+
+    internal void ClearDropCaret()
+    {
+        _dropCaret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
         InvalidateArrange();
     }
 
@@ -283,6 +322,19 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         {
             _selectionRects[i].Tag = Rect.Empty;
             _selectionRects[i].Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        }
+
+        // Hide caret during active selection
+        if (!selection.IsEmpty)
+        {
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            _caretVisible = false;
+        }
+        else if (!_caretRect.IsEmpty)
+        {
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+            _caretVisible = true;
+            _caret.Opacity = 1;
         }
     }
 

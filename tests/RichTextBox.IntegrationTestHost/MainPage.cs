@@ -1998,6 +1998,51 @@ public sealed partial class MainPage : Page
         return $"{{\"count\":{paginator.PageCount}}}";
     });
 
+    [DevFlowAction("richtextbox.probe.get-caret-visibility", Description = "Report whether the main caret is visible.")]
+    public static string ProbeGetCaretVisibility() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            return "{\"visible\":false}";
+        var view = GetInternalProperty(page._box, "RenderScope");
+        if (view is null) return "{\"visible\":false}";
+        var caretField = view.GetType().GetField("_caret", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (caretField?.GetValue(view) is not Microsoft.UI.Xaml.UIElement caret)
+            return "{\"visible\":false}";
+        return $"{{\"visible\":{Jb(caret.Visibility == Microsoft.UI.Xaml.Visibility.Visible)}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.get-drop-caret-visibility", Description = "Report whether the drop caret is visible.")]
+    public static string ProbeGetDropCaretVisibility() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            return "{\"visible\":false}";
+        var view = GetInternalProperty(page._box, "RenderScope");
+        if (view is null) return "{\"visible\":false}";
+        var caretField = view.GetType().GetField("_dropCaret", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (caretField?.GetValue(view) is not Microsoft.UI.Xaml.UIElement caret)
+            return "{\"visible\":false}";
+        return $"{{\"visible\":{Jb(caret.Visibility == Microsoft.UI.Xaml.Visibility.Visible)}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.get-scroll-offset", Description = "Report the vertical scroll offset of the ScrollViewer containing the RichTextBox.")]
+    public static string ProbeGetScrollOffset() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            return "{\"offset\":0}";
+
+        // Walk the visual tree up from the RichTextBox to find a ScrollViewer
+        var current = (Microsoft.UI.Xaml.DependencyObject?)page._box;
+        while (current != null)
+        {
+            if (current is Microsoft.UI.Xaml.Controls.ScrollViewer sv)
+            {
+                return $"{{\"offset\":{sv.VerticalOffset}}}";
+            }
+            current = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(current);
+        }
+        return "{\"offset\":-1}";
+    });
+
     [DevFlowAction("richtextbox.probe.create-large-document", Description = "Create a RichTextBox with N paragraphs of text in one shot.")]
     public static string ProbeCreateLargeDocument(int paragraphCount) => RunOnUi(page =>
     {
