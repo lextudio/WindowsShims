@@ -694,6 +694,8 @@ public sealed class DataGridIntegrationTests
     {
         if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
             return; // Drag injection is only supported on macOS
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")))
+            return; // Cliclick-driven drag not available on GitHub Actions CI
 
         await _app.InvokeAsync("datagrid.probe.create-reorder-grid");
 
