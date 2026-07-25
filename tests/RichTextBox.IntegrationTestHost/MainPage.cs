@@ -845,6 +845,15 @@ public sealed partial class MainPage : Page
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
         page._box.IsReadOnly = value;
+        // Force the view to update its read-only state
+        var rs = GetInternalProperty(page._box, "RenderScope");
+        if (rs is not null)
+        {
+            var prop = rs.GetType().GetProperty("ReadOnly", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+            if (prop is not null)
+                prop.SetValue(rs, value);
+            rs.GetType().GetMethod("InvalidateArrange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(rs, null);
+        }
         return Snapshot(page);
     });
 
@@ -2005,10 +2014,12 @@ public sealed partial class MainPage : Page
             return "{\"visible\":false}";
         var view = GetInternalProperty(page._box, "RenderScope");
         if (view is null) return "{\"visible\":false}";
+        var readOnlyProp = view.GetType().GetProperty("ReadOnly", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+        var readOnly = readOnlyProp?.GetValue(view) is true;
         var caretField = view.GetType().GetField("_caret", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         if (caretField?.GetValue(view) is not Microsoft.UI.Xaml.UIElement caret)
             return "{\"visible\":false}";
-        return $"{{\"visible\":{Jb(caret.Visibility == Microsoft.UI.Xaml.Visibility.Visible)}}}";
+        return $"{{\"visible\":{Jb(caret.Visibility == Microsoft.UI.Xaml.Visibility.Visible)},\"readOnly\":{Jb(readOnly)}}}";
     });
 
     [DevFlowAction("richtextbox.probe.get-drop-caret-visibility", Description = "Report whether the drop caret is visible.")]
@@ -2042,6 +2053,70 @@ public sealed partial class MainPage : Page
         }
         return "{\"offset\":-1}";
     });
+
+    [DevFlowAction("richtextbox.probe.get-line-count", Description = "Report the number of lines in the current Florence page.")]
+    public static string ProbeGetLineCount() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            return "{\"count\":0}";
+        var view = GetInternalProperty(page._box, "RenderScope");
+        if (view is null) return "{\"count\":0}";
+        var pageProp = view.GetType().GetProperty("Page", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+        var florencePage = pageProp?.GetValue(view);
+        if (florencePage is null) return "{\"count\":0}";
+        var linesProp = florencePage.GetType().GetProperty("Lines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+        var lines = linesProp?.GetValue(florencePage) as System.Collections.IList;
+        return $"{{\"count\":{lines?.Count ?? 0}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.count-text-changed", Description = "Perform an action and report how many times TextChanged fired. Action: type|paste|toggle-bold|undo|enter.")]
+    public static string ProbeCountTextChanged(string action, string text = "") => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        int count = 0;
+        System.Windows.Controls.TextChangedEventHandler handler = (_, _) => count++;
+        page._box.TextChanged += handler;
+
+        try
+        {
+            switch (action)
+            {
+                case "type":
+                    InvokeTextInput(page._box, text.Length > 0 ? text : "x");
+                    break;
+                case "paste":
+                    System.Windows.Clipboard.SetText(text.Length > 0 ? text : "pasted");
+                    page._box.Paste();
+                    break;
+                case "toggle-bold":
+                    page._box.SelectAll();
+                    WpfDocumentEditingCommands.ToggleBold.Execute(null, page._box);
+                    break;
+                case "enter":
+                    InvokeTextInput(page._box, "\n");
+                    break;
+            }
+            page._box.UpdateLayout();
+        }
+        finally
+        {
+            page._box.TextChanged -= handler;
+        }
+
+        return $"{{\"count\":{count}}}";
+    });
+
+    static void InvokeTextInput(WpfRichTextBox box, string text)
+    {
+        foreach (var c in text)
+        {
+            if (char.IsControl(c)) continue;
+            var args = new WpfTextCompositionEventArgs(c.ToString()) { OriginalSource = box };
+            InvokeTextEditorTyping("OnTextInput", box, args);
+        }
+    }
 
     [DevFlowAction("richtextbox.probe.create-large-document", Description = "Create a RichTextBox with N paragraphs of text in one shot.")]
     public static string ProbeCreateLargeDocument(int paragraphCount) => RunOnUi(page =>

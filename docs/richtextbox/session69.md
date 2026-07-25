@@ -1,6 +1,6 @@
 ### Session 69 - Caret Visual Polish
 
-Status: in progress.
+Status: completed.
 
 Scope:
 

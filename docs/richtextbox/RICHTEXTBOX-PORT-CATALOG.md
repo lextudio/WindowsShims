@@ -36,8 +36,8 @@ notes.
 - Project: `src/LeXtudio.Windows/LeXtudio.Windows.csproj`
 - Target: `net10.0-desktop`
 - Build: `dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop` — 0 errors.
-- Test suites (see `docs/richtextbox/session50.md` for the latest counts):
-  - `tests/RichTextBox.IntegrationTests` (DevFlow-driven, real Uno dispatcher): 136/136.
+- Test suites:
+  - `tests/RichTextBox.IntegrationTests` (DevFlow-driven, real Uno dispatcher): 181/181.
   - `tests/DataGrid.IntegrationTests` (cross-cutting regression check, since
     some shim infrastructure — e.g. `LogicalTreeHelper` — is shared): 53/54
     (1 pre-existing skip; reorder test needs macOS Accessibility permission).
@@ -183,9 +183,20 @@ for the duration of the composition).
   DP property system limitations), formatted clipboard round-trip (62),
   table arrow-key navigation (63), text search via `TextFindEngine` (64),
   and this catalog refresh (65).
-- The `RICHTEXTBOX-PORT-CATALOG.md` milestone-driven backlog is largely
-  exhausted — next work should be prioritized against actual consumer needs
-  rather than continuing to mine the milestone list speculatively.
+- Sessions 66-77 covered the remaining RichTextBox port items: pagination
+  (66, `FlowDocumentPaginator.GetPage`/`PageCount`), `InlineUIContainer`/
+  `BlockUIContainer` layout (67), stress testing with large documents (68),
+  caret visual polish — hides during selection, `StartBringIntoView` (69),
+  drag/drop drop caret visual feedback (70), auto-scroll during typing (71),
+  `IsReadOnly`/`IsEnabled` visual states (72), `TextWrapping` property (73),
+  `TextChanged` event verification (74), `InlineUIContainer` visual rendering
+  with embedded `UIElement` parented into `Canvas` (75), control-level DP
+  inheritance (`InheritedForeground`/`Background`/`FontFamily`/`FontSize`/
+  `FontWeight`/`FontStyle`) (76), and this final catalog/test audit (77).
+- All 181 RichTextBox integration tests pass (0 failures). The milestone-driven
+  backlog is complete — future work should be prioritized against actual
+  consumer needs rather than continuing to mine the milestone list
+  speculatively.
 
 ### Top 3 remaining consumer-facing gaps
 

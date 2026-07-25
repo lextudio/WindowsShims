@@ -35,6 +35,38 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private bool _caretVisible;
     private Rect _caretRect = Rect.Empty;
 
+    internal bool ReadOnly
+    {
+        get => _readOnly;
+        set
+        {
+            _readOnly = value;
+            if (value)
+            {
+                _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+                _caretVisible = false;
+                _blinkTimer?.Stop();
+                ClearSelectionVisuals();
+            }
+            else if (!_caretRect.IsEmpty)
+            {
+                _caret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                _caretVisible = true;
+                _caret.Opacity = 1;
+                _blinkTimer?.Start();
+            }
+        }
+    }
+    private bool _readOnly;
+
+    internal Microsoft.UI.Xaml.TextWrapping TextWrapping { get; set; } = Microsoft.UI.Xaml.TextWrapping.Wrap;
+    internal Microsoft.UI.Xaml.Media.Brush? InheritedForeground { get; set; }
+    internal Microsoft.UI.Xaml.Media.Brush? InheritedBackground { get; set; }
+    internal Microsoft.UI.Xaml.Media.FontFamily? InheritedFontFamily { get; set; }
+    internal double InheritedFontSize { get; set; }
+    internal FontWeight InheritedFontWeight { get; set; } = global::System.Windows.FontWeights.Normal;
+    internal Windows.UI.Text.FontStyle InheritedFontStyle { get; set; } = Windows.UI.Text.FontStyle.Normal;
+
     internal FlowDocumentView()
     {
         IsHitTestVisible = true;
@@ -153,6 +185,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             return new Windows.Foundation.Size(0, 0);
 
         double w = double.IsInfinity(availableSize.Width) ? 600 : availableSize.Width;
+        if (TextWrapping == Microsoft.UI.Xaml.TextWrapping.NoWrap)
+            w = double.PositiveInfinity;
         double h = availableSize.Height;
 
         if (_page == null || Math.Abs(w - _lastMeasureWidth) > 0.5 || Math.Abs(h - _lastMeasureHeight) > 0.5)
@@ -234,6 +268,14 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal void SetCaretAt(ITextPointer position)
     {
+        if (ReadOnly)
+        {
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            _caretVisible = false;
+            _blinkTimer?.Stop();
+            return;
+        }
+
         var textView = _textView ??= new UnoFlowDocumentTextView(this);
         position = textView.NormalizeToVisiblePosition(position);
         var rect = textView.GetRectangleFromTextPosition(position);
@@ -279,6 +321,14 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal void RefreshSelection()
     {
+        if (ReadOnly)
+        {
+            ClearSelectionVisuals();
+            _caret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            _caretVisible = false;
+            return;
+        }
+
         if (_adorners.Count > 0)
         {
             ClearSelectionVisuals();
@@ -522,7 +572,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
     }
 
-    private static Microsoft.UI.Xaml.FrameworkElement BuildLineVisual(FlorenceLine line)
+    private Microsoft.UI.Xaml.FrameworkElement BuildLineVisual(FlorenceLine line)
     {
         if (line.Runs.Count == 0)
         {
@@ -538,6 +588,18 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         foreach (var run in line.Runs)
         {
+            if (run.EmbeddedElement is not null)
+            {
+                // Parent the embedded UIElement directly into the canvas
+                var ee = run.EmbeddedElement;
+                ee.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+                ee.Arrange(new Windows.Foundation.Rect(0, 0, ee.DesiredSize.Width, ee.DesiredSize.Height));
+                canvas.Children.Add(ee);
+                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(ee, run.X);
+                Microsoft.UI.Xaml.Controls.Canvas.SetTop(ee, 0);
+                continue;
+            }
+
             for (int i = 0; i < run.Text.Length; i++)
             {
                 var tb = new Microsoft.UI.Xaml.Controls.TextBlock
@@ -565,13 +627,18 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         return canvas;
     }
 
-    private static void ApplyRunFormatting(Microsoft.UI.Xaml.Controls.TextBlock tb, FlorenceRun run)
+    private void ApplyRunFormatting(Microsoft.UI.Xaml.Controls.TextBlock tb, FlorenceRun run)
     {
         if (run.FontSize > 0) tb.FontSize = run.FontSize;
-        if (run.Bold) tb.FontWeight = Microsoft.UI.Text.FontWeights.Bold;
+        else if (InheritedFontSize > 0) tb.FontSize = InheritedFontSize;
+        if (run.Bold) tb.FontWeight = global::System.Windows.FontWeights.Bold;
+        else tb.FontWeight = InheritedFontWeight;
         if (run.Italic) tb.FontStyle = Windows.UI.Text.FontStyle.Italic;
+        else tb.FontStyle = InheritedFontStyle;
         if (run.FontFamily is not null) tb.FontFamily = run.FontFamily;
+        else if (InheritedFontFamily is not null) tb.FontFamily = InheritedFontFamily;
         if (run.Foreground is not null) tb.Foreground = run.Foreground;
+        else if (InheritedForeground is not null) tb.Foreground = InheritedForeground;
     }
 
     private static void AddDecorationVisuals(

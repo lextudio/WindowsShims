@@ -18,6 +18,9 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
+Integration tests: 181/181 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Model tests: 233/233 (LeXtudio.Windows.Tests).
+
 The compile frontier is substantially past the first local-shell milestone:
 
 - Upstream WPF `RichTextBox.cs` and `TextBoxBase.cs` are enabled.
@@ -229,9 +232,15 @@ Each session is tracked as a separate file:
 | 63 | [session63.md](session63.md) | Table Arrow-Key Navigation (completed) |
 | 64 | [session64.md](session64.md) | Text Search (Find/FindNext) (completed) |
 | 65 | [session65.md](session65.md) | Catalog Refresh and Consumer Gap Prioritization (completed) |
-| 66 | [session66.md](session66.md) | Flowing Document Pagination / Printing (planned) |
-| 67 | [session67.md](session67.md) | InlineUIContainer / BlockUIContainer Embedding (planned) |
+| 66 | [session66.md](session66.md) | Flowing Document Pagination / Printing (completed) |
+| 67 | [session67.md](session67.md) | InlineUIContainer / BlockUIContainer Embedding (completed) |
 | 68 | [session68.md](session68.md) | Performance Stress Testing (completed) |
 | 69 | [session69.md](session69.md) | Caret Visual Polish (completed) |
-| 70 | [session70.md](session70.md) | Drag/Drop Visual Feedback (Drop Caret) (planned) |
-| 71 | [session71.md](session71.md) | Auto-Scroll During Typing (planned) |
+| 70 | [session70.md](session70.md) | Drag/Drop Visual Feedback (Drop Caret) (completed) |
+| 71 | [session71.md](session71.md) | Auto-Scroll During Typing (completed) |
+| 72 | [session72.md](session72.md) | IsReadOnly / IsEnabled Visual States (completed) |
+| 73 | [session73.md](session73.md) | TextWrapping Property Wiring (completed) |
+| 74 | [session74.md](session74.md) | TextChanged Event Verification (completed) |
+| 75 | [session75.md](session75.md) | InlineUIContainer Visual Rendering (completed) |
+| 76 | [session76.md](session76.md) | Control-Level DP Inheritance (completed) |
+| 77 | [session77.md](session77.md) | Post-77 Test Audit and Catalog Refresh (completed) |

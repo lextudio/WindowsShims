@@ -251,7 +251,8 @@ namespace MS.Internal.Florence
             Microsoft.UI.Xaml.Media.FontFamily? fontFamily,
             Microsoft.UI.Xaml.Media.Brush? foreground,
             Windows.UI.Text.TextDecorations textDecorations,
-            System.Windows.Documents.Hyperlink? hyperlink)
+            System.Windows.Documents.Hyperlink? hyperlink,
+            Microsoft.UI.Xaml.UIElement? embeddedElement = null)
         {
             StartOffset = startOffset;
             Length      = length;
@@ -265,7 +266,10 @@ namespace MS.Internal.Florence
             Foreground  = foreground;
             TextDecorations = textDecorations;
             Hyperlink   = hyperlink;
+            EmbeddedElement = embeddedElement;
         }
+
+        internal Microsoft.UI.Xaml.UIElement? EmbeddedElement { get; }
 
         internal int    StartOffset { get; }
         internal int    EndOffset   => StartOffset + Length;
@@ -700,12 +704,13 @@ namespace MS.Internal.Florence
             return maxChars;
         }
 
-        private record SpanInfo(
-            string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic,
-            Microsoft.UI.Xaml.Media.FontFamily? FontFamily,
-            Microsoft.UI.Xaml.Media.Brush? Foreground,
-            Windows.UI.Text.TextDecorations TextDecorations,
-            System.Windows.Documents.Hyperlink? Hyperlink);
+         private record SpanInfo(
+             string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic,
+             Microsoft.UI.Xaml.Media.FontFamily? FontFamily,
+             Microsoft.UI.Xaml.Media.Brush? Foreground,
+             Windows.UI.Text.TextDecorations TextDecorations,
+             System.Windows.Documents.Hyperlink? Hyperlink,
+             Microsoft.UI.Xaml.UIElement? EmbeddedElement = null);
 
         private static List<SpanInfo> CollectSpans(
             System.Windows.Documents.InlineCollection inlines,
@@ -766,11 +771,11 @@ namespace MS.Internal.Florence
                     result.Add(new SpanInfo("\n", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
                     localOffset++;
                 }
-                else if (inline is System.Windows.Documents.InlineUIContainer)
+                else if (inline is System.Windows.Documents.InlineUIContainer container)
                 {
-                    // Placeholder: a single space character. The actual UIElement
-                    // is rendered by FlowDocumentView, not by the layout engine.
-                    result.Add(new SpanInfo("\u00a0", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
+                    var childProp = container.GetType().GetProperty("Child", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    var child = childProp?.GetValue(container) as Microsoft.UI.Xaml.UIElement;
+                    result.Add(new SpanInfo("\u00a0", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink, child));
                     localOffset++;
                 }
             }

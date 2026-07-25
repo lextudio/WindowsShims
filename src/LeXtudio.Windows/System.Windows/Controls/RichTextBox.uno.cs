@@ -490,6 +490,14 @@ public partial class RichTextBox
             var te = TextEditor;
             if (te?.TextView?.RenderScope is not MS.Internal.Documents.FlowDocumentView fdv)
                 return;
+            fdv.ReadOnly = IsReadOnly || !IsEnabled;
+            fdv.TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap;
+            fdv.InheritedForeground = Foreground;
+            fdv.InheritedBackground = Background;
+            fdv.InheritedFontFamily = FontFamily;
+            fdv.InheritedFontSize = FontSize;
+            fdv.InheritedFontWeight = FontWeight;
+            fdv.InheritedFontStyle = FontStyle;
             var position = te.Selection?.MovingPosition;
             if (position == null)
                 return;
