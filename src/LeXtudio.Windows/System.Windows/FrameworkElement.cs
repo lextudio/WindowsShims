@@ -11,7 +11,17 @@ namespace System.Windows;
 /// </summary>
 public partial class FrameworkContentElement : DependencyObject
 {
-    public DependencyObject? Parent { get; internal set; }
+    private DependencyObject? _parent;
+    public DependencyObject? Parent
+    {
+        get => _parent;
+        internal set
+        {
+            if (_parent == value) return;
+            OnNewParent(value);
+            _parent = value;
+        }
+    }
 
     // Session 60: the linked DataGridComboBoxColumn has an ApplyStyle overload
     // targeting a FrameworkContentElement; WinUI's Style is the effective type.
@@ -71,7 +81,12 @@ public partial class FrameworkContentElement : DependencyObject
 
     // Called by the WPF tree machinery when an element gets a new logical parent.
     // TableRow, TableCell, and TableRowGroup override this to wire up parent references.
-    internal virtual void OnNewParent(DependencyObject newParent) { }
+    // The base implementation updates _parent so overrides that call base.OnNewParent()
+    // will see the new parent in this.Parent for subsequent operations.
+    internal virtual void OnNewParent(DependencyObject newParent)
+    {
+        _parent = newParent;
+    }
 
     // WPF's xml:lang / language property; used by TextRangeSerialization for special-casing xml:lang attribute.
     public static readonly DependencyProperty LanguageProperty =

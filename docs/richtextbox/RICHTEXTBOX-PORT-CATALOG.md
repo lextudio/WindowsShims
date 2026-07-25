@@ -205,11 +205,10 @@ for the duration of the composition).
    TextDecorations are now serialized to XAML attributes and properly
    deserialized on load. Both named and numeric formats are supported
    (e.g., `FontWeight="700"` or `FontWeight="Bold"`).
-2. **TableCell collection population** — `TableCell`/`TableRow`/`TableRowGroup`
-   `OnNewParent` is never invoked, so these collections rely on direct
-   `Add` calls. If a consumer uses `LogicalTreeHelper` or `Parent`-walking
-   code that expects `OnNewParent` to fire (as WPF's own table editing code
-   sometimes does), collection state could desync.
+2. ~~TableCell collection population~~ — **Fixed in session 79**.
+   `FrameworkContentElement.Parent` setter now invokes `OnNewParent`, which
+   populates the `Items` arrays in `TableRowGroup.Rows` and `TableRow.Cells`.
+   `Count`, indexer, and iteration now work correctly.
 3. **Spell-check integration** — WPF's `SpellCheck.IsEnabled` is commonly
    used in consumer apps. The `Speller*.cs` files are excluded from
    compilation. A lightweight bridge to the OS spell-check API (or a

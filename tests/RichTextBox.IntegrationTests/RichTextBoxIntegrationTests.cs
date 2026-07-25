@@ -1973,6 +1973,19 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task Table_CollectionCounts_AreCorrectAfterConstruction()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-table-document", "a", "b", "c", "d");
+
+        var counts = await _app.InvokeAsync("richtextbox.probe.table-collection-counts");
+        var raw = counts.ToString();
+
+        Assert.Equal(1, counts.GetProperty("rowGroupCount").GetInt32());
+        Assert.Equal(2, counts.GetProperty("rowCount").GetInt32());
+        Assert.Equal(2, counts.GetProperty("cellCount").GetInt32());
+    }
+
+    [Fact]
     public async Task CreatePlain_AttachesRealCoreTextEditContext()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");

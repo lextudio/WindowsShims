@@ -245,3 +245,4 @@ Each session is tracked as a separate file:
 | 76 | [session76.md](session76.md) | Control-Level DP Inheritance (completed) |
 | 77 | [session77.md](session77.md) | Post-77 Test Audit and Catalog Refresh (completed) |
 | 78 | [session78.md](session78.md) | XAML Formatting Serialization (completed) |
+| 79 | [session79.md](session79.md) | TableCell Collection Population / OnNewParent (completed) |

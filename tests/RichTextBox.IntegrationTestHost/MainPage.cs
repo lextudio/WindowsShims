@@ -519,6 +519,21 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.table-collection-counts", Description = "Report row/cell collection counts for the current table document.")]
+    public static string ProbeTableCollectionCounts() => RunOnUi(page =>
+    {
+        if (page._box?.Document is not { } document)
+            return "{\"error\":\"no document\"}";
+        var block = document.Blocks.FirstBlock;
+        var table = block as System.Windows.Documents.Table;
+        if (table is null)
+            return "{\"error\":\"no table\"}";
+        var rowGroupCount = table.RowGroups.Count;
+        var rowCount = rowGroupCount > 0 ? table.RowGroups[0].Rows.Count : 0;
+        var cellCount = rowCount > 0 ? table.RowGroups[0].Rows[0].Cells.Count : 0;
+        return $"{{\"rowGroupCount\":{rowGroupCount},\"rowCount\":{rowCount},\"cellCount\":{cellCount}}}";
+    });
+
     [DevFlowAction("richtextbox.probe.set-hyperlink-document", Description = "Create a RichTextBox with a FlowDocument containing before/hyperlink/after Runs in one Paragraph.")]
     public static string ProbeSetHyperlinkDocument(string beforeText, string linkText, string afterText) => RunOnUi(page =>
     {
