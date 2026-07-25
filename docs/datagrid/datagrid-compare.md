@@ -1,6 +1,6 @@
 # DataGrid comparison: WCT v7 / WinUI.TableView / CommunityToolkit DataTable / this project's WPF-ported DataGrid
 
-Four independent DataGrid-family implementations exist in the [Uno Platform](https://github.com/unoplatform/uno)/ [WinUI](https://github.com/microsoft/microsoft-ui-xaml) ecosystem.
+Four DataGrid-family implementations exist in the [Uno Platform](https://github.com/unoplatform/uno)/ [WinUI](https://github.com/microsoft/microsoft-ui-xaml) ecosystem.
 This document compares all four: **WindowsCommunityToolkit v7's** `DataGrid`
 (`Microsoft.Toolkit.Uwp.UI.Controls.DataGrid`, removed from the toolkit in v8),
 **WinUI.TableView** (`WinUI.TableView.TableView`, a `ListView`-based grid from
@@ -10,9 +10,13 @@ CommunityToolkit Labs-Windows), and **this repository's** `DataGrid`
 (`System.Windows.Controls.DataGrid`, a real WPF source port running on Uno Platform/WinUI
 via the shim types in this library).
 
-They are **not variants of the same code** — they solve "give me a grid on UWP/WinUI"
-in fundamentally different ways, and none is a superset of another. Understanding
-*why* they differ architecturally explains every feature gap below.
+These are not four variants of one implementation. WPF DataGrid and Silverlight
+DataGrid exposed closely related APIs and interaction models, but they were separate
+implementations built on different platform foundations. Windows Community Toolkit
+v7's DataGrid was subsequently adapted from the Silverlight implementation for UWP.
+WinUI.TableView and CommunityToolkit DataTable start from different foundations again.
+Understanding those historical and architectural differences explains the feature
+gaps below.
 
 ## Sources
 
@@ -31,11 +35,64 @@ in fundamentally different ways, and none is a superset of another. Understandin
   `ext/wpf` submodule, `#if HAS_UNO`-guarded, supplemented by local `.uno.cs`
   bridge files in `src/LeXtudio.Windows/`.
 
+## Historical context: related designs, separate implementations
+
+The four projects come from different generations of XAML development. Their APIs
+sometimes resemble one another, but API similarity does not by itself imply shared
+source code or a direct implementation lineage.
+
+### WPF DataGrid
+
+WPF DataGrid first shipped through the WPF Toolkit and was later incorporated into
+.NET Framework 4. It is a full desktop line-of-business control built around WPF's
+`ItemsControl`, collection-view, editing, validation, grouping, routed-event, and
+virtualization infrastructure.
+
+This repository follows that implementation line directly: it links the modern WPF
+DataGrid source and supplies WinUI/Uno-compatible shim types for the surrounding WPF
+infrastructure.
+
+### Silverlight DataGrid and WCT v7 DataGrid
+
+Silverlight introduced its own DataGrid implementation. It intentionally presented a
+programming model familiar to developers using WPF DataGrid, including many similar
+control concepts, class names, properties, and behaviors. However, it was implemented
+against Silverlight's own UI framework rather than by reusing the WPF DataGrid source.
+
+Windows Community Toolkit later adapted the Silverlight DataGrid implementation for
+UWP. The most precise summary is therefore:
+
+- WPF DataGrid and Silverlight DataGrid are related primarily by API design and
+  user-facing behavior, not by shared implementation.
+- Silverlight DataGrid and WCT v7 DataGrid have a direct implementation lineage,
+  with the latter ported and adapted for UWP.
+
+This distinction explains why WCT v7 feels familiar to WPF developers while still
+having its own control hierarchy, collection-view code, virtualization logic,
+automation peers, and internal helpers.
+
+### WinUI.TableView
+
+WinUI.TableView takes a different route: it builds a grid on top of WinUI `ListView`.
+That choice reuses the platform's item containers, selection, focus behavior, and
+virtualization, then layers cells, columns, editing, filtering, frozen regions, and
+other grid features on top.
+
+### CommunityToolkit DataTable
+
+CommunityToolkit DataTable is not intended to be a complete DataGrid. It is a small
+Panel-based layout helper that keeps header and row columns aligned inside a
+`ListView` or `TreeView`. Selection, editing, item management, and virtualization
+remain responsibilities of the host control.
+
+These origins matter because many differences below are consequences of each
+project's chosen foundation, not merely differences in implementation completeness.
+
 ## Fundamental architectural difference
 
 | | WCT v7 `DataGrid` | WinUI.TableView | CommunityToolkit `DataTable` | This project's `DataGrid` |
 |---|---|---|---|---|
-| **Design origin** | Written from scratch, specifically for UWP | Written from scratch, based on WinUI `ListView` | Panel-based ListView column-alignment helper (experimental Labs) | Real WPF `System.Windows.Controls.DataGrid` source, ported to run on Uno/WinUI |
+| **Design origin** | UWP adaptation of the Silverlight DataGrid implementation; similar in programming model to WPF but not based on WPF source | Independent modern grid built on WinUI `ListView` | Independent Panel-based ListView/TreeView column-alignment helper (experimental Labs) | Real WPF `System.Windows.Controls.DataGrid` source, ported to run on Uno/WinUI |
 | **Target framework** | `uap10.0.17763` (native UWP `Windows.UI.Xaml`) | `net8.0+`, multi-target with WinUI/Uno | UWP + WinAppSdk + Uno (via CommunityToolkit Labs infrastructure) | `net10.0-desktop` / WinUI 3 via Uno |
 | **Namespace** | `Microsoft.Toolkit.Uwp.UI.Controls.DataGrid` | `WinUI.TableView` | `CommunityToolkit.WinUI.Controls` | `System.Windows.Controls.DataGrid` (WPF's own namespace) |
 | **Goal** | *A* DataGrid control usable in UWP apps | A ListView-based grid that inherits virtualization | Align columns between ListView header and item template without a full grid control | WPF's *actual source code*, linked into the build via shim types that map WPF types onto WinUI/Uno |
@@ -82,8 +139,10 @@ because the underlying platform (WinUI/Uno Platform) differs from WPF's:
 
 So while "it's WPF's source" is the correct headline, the shim layer introduces a
 handful of behavioral nuances that make it not quite a 1:1 substitute in every
-detail. WCT v7's DataGrid, WinUI.TableView, and CommunityToolkit DataTable, despite
-superficially similar naming, are independent designs and share even less.
+detail. WCT v7's DataGrid shares the broader WPF/Silverlight programming model but
+descends from Silverlight's separate implementation rather than from WPF source.
+WinUI.TableView and CommunityToolkit DataTable use different architectural
+foundations again.
 
 **Important caveat about DataTable**: Unlike the other three, `CommunityToolkit.
 WinUI.Controls.DataTable` is **not a grid control**. It is a `Panel` subclass
@@ -124,9 +183,11 @@ once instead of repeated as "N/A" in every section:
 
 ### Virtualization
 
-- **WCT v7**: `DataGridRowsPresenter` is a plain `Panel` (not a `VirtualizingPanel`)
-  with a hand-written realize/recycle loop built specifically for this control.
-  Nothing about it is shared with any other WinUI `ItemsControl`.
+- **WCT v7**: carries forward the Silverlight-derived DataGrid architecture rather
+  than WPF's `VirtualizingPanel`/`ItemContainerGenerator` stack.
+  `DataGridRowsPresenter` is a plain `Panel` with a control-specific hand-written
+  realize/recycle loop. That loop is not shared with WinUI's standard
+  `ItemsControl` virtualization infrastructure.
 - **WinUI.TableView**: **inherits UI virtualization from `ListView`**. Every row
   is a `ListViewItem` (subclassed as `TableViewRow`), recycled by the standard
   `ItemsStackPanel`. This is zero-effort, proven infrastructure, but it also
@@ -380,7 +441,7 @@ Each project has capabilities the other three lack:
 | What it is | Full grid control | Full grid control | ListView column-layout helper (Panel) | Full grid control |
 | Base class | `Control` | `ListView` | `Panel` | `ItemsControl → DataGrid` (WPF source) |
 | Size | ~38,700 lines, 76 files | ~18,500 lines, 98 files | ~340 lines, 3 source files | ~5,200 shim + ~23,700 WPF lines |
-| Virtualization | Custom, from scratch | Inherited from ListView (`ItemsStackPanel`) | Inherited from host ListView | Shimmed VirtualizingPanel + custom recycling, variable row heights |
+| Virtualization | Custom Silverlight-derived realize/recycle loop | Inherited from ListView (`ItemsStackPanel`) | Inherited from host ListView | Shimmed VirtualizingPanel + custom recycling, variable row heights |
 | Grouping | Custom `DataGridRowGroupHeader` | **Not supported** | Inherited from host | Shimmed `GroupItem`/`CollectionViewGroup`, full `GroupStyle` API |
 | Frozen columns | Custom `DataGridFrozenGrid` | Separate frozen/scrollable panels | **N/A** (not a grid) | Real WPF `DataGridCellsPanel` arrange math |
 | **Accessibility / UI Automation** | **Complete** (own peer family, 3,090 lines) | **5 automation peers** | **None** (Panel has no peers) | **Not implemented** (largest gap) |
@@ -396,19 +457,16 @@ Each project has capabilities the other three lack:
 | TreeView support | **N/A** | **N/A** | `DataRow` indents tree items | **N/A** |
 | Status | Archived (removed in v8) | Active community project | Experimental (Labs-Windows) | Active port (WPF source) |
 
-**Bottom line**: WCT v7 is a complete, native-UWP-first control with best-in-class
-accessibility but a design independent of WPF. WinUI.TableView is a ListView-based
-grid with the best column-type variety and Excel-like filtering, but it inherits
-ListView's constraints (no grouping, no add-new-row, no validation). CommunityToolkit
-DataTable is a fundamentally different thing — not a grid at all but a Panel that
-aligns ListView columns, with the unique advantage of being too small and simple
-to fail (~340 lines), and interesting hybrid/Grid-header-detection ideas. Ours is a
-dual-source port: the DataGrid-level logic (editing, selection, sorting, frozen
-columns, column-header drag) is linked from real WPF source, while the
-infrastructure (virtualizing panel, container generator, collection view, group
-types) is locally shimmed to mirror WPF's behavior — with gaps in accessibility
-(stubbed) and shim-induced nuances in theme resolution, event routing, and input.
-The four codebases are not directly interoperable — none of the others' source can be linked
-in as-is — but all can serve as behavioral references for future work (accessibility
-patterns from WCT v7, column-type ideas and filter-flyout UX from TableView,
-column-layout ideas from DataTable).
+**Bottom line**: WCT v7 is a complete UWP DataGrid descended from the independently
+implemented Silverlight DataGrid. It belongs to the same broader XAML DataGrid design
+family as WPF and intentionally exposes a familiar programming model, but it does not
+reuse WPF's implementation or infrastructure. WinUI.TableView is a `ListView`-based
+grid with the broadest column-type selection and Excel-like filtering, but it also
+inherits `ListView`-based constraints such as no grouping, add-new row, or validation.
+CommunityToolkit DataTable is a fundamentally different component: a small Panel that
+aligns columns for a host `ListView` or `TreeView`, not a complete grid control. This
+project takes the remaining path: it links the actual WPF DataGrid source for the
+DataGrid-level logic while locally shimming the infrastructure needed to run that
+source on WinUI/Uno. That preserves substantially more WPF API and behavior, while
+also creating clear gaps where the underlying WPF infrastructure has not yet been
+fully reproduced, most notably UI Automation.
