@@ -351,7 +351,7 @@ public sealed class DataGridIntegrationTests
     // this shim's own code without deeper Uno.UI-internals access. Left as a
     // documented, skipped regression check rather than silently deleted, so
     // re-enabling it is the verification step once that gap is fixed.
-    [Fact(Skip = "Row/cell DesiredSize never gets remeasured after its bound content resolves (see comment) — a deeper Uno/Skia layout-invalidation gap, not fixable from this shim's code; the DataContext propagation bug that caused the content itself to be wrong is fixed and regression-tested separately.")]
+    [Fact]
     public async Task FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll()
     {
         await _app.InvokeAsync("datagrid.probe.create-frozen-edit-grid", 1);
@@ -711,19 +711,17 @@ public sealed class DataGridIntegrationTests
 
         var (originX, originY, _) = await _app.GetWindowContentOriginAsync();
 
-        // Drag first header ("Task") to just past the right edge of the third header ("Status"),
-        // so display order becomes Assigned To, Status, Task, Priority ... but the test asserts the
-        // committed order below. All coordinates are global = content origin + page-local point.
+        // Drag the first header (Priority, DisplayIndex 0) to just past the right edge of the
+        // third header (Assigned To, DisplayIndex 2), so display order becomes
+        // Task, Assigned To, Status, Priority. All coordinates are global Quartz screen points.
         var fromX = originX + xs[0].GetDouble() + ws[0].GetDouble() / 2.0;
         var fromY = originY + ys[0].GetDouble() + hs[0].GetDouble() / 2.0;
         var toX = originX + xs[2].GetDouble() + ws[2].GetDouble() + 8.0;
         var toY = originY + ys[2].GetDouble() + hs[2].GetDouble() / 2.0;
 
-        // Focus the window first: its first click would otherwise be consumed by macOS to
-        // activate it rather than delivered to the header. Click the title bar (just above the
-        // content top, horizontally over the first header).
-        await _app.FocusWindowAsync(fromX, originY - 14.0);
-
+        // DevFlow's DragAsync activates the main window internally before the cliclick gesture,
+        // so no separate focus step is needed here. The 300ms settle between activation and
+        // the actual drag is handled by the agent.
         var dragResult = await _app.DragAsync(fromX, fromY, toX, toY, global: true);
         Assert.True(dragResult.GetProperty("ok").GetBoolean(),
             $"drag should succeed: {dragResult}");

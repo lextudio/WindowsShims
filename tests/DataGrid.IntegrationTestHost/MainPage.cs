@@ -1921,4 +1921,8 @@ public sealed partial class MainPage : Page
                $"\"resizedFrozen\":{Jb(resizedFrozen)},\"resizedNonFrozen\":{Jb(resizedNonFrozen)},\"frozenXAfterResize\":{Jn(frozenXAfterResize)}}}";
     });
 }
+#else
+public sealed partial class MainPage : Microsoft.UI.Xaml.Controls.Page
+{
+}
 #endif
