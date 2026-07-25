@@ -268,7 +268,93 @@ public sealed class RichTextBoxIntegrationTests
 
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
-        Assert.Contains("hello", Text(state));
+        Assert.Equal("hello\n", Text(state));
+    }
+
+    [Fact]
+    public async Task ParagraphFlowDirectionLtrRtl_AppliesCorrectDirection()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello");
+
+        var ltrState = await _app.InvokeAsync("richtextbox.probe.apply-paragraph-flow-direction-ltr-selection-command");
+        Assert.Equal("LeftToRight", ltrState.GetProperty("firstParagraphFlowDirection").GetString());
+
+        var rtlState = await _app.InvokeAsync("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command");
+        Assert.Equal("RightToLeft", rtlState.GetProperty("firstParagraphFlowDirection").GetString());
+    }
+
+    [Fact]
+    public async Task InlineFlowDirection_OverridesParagraphDirection()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello");
+        await _app.InvokeAsync("richtextbox.probe.apply-paragraph-flow-direction-rtl-selection-command");
+
+        var rtlState = await _app.InvokeAsync("richtextbox.probe.apply-inline-flow-direction-ltr-selection-command");
+
+        Assert.Equal("LeftToRight", rtlState.GetProperty("firstInlineFlowDirection").GetString());
+    }
+
+    [Fact]
+    public async Task TextPointerOffset_RoundTripsAcrossParagraphBoundary()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.key-down", "Enter");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "def");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.validate-text-pointer-offsets");
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("offsetToEnd").GetInt32() > 0, raw);
+        foreach (var rt in state.GetProperty("roundTrips").EnumerateArray())
+        {
+            Assert.True(rt.GetProperty("match").GetBoolean(), $"Round-trip failed: target={rt.GetProperty("target")} actual={rt.GetProperty("actual")}");
+        }
+    }
+
+    [Fact]
+    public async Task TextPointerOffset_RoundTripsInsideList()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-list-document", "one", "two");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.validate-text-pointer-offsets");
+        var raw = state.ToString();
+
+        Assert.True(state.GetProperty("offsetToEnd").GetInt32() > 0, raw);
+        foreach (var rt in state.GetProperty("roundTrips").EnumerateArray())
+        {
+            Assert.True(rt.GetProperty("match").GetBoolean(), $"Round-trip failed: target={rt.GetProperty("target")} actual={rt.GetProperty("actual")}");
+        }
+    }
+
+    [Fact]
+    public async Task TextPointerOffset_RoundTripsInsideTable()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-table-document", "a", "b", "c", "d");
+
+        var offsetState = await _app.InvokeAsync("richtextbox.probe.validate-text-pointer-offsets");
+        var raw = offsetState.ToString();
+
+        Assert.True(offsetState.GetProperty("offsetToEnd").GetInt32() > 0, raw);
+        foreach (var rt in offsetState.GetProperty("roundTrips").EnumerateArray())
+        {
+            Assert.True(rt.GetProperty("match").GetBoolean(), $"Round-trip failed: target={rt.GetProperty("target")} actual={rt.GetProperty("actual")}");
+        }
+    }
+
+    [Fact]
+    public async Task AcceptsTabFalse_ProgrammaticTabForward_DoesNotCrash()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-tab", false);
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "TabForward");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("abc\n", Text(state));
     }
 
     [Fact]
@@ -534,6 +620,76 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Contains("Run:ab:", inlineTree);
         Assert.Contains("Run:cd:w=400:s=Normal:z=14:d=U", inlineTree);
         Assert.Contains("Run:ef:", inlineTree);
+    }
+
+    [Fact]
+    public async Task ToggleBoldOnPartiallyBoldSelection_SplitsAndAppliesCorrectly()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-nested-inline-document");
+
+        // "plain bold between italic end" — select "bold between " (offsets 6-19)
+        var state = await _app.InvokeAsync("richtextbox.probe.select-text-range", 6, 19);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("bold between ", SelectionText(state));
+    }
+
+    [Fact]
+    public async Task ToggleBoldOnMixedBoldItalicSelection_DoesNotCrash()
+    {
+        await _app.InvokeAsync("richtextbox.probe.set-bold-inside-italic-document");
+
+        // "before italic boldinside italic after" — select "italic boldinside" (offsets 7-24)
+        var state = await _app.InvokeAsync("richtextbox.probe.select-text-range", 7, 24);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal("italic boldinside", SelectionText(state));
+    }
+
+    [Fact]
+    public async Task ClearFormattingOnNestedInlineSelection_FlattensToPlainText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "format me");
+        await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        var boldState = await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+        Assert.True(HasRichTextBox(boldState));
+
+        // Toggle underline on
+        var underlined = await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+        Assert.True(HasDocument(underlined));
+
+        // Toggle bold off
+        var toggledBold = await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        Assert.True(HasRichTextBox(toggledBold), toggledBold.ToString());
+
+        // Toggle italic off
+        var toggledItalic = await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+        Assert.True(HasRichTextBox(toggledItalic), toggledItalic.ToString());
+
+        // Toggle underline off
+        var final = await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+        Assert.True(HasRichTextBox(final), final.ToString());
+        Assert.Contains("format me", Text(final));
+    }
+
+    [Fact]
+    public async Task ApplyFontSizeOnSelectionWithMixedSizes_AppliesUniformSize()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "mixed sizes");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 0, 5);
+        await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 20);
+
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 6, 5);
+        await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 10);
+
+        // Now select all and apply uniform font size
+        var state = await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 14);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
     }
 
     [Fact]
@@ -1291,6 +1447,53 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
         Assert.Contains("before PASTED", Text(state));
+    }
+
+    [Fact]
+    public async Task PasteCommand_MultiParagraphText_CreatesCorrectParagraphs()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.paste-text-at-run-offset", "abc\ndef\nghi", 5);
+        var raw = state.ToString();
+        var text = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(BlockCount(state) >= 3, $"Expected at least 3 paragraphs, got {BlockCount(state)}: {raw}");
+        Assert.Contains("helloabc", text);
+        Assert.Contains("def", text);
+        Assert.Contains("ghi", text);
+    }
+
+    [Fact]
+    public async Task PasteCommand_MultiParagraphText_UndoRestoresOriginalDocument()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "original");
+
+        await _app.InvokeAsync("richtextbox.probe.paste-text-at-run-offset", "extra\nlines", 8);
+
+        var afterPaste = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Z", "Cmd");
+        var raw = afterPaste.ToString();
+
+        Assert.True(HasRichTextBox(afterPaste), raw);
+        Assert.Contains("original", Text(afterPaste));
+        Assert.DoesNotContain("extra", Text(afterPaste));
+        Assert.DoesNotContain("lines", Text(afterPaste));
+    }
+
+    [Fact]
+    public async Task PasteCommand_IntoNonEmptySelection_ReplacesSelection()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "prefix [replacement] suffix");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 7, 12);
+        await _app.InvokeAsync("richtextbox.probe.clipboard-set-text", "REPLACED");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "Paste");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.DoesNotContain("[replacement]", Text(state));
+        Assert.Contains("REPLACED", Text(state));
     }
 
     [Fact]

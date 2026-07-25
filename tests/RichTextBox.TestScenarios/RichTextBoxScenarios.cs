@@ -84,4 +84,32 @@ public static class RichTextBoxScenarios
         document.Blocks.Add(table);
         return document;
     }
+
+    public static FlowDocument BuildNestedInlineDocument()
+    {
+        var document = new FlowDocument();
+        var para = new Paragraph();
+        para.Inlines.Add(new Run("plain "));
+        para.Inlines.Add(new Bold(new Run("bold")));
+        para.Inlines.Add(new Run(" between "));
+        para.Inlines.Add(new Italic(new Run("italic")));
+        para.Inlines.Add(new Run(" end"));
+        document.Blocks.Add(para);
+        return document;
+    }
+
+    public static FlowDocument BuildBoldInsideItalicDocument()
+    {
+        var document = new FlowDocument();
+        var para = new Paragraph();
+        para.Inlines.Add(new Run("before "));
+        var italic = new Italic();
+        italic.Inlines.Add(new Run("italic "));
+        italic.Inlines.Add(new Bold(new Run("boldinside")));
+        italic.Inlines.Add(new Run(" italic"));
+        para.Inlines.Add(italic);
+        para.Inlines.Add(new Run(" after"));
+        document.Blocks.Add(para);
+        return document;
+    }
 }

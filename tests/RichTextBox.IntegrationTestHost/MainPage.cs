@@ -537,6 +537,42 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.set-nested-inline-document", Description = "Create a RichTextBox with a FlowDocument containing a paragraph with nested inlines: plain, Bold, plain, Italic, plain.")]
+    public static string ProbeSetNestedInlineDocument() => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 240,
+            AcceptsReturn = true,
+            Document = RichTextBoxScenarios.BuildNestedInlineDocument(),
+        };
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.set-bold-inside-italic-document", Description = "Create a RichTextBox with a FlowDocument containing Bold nested inside Italic.")]
+    public static string ProbeSetBoldInsideItalicDocument() => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 240,
+            AcceptsReturn = true,
+            Document = RichTextBoxScenarios.BuildBoldInsideItalicDocument(),
+        };
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return Snapshot(page);
+    });
+
     static object RequireRenderScope(WpfRichTextBox box) =>
         GetInternalProperty(box, "RenderScope")
             ?? throw new InvalidOperationException("RichTextBox.RenderScope is not available.");
@@ -1185,6 +1221,28 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.select-text-range", Description = "Select a range by plain-text character offsets (cross-element boundary). Uses GetPositionAtPlainTextOffset.")]
+    public static string ProbeSelectTextRange(int startOffset, int endOffset) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+
+        var getPosMethod = typeof(WpfRichTextBox).GetMethod("GetPositionAtPlainTextOffset", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("RichTextBox.GetPositionAtPlainTextOffset not found.");
+        var start = (System.Windows.Documents.TextPointer)getPosMethod.Invoke(null, [document, startOffset]);
+        var end = (System.Windows.Documents.TextPointer)getPosMethod.Invoke(null, [document, endOffset]);
+
+        if (page._box.Selection is { } sel)
+        {
+            sel.Select(start, end);
+        }
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.set-caret-on-mouse-event-at-offset", Description = "Call TextEditorMouse.SetCaretPositionOnMouseEvent directly at the character rect for an offset in the first Run, with an explicit clickCount (1=place caret, 2=select word, 3=select paragraph).")]
     public static string ProbeSetCaretOnMouseEventAtOffset(int offset, int clickCount) => RunOnUi(page =>
     {
@@ -1369,6 +1427,18 @@ public sealed partial class MainPage : Page
     }
 
     static string ProbeApplyInlineFlowDirectionSelectionCommand(System.Windows.Input.RoutedCommand command) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        page._box.SelectAll();
+        command.Execute(null, page._box);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    static string ProbeApplyParagraphFlowDirectionSelectionCommand(System.Windows.Input.RoutedCommand command) => RunOnUi(page =>
     {
         if (page._box is null)
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
@@ -1817,6 +1887,44 @@ public sealed partial class MainPage : Page
         return $"{{\"itemCount\":{itemList.Count},\"items\":[{string.Join(",", itemList)}]}}";
     });
 
+    [DevFlowAction("richtextbox.probe.clipboard-set-text", Description = "Set the system clipboard to the given plain text without pasting.")]
+    public static string ProbeClipboardSetText(string text) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        System.Windows.Clipboard.SetText(text);
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.validate-text-pointer-offsets", Description = "Validate TextPointer offset consistency and return the document's offset range, text length, and round-trip results.")]
+    public static string ProbeValidateTextPointerOffsets() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        var start = document.ContentStart;
+        var end = document.ContentEnd;
+        var offsetToEnd = start.GetOffsetToPosition(end);
+        var textLength = new WpfTextRange(start, end).Text?.Length ?? 0;
+
+        // Round-trip test: create positions at progressive fractions of the range
+        var roundTrips = new List<string>();
+        foreach (var frac in new[] { 0.0, 0.25, 0.5, 0.75, 1.0 })
+        {
+            int targetOffset = (int)(offsetToEnd * frac);
+            var mid = start.GetPositionAtOffset(targetOffset);
+            if (mid is not null)
+            {
+                int actualOffset = start.GetOffsetToPosition(mid);
+                roundTrips.Add($"{{\"target\":{targetOffset},\"actual\":{actualOffset},\"match\":{Jb(targetOffset == actualOffset)}}}");
+            }
+        }
+
+        return $"{{\"offsetToEnd\":{offsetToEnd},\"textLength\":{textLength},\"rangeMatch\":{Jb(offsetToEnd == textLength)},\"roundTrips\":[{string.Join(",", roundTrips)}]}}";
+    });
+
     [DevFlowAction("richtextbox.probe.execute-command", Description = "Execute an ApplicationCommands or EditingCommands command by name (Cut, Copy, Paste, Delete, SelectAll) on the current RichTextBox.")]
     public static string ProbeExecuteCommand(string commandName) => RunOnUi(page =>
     {
@@ -1830,6 +1938,8 @@ public sealed partial class MainPage : Page
             "Paste" => System.Windows.Input.ApplicationCommands.Paste,
             "Delete" => System.Windows.Documents.EditingCommands.Delete,
             "SelectAll" => System.Windows.Input.ApplicationCommands.SelectAll,
+            "TabForward" => WpfEditingCommands.TabForward,
+            "TabBackward" => WpfEditingCommands.TabBackward,
             _ => throw new ArgumentException($"Unknown command: {commandName}", nameof(commandName)),
         };
 
