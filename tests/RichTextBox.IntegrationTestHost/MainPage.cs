@@ -1897,6 +1897,88 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.caret-plain-offset", Description = "Return the plain-text offset of the current caret (selection start).")]
+    public static string ProbeCaretPlainOffset() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        if (page._box.Selection?.Start is not { } start)
+            return "{\"offset\":-1}";
+
+        var getOffsetMethod = typeof(WpfRichTextBox).GetMethod("GetPlainTextOffset", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("RichTextBox.GetPlainTextOffset not found.");
+        var offset = (int)getOffsetMethod.Invoke(null, [document, start]);
+        return $"{{\"offset\":{offset}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.save-xaml", Description = "Save the current document content to XAML and return the XAML string.")]
+    public static string ProbeSaveXaml() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        var range = new WpfTextRange(document.ContentStart, document.ContentEnd);
+
+        using var stream = new System.IO.MemoryStream();
+        range.Save(stream, System.Windows.DataFormats.Xaml, true);
+        stream.Position = 0;
+        using var reader = new System.IO.StreamReader(stream);
+        var xaml = reader.ReadToEnd();
+        return $"{{\"xaml\":{Js(xaml)},\"snapshot\":{Snapshot(page)}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.set-xaml-document", Description = "Replace the current RichTextBox document content by loading XAML via TextRange.Load.")]
+    public static string ProbeSetXamlDocument(string xaml) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        var range = new WpfTextRange(document.ContentStart, document.ContentEnd);
+
+        using var stream = new System.IO.MemoryStream();
+        using var writer = new System.IO.StreamWriter(stream);
+        writer.Write(xaml);
+        writer.Flush();
+        stream.Position = 0;
+        range.Load(stream, System.Windows.DataFormats.Xaml);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.find-text", Description = "Search for text in the document using TextFindEngine.Find and return the result range as plain-text offsets, or null if not found.")]
+    public static string ProbeFindText(string pattern, int flags = 0) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+
+        var findEngineType = typeof(WpfRichTextBox).Assembly.GetType("System.Windows.Documents.TextFindEngine")
+            ?? throw new InvalidOperationException("TextFindEngine not found.");
+        var findMethod = findEngineType.GetMethod("Find", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("TextFindEngine.Find not found.");
+
+        var start = document.ContentStart;
+        var end = document.ContentEnd;
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        var result = findMethod.Invoke(null, [start, end, pattern, flags, culture]);
+
+        if (result is null)
+            return "{\"found\":false}";
+
+        var range = (System.Windows.Documents.TextRange)result;
+
+        var getOffsetMethod = typeof(WpfRichTextBox).GetMethod("GetPlainTextOffset", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("RichTextBox.GetPlainTextOffset not found.");
+        var startOffset = (int)getOffsetMethod.Invoke(null, [document, range.Start]);
+        var endOffset = (int)getOffsetMethod.Invoke(null, [document, range.End]);
+        var foundText = range.Text;
+
+        return $"{{\"found\":true,\"start\":{startOffset},\"end\":{endOffset},\"text\":{Js(foundText)}}}";
+    });
+
     [DevFlowAction("richtextbox.probe.validate-text-pointer-offsets", Description = "Validate TextPointer offset consistency and return the document's offset range, text length, and round-trip results.")]
     public static string ProbeValidateTextPointerOffsets() => RunOnUi(page =>
     {

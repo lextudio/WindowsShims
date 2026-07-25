@@ -24,6 +24,8 @@ namespace System.Windows.Controls
                 // No-op, as we cannot set the width of the image source
             }
         }
+
+        public DpiScale GetDpi() => new(1.0, 1.0);
     }
 }
 #endif

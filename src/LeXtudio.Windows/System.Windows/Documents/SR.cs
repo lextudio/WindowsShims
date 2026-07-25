@@ -275,4 +275,6 @@ internal static class SR
     internal const string DataGridLength_SizeToCells = "DataGridLength_SizeToCells";
     internal const string DataGridLength_SizeToHeader = "DataGridLength_SizeToHeader";
     internal const string DataGrid_ReadOnlyCellsCannotBeEdited = "DataGrid_ReadOnlyCellsCannotBeEdited";
+    internal const string TextEditorCopyPaste_EntryPartIsMissingInXamlPackage = "TextEditorCopyPaste_EntryPartIsMissingInXamlPackage";
+    internal const string WpfPayload_InvalidImageSource = "WpfPayload_InvalidImageSource";
 }

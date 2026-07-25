@@ -30,33 +30,16 @@ namespace System.Windows.Controls
         DownOnly = 1,
         Both = 2,
     }
-}
 
-namespace System.Windows.Documents
-{
-    // Stub: WpfPayload is the WPF rich-content package format used to embed images
-    // alongside XAML when round-tripping via RTF. The converters call into it on image
-    // paths only; with no payload attached, those branches are skipped or no-op.
-    internal class WpfPayload : IDisposable
+    public static class Viewbox
     {
-        public const string ImageBmpContentType = "image/bmp";
-        internal object Package => this; // stub: IDisposable placeholder for using(wpfPayload.Package)
-        internal System.IO.Stream? GetImageStream(string imageSourceString) => null;
-        internal System.IO.Stream? CreateImageStream(int imageCount, string contentType, out string imagePartUriString)
-        {
-            imagePartUriString = string.Empty;
-            return null;
-        }
-        internal System.IO.Stream CreateXamlStream() => new System.IO.MemoryStream();
-        internal static WpfPayload OpenWpfPayload(System.IO.Stream stream) => new WpfPayload();
-        internal static WpfPayload CreateWpfPayload(System.IO.Stream stream) => new WpfPayload();
-        internal static System.IO.MemoryStream SaveImage(System.Windows.Media.Imaging.BitmapSource bitmapSource, string contentType) => new System.IO.MemoryStream();
-        internal static object LoadElement(System.IO.MemoryStream stream) => null;
-        internal static string SaveRange(Documents.ITextRange range, ref System.IO.Stream? wpfContainerMemory, bool useFlowDocumentAsRoot) => string.Empty;
-        // AddImage: embed an image into the WPF payload package and return its URI string.
-        // No-op stub — image serialization is gated #if !HAS_UNO in TextRangeSerialization.
-        internal string? AddImage(object image) => null;
-        public void Dispose() { }
+        // Scale-factor computation used by the RTF writer to size embedded images.
+        // The neutral 1x1 fallback keeps the writer emitting valid (if unscaled) markup.
+        public static global::Windows.Foundation.Size ComputeScaleFactor(
+            global::Windows.Foundation.Size availableSize,
+            global::Windows.Foundation.Size contentSize,
+            System.Windows.Media.Stretch stretch,
+            StretchDirection stretchDirection) => new global::Windows.Foundation.Size(1, 1);
     }
 }
 
@@ -66,20 +49,6 @@ namespace System.Windows.Media
     public sealed class GlyphTypeface
     {
         public bool Symbol => false;
-    }
-}
-
-namespace System.Windows.Controls
-{
-    public static class Viewbox
-    {
-        // Scale-factor computation used by the RTF writer to size embedded images.
-        // The neutral 1×1 fallback keeps the writer emitting valid (if unscaled) markup.
-        public static global::Windows.Foundation.Size ComputeScaleFactor(
-            global::Windows.Foundation.Size availableSize,
-            global::Windows.Foundation.Size contentSize,
-            global::System.Windows.Media.Stretch stretch,
-            global::System.Windows.Controls.StretchDirection stretchDirection) => new global::Windows.Foundation.Size(1, 1);
     }
 }
 
@@ -104,3 +73,5 @@ namespace System.Windows.Media
             => $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 }
+
+// ── OPC / XamlPackage shims (PackageStore, ParserContext) live in ImagingShims.cs ──

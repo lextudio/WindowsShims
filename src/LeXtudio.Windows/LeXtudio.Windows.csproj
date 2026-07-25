@@ -42,6 +42,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="GitVersion.MsBuild" PrivateAssets="All" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="System.IO.Packaging" />
   </ItemGroup>
   <!-- Win2D drawing/text backend, selected per target framework. Shared editor code
        (DrawingContext adapter, text layout) is written once against the Win2D API surface
@@ -739,7 +741,6 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Fixed*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentSequence*.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContent*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\WpfPayload.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XPSS0ValidatingLoader.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Speller*.cs" />

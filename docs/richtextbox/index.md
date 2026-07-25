@@ -215,7 +215,17 @@ Each session is tracked as a separate file:
 | 49 | [session49.md](session49.md) | Undo/Redo Coverage for Formatting Commands (completed) |
 | 50 | [session50.md](session50.md) | Ctrl+A SelectAll and Clipboard Keyboard Shortcuts (completed) |
 | 51 | [session51.md](session51.md) | Keyboard Line-Break Edge Cases (completed) |
-| 52 | [session52.md](session52.md) | Drag/Drop End-to-End via Pointer Synthesis (planned) |
-| 53 | [session53.md](session53.md) | List Creation / List.Apply (planned) |
-| 54 | [session54.md](session54.md) | IME Composition Visual Underline/Highlight (planned) |
-| 55 | [session55.md](session55.md) | Table Visual Rendering in FlorenceLayoutEngine (planned) |
+| 52 | [session52.md](session52.md) | Drag/Drop End-to-End via Pointer Synthesis (completed) |
+| 53 | [session53.md](session53.md) | List Creation / List.Apply (completed) |
+| 54 | [session54.md](session54.md) | IME Composition Visual Underline/Highlight (completed) |
+| 55 | [session55.md](session55.md) | Table Visual Rendering in FlorenceLayoutEngine (completed) |
+| 56 | [session56.md](session56.md) | Multi-Paragraph Clipboard Paste (completed) |
+| 57 | [session57.md](session57.md) | Nested Inline Formatting Edge Cases (completed) |
+| 58 | [session58.md](session58.md) | AcceptsReturn / AcceptsTab Hidden-State Edge Cases (completed) |
+| 59 | [session59.md](session59.md) | Mixed FlowDirection Edge Cases (completed) |
+| 60 | [session60.md](session60.md) | TextPointer Offsets Across Mixed Document Structures (completed) |
+| 61 | [session61.md](session61.md) | XAML Serialization (DataFormats.Xaml) (completed) |
+| 62 | [session62.md](session62.md) | Formatted Clipboard Round-Trip (completed) |
+| 63 | [session63.md](session63.md) | Table Arrow-Key Navigation (completed) |
+| 64 | [session64.md](session64.md) | Text Search (Find/FindNext) (completed) |
+| 65 | [session65.md](session65.md) | Catalog Refresh and Consumer Gap Prioritization (completed) |

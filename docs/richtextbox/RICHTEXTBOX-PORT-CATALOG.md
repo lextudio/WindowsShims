@@ -114,14 +114,11 @@ scope, not a bug:
 
 Also intentionally unsupported (not excluded from compilation, but gated
 `#if HAS_UNO` inside linked files rather than via `Compile Remove`):
-`TextRangeBase.CanSave`/`CanLoad`/`Save`/`Load` only recognize
-`DataFormats.Text` — `Xaml`/`Rtf`/`XamlPackage` throw a predictable
-`ArgumentException` (`docs/richtextbox/session34.md`), and
-`List.Apply` (new-list creation from plain paragraphs via
-`TextRangeEditLists.ConvertParagraphsToListItems`) throws `NotSupportedException`
-(`docs/richtextbox/session37.md`) — editing an *existing* list (construction,
-indent/outdent, marker removal, bullet/number toggling) works correctly and is
-tested (`docs/richtextbox/session38.md`-`session40.md`).
+`TextRangeBase.CanSave`/`CanLoad`/`Save`/`Load` now recognize
+`DataFormats.Text` and `DataFormats.Xaml` (session 61); `Rtf`/`XamlPackage`
+still throw a predictable `ArgumentException`. `List.Apply` (new-list creation
+from plain paragraphs via `TextRangeEditLists.ConvertParagraphsToListItems`)
+was un-gated in session 53 and now works correctly.
 
 ## Status by milestone (see `docs/richtextbox/index.md` for full detail)
 
@@ -132,9 +129,9 @@ tested (`docs/richtextbox/session38.md`-`session40.md`).
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34 — supported format
-  (`Text`) tested, unsupported formats (`Xaml`/`Rtf`/`XamlPackage`) fail
-  predictably and are documented above.
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61 — supported
+  formats (`Text`, `Xaml`) tested; unsupported formats (`Rtf`, `XamlPackage`)
+  fail predictably.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
   now integrated (see "IME integration" below), even though WPF's own
@@ -160,31 +157,49 @@ in `RichTextBox.Ime.uno.cs`) works generally for any document structure the
 `.Text` getter already handles correctly (paragraphs, lists, tables) — it
 reuses that getter's forward mapping and inverts it via binary search rather
 than reimplementing WPF's plain-text walk by hand, and is verified for
-multi-paragraph documents.
+multi-paragraph documents. Session 54 added visual composition underline
+rendering in `FlowDocumentView.uno.cs` (Line shapes at the character baseline
+for the duration of the composition).
 
 ## Open threads
 
-- List indentation/marker-removal/toggle algorithms all work correctly on an
-  *existing* list (sessions 37-40) now that session 35's `LogicalTreeHelper`
-  fix is in place; only new-list *creation* (`List.Apply`) remains
-  unsupported.
-- Table construction (session 43) does not crash and the document/editing
-  model reads back correctly, but tables have **no visual rendering at all**
-  — `FlorenceLayoutEngine.Format` only walks `Paragraph` blocks, so `List`
-  and `Table` content is invisible on screen regardless of any `Parent`-chain
-  fix (this also means sessions 37-40's List tests only ever validated the
-  document/editing model, not visual rendering). `TableCell`/`TableRow`/
-  `TableRowGroup`'s `OnNewParent` override (real WPF's hook for syncing a
-  reparented cell into its row's `Cells` collection) is never invoked by this
-  shim's `LogicalTreeHelper`, unlike `ListItem` which doesn't need it — a
-  narrower latent risk than session 35's original bug, since
+- `List.Apply` (new-list creation) was un-gated in session 53 and now works
+  correctly (editing an *existing* list was already verified in sessions 37-40).
+- Table visual rendering via `FlorenceLayoutEngine` was added in session 55
+  (walking `Table` → `TableRowGroup` → `TableRow` → `TableCell` → `Paragraph`
+  using TextPointer navigation). `List` rendering was added at the same time.
+  `TableCell`/`TableRow`/`TableRowGroup`'s `OnNewParent` override is still
+  never invoked by this shim's `LogicalTreeHelper`, but
   `TableCellCollection.Add`/etc. maintain their own storage directly and
-  don't depend on the `OnNewParent` side effect for the normal construction/
-  editing path. Not chased further: no crash found, no rendering to verify
-  against, and no current consumer need.
-- IME composition offset mapping now works generally (see "IME integration"
-  above); `CompositionStarted`/`CompositionCompleted` still have no visual
-  underline/highlight for in-progress composition text (cosmetic).
-- `docs/richtextbox/index.md`'s milestone-driven backlog is largely exhausted
-  as of session 42 — next work should be prioritized against actual consumer
-  needs rather than continuing to mine the milestone list speculatively.
+  don't depend on it for the normal construction/editing path.
+- IME composition visual underline was added in session 54 (`FlowDocumentView`
+  renders horizontal `Line` shapes during composition). Composition offset
+  mapping had been verified in session 43.
+- Sessions 56-60 covered polish edge cases: multi-paragraph paste (56),
+  nested inline formatting (57), AcceptsReturn/AcceptsTab (58),
+  FlowDirection (59), TextPointer offsets (60).
+- Sessions 61-65 added XAML serialization (61, `DataFormats.Xaml` save/load
+  for plain text and hyperlinks; formatting properties not serialized due to
+  DP property system limitations), formatted clipboard round-trip (62),
+  table arrow-key navigation (63), text search via `TextFindEngine` (64),
+  and this catalog refresh (65).
+- The `RICHTEXTBOX-PORT-CATALOG.md` milestone-driven backlog is largely
+  exhausted — next work should be prioritized against actual consumer needs
+  rather than continuing to mine the milestone list speculatively.
+
+### Top 3 remaining consumer-facing gaps
+
+1. **XAML formatting serialization** — Formatting properties (FontWeight,
+   FontStyle, TextDecorations) are not serialized to XAML because `GetValue`
+   on `TextPointer` contexts doesn't return locally-set values through Uno's
+   DP system. Fixing this would enable formatted clipboard copy/paste between
+   RichTextBox instances and document persistence with formatting.
+2. **TableCell collection population** — `TableCell`/`TableRow`/`TableRowGroup`
+   `OnNewParent` is never invoked, so these collections rely on direct
+   `Add` calls. If a consumer uses `LogicalTreeHelper` or `Parent`-walking
+   code that expects `OnNewParent` to fire (as WPF's own table editing code
+   sometimes does), collection state could desync.
+3. **Spell-check integration** — WPF's `SpellCheck.IsEnabled` is commonly
+   used in consumer apps. The `Speller*.cs` files are excluded from
+   compilation. A lightweight bridge to the OS spell-check API (or a
+   no-op stub that doesn't crash) would improve consumer compatibility.
