@@ -16,6 +16,8 @@ public partial class RichTextBox
     private CoreTextEditContext? _imeContext;
     private bool _imeComposing;
     private bool _imeAttachAttempted;
+    private int _imeCompositionStart;
+    private int _imeCompositionLength;
 
     private void EnsureImeContext()
     {
@@ -32,8 +34,20 @@ public partial class RichTextBox
             _imeContext.SelectionRequested += OnImeSelectionRequested;
             _imeContext.SelectionUpdating += OnImeSelectionUpdating;
             _imeContext.LayoutRequested += OnImeLayoutRequested;
-            _imeContext.CompositionStarted += (_, _) => _imeComposing = true;
-            _imeContext.CompositionCompleted += (_, _) => _imeComposing = false;
+            _imeContext.CompositionStarted += (_, _) =>
+            {
+                _imeComposing = true;
+                _imeCompositionStart = 0;
+                _imeCompositionLength = 0;
+                NotifyImeCompositionRangeToView();
+            };
+            _imeContext.CompositionCompleted += (_, _) =>
+            {
+                _imeComposing = false;
+                _imeCompositionStart = -1;
+                _imeCompositionLength = -1;
+                NotifyImeCompositionRangeToView();
+            };
 #if !WINDOWS_APP_SDK
             _imeContext.CommandReceived += OnImeCommandReceived;
 #endif
@@ -137,11 +151,15 @@ public partial class RichTextBox
                 UpdateCaretFromSelection();
             }
 
+            _imeCompositionStart = e.Range.StartCaretPosition;
 #if WINDOWS_APP_SDK
+            _imeCompositionLength = e.Text?.Length ?? 0;
             Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.Text}'");
 #else
+            _imeCompositionLength = e.NewText?.Length ?? 0;
             Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.NewText}'");
 #endif
+            NotifyImeCompositionRangeToView();
         }
         catch (Exception ex)
         {
@@ -212,6 +230,14 @@ public partial class RichTextBox
         catch (Exception ex)
         {
             Log($"Ime: OnImeLayoutRequested THREW {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private void NotifyImeCompositionRangeToView()
+    {
+        if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            fdv.SetImeCompositionRange(_imeCompositionStart, _imeCompositionLength);
         }
     }
 

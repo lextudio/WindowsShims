@@ -22,6 +22,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
     private ITextSelection? _trackedSelection;
+    private int _imeCompositionStart = -1;
+    private int _imeCompositionLength = -1;
+    private readonly List<Microsoft.UI.Xaml.Shapes.Line> _imeUnderlineLines = [];
     private readonly AdornerLayer _adornerLayer;
 
     // Caret overlay. The visual lives here, but hit-testing and geometry come
@@ -51,6 +54,19 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             _caretVisible = !_caretVisible;
             _caret.Opacity = _caretVisible ? 1 : 0;
         };
+
+        for (int i = 0; i < 16; i++)
+        {
+            var line = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Black),
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+                Opacity = 0,
+            };
+            _imeUnderlineLines.Add(line);
+            Children.Add(line);
+        }
     }
 
     // ── Document ────────────────────────────────────────────────────────────
@@ -164,6 +180,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         {
             RefreshSelection();
         }
+
+        RefreshImeCompositionUnderline();
 
         var lines = _page.Lines;
         for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
@@ -352,6 +370,54 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             rect.Tag = Rect.Empty;
             rect.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
         }
+    }
+
+    // ── IME Composition Underline ───────────────────────────────────────────
+
+    internal int ImeUnderlineLineCount => _imeUnderlineLines.Count(l => l.Opacity > 0);
+
+    internal void SetImeCompositionRange(int start, int length)
+    {
+        _imeCompositionStart = start;
+        _imeCompositionLength = length;
+    }
+
+    private void RefreshImeCompositionUnderline()
+    {
+        if (_imeCompositionStart < 0 || _imeCompositionLength <= 0 || _page == null)
+        {
+            foreach (var line in _imeUnderlineLines)
+                line.Opacity = 0;
+            return;
+        }
+
+        int end = _imeCompositionStart + _imeCompositionLength;
+        int lineIndex = 0;
+
+        foreach (var pageLine in _page.Lines)
+        {
+            int segStart = Math.Max(_imeCompositionStart, pageLine.StartOffset);
+            int segEnd = Math.Min(end, pageLine.EndOffset);
+            if (segStart >= segEnd)
+                continue;
+
+            double x1 = UnoFlowDocumentTextView.GetPixelXForOffset(pageLine, segStart);
+            double x2 = UnoFlowDocumentTextView.GetPixelXForOffset(pageLine, segEnd);
+            double baseline = pageLine.Baseline;
+
+            if (lineIndex >= _imeUnderlineLines.Count)
+                break;
+
+            var underline = _imeUnderlineLines[lineIndex++];
+            underline.X1 = x1;
+            underline.X2 = x2;
+            underline.Y1 = baseline + 2;
+            underline.Y2 = baseline + 2;
+            underline.Opacity = 1;
+        }
+
+        for (int i = lineIndex; i < _imeUnderlineLines.Count; i++)
+            _imeUnderlineLines[i].Opacity = 0;
     }
 
     internal System.Windows.Documents.Hyperlink? GetHyperlinkAt(Windows.Foundation.Point point)

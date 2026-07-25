@@ -736,6 +736,46 @@ public sealed partial class MainPage : Page
         return $"{{\"hitOffset\":{hitOffset}}}";
     });
 
+    [DevFlowAction("richtextbox.probe.drag-drop-end-to-end", Description = "Simulate a full drag-drop: extract selection text and insert it at a target offset in the first Run, mirroring the OnDragStarting→OnDragOver→OnDrop flow.")]
+    public static string ProbeDragDropEndToEnd(int targetOffset) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var host = RequireDragDropHost(page._box);
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+
+        var (selMin, selMax) = host.GetSelectionRange();
+        if (selMin < 0 || selMin == selMax)
+            return Snapshot(page);
+
+        var draggedText = host.GetTextRange(selMin, selMax);
+
+        var paragraph = document.Blocks.FirstBlock as WpfParagraph ?? throw new InvalidOperationException("First block is not a Paragraph.");
+        var run = FirstRun(paragraph.Inlines.FirstInline) ?? throw new InvalidOperationException("First Paragraph does not contain a plain Run.");
+        var targetPos = run.ContentStart.GetPositionAtOffset(targetOffset)
+            ?? throw new InvalidOperationException($"Target offset {targetOffset} is not valid.");
+        var rect = targetPos.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+        var point = new Windows.Foundation.Point(rect.X + 1, rect.Y + rect.Height / 2);
+        var hitOffset = host.HitTest(point);
+        host.SetDropCaretOffset(hitOffset);
+
+        host.InsertTextAt(hitOffset, draggedText);
+
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.set-is-read-only", Description = "Set RichTextBox.IsReadOnly to true or false.")]
+    public static string ProbeSetIsReadOnly(bool value) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.IsReadOnly = value;
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.select-first-list-item", Description = "Select a range inside the first ListItem's Run for list command probes.")]
     public static string ProbeSelectFirstListItem(int start, int length) => RunOnUi(page =>
     {
@@ -869,6 +909,79 @@ public sealed partial class MainPage : Page
         raiseMethod.Invoke(context, [eventArgs]);
         page._box.UpdateLayout();
         return $"{{\"handled\":{Jb(eventArgs.Handled)},\"snapshot\":{Snapshot(page)}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.set-ime-composition-range", Description = "Set the IME composition range on the FlowDocumentView and trigger visual update.")]
+    public static string ProbeSetImeCompositionRange(int start, int length) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var view = RequireRenderScope(page._box);
+
+        var setRangeMethod = view.GetType().GetMethod("SetImeCompositionRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("FlowDocumentView.SetImeCompositionRange not found.");
+        setRangeMethod.Invoke(view, [start, length]);
+        view.GetType().GetMethod("InvalidateArrange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(view, null);
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.get-ime-underline-count", Description = "Report how many visible IME composition underline Line elements exist in the FlowDocumentView.")]
+    public static string ProbeGetImeUnderlineCount() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var view = RequireRenderScope(page._box);
+        var viewType = view.GetType().FullName;
+
+        var countProp = view.GetType().GetProperty("ImeUnderlineLineCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException($"FlowDocumentView.ImeUnderlineLineCount not found (view type: {viewType}).");
+        var count = (int)countProp.GetValue(view)!;
+        return $"{{\"count\":{count}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.get-florence-line-count", Description = "Report how many lines the Florence layout engine produced for the current document.")]
+    public static string ProbeGetFlorenceLineCount() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        var view = RequireRenderScope(page._box);
+        var document = page._box.Document;
+        int tableCount = 0;
+        int cellCount = 0;
+        if (document is not null)
+        {
+            foreach (var block in document.Blocks)
+            {
+                if (block is System.Windows.Documents.Table table)
+                {
+                    tableCount++;
+                    var rowGroups = table.RowGroups;
+                    cellCount = rowGroups.Count; // store rowGroup count temporarily
+                }
+            }
+        }
+        var pageProp = view.GetType().GetProperty("Page", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("FlowDocumentView.Page not found.");
+        var florencePage = pageProp.GetValue(view);
+        if (florencePage is null)
+            return $"{{\"count\":0,\"lines\":[],\"tableCount\":{tableCount},\"cellCount\":{cellCount}}}";
+
+        var linesProp = florencePage.GetType().GetProperty("Lines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("FlorencePage.Lines not found.");
+        var lines = (System.Collections.IList)linesProp.GetValue(florencePage)!;
+        var texts = new List<string>();
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var fullTextProp = line.GetType().GetProperty("FullText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+                ?? throw new InvalidOperationException("FlorenceLine.FullText not found.");
+            texts.Add((string)fullTextProp.GetValue(line)!);
+        }
+        var linesJson = string.Join(",", texts.Select(Js));
+        return $"{{\"count\":{lines.Count},\"lines\":[{linesJson}],\"tableCount\":{tableCount},\"cellCount\":{cellCount}}}";
     });
 
     [DevFlowAction("richtextbox.probe.set-document", Description = "Create a RichTextBox with a FlowDocument containing one paragraph/run.")]

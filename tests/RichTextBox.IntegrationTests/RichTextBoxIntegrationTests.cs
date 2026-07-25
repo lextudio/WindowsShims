@@ -186,19 +186,36 @@ public sealed class RichTextBoxIntegrationTests
         Assert.EndsWith("two\n", Text(state));
     }
 
-    [Theory]
-    [InlineData("richtextbox.probe.toggle-bullets-selection-command")]
-    [InlineData("richtextbox.probe.toggle-numbering-selection-command")]
-    public async Task ToggleListCommand_OnPlainParagraphs_FailsPredictablyUnderUno(string action)
+    [Fact]
+    public async Task ToggleBulletsCommand_OnPlainParagraph_CreatesNewBulletedList()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _app.InvokeAsync(action));
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-bullets-selection-command");
+        var raw = state.ToString();
 
-        // List.Apply (TextRangeEditLists.ConvertParagraphsToListItems, used to create a NEW
-        // list from plain paragraphs) is explicitly gated under HAS_UNO with a documented
-        // NotSupportedException — this is a known scope boundary, not a crash to fix here.
-        Assert.Contains("NotSupportedException", ex.Message);
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal("Disc", FirstListMarkerStyle(state));
+        Assert.Equal(1, FirstListItemCount(state));
+        Assert.Contains("abc", Text(state));
+    }
+
+    [Fact]
+    public async Task ToggleNumberingCommand_OnPlainParagraph_CreatesNewNumberedList()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.toggle-numbering-selection-command");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("List", FirstBlockType(state));
+        Assert.Equal("Decimal", FirstListMarkerStyle(state));
+        Assert.Equal(1, FirstListItemCount(state));
+        Assert.Contains("abc", Text(state));
     }
 
     [Fact]
@@ -1525,6 +1542,39 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task SetTableDocument_FlorenceEngineRendersCellContent()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-table-document", "A1", "B1", "A2", "B2");
+
+        var lineState = await _app.InvokeAsync("richtextbox.probe.get-florence-line-count");
+        var raw = lineState.ToString();
+
+        Assert.True(lineState.GetProperty("count").GetInt32() > 0, $"Expected at least 1 line for table content, got {raw}");
+    }
+
+    [Fact]
+    public async Task PlainDocument_FlorenceEngineRendersParagraphContent()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello");
+
+        var lineState = await _app.InvokeAsync("richtextbox.probe.get-florence-line-count");
+
+        Assert.True(lineState.GetProperty("count").GetInt32() > 0);
+    }
+
+    [Fact]
+    public async Task TableContent_RendersCellSeparatorsAndAllCells()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-table-document", "cell00", "cell01", "cell10", "cell11");
+        var raw = Text(state);
+
+        Assert.Contains("cell00", raw);
+        Assert.Contains("cell01", raw);
+        Assert.Contains("cell10", raw);
+        Assert.Contains("cell11", raw);
+    }
+
+    [Fact]
     public async Task CreatePlain_AttachesRealCoreTextEditContext()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");
@@ -1848,5 +1898,90 @@ public sealed class RichTextBoxIntegrationTests
         var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "Delete");
 
         Assert.DoesNotContain("delete", Text(state));
+    }
+
+    [Fact]
+    public async Task DragDrop_EndToEnd_SimulatesFullDragFlow()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 1, 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-end-to-end", 6);
+        var raw = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Contains("abcdefbcd", raw);
+    }
+
+    [Fact]
+    public async Task DragDrop_EndToEnd_EmptySelectionIsNoOp()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-end-to-end", 3);
+
+        Assert.True(HasRichTextBox(state));
+        Assert.Contains("abcdef", Text(state));
+    }
+
+    [Fact]
+    public async Task DragDrop_EndToEnd_DropAtZeroOffsetPrependsSelectedText()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 2, 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-end-to-end", 0);
+        var raw = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Contains("cdeabcdef", raw);
+    }
+
+    [Fact]
+    public async Task DragDrop_EndToEnd_DropInMiddleCorrectlyInserts()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "abcdef");
+        await _app.InvokeAsync("richtextbox.probe.select-run-range", 1, 2);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.drag-drop-end-to-end", 4);
+        var raw = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Contains("abcdbcef", raw);
+    }
+
+    [Fact]
+    public async Task ImeComposition_DuringComposition_ShowsUnderlineForComposingRange()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello world");
+
+        await _app.InvokeAsync("richtextbox.probe.set-ime-composition-range", 6, 5);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.get-ime-underline-count");
+
+        Assert.True(state.GetProperty("count").GetInt32() > 0, $"Expected underline count > 0, got {state}");
+    }
+
+    [Fact]
+    public async Task ImeComposition_AfterCompositionCompleted_RemovesUnderline()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello world");
+
+        await _app.InvokeAsync("richtextbox.probe.set-ime-composition-range", 6, 5);
+        await _app.InvokeAsync("richtextbox.probe.set-ime-composition-range", -1, -1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.get-ime-underline-count");
+
+        Assert.Equal(0, state.GetProperty("count").GetInt32());
+    }
+
+    [Fact]
+    public async Task ImeComposition_NoComposition_ShowsNoUnderline()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello world");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.get-ime-underline-count");
+
+        Assert.Equal(0, state.GetProperty("count").GetInt32());
     }
 }

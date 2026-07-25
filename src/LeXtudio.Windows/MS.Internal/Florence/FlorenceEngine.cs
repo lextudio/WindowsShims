@@ -455,8 +455,69 @@ namespace MS.Internal.Florence
                 y += DefaultFontSize * 0.3;
             }
 
+            // Format non-paragraph blocks (Table, List) by walking their content
+            foreach (var block in document.Blocks)
+            {
+                switch (block)
+                {
+                    case System.Windows.Documents.Table table:
+                        FormatTable(table, availWidth, ref y, ref globalOffset, page);
+                        break;
+                    case System.Windows.Documents.List list:
+                        FormatList(list, availWidth, ref y, ref globalOffset, page);
+                        break;
+                }
+            }
+
             page.PageSize = new Windows.Foundation.Size(availWidth, Math.Max(y, constraint.Height));
             return page;
+        }
+
+        private static void FormatTable(
+            System.Windows.Documents.Table table,
+            double availWidth, ref double y, ref int globalOffset,
+            FlorencePage page)
+        {
+            var start = table.ContentStart;
+            var end = table.ContentEnd;
+            var pos = start.CreatePointer();
+            while (pos.CompareTo(end) < 0)
+            {
+                if (pos.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward) == System.Windows.Documents.TextPointerContext.ElementStart)
+                {
+                    var element = pos.GetAdjacentElement(System.Windows.Documents.LogicalDirection.Forward);
+                    if (element is System.Windows.Documents.Paragraph para)
+                    {
+                        FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                    }
+                }
+                pos.MoveToNextContextPosition(System.Windows.Documents.LogicalDirection.Forward);
+            }
+        }
+
+        private static void FormatList(
+            System.Windows.Documents.List list,
+            double availWidth, ref double y, ref int globalOffset,
+            FlorencePage page)
+        {
+            foreach (var listItem in list.ListItems)
+            {
+                foreach (var itemBlock in listItem.Blocks)
+                {
+                    if (itemBlock is System.Windows.Documents.Paragraph para)
+                    {
+                        FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                    }
+                    else if (itemBlock is System.Windows.Documents.List nestedList)
+                    {
+                        FormatList(nestedList, availWidth, ref y, ref globalOffset, page);
+                    }
+                    else
+                    {
+                        globalOffset += 1;
+                    }
+                }
+            }
         }
 
         private static void FormatParagraph(
