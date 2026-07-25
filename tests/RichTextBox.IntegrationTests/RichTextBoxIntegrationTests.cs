@@ -780,6 +780,71 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task KeyDown_ShiftEnter_InsertsLineBreak()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "a");
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Enter", "Shift");
+        var raw = state.ToString();
+        var inlineTree = InlineTree(state);
+        var text = Text(state);
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("LineBreak", inlineTree);
+        Assert.Contains("a\n", text);
+    }
+
+    [Fact]
+    public async Task KeyDown_CtrlEnter_InsertsParagraphBreak()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 1);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Enter", "Control");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.True(BlockCount(state) >= 2, raw);
+    }
+
+    [Fact]
+    public async Task KeyDown_Enter_WhenAcceptsReturnFalse_DoesNotInsertBreak()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-return", false);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down", "Enter");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal(1, BlockCount(state));
+        Assert.Equal("abc", Text(state).TrimEnd('\n'));
+    }
+
+    [Fact]
+    public async Task KeyDown_CtrlEnter_BypassesAcceptsReturn()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        await _app.InvokeAsync("richtextbox.probe.text-input-event", "abc");
+        await _app.InvokeAsync("richtextbox.probe.set-accepts-return", false);
+        await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 3);
+
+        var state = await _app.InvokeAsync("richtextbox.probe.key-down-modifiers", "Enter", "Control");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.True(BlockCount(state) >= 2, raw);
+    }
+
+    [Fact]
     public async Task KeyDown_DeleteAtParagraphEnd_MergesNextParagraph()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");

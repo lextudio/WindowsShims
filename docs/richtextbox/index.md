@@ -214,3 +214,8 @@ Each session is tracked as a separate file:
 | 48 | [session48.md](session48.md) | Context Menu Integration (completed) |
 | 49 | [session49.md](session49.md) | Undo/Redo Coverage for Formatting Commands (completed) |
 | 50 | [session50.md](session50.md) | Ctrl+A SelectAll and Clipboard Keyboard Shortcuts (completed) |
+| 51 | [session51.md](session51.md) | Keyboard Line-Break Edge Cases (completed) |
+| 52 | [session52.md](session52.md) | Drag/Drop End-to-End via Pointer Synthesis (planned) |
+| 53 | [session53.md](session53.md) | List Creation / List.Apply (planned) |
+| 54 | [session54.md](session54.md) | IME Composition Visual Underline/Highlight (planned) |
+| 55 | [session55.md](session55.md) | Table Visual Rendering in FlorenceLayoutEngine (planned) |

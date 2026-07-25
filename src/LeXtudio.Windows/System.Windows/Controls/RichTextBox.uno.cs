@@ -345,6 +345,37 @@ public partial class RichTextBox
                 Log($"KeyDown: executed {clipboardCommand.Name}");
                 return;
             }
+
+            // Ctrl+Enter inserts a paragraph break regardless of AcceptsReturn,
+            // matching WPF behavior (plain Enter is gated by AcceptsReturn via
+            // OnQueryStatusEnterBreak). Route directly through the TextEditor's
+            // command binding so it works even when AcceptsReturn is false.
+            if (wpfKey == Key.Return)
+            {
+                var enterCommand = System.Windows.Documents.EditingCommands.EnterParagraphBreak;
+                if (enterCommand.CanExecute(null, this))
+                {
+                    enterCommand.Execute(null, this);
+                }
+                else
+                {
+                    // AcceptsReturn is false — bypass by inserting a new paragraph
+                    // directly (mirrors the #if HAS_UNO path in
+                    // TextEditorTyping.HandleEnterBreakForRichText).
+                    var textEd = TextEditor;
+                    if (textEd?.Selection is { IsEmpty: true } && textEd.Selection.End is TextPointer pos &&
+                        pos.Paragraph is Paragraph para && para.SiblingBlocks != null)
+                    {
+                        var nextPara = new Paragraph();
+                        para.SiblingBlocks.InsertAfter(para, nextPara);
+                        textEd.Selection.Select(nextPara.ContentStart, nextPara.ContentStart);
+                    }
+                }
+                e.Handled = true;
+                UpdateCaretFromSelection();
+                Log("KeyDown: executed EnterParagraphBreak (Ctrl+Enter)");
+                return;
+            }
         }
 
         var args = new KeyEventArgs

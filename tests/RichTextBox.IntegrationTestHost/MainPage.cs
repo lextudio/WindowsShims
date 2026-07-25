@@ -1585,6 +1585,16 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.set-accepts-return", Description = "Set RichTextBox.AcceptsReturn to true or false.")]
+    public static string ProbeSetAcceptsReturn(bool value) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        page._box.AcceptsReturn = value;
+        return Snapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.key-down", Description = "Invoke RichTextBox.OnKeyDown with a Uno KeyRoutedEventArgs for the current RichTextBox.")]
     public static string ProbeKeyDown(string key) => RunOnUi(page =>
     {
