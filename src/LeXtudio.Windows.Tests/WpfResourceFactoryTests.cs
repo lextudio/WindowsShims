@@ -1,26 +1,25 @@
 using System.Windows.Controls;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class WpfResourceFactoryTests
 {
-    [Test]
+    [Fact]
     public void CreateManyMaterializesKeyedResources()
     {
         var resources = WpfResourceFactory.CreateMany(
             WpfResourceSpec.Value("A", 1),
             WpfResourceSpec.Value("B", "two")).ToArray();
 
-        Assert.That(resources, Has.Length.EqualTo(2));
-        Assert.That(resources[0].Key, Is.EqualTo("A"));
-        Assert.That(resources[0].Value, Is.EqualTo(1));
-        Assert.That(resources[1].Key, Is.EqualTo("B"));
-        Assert.That(resources[1].Value, Is.EqualTo("two"));
+        Assert.Equal(2, resources.Length);
+        Assert.Equal("A", resources[0].Key);
+        Assert.Equal(1, resources[0].Value);
+        Assert.Equal("B", resources[1].Key);
+        Assert.Equal("two", resources[1].Value);
     }
 
-    [Test]
+    [Fact]
     public void PopulateAddsResourcesToDictionary()
     {
         var dictionary = new System.Windows.ResourceDictionary();
@@ -32,35 +31,35 @@ public sealed class WpfResourceFactoryTests
             WpfResourceSpec.Value("B", "two"),
             WpfResourceSpec.Value(typeKey, "typed"));
 
-        Assert.That(dictionary["A"], Is.EqualTo(1));
-        Assert.That(dictionary["B"], Is.EqualTo("two"));
-        Assert.That(dictionary[typeKey], Is.EqualTo("typed"));
+        Assert.Equal(1, dictionary["A"]);
+        Assert.Equal("two", dictionary["B"]);
+        Assert.Equal("typed", dictionary[typeKey]);
     }
 
-    [Test]
+    [Fact]
     public void FilterSpecCreatesFilterTemplate()
     {
         var value = WpfResourceSpec.FlagsFilter("Flags", typeof(AttributeTargets)).CreateValue();
 
-        Assert.That(value, Is.TypeOf<DataGridExtensions.FilterControlTemplate>());
+        Assert.IsType<DataGridExtensions.FilterControlTemplate>(value);
         var template = (DataGridExtensions.FilterControlTemplate)value;
-        Assert.That(template.Kind, Is.EqualTo(DataGridExtensions.FilterKind.Flags));
-        Assert.That(template.FlagsType, Is.EqualTo(typeof(AttributeTargets)));
+        Assert.Equal(DataGridExtensions.FilterKind.Flags, template.Kind);
+        Assert.Equal(typeof(AttributeTargets), template.FlagsType);
     }
 
-    [Test]
+    [Fact]
     public void DataTemplateSpecKeepsKeyWithoutMaterializingTemplate()
     {
         var spec = WpfResourceSpec.DataTemplate("Template", (_, _) => null);
 
-        Assert.That(spec.Key, Is.EqualTo("Template"));
+        Assert.Equal("Template", spec.Key);
     }
 
-    [Test]
+    [Fact]
     public void StyleSpecSurfaceIsAvailable()
     {
         var spec = WpfResourceSpec.Style("Style", WpfStyleFactory.Style(typeof(object)));
 
-        Assert.That(spec.Key, Is.EqualTo("Style"));
+        Assert.Equal("Style", spec.Key);
     }
 }

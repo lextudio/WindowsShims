@@ -1,4 +1,4 @@
-using NUnit.Framework;
+using Xunit;
 using System.Windows.Controls;
 
 namespace LeXtudio.Windows.Tests;
@@ -9,7 +9,6 @@ namespace LeXtudio.Windows.Tests;
 // but driven by a cumulative-offset lookup instead of index * rowHeight, so it
 // still gives correct answers once some rows (e.g. an expanded RowDetails row)
 // are taller than others.
-[TestFixture]
 public sealed class VirtualizingRowsVariableLayoutTests
 {
     private static double[] UniformOffsets(int itemCount, double rowHeight)
@@ -23,31 +22,31 @@ public sealed class VirtualizingRowsVariableLayoutTests
         return offsets;
     }
 
-    [Test]
+    [Fact]
     public void EmptyListRealizesNothing()
     {
         var layout = VirtualizingRowsVariableLayout.Compute(0, _ => 0, viewportTop: 0, viewportHeight: 200);
 
-        Assert.That(layout.FirstIndex, Is.EqualTo(0));
-        Assert.That(layout.Count, Is.EqualTo(0));
-        Assert.That(layout.ExtentHeight, Is.EqualTo(0));
-        Assert.That(layout.FirstItemTop, Is.EqualTo(0));
+        Assert.Equal(0, layout.FirstIndex);
+        Assert.Equal(0, layout.Count);
+        Assert.Equal(0, layout.ExtentHeight);
+        Assert.Equal(0, layout.FirstItemTop);
     }
 
-    [Test]
+    [Fact]
     public void UniformHeightsMatchTheUniformLayoutExactly()
     {
         var offsets = UniformOffsets(1000, 20);
         var uniform = VirtualizingRowsLayout.Compute(1000, 20, viewportTop: 1000, viewportHeight: 200, cacheRows: 1);
         var variable = VirtualizingRowsVariableLayout.Compute(1000, i => offsets[i], viewportTop: 1000, viewportHeight: 200, cacheRows: 1);
 
-        Assert.That(variable.FirstIndex, Is.EqualTo(uniform.FirstIndex));
-        Assert.That(variable.EndIndex, Is.EqualTo(uniform.EndIndex));
-        Assert.That(variable.ExtentHeight, Is.EqualTo(uniform.ExtentHeight));
-        Assert.That(variable.FirstItemTop, Is.EqualTo(uniform.FirstItemTop));
+        Assert.Equal(uniform.FirstIndex, variable.FirstIndex);
+        Assert.Equal(uniform.EndIndex, variable.EndIndex);
+        Assert.Equal(uniform.ExtentHeight, variable.ExtentHeight);
+        Assert.Equal(uniform.FirstItemTop, variable.FirstItemTop);
     }
 
-    [Test]
+    [Fact]
     public void ExpandedRowDetailsPushesLaterRowsDownByTheRealHeightDifference()
     {
         // 10 rows: row 0 is a 200px-tall expanded-details row, the rest are 20px.
@@ -66,12 +65,12 @@ public sealed class VirtualizingRowsVariableLayoutTests
         var layout = VirtualizingRowsVariableLayout.Compute(10, OffsetOf, viewportTop: 0, viewportHeight: 100, cacheRows: 0);
 
         // Viewport [0,100) only reaches partway into row 0 (0..200) — row 0 alone covers it.
-        Assert.That(layout.FirstIndex, Is.EqualTo(0));
-        Assert.That(layout.EndIndex, Is.EqualTo(1));
-        Assert.That(layout.ExtentHeight, Is.EqualTo(200 + 9 * 20));
+        Assert.Equal(0, layout.FirstIndex);
+        Assert.Equal(1, layout.EndIndex);
+        Assert.Equal(200 + 9 * 20, layout.ExtentHeight);
     }
 
-    [Test]
+    [Fact]
     public void ScrollingPastTheExpandedRowRealizesTheCorrectLaterIndex()
     {
         var heights = new double[10];
@@ -90,48 +89,48 @@ public sealed class VirtualizingRowsVariableLayoutTests
         // viewportTop 210 is 10px into row 1, not row 10.
         var layout = VirtualizingRowsVariableLayout.Compute(10, OffsetOf, viewportTop: 210, viewportHeight: 20, cacheRows: 0);
 
-        Assert.That(layout.FirstIndex, Is.EqualTo(1));
-        Assert.That(layout.FirstItemTop, Is.EqualTo(200));
+        Assert.Equal(1, layout.FirstIndex);
+        Assert.Equal(200, layout.FirstItemTop);
     }
 
-    [Test]
+    [Fact]
     public void CacheBandNeverProducesNegativeFirstIndex()
     {
         var offsets = UniformOffsets(1000, 20);
         var layout = VirtualizingRowsVariableLayout.Compute(1000, i => offsets[i], viewportTop: 0, viewportHeight: 200, cacheRows: 50);
 
-        Assert.That(layout.FirstIndex, Is.EqualTo(0));
-        Assert.That(layout.Count, Is.GreaterThan(0));
+        Assert.Equal(0, layout.FirstIndex);
+        Assert.True(layout.Count > 0);
     }
 
-    [Test]
+    [Fact]
     public void SliceIsClampedAtEndOfList()
     {
         var offsets = UniformOffsets(100, 20);
         var layout = VirtualizingRowsVariableLayout.Compute(100, i => offsets[i], viewportTop: 1820, viewportHeight: 200, cacheRows: 2);
 
-        Assert.That(layout.EndIndex, Is.EqualTo(100));
-        Assert.That(layout.FirstIndex, Is.LessThan(100));
-        Assert.That(layout.FirstIndex + layout.Count, Is.EqualTo(100));
+        Assert.Equal(100, layout.EndIndex);
+        Assert.True(layout.FirstIndex < 100);
+        Assert.Equal(100, layout.FirstIndex + layout.Count);
     }
 
-    [Test]
+    [Fact]
     public void NegativeViewportTopIsClampedToZero()
     {
         var offsets = UniformOffsets(100, 20);
         var layout = VirtualizingRowsVariableLayout.Compute(100, i => offsets[i], viewportTop: -500, viewportHeight: 200, cacheRows: 0);
 
-        Assert.That(layout.FirstIndex, Is.EqualTo(0));
-        Assert.That(layout.FirstItemTop, Is.EqualTo(0));
+        Assert.Equal(0, layout.FirstIndex);
+        Assert.Equal(0, layout.FirstItemTop);
     }
 
-    [Test]
+    [Fact]
     public void ZeroHeightViewportStillRealizesAnchorRow()
     {
         var offsets = UniformOffsets(100, 20);
         var layout = VirtualizingRowsVariableLayout.Compute(100, i => offsets[i], viewportTop: 200, viewportHeight: 0, cacheRows: 0);
 
-        Assert.That(layout.FirstIndex, Is.EqualTo(10));
-        Assert.That(layout.Count, Is.GreaterThanOrEqualTo(1));
+        Assert.Equal(10, layout.FirstIndex);
+        Assert.True(layout.Count >= 1);
     }
 }

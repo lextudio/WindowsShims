@@ -1,28 +1,27 @@
-using NUnit.Framework;
+using Xunit;
 using System.Windows.Controls;
 using System.Windows.Data;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridColumnTests
 {
-    [Test]
+    [Fact]
     public void ColumnShellTypeIsAvailable()
     {
-        Assert.That(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.Header)), Is.Not.Null);
-        Assert.That(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.Width)), Is.Not.Null);
-        Assert.That(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.ClipboardContentBinding)), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.Header)));
+        Assert.NotNull(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.Width)));
+        Assert.NotNull(typeof(DataGridColumn).GetProperty(nameof(DataGridColumn.ClipboardContentBinding)));
     }
 
-    [Test]
+    [Fact]
     public void ClipboardCellContentCanBeCreatedWithoutAColumn()
     {
         var item = new object();
         var content = new DataGridClipboardCellContent(item, null!, "value");
 
-        Assert.That(content.Item, Is.SameAs(item));
-        Assert.That(content.Column, Is.Null);
-        Assert.That(content.Content, Is.EqualTo("value"));
+        Assert.Same(item, content.Item);
+        Assert.Null(content.Column);
+        Assert.Equal("value", content.Content);
     }
 }

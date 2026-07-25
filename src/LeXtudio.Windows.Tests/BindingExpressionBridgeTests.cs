@@ -1,11 +1,10 @@
 using System.Reflection;
 using System.Windows.Data;
 using MS.Internal.Data;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class BindingExpressionBridgeTests
 {
     private sealed record Person(string Name, Address Home);
@@ -15,18 +14,18 @@ public sealed class BindingExpressionBridgeTests
     private static BindingExpression CreateUntargeted(Binding binding)
         => (BindingExpression)BindingExpression.CreateUntargetedBindingExpression(null!, binding);
 
-    [Test]
+    [Fact]
     public void UntargetedExpressionEvaluatesDottedPath()
     {
         var expression = CreateUntargeted(new Binding("Home.City"));
 
         expression.Activate(new Person("Ada", new Address("London")));
 
-        Assert.That(expression.ParentBinding.Path!.Path, Is.EqualTo("Home.City"));
-        Assert.That(expression.Value, Is.EqualTo("London"));
+        Assert.Equal("Home.City", expression.ParentBinding.Path!.Path);
+        Assert.Equal("London", expression.Value);
     }
 
-    [Test]
+    [Fact]
     public void UntargetedExpressionWithEmptyPathReturnsItem()
     {
         var expression = CreateUntargeted(new Binding(string.Empty));
@@ -34,10 +33,10 @@ public sealed class BindingExpressionBridgeTests
 
         expression.Activate(item);
 
-        Assert.That(expression.Value, Is.SameAs(item));
+        Assert.Same(item, expression.Value);
     }
 
-    [Test]
+    [Fact]
     public void DeactivatedExpressionReturnsUnsetValue()
     {
         var expression = CreateUntargeted(new Binding("Name"));
@@ -45,49 +44,49 @@ public sealed class BindingExpressionBridgeTests
         expression.Activate(new Person("Ada", new Address("London")));
         expression.Deactivate();
 
-        Assert.That(expression.Value, Is.EqualTo(BindingValue.UnsetValue));
+        Assert.Equal(BindingValue.UnsetValue, expression.Value);
     }
 
-    [Test]
+    [Fact]
     public void MissingPathMemberReturnsUnsetValue()
     {
         var expression = CreateUntargeted(new Binding("DoesNotExist"));
 
         expression.Activate(new Person("Ada", new Address("London")));
 
-        Assert.That(expression.Value, Is.EqualTo(BindingValue.UnsetValue));
+        Assert.Equal(BindingValue.UnsetValue, expression.Value);
     }
 
-    [Test]
+    [Fact]
     public void DynamicValueConverterConvertsCompatibleValues()
     {
         var converter = new DynamicValueConverter(false);
 
-        Assert.That(converter.Convert("42", typeof(int)), Is.EqualTo(42));
-        Assert.That(converter.Convert(42, typeof(string)), Is.EqualTo("42"));
-        Assert.That(converter.Convert(42, typeof(object)), Is.EqualTo(42));
+        Assert.Equal(42, converter.Convert("42", typeof(int)));
+        Assert.Equal("42", converter.Convert(42, typeof(string)));
+        Assert.Equal(42, converter.Convert(42, typeof(object)));
     }
 
-    [Test]
+    [Fact]
     public void DynamicValueConverterReturnsUnsetValueWhenConversionFails()
     {
         var converter = new DynamicValueConverter(false);
 
-        Assert.That(converter.Convert("not a number", typeof(int)), Is.EqualTo(BindingValue.UnsetValue));
-        Assert.That(converter.Convert(null, typeof(int)), Is.EqualTo(BindingValue.UnsetValue));
-        Assert.That(converter.Convert(null, typeof(string)), Is.Null);
+        Assert.Equal(BindingValue.UnsetValue, converter.Convert("not a number", typeof(int)));
+        Assert.Equal(BindingValue.UnsetValue, converter.Convert(null, typeof(int)));
+        Assert.Null(converter.Convert(null, typeof(string)));
     }
 
-    [Test]
+    [Fact]
     public void DisconnectedItemSentinelIsStable()
     {
         var first = BindingExpressionBase.DisconnectedItem;
         var second = BindingExpressionBase.DisconnectedItem;
 
-        Assert.That(first, Is.SameAs(second));
+        Assert.Same(second, first);
     }
 
-    [Test]
+    [Fact]
     public void ItemsControlShimCarriesSpineVirtuals()
     {
         var type = typeof(System.Windows.Controls.ItemsControl);
@@ -105,22 +104,22 @@ public sealed class BindingExpressionBridgeTests
         foreach (var name in virtuals)
         {
             var method = type.GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-            Assert.That(method, Is.Not.Null, name);
-            Assert.That(method!.IsVirtual, Is.True, name);
+            Assert.NotNull(method);
+            Assert.True(method!.IsVirtual);
         }
     }
 
-    [Test]
+    [Fact]
     public void BooleanBoxesAreLinkedAndCached()
     {
         var boxes = typeof(System.Windows.Controls.DataGrid).Assembly
             .GetType("MS.Internal.KnownBoxes.BooleanBoxes");
 
-        Assert.That(boxes, Is.Not.Null);
+        Assert.NotNull(boxes);
 
         var box = boxes!.GetMethod("Box", BindingFlags.Static | BindingFlags.NonPublic, [typeof(bool)]);
         var trueBox = boxes.GetField("TrueBox", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null);
 
-        Assert.That(box!.Invoke(null, [true]), Is.SameAs(trueBox));
+        Assert.Same(trueBox, box!.Invoke(null, [true]));
     }
 }

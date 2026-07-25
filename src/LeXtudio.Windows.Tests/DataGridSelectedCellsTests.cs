@@ -1,49 +1,48 @@
 using System.Reflection;
 using System.Windows.Controls;
-using NUnit.Framework;
+using Xunit;
 using WpfItemCollection = System.Windows.Controls.ItemCollection;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridSelectedCellsTests
 {
-    [Test]
+    [Fact]
     public void DataGridShellExposesSelectedCellsSurface()
     {
         var selectedCells = typeof(DataGrid).GetProperty(nameof(DataGrid.SelectedCells));
         var selectedCellsChanged = typeof(DataGrid).GetEvent(nameof(DataGrid.SelectedCellsChanged));
 
-        Assert.That(selectedCells, Is.Not.Null);
-        Assert.That(selectedCells!.PropertyType, Is.EqualTo(typeof(IList<DataGridCellInfo>)));
-        Assert.That(selectedCellsChanged, Is.Not.Null);
-        Assert.That(selectedCellsChanged!.EventHandlerType, Is.EqualTo(typeof(SelectedCellsChangedEventHandler)));
+        Assert.NotNull(selectedCells);
+        Assert.Equal(typeof(IList<DataGridCellInfo>), selectedCells!.PropertyType);
+        Assert.NotNull(selectedCellsChanged);
+        Assert.Equal(typeof(SelectedCellsChangedEventHandler), selectedCellsChanged!.EventHandlerType);
     }
 
-    [Test]
+    [Fact]
     public void DataGridShellExposesItemCollection()
     {
         var items = typeof(System.Windows.Controls.ItemsControl).GetProperty(
             nameof(DataGrid.Items),
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-        Assert.That(items, Is.Not.Null);
-        Assert.That(items!.PropertyType, Is.EqualTo(typeof(WpfItemCollection)));
+        Assert.NotNull(items);
+        Assert.Equal(typeof(WpfItemCollection), items!.PropertyType);
     }
 
-    [Test]
+    [Fact]
     public void LinkedCellCollectionTypesAreAvailable()
     {
         var assembly = typeof(DataGrid).Assembly;
         var virtualized = assembly.GetType("System.Windows.Controls.VirtualizedCellInfoCollection");
         var selected = assembly.GetType("System.Windows.Controls.SelectedCellsCollection");
 
-        Assert.That(virtualized, Is.Not.Null);
-        Assert.That(selected, Is.Not.Null);
-        Assert.That(selected!.IsSubclassOf(virtualized!), Is.True);
+        Assert.NotNull(virtualized);
+        Assert.NotNull(selected);
+        Assert.True(selected!.IsSubclassOf(virtualized!));
     }
 
-    [Test]
+    [Fact]
     public void SelectedCellsChangedEventArgsWrapsCellLists()
     {
         var added = new List<DataGridCellInfo> { default };
@@ -51,12 +50,12 @@ public sealed class DataGridSelectedCellsTests
 
         var args = new SelectedCellsChangedEventArgs(added, removed);
 
-        Assert.That(args.AddedCells, Has.Count.EqualTo(1));
-        Assert.That(args.RemovedCells, Is.Empty);
-        Assert.That(args.AddedCells.IsReadOnly, Is.True);
+        Assert.Equal(1, args.AddedCells.Count);
+        Assert.Empty(args.RemovedCells);
+        Assert.True(args.AddedCells.IsReadOnly);
     }
 
-    [Test]
+    [Fact]
     public void SelectedCellsChangedEventArgsRejectsNullLists()
     {
         Assert.Throws<ArgumentNullException>(

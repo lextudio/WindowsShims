@@ -1,4 +1,4 @@
-using NUnit.Framework;
+using Xunit;
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -12,10 +12,9 @@ namespace LeXtudio.Windows.Tests;
 /// mirror of session 66's row-cell chain.
 /// Tests are reflection-only (no Uno runtime required).
 /// </summary>
-[TestFixture]
 public sealed class DataGridColumnHeaderNotificationTests
 {
-    [Test]
+    [Fact]
     public void DataGridColumnHeaderHasNotifyPropertyChangedMethod()
     {
         // Session 67 adds this method so DataGrid.ShimNotifyColumnHeaders can
@@ -27,11 +26,10 @@ public sealed class DataGridColumnHeaderNotificationTests
             types: [typeof(DependencyObject), typeof(System.Windows.DependencyPropertyChangedEventArgs)],
             modifiers: null);
 
-        Assert.That(method, Is.Not.Null,
-            "DataGridColumnHeader.NotifyPropertyChanged(DependencyObject, DPChangedEventArgs) must exist");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridHasShimNotifyColumnHeadersMethod()
     {
         // DataGrid (partial) exposes ShimNotifyColumnHeaders, called from
@@ -43,11 +41,10 @@ public sealed class DataGridColumnHeaderNotificationTests
             types: [typeof(DependencyObject), typeof(System.Windows.DependencyPropertyChangedEventArgs)],
             modifiers: null);
 
-        Assert.That(method, Is.Not.Null,
-            "DataGrid.ShimNotifyColumnHeaders(DependencyObject, DPChangedEventArgs) must exist");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridColumnHeaderNotifyPropertyChangedHandlesSortDirectionProperty()
     {
         // Session 68: SortDirectionProperty branch in NotifyPropertyChanged refreshes
@@ -58,17 +55,16 @@ public sealed class DataGridColumnHeaderNotificationTests
             binder: null,
             types: [typeof(DependencyObject), typeof(System.Windows.DependencyPropertyChangedEventArgs)],
             modifiers: null);
-        Assert.That(method, Is.Not.Null);
+        Assert.NotNull(method);
 
         // Verify DataGridColumn.SortDirectionProperty exists (property the branch checks).
         var sortProp = typeof(DataGridColumn).GetField(
             "SortDirectionProperty",
             BindingFlags.Public | BindingFlags.Static);
-        Assert.That(sortProp, Is.Not.Null,
-            "DataGridColumn.SortDirectionProperty must be accessible for the header glyph branch");
+        Assert.NotNull(sortProp);
     }
 
-    [Test]
+    [Fact]
     public void DataGridHeaderContentIsInternal()
     {
         // Session 68: DataGrid.HeaderContent must be internal so DataGridColumnHeader
@@ -79,9 +75,7 @@ public sealed class DataGridColumnHeaderNotificationTests
             binder: null,
             types: [typeof(DataGridColumn)],
             modifiers: null);
-        Assert.That(method, Is.Not.Null,
-            "DataGrid.HeaderContent(DataGridColumn) must exist as internal method");
-        Assert.That(method!.IsAssembly || method.IsFamilyOrAssembly, Is.True,
-            "HeaderContent must be internal (not private) so DataGridColumnHeader can call it");
+        Assert.NotNull(method);
+        Assert.True(method!.IsAssembly || method.IsFamilyOrAssembly);
     }
 }

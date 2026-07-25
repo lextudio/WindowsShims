@@ -1,4 +1,4 @@
-using NUnit.Framework;
+using Xunit;
 using System.Collections.Generic;
 using System.Windows.Controls;
 
@@ -7,7 +7,6 @@ namespace LeXtudio.Windows.Tests;
 // Session 119, Slice 2: the windowed realize/recycle state machine
 // (VirtualizingRowsRealizer<T>). Plain object containers exercise the algorithm
 // without a live visual tree (UIElements cannot be created off the Uno UI thread).
-[TestFixture]
 public sealed class VirtualizingRowsRealizerTests
 {
     private sealed class Harness
@@ -28,7 +27,7 @@ public sealed class VirtualizingRowsRealizerTests
         }
     }
 
-    [Test]
+    [Fact]
     public void InitialRealizeCreatesOnlyWindowPlusCache()
     {
         var h = new Harness();
@@ -37,15 +36,15 @@ public sealed class VirtualizingRowsRealizerTests
         var layout = r.Realize(itemCount: 1000, rowHeight: 20, viewportTop: 0, viewportHeight: 200, cacheRows: 2);
 
         // rows 0..9 visible + 2 cache below => 0..11 (12 containers).
-        Assert.That(layout.Count, Is.EqualTo(12));
-        Assert.That(r.Realized.Count, Is.EqualTo(12));
-        Assert.That(h.Created, Is.EqualTo(12));
-        Assert.That(h.Prepared, Is.EqualTo(12));
-        Assert.That(h.Cleared, Is.EqualTo(0));
-        Assert.That(r.RecyclePoolCount, Is.EqualTo(0));
+        Assert.Equal(12, layout.Count);
+        Assert.Equal(12, r.Realized.Count);
+        Assert.Equal(12, h.Created);
+        Assert.Equal(12, h.Prepared);
+        Assert.Equal(0, h.Cleared);
+        Assert.Equal(0, r.RecyclePoolCount);
     }
 
-    [Test]
+    [Fact]
     public void ReRealizingSameViewportDoesNoWork()
     {
         var h = new Harness();
@@ -57,12 +56,12 @@ public sealed class VirtualizingRowsRealizerTests
 
         r.Realize(1000, 20, 0, 200, cacheRows: 2);
 
-        Assert.That(h.Created, Is.EqualTo(createdAfterFirst), "no new containers");
-        Assert.That(h.Prepared, Is.EqualTo(preparedAfterFirst), "no redundant prepare");
-        Assert.That(h.Cleared, Is.EqualTo(0));
+        Assert.Equal(createdAfterFirst, h.Created);
+        Assert.Equal(preparedAfterFirst, h.Prepared);
+        Assert.Equal(0, h.Cleared);
     }
 
-    [Test]
+    [Fact]
     public void OverlappingScrollKeepsSharedIndexContainerInstance()
     {
         var h = new Harness();
@@ -70,14 +69,14 @@ public sealed class VirtualizingRowsRealizerTests
 
         r.Realize(1000, 20, viewportTop: 0, viewportHeight: 200, cacheRows: 1);   // ~0..10
         var shared = r.ContainerFromIndex(9);
-        Assert.That(shared, Is.Not.Null);
+        Assert.NotNull(shared);
 
         r.Realize(1000, 20, viewportTop: 100, viewportHeight: 200, cacheRows: 1); // ~4..15
 
-        Assert.That(r.ContainerFromIndex(9), Is.SameAs(shared), "index 9 stays in window -> same instance");
+        Assert.Same(shared, r.ContainerFromIndex(9));
     }
 
-    [Test]
+    [Fact]
     public void RecyclingReusesContainerInstancesAcrossDisjointWindows()
     {
         var h = new Harness();
@@ -85,19 +84,19 @@ public sealed class VirtualizingRowsRealizerTests
 
         r.Realize(1000, 20, viewportTop: 0, viewportHeight: 200, cacheRows: 0);     // 0..9
         var createdAfterTop = h.Created;
-        Assert.That(createdAfterTop, Is.EqualTo(10));
+        Assert.Equal(10, createdAfterTop);
 
         // Jump far away — fully disjoint window. The 10 cleared containers should
         // be recycled to serve the 10 new indices, so no new creation.
         r.Realize(1000, 20, viewportTop: 5000, viewportHeight: 200, cacheRows: 0);  // 250..259
 
-        Assert.That(h.Cleared, Is.EqualTo(10));
-        Assert.That(h.Created, Is.EqualTo(createdAfterTop), "recycled instances reused, no new creates");
-        Assert.That(r.Realized.Count, Is.EqualTo(10));
-        Assert.That(r.RecyclePoolCount, Is.EqualTo(0), "pool drained back into the window");
+        Assert.Equal(10, h.Cleared);
+        Assert.Equal(createdAfterTop, h.Created);
+        Assert.Equal(10, r.Realized.Count);
+        Assert.Equal(0, r.RecyclePoolCount);
     }
 
-    [Test]
+    [Fact]
     public void StandardModeDoesNotReuseAndDoesNotPool()
     {
         var h = new Harness();
@@ -106,12 +105,12 @@ public sealed class VirtualizingRowsRealizerTests
         r.Realize(1000, 20, viewportTop: 0, viewportHeight: 200, cacheRows: 0);    // 0..9
         r.Realize(1000, 20, viewportTop: 5000, viewportHeight: 200, cacheRows: 0); // 250..259
 
-        Assert.That(h.Cleared, Is.EqualTo(10));
-        Assert.That(r.RecyclePoolCount, Is.EqualTo(0), "standard mode never pools");
-        Assert.That(h.Created, Is.EqualTo(20), "standard mode re-creates for the new window");
+        Assert.Equal(10, h.Cleared);
+        Assert.Equal(0, r.RecyclePoolCount);
+        Assert.Equal(20, h.Created);
     }
 
-    [Test]
+    [Fact]
     public void RealizedCountNeverExceedsWindowSize()
     {
         var h = new Harness();
@@ -120,12 +119,12 @@ public sealed class VirtualizingRowsRealizerTests
         for (double top = 0; top <= 4000; top += 137)
         {
             var layout = r.Realize(1000, 20, viewportTop: top, viewportHeight: 200, cacheRows: 2);
-            Assert.That(r.Realized.Count, Is.EqualTo(layout.Count));
-            Assert.That(r.Realized.Count, Is.LessThanOrEqualTo(16));
+            Assert.Equal(layout.Count, r.Realized.Count);
+            Assert.True(r.Realized.Count <= 16);
         }
     }
 
-    [Test]
+    [Fact]
     public void ClearRecyclesAllRealizedContainers()
     {
         var h = new Harness();
@@ -134,12 +133,12 @@ public sealed class VirtualizingRowsRealizerTests
         r.Realize(1000, 20, 0, 200, cacheRows: 0); // 10 realized
         r.Clear();
 
-        Assert.That(r.Realized.Count, Is.EqualTo(0));
-        Assert.That(h.Cleared, Is.EqualTo(10));
-        Assert.That(r.RecyclePoolCount, Is.EqualTo(10));
+        Assert.Equal(0, r.Realized.Count);
+        Assert.Equal(10, h.Cleared);
+        Assert.Equal(10, r.RecyclePoolCount);
     }
 
-    [Test]
+    [Fact]
     public void PreparePassesCorrectIndexOnRecycledReuse()
     {
         var h = new Harness();
@@ -149,10 +148,10 @@ public sealed class VirtualizingRowsRealizerTests
         h.PrepareLog.Clear();
         r.Realize(1000, 20, viewportTop: 5000, viewportHeight: 200, cacheRows: 0);  // 250..259
 
-        Assert.That(h.PrepareLog.Count, Is.EqualTo(10));
+        Assert.Equal(10, h.PrepareLog.Count);
         foreach (var (_, index) in h.PrepareLog)
         {
-            Assert.That(index, Is.InRange(250, 259));
+            Assert.InRange(index, 250, 259);
         }
     }
 }

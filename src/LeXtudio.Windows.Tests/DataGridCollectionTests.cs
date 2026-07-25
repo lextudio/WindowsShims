@@ -1,45 +1,44 @@
-using NUnit.Framework;
+using Xunit;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows.Controls;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridCollectionTests
 {
-    [Test]
+    [Fact]
     public void DataGridShellExposesColumnsCollection()
     {
         var columns = typeof(DataGrid).GetProperty(nameof(DataGrid.Columns));
 
-        Assert.That(columns, Is.Not.Null);
-        Assert.That(columns!.PropertyType, Is.EqualTo(typeof(ObservableCollection<DataGridColumn>)));
+        Assert.NotNull(columns);
+        Assert.Equal(typeof(ObservableCollection<DataGridColumn>), columns!.PropertyType);
     }
 
-    [Test]
+    [Fact]
     public void DataGridShellKeepsInternalColumnCollection()
     {
         var internalColumns = typeof(DataGrid).GetProperty(
             "InternalColumns",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.That(internalColumns, Is.Not.Null);
-        Assert.That(internalColumns!.PropertyType.Name, Is.EqualTo("DataGridColumnCollection"));
+        Assert.NotNull(internalColumns);
+        Assert.Equal("DataGridColumnCollection", internalColumns!.PropertyType.Name);
     }
 
-    [Test]
+    [Fact]
     public void DataGridColumnTracksInternalOwner()
     {
         var owner = typeof(DataGridColumn).GetProperty(
             "DataGridOwner",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.That(owner, Is.Not.Null);
-        Assert.That(owner!.PropertyType, Is.EqualTo(typeof(DataGrid)));
+        Assert.NotNull(owner);
+        Assert.Equal(typeof(DataGrid), owner!.PropertyType);
     }
 
-    [Test]
+    [Fact]
     public void ColumnCollectionBodyIsReusedFromUpstream()
     {
         // Session 65: DataGridColumnCollection is now the linked upstream type
@@ -48,18 +47,17 @@ public sealed class DataGridCollectionTests
         // a non-public ctor taking a DataGrid (it Debug.Asserts the owner rather
         // than throwing — so the old null-throw assertion no longer applies).
         var collectionType = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnCollection");
-        Assert.That(collectionType, Is.Not.Null);
+        Assert.NotNull(collectionType);
 
         var constructor = collectionType!.GetConstructor(
             BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,
             types: [typeof(DataGrid)],
             modifiers: null);
-        Assert.That(constructor, Is.Not.Null, "non-public ctor(DataGrid) is reused from upstream");
+        Assert.NotNull(constructor);
 
         // Display-index surface reused from upstream; the shim adds the refresh hook.
-        Assert.That(collectionType.GetMethod("ColumnFromDisplayIndex", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
-        Assert.That(collectionType.GetMethod("RefreshDisplayIndexMap", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null,
-            "shim refresh hook bridges the Uno DP-callback gap for direct DisplayIndex sets");
+        Assert.NotNull(collectionType.GetMethod("ColumnFromDisplayIndex", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(collectionType.GetMethod("RefreshDisplayIndexMap", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 }

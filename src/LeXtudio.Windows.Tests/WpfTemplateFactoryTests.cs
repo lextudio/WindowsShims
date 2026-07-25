@@ -1,13 +1,12 @@
 using System.Windows.Controls;
 using System.Windows.Data;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class WpfTemplateFactoryTests
 {
-    [Test]
+    [Fact]
     public void BindingAssignmentAppliesBindingToTarget()
     {
         var target = new Target();
@@ -15,38 +14,38 @@ public sealed class WpfTemplateFactoryTests
 
         assignment.Apply(target, new Source("metadata"));
 
-        Assert.That(target.Text, Is.EqualTo("metadata"));
+        Assert.Equal("metadata", target.Text);
     }
 
-    [Test]
+    [Fact]
     public void TemplateFactorySurfaceIsAvailable()
     {
         var method = typeof(WpfTemplateFactory).GetMethods()
             .SingleOrDefault(method => method.Name == nameof(WpfTemplateFactory.Create) && method.IsGenericMethodDefinition);
 
-        Assert.That(method, Is.Not.Null);
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridColumnSpecDescribesTextColumn()
     {
         var spec = DataGridColumnSpec.Text("Meaning", new Binding("Meaning"));
 
-        Assert.That(spec.Kind, Is.EqualTo(DataGridColumnKind.Text));
-        Assert.That(spec.Header, Is.EqualTo("Meaning"));
-        Assert.That(spec.Binding.Path?.Path, Is.EqualTo("Meaning"));
-        Assert.That(spec.IsReadOnly, Is.True);
+        Assert.Equal(DataGridColumnKind.Text, spec.Kind);
+        Assert.Equal("Meaning", spec.Header);
+        Assert.Equal("Meaning", spec.Binding.Path?.Path);
+        Assert.True(spec.IsReadOnly);
     }
 
-    [Test]
+    [Fact]
     public void DataGridColumnSpecDescribesCheckBoxColumn()
     {
         var spec = DataGridColumnSpec.CheckBox("Value", new Binding("Value"));
 
-        Assert.That(spec.Kind, Is.EqualTo(DataGridColumnKind.CheckBox));
-        Assert.That(spec.Header, Is.EqualTo("Value"));
-        Assert.That(spec.Binding.Path?.Path, Is.EqualTo("Value"));
-        Assert.That(spec.IsReadOnly, Is.True);
+        Assert.Equal(DataGridColumnKind.CheckBox, spec.Kind);
+        Assert.Equal("Value", spec.Header);
+        Assert.Equal("Value", spec.Binding.Path?.Path);
+        Assert.True(spec.IsReadOnly);
     }
 
     private sealed record Source(string Name);

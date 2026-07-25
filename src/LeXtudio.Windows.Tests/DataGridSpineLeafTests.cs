@@ -1,55 +1,54 @@
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridSpineLeafTests
 {
-    [Test]
+    [Fact]
     public void DragEventArgsCarryOffsetsAndThumbEvents()
     {
         var started = new DragStartedEventArgs(1, 2);
         var delta = new DragDeltaEventArgs(3, 4);
         var completed = new DragCompletedEventArgs(5, 6, canceled: true);
 
-        Assert.That(started.HorizontalOffset, Is.EqualTo(1));
-        Assert.That(started.VerticalOffset, Is.EqualTo(2));
-        Assert.That(started.RoutedEvent, Is.SameAs(Thumb.DragStartedEvent));
+        Assert.Equal(1, started.HorizontalOffset);
+        Assert.Equal(2, started.VerticalOffset);
+        Assert.Same(Thumb.DragStartedEvent, started.RoutedEvent);
 
-        Assert.That(delta.HorizontalChange, Is.EqualTo(3));
-        Assert.That(delta.VerticalChange, Is.EqualTo(4));
-        Assert.That(delta.RoutedEvent, Is.SameAs(Thumb.DragDeltaEvent));
+        Assert.Equal(3, delta.HorizontalChange);
+        Assert.Equal(4, delta.VerticalChange);
+        Assert.Same(Thumb.DragDeltaEvent, delta.RoutedEvent);
 
-        Assert.That(completed.HorizontalChange, Is.EqualTo(5));
-        Assert.That(completed.VerticalChange, Is.EqualTo(6));
-        Assert.That(completed.Canceled, Is.True);
-        Assert.That(completed.RoutedEvent, Is.SameAs(Thumb.DragCompletedEvent));
+        Assert.Equal(5, completed.HorizontalChange);
+        Assert.Equal(6, completed.VerticalChange);
+        Assert.True(completed.Canceled);
+        Assert.Same(Thumb.DragCompletedEvent, completed.RoutedEvent);
     }
 
-    [Test]
+    [Fact]
     public void ComponentResourceKeyTracksTypeAndId()
     {
         var key = new ComponentResourceKey(typeof(string), "resource");
         var same = new ComponentResourceKey(typeof(string), "resource");
         var other = new ComponentResourceKey(typeof(string), "different");
 
-        Assert.That(key.TypeInTargetAssembly, Is.EqualTo(typeof(string)));
-        Assert.That(key.ResourceId, Is.EqualTo("resource"));
-        Assert.That(key, Is.EqualTo(same));
-        Assert.That(key.GetHashCode(), Is.EqualTo(same.GetHashCode()));
-        Assert.That(key, Is.Not.EqualTo(other));
+        Assert.Equal(typeof(string), key.TypeInTargetAssembly);
+        Assert.Equal("resource", key.ResourceId);
+        Assert.Equal(same, key);
+        Assert.Equal(same.GetHashCode(), key.GetHashCode());
+        Assert.NotEqual(other, key);
     }
 
-    [Test]
+    [Fact]
     public void ContainerTrackingBridgeStoresContainer()
     {
         var trackingType = typeof(System.Windows.Controls.DataGrid).Assembly
             .GetType("System.Windows.Controls.ContainerTracking`1");
 
-        Assert.That(trackingType, Is.Not.Null);
+        Assert.NotNull(trackingType);
 
         var constructed = trackingType!.MakeGenericType(typeof(object));
         var container = new object();
@@ -64,20 +63,20 @@ public sealed class DataGridSpineLeafTests
             "Container",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(node);
 
-        Assert.That(stored, Is.SameAs(container));
+        Assert.Same(container, stored);
     }
 
-    [Test]
+    [Fact]
     public void FocusNavigationDirectionMirrorsWpfOrder()
     {
-        Assert.That((int)FocusNavigationDirection.Next, Is.EqualTo(0));
-        Assert.That((int)FocusNavigationDirection.Previous, Is.EqualTo(1));
-        Assert.That((int)FocusNavigationDirection.First, Is.EqualTo(2));
-        Assert.That((int)FocusNavigationDirection.Last, Is.EqualTo(3));
-        Assert.That((int)FocusNavigationDirection.Down, Is.EqualTo(7));
+        Assert.Equal(0, (int)FocusNavigationDirection.Next);
+        Assert.Equal(1, (int)FocusNavigationDirection.Previous);
+        Assert.Equal(2, (int)FocusNavigationDirection.First);
+        Assert.Equal(3, (int)FocusNavigationDirection.Last);
+        Assert.Equal(7, (int)FocusNavigationDirection.Down);
     }
 
-    [Test]
+    [Fact]
     public void UncommonFieldBridgeValidatesInstance()
     {
         var field = new MS.Internal.UncommonField<string>("fallback");

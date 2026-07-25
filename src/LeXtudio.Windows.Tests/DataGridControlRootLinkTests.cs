@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
@@ -11,22 +11,21 @@ namespace LeXtudio.Windows.Tests;
 // These tests pin the merge points: upstream members that only exist when the
 // linked file is active, the bridge contracts the link depends on, and the
 // honest stubs that keep WPF paths inert.
-[TestFixture]
 public sealed class DataGridControlRootLinkTests
 {
-    [Test]
+    [Fact]
     public void ControlRootIsLinkedUpstream()
     {
         // These members exist only in the upstream control root, not the old
         // local shell: editing commands and the frozen-column surface.
-        Assert.That(typeof(DataGrid).GetField("BeginEditCommand"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetField("CommitEditCommand"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetField("CancelEditCommand"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetProperty("FrozenColumnCount"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetProperty("ClipboardCopyMode"), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetField("BeginEditCommand"));
+        Assert.NotNull(typeof(DataGrid).GetField("CommitEditCommand"));
+        Assert.NotNull(typeof(DataGrid).GetField("CancelEditCommand"));
+        Assert.NotNull(typeof(DataGrid).GetProperty("FrozenColumnCount"));
+        Assert.NotNull(typeof(DataGrid).GetProperty("ClipboardCopyMode"));
     }
 
-    [Test]
+    [Fact]
     public void LocalPartialMergesWithUpstream()
     {
         // UpdateVisualState lives in the local partial; ChangeVisualState is
@@ -37,12 +36,12 @@ public sealed class DataGridControlRootLinkTests
         var changeVisualState = typeof(DataGrid).GetMethod(
             "ChangeVisualState", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.That(updateVisualState, Is.Not.Null);
-        Assert.That(changeVisualState, Is.Not.Null);
-        Assert.That(changeVisualState!.DeclaringType, Is.EqualTo(typeof(DataGrid)));
+        Assert.NotNull(updateVisualState);
+        Assert.NotNull(changeVisualState);
+        Assert.Equal(typeof(DataGrid), changeVisualState!.DeclaringType);
     }
 
-    [Test]
+    [Fact]
     public void DeleteAndSelectAllCommandsAreRoutedUICommands()
     {
         // Upstream returns ApplicationCommands.Delete/SelectAll as
@@ -50,49 +49,49 @@ public sealed class DataGridControlRootLinkTests
         var deleteCommand = typeof(DataGrid).GetProperty("DeleteCommand");
         var selectAllCommand = typeof(DataGrid).GetProperty("SelectAllCommand");
 
-        Assert.That(deleteCommand, Is.Not.Null);
-        Assert.That(deleteCommand!.PropertyType, Is.EqualTo(typeof(RoutedUICommand)));
-        Assert.That(selectAllCommand, Is.Not.Null);
-        Assert.That(selectAllCommand!.PropertyType, Is.EqualTo(typeof(RoutedUICommand)));
-        Assert.That(ApplicationCommands.Delete, Is.InstanceOf<RoutedUICommand>());
+        Assert.NotNull(deleteCommand);
+        Assert.Equal(typeof(RoutedUICommand), deleteCommand!.PropertyType);
+        Assert.NotNull(selectAllCommand);
+        Assert.Equal(typeof(RoutedUICommand), selectAllCommand!.PropertyType);
+        Assert.IsAssignableFrom<RoutedUICommand>(ApplicationCommands.Delete);
     }
 
-    [Test]
+    [Fact]
     public void FocusBorderBrushKeyIsComponentResourceKey()
     {
         // Upstream stores SystemResourceKey.DataGridFocusBorderBrushKey in a
         // ComponentResourceKey-typed property; the stub key derives from it.
         var key = typeof(DataGrid).GetProperty("FocusBorderBrushKey");
 
-        Assert.That(key, Is.Not.Null);
-        Assert.That(key!.PropertyType, Is.EqualTo(typeof(ComponentResourceKey)));
+        Assert.NotNull(key);
+        Assert.Equal(typeof(ComponentResourceKey), key!.PropertyType);
     }
 
-    [Test]
+    [Fact]
     public void KeyEventArgsRoutesIntoBeginEdit()
     {
         // Upstream passes KeyEventArgs straight to BeginEdit(RoutedEventArgs).
-        Assert.That(typeof(KeyEventArgs).IsSubclassOf(typeof(System.Windows.RoutedEventArgs)), Is.True);
+        Assert.True(typeof(KeyEventArgs).IsSubclassOf(typeof(System.Windows.RoutedEventArgs)));
     }
 
-    [Test]
+    [Fact]
     public void VectorLengthIsEuclidean()
     {
         var v = new Vector(3, 4);
 
-        Assert.That(v.Length, Is.EqualTo(5));
+        Assert.Equal(5, v.Length);
     }
 
-    [Test]
+    [Fact]
     public void MouseCaptureReportsFailureForNonElements()
     {
         // WPF Mouse.Capture returns bool; non-UIElement targets cannot be
         // captured by the shim, and drag paths fall through honestly.
-        Assert.That(Mouse.Capture(null!), Is.False);
-        Assert.That(Mouse.Capture((IInputElement)null!, CaptureMode.SubTree), Is.False);
+        Assert.False(Mouse.Capture(null!));
+        Assert.False(Mouse.Capture((IInputElement)null!, CaptureMode.SubTree));
     }
 
-    [Test]
+    [Fact]
     public void PresenterShellsExposeLinkContract()
     {
         var presenters = typeof(DataGrid).Assembly;
@@ -100,21 +99,15 @@ public sealed class DataGridControlRootLinkTests
         var detailsPresenter = presenters.GetType("System.Windows.Controls.Primitives.DataGridDetailsPresenter");
         var rowHeader = presenters.GetType("System.Windows.Controls.Primitives.DataGridRowHeader");
 
-        Assert.That(cellsPresenter, Is.Not.Null);
-        Assert.That(detailsPresenter, Is.Not.Null);
-        Assert.That(rowHeader, Is.Not.Null);
-        Assert.That(
-            cellsPresenter!.GetProperty("DataGridOwner", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
-        Assert.That(
-            detailsPresenter!.GetProperty("DetailsElement", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
-        Assert.That(
-            rowHeader!.GetProperty("ParentRow", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
+        Assert.NotNull(cellsPresenter);
+        Assert.NotNull(detailsPresenter);
+        Assert.NotNull(rowHeader);
+        Assert.NotNull(cellsPresenter!.GetProperty("DataGridOwner", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(detailsPresenter!.GetProperty("DetailsElement", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(rowHeader!.GetProperty("ParentRow", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void DispatcherSupportsWpfBeginInvokeShapes()
     {
         // The control root uses both argument orders; both overloads must exist.
@@ -125,11 +118,11 @@ public sealed class DataGridControlRootLinkTests
             "BeginInvoke",
             [typeof(System.Windows.Threading.DispatcherPriority), typeof(Delegate), typeof(object)]);
 
-        Assert.That(delegateFirst, Is.Not.Null);
-        Assert.That(priorityFirst, Is.Not.Null);
+        Assert.NotNull(delegateFirst);
+        Assert.NotNull(priorityFirst);
     }
 
-    [Test]
+    [Fact]
     public void ItemsControlSpineRebasesOntoWinUiControl()
     {
         // Session 24: the shim ItemsControl (foundation of the whole
@@ -138,47 +131,36 @@ public sealed class DataGridControlRootLinkTests
         // a revert to FrameworkElement is caught.
         var winuiControl = typeof(Microsoft.UI.Xaml.Controls.Control);
 
-        Assert.That(winuiControl.IsAssignableFrom(typeof(System.Windows.Controls.ItemsControl)), Is.True);
-        Assert.That(winuiControl.IsAssignableFrom(typeof(DataGrid)), Is.True);
+        Assert.True(winuiControl.IsAssignableFrom(typeof(System.Windows.Controls.ItemsControl)));
+        Assert.True(winuiControl.IsAssignableFrom(typeof(DataGrid)));
     }
 
-    [Test]
+    [Fact]
     public void IsEnabledComesFromWinUiControlAfterRebase()
     {
         // The spine no longer declares its own IsEnabled DP; it must resolve
         // to the real WinUI Control property so the WPF logic sees real state.
         var isEnabled = typeof(DataGrid).GetProperty(nameof(DataGrid.IsEnabled));
 
-        Assert.That(isEnabled, Is.Not.Null);
-        Assert.That(
-            typeof(Microsoft.UI.Xaml.Controls.Control).IsAssignableFrom(isEnabled!.DeclaringType),
-            Is.True,
-            "IsEnabled should be inherited from WinUI Control, not redeclared on the shim spine.");
+        Assert.NotNull(isEnabled);
+        Assert.True(typeof(Microsoft.UI.Xaml.Controls.Control).IsAssignableFrom(isEnabled!.DeclaringType));
     }
 
     // Session 25: shim render-path API. The runtime render gate is the sample
     // probe (`dotnet run -- --probe`); UI construction needs a dispatcher, so
     // here we only pin the method surface so a refactor that drops it is caught.
-    [Test]
+    [Fact]
     public void ShimRenderPathSurfaceExists()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("BuildShimVisualTree", flags), Is.Not.Null,
-            "DataGrid.BuildShimVisualTree() drives the shim render path.");
-        Assert.That(typeof(DataGrid).GetMethod("EnsureShimStyleKey", flags), Is.Not.Null,
-            "DataGrid.EnsureShimStyleKey() assigns the code-built template.");
-        Assert.That(
-            typeof(DataGridColumn).GetMethod("BuildCellContent", flags),
-            Is.Not.Null,
-            "DataGridColumn.BuildCellContent() exposes element generation to the render path.");
-        Assert.That(
-            typeof(DataGridCell).GetMethod("BuildVisualTree", flags),
-            Is.Not.Null,
-            "DataGridCell.BuildVisualTree() populates a cell from its column.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildShimVisualTree", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("EnsureShimStyleKey", flags));
+        Assert.NotNull(typeof(DataGridColumn).GetMethod("BuildCellContent", flags));
+        Assert.NotNull(typeof(DataGridCell).GetMethod("BuildVisualTree", flags));
     }
 
-    [Test]
+    [Fact]
     public void DataGridRowHostsItsOwnCells()
     {
         // Session 26: the row is the visual container — it builds its own cells
@@ -186,28 +168,24 @@ public sealed class DataGridControlRootLinkTests
         // runtime render gate remains the sample probe.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGridRow).GetMethod("BuildCells", flags), Is.Not.Null,
-            "DataGridRow.BuildCells() builds the row's cells from the owner columns.");
-        Assert.That(
-            typeof(DataGridRow).GetMethod("OnApplyTemplate", flags | BindingFlags.Public),
-            Is.Not.Null,
-            "DataGridRow overrides OnApplyTemplate to build its cells when templated.");
+        Assert.NotNull(typeof(DataGridRow).GetMethod("BuildCells", flags));
+        Assert.NotNull(typeof(DataGridRow).GetMethod("OnApplyTemplate", flags | BindingFlags.Public));
 
         var tryGetCell = typeof(DataGridRow).GetMethod("TryGetCell", flags);
-        Assert.That(tryGetCell, Is.Not.Null, "DataGridRow.TryGetCell(int) exposes generated cells.");
+        Assert.NotNull(tryGetCell);
     }
 
-    [Test]
+    [Fact]
     public void DataGridReactsToCollectionChanges()
     {
         // The shim subscribes to Items/Columns changes to re-render.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("HookShimChangeNotifications", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("OnShimContentChanged", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetMethod("HookShimChangeNotifications", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("OnShimContentChanged", flags));
     }
 
-    [Test]
+    [Fact]
     public void EmptyGeneratorReportsNotStarted()
     {
         // Session 27: the generator holds a container registry. A fresh,
@@ -216,222 +194,168 @@ public sealed class DataGridControlRootLinkTests
         // registering a container needs a real DependencyObject / dispatcher.)
         var generator = new System.Windows.Controls.ItemContainerGenerator();
 
-        Assert.That(generator.Status, Is.EqualTo(System.Windows.Controls.Primitives.GeneratorStatus.NotStarted));
-        Assert.That(generator.ContainerFromIndex(0), Is.Null);
-        Assert.That(generator.ContainerFromItem("anything"), Is.Null);
-        Assert.That(generator.IndexFromContainer(null!), Is.EqualTo(-1));
+        Assert.Equal(System.Windows.Controls.Primitives.GeneratorStatus.NotStarted, generator.Status);
+        Assert.Null(generator.ContainerFromIndex(0));
+        Assert.Null(generator.ContainerFromItem("anything"));
+        Assert.Equal(-1, generator.IndexFromContainer(null!));
     }
 
-    [Test]
+    [Fact]
     public void GeneratorRegistrySurfaceExists()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("ResetContainers", flags), Is.Not.Null);
-        Assert.That(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("RegisterContainer", flags), Is.Not.Null);
+        Assert.NotNull(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("ResetContainers", flags));
+        Assert.NotNull(typeof(System.Windows.Controls.ItemContainerGenerator).GetMethod("RegisterContainer", flags));
     }
 
-    [Test]
+    [Fact]
     public void ShimSelectionSurfaceExists()
     {
         // Session 28: pointer input routes to HandleShimRowClicked (single
         // select). The interactive + visual behavior is verified by the
         // sample probe; here we pin the entry point and the IsSelected setter.
-        Assert.That(
-            typeof(DataGrid).GetMethod("HandleShimRowClicked",
-                BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataGridRow)]),
-            Is.Not.Null,
-            "DataGrid.HandleShimRowClicked(DataGridRow) is the selection entry point.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.HandleShimCellClicked(DataGridCell) routes into the linked cell-selection engine.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimRowClicked", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataGridRow)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic));
 
         var isSelected = typeof(DataGridRow).GetProperty(nameof(DataGridRow.IsSelected));
-        Assert.That(isSelected, Is.Not.Null);
-        Assert.That(isSelected!.CanWrite, Is.True, "DataGridRow.IsSelected must be settable to drive the highlight.");
+        Assert.NotNull(isSelected);
+        Assert.True(isSelected!.CanWrite);
     }
 
-    [Test]
+    [Fact]
     public void ColumnWidthResolverExists()
     {
         // Session 29: headers are DataGridColumnHeader controls and explicit
         // pixel widths are honored via ShimColumnWidth. The visual behavior is
         // verified by the sample probe; pin the resolver so it isn't dropped.
-        Assert.That(
-            typeof(DataGrid).GetMethod("ShimColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.ShimColumnWidth(DataGridColumn) resolves the per-column width.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void HeaderSortSurfaceExists()
     {
         // Session 30: header click toggles sort. Behavior (order + glyph) is
         // verified by the sample probe; pin the entry point and ordering hook.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("HandleShimHeaderClicked", flags), Is.Not.Null,
-            "DataGrid.HandleShimHeaderClicked(DataGridColumn) is the sort entry point.");
-        Assert.That(typeof(DataGrid).GetMethod("OrderedItems", flags), Is.Not.Null,
-            "DataGrid.OrderedItems() applies the active sort to the render order.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimHeaderClicked", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("OrderedItems", flags));
     }
 
-    [Test]
+    [Fact]
     public void RetainedSelectionUsesRealSelectedItems()
     {
         // Sessions 31/62/63: selection is retained by the linked Selector
         // engine's SelectedItems, and rebuilds re-apply row visuals from that
         // collection. Behavior is verified by the probe.
-        Assert.That(
-            typeof(DataGrid).GetMethod("PruneRealRowSelection", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid prunes SelectedItems when the backing item leaves the collection.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("PruneRealRowSelection", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void ComboBoxColumnBodyIsReusedFromUpstream()
     {
         // Session 60: the local combo shim was replaced by the linked upstream
         // body. Evidence: the three real WPF binding properties + ItemsSource/
         // SelectedValuePath/DisplayMemberPath are present (write-back behavior
         // verified by the probe via the TwoWay-by-default binding bridge).
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedItemBinding"), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedValueBinding"), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("TextBinding"), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("ItemsSource"), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty("SelectedValuePath"), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetProperty("SelectedItemBinding"));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetProperty("SelectedValueBinding"));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetProperty("TextBinding"));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetProperty("ItemsSource"));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetProperty("SelectedValuePath"));
     }
 
-    [Test]
+    [Fact]
     public void CheckBoxColumnGeneratesCheckBox()
     {
         // Session 44: checkbox column type. Toggle write-back verified by the
         // probe; here assert the column produces a WinUI CheckBox element.
         var generate = typeof(DataGridCheckBoxColumn).GetMethod(
             "GenerateElement", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(generate, Is.Not.Null);
-        Assert.That(generate!.ReturnType, Is.EqualTo(typeof(Microsoft.UI.Xaml.FrameworkElement)));
+        Assert.NotNull(generate);
+        Assert.Equal(typeof(Microsoft.UI.Xaml.FrameworkElement), generate!.ReturnType);
     }
 
-    [Test]
+    [Fact]
     public void AutoWidthSurfaceExists()
     {
         // Session 41: Auto column width via a post-layout measure pass.
         // Behavior verified by the probe.
-        Assert.That(
-            typeof(DataGrid).GetMethod("OnAutoWidthLayoutUpdated", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.OnAutoWidthLayoutUpdated runs the Auto/Star/clamp width pass.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("Clamp", BindingFlags.Static | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.Clamp applies MinWidth/MaxWidth (session 42).");
-        Assert.That(
-            typeof(DataGrid).GetMethod("ShimTryResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.ShimTryResizeColumn commits a user resize into a pixel column width.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("ShimTryAutoSizeColumn", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.ShimTryAutoSizeColumn commits a best-fit column width for double-click resize.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("ShimBestFitColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.ShimBestFitColumnWidth measures realized header/filter/data cells for best-fit resize.");
-        Assert.That(
-            typeof(DataGridColumnHeader).GetMethod("OnApplyTemplate", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGridColumnHeader.OnApplyTemplate hooks the WPF PART_*HeaderGripper template parts.");
-        Assert.That(
-            typeof(DataGrid).Assembly
-                .GetType("System.Windows.Controls.DataGridColumnCollection")
-                ?.GetMethod("RecomputeColumnWidthsOnColumnResize", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGridColumnCollection.RecomputeColumnWidthsOnColumnResize bridges WPF gripper drag into the shim width path.");
-        Assert.That(
-            typeof(Thumb).GetEvent("MouseDoubleClick", BindingFlags.Instance | BindingFlags.Public),
-            Is.Not.Null,
-            "Thumb.MouseDoubleClick lets the linked WPF header double-click handler run from Uno DoubleTapped.");
-        Assert.That(typeof(DataGrid).GetMethod("PreviousVisibleColumn", BindingFlags.Instance | BindingFlags.NonPublic), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetMethod("OnAutoWidthLayoutUpdated", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("Clamp", BindingFlags.Static | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimTryResizeColumn", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimTryAutoSizeColumn", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimBestFitColumnWidth", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGridColumnHeader).GetMethod("OnApplyTemplate", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).Assembly .GetType("System.Windows.Controls.DataGridColumnCollection") ?.GetMethod("RecomputeColumnWidthsOnColumnResize", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(Thumb).GetEvent("MouseDoubleClick", BindingFlags.Instance | BindingFlags.Public));
+        Assert.NotNull(typeof(DataGrid).GetMethod("PreviousVisibleColumn", BindingFlags.Instance | BindingFlags.NonPublic));
         var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
-        Assert.That(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
-            "DataGridColumnResizeShim.ComputeWidth clamps gripper deltas without requiring a UI dispatcher.");
-        Assert.That(resizeShim?.GetMethod("ClampWidth", BindingFlags.Static | BindingFlags.NonPublic), Is.Not.Null,
-            "DataGridColumnResizeShim.ClampWidth clamps best-fit widths without requiring a UI dispatcher.");
+        Assert.NotNull(resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic));
+        Assert.NotNull(resizeShim?.GetMethod("ClampWidth", BindingFlags.Static | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void ColumnResizeComputationClampsToMinAndMax()
     {
         var resizeShim = typeof(DataGrid).Assembly.GetType("System.Windows.Controls.DataGridColumnResizeShim");
         var method = resizeShim?.GetMethod("ComputeWidth", BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.That(method, Is.Not.Null);
+        Assert.NotNull(method);
 
         static double Invoke(System.Reflection.MethodInfo method, double current, double delta, double min, double max)
             => (double)method.Invoke(null, [current, delta, min, max])!;
 
-        Assert.That(Invoke(method!, 100, 25, 20, 200), Is.EqualTo(125));
-        Assert.That(Invoke(method!, 100, -200, 40, 200), Is.EqualTo(40));
-        Assert.That(Invoke(method!, 100, 250, 20, 180), Is.EqualTo(180));
+        Assert.Equal(125, Invoke(method!, 100, 25, 20, 200));
+        Assert.Equal(40, Invoke(method!, 100, -200, 40, 200));
+        Assert.Equal(180, Invoke(method!, 100, 250, 20, 180));
 
         var clamp = resizeShim?.GetMethod("ClampWidth", BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.That(clamp, Is.Not.Null);
-        Assert.That((double)clamp!.Invoke(null, [10.0, 20.0, 100.0])!, Is.EqualTo(20));
-        Assert.That((double)clamp.Invoke(null, [120.0, 20.0, 100.0])!, Is.EqualTo(100));
+        Assert.NotNull(clamp);
+        Assert.Equal(20, (double)clamp!.Invoke(null, [10.0, 20.0, 100.0])!);
+        Assert.Equal(100, (double)clamp.Invoke(null, [120.0, 20.0, 100.0])!);
     }
 
-    [Test]
+    [Fact]
     public void MultiSelectSurfaceExists()
     {
         // Session 63: Ctrl/Shift row clicks now route through the linked WPF
         // DataGrid selection handler; the shim only bridges Uno modifier flags
         // into Keyboard.Modifiers for the duration of the call.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        Assert.That(
-            typeof(DataGrid).GetMethod("HandleShimRowClicked", flags,
-                [typeof(DataGridRow), typeof(global::Windows.System.VirtualKeyModifiers)]),
-            Is.Not.Null,
-            "DataGrid.HandleShimRowClicked(row, modifiers) drives multi-select.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags,
-                [typeof(DataGridRow), typeof(bool)]),
-            Is.Not.Null,
-            "The linked WPF row-header/details selection path is reused for row clicks.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("ToWpfModifiers", BindingFlags.Static | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "Uno pointer modifiers are bridged to WPF Keyboard.Modifiers.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimRowClicked", flags, [typeof(DataGridRow), typeof(global::Windows.System.VirtualKeyModifiers)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags, [typeof(DataGridRow), typeof(bool)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ToWpfModifiers", BindingFlags.Static | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void CellEditSurfaceExists()
     {
         // Session 39: text-cell editing. Behavior verified by the probe.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        Assert.That(typeof(DataGridCell).GetMethod("BeginEdit", flags), Is.Not.Null);
-        Assert.That(typeof(DataGridCell).GetMethod("CommitEdit", flags), Is.Not.Null);
-        Assert.That(typeof(DataGridCell).GetMethod("CancelEdit", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridCell).GetMethod("BeginEdit", flags));
+        Assert.NotNull(typeof(DataGridCell).GetMethod("CommitEdit", flags));
+        Assert.NotNull(typeof(DataGridCell).GetMethod("CancelEdit", flags));
         // Session 43: read-only coercion + edit-event forwarders.
-        Assert.That(typeof(DataGrid).GetMethod("IsCellEffectivelyReadOnly", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("RaiseBeginningEdit", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("RaiseCellEditEnding", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetMethod("IsCellEffectivelyReadOnly", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("RaiseBeginningEdit", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("RaiseCellEditEnding", flags));
         // Session 46: validation surface.
-        Assert.That(typeof(DataGridCell).GetProperty("HasValidationError", flags), Is.Not.Null);
-        Assert.That(typeof(DataGridCell).GetProperty("ValidationError", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridCell).GetProperty("HasValidationError", flags));
+        Assert.NotNull(typeof(DataGridCell).GetProperty("ValidationError", flags));
         // Session 47: row edit transactions.
-        Assert.That(typeof(DataGrid).GetMethod("BeginRowEdit", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("CommitRowEdit", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("CancelRowEdit", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetMethod("BeginRowEdit", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("CommitRowEdit", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("CancelRowEdit", flags));
         // Session 48: row-level validation indicator.
-        Assert.That(typeof(DataGridRow).GetMethod("SetRowError", flags), Is.Not.Null);
-        Assert.That(typeof(DataGridRow).GetProperty("HasRowValidationError", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridRow).GetMethod("SetRowError", flags));
+        Assert.NotNull(typeof(DataGridRow).GetProperty("HasRowValidationError", flags));
         // Session 49: row headers.
-        Assert.That(typeof(DataGrid).GetProperty("AreRowHeadersVisible", flags), Is.Not.Null);
-        Assert.That(typeof(DataGridRow).GetMethod("BuildRowHeader", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetProperty("AreRowHeadersVisible", flags));
+        Assert.NotNull(typeof(DataGridRow).GetMethod("BuildRowHeader", flags));
     }
 
-    [Test]
+    [Fact]
     public void ClassCommandBindingMatchesByTargetType()
     {
         // Session 51: command routing. A binding scoped to a base type applies
@@ -443,13 +367,13 @@ public sealed class DataGridControlRootLinkTests
 
         var appliesTo = typeof(System.Windows.Input.CommandBinding)
             .GetMethod("AppliesTo", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(appliesTo, Is.Not.Null);
+        Assert.NotNull(appliesTo);
         // null target → applies; non-matching plain object → not (no tree).
-        Assert.That((bool)appliesTo!.Invoke(binding, [null])!, Is.True);
-        Assert.That((bool)appliesTo.Invoke(binding, [new object()])!, Is.False);
+        Assert.True((bool)appliesTo!.Invoke(binding, [null])!);
+        Assert.False((bool)appliesTo.Invoke(binding, [new object()])!);
     }
 
-    [Test]
+    [Fact]
     public void BoundColumnBodyIsReusedFromUpstream()
     {
         // Sessions 58/63: the local DataGridBoundColumn shim was replaced by the
@@ -460,45 +384,43 @@ public sealed class DataGridControlRootLinkTests
         var instanceFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
         // Upstream-only members that prove the linked body is in the type:
-        Assert.That(typeof(DataGridBoundColumn).GetProperty("ElementStyle"), Is.Not.Null);
-        Assert.That(typeof(DataGridBoundColumn).GetProperty("EditingElementStyle"), Is.Not.Null);
-        Assert.That(typeof(DataGridBoundColumn).GetField("ElementStyleProperty"), Is.Not.Null);
-        Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyBinding", instanceFlags), Is.Not.Null);
-        Assert.That(typeof(DataGridBoundColumn).GetMethod("ApplyStyle", instanceFlags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridBoundColumn).GetProperty("ElementStyle"));
+        Assert.NotNull(typeof(DataGridBoundColumn).GetProperty("EditingElementStyle"));
+        Assert.NotNull(typeof(DataGridBoundColumn).GetField("ElementStyleProperty"));
+        Assert.NotNull(typeof(DataGridBoundColumn).GetMethod("ApplyBinding", instanceFlags));
+        Assert.NotNull(typeof(DataGridBoundColumn).GetMethod("ApplyStyle", instanceFlags));
 
         // The Uno-specific members kept in the local partials:
-        Assert.That(typeof(DataGridBoundColumn).GetProperty("BindingPath", instanceFlags), Is.Not.Null,
-            "BindingPath helper remains in the local partial.");
+        Assert.NotNull(typeof(DataGridBoundColumn).GetProperty("BindingPath", instanceFlags));
         var coerce = typeof(DataGridBoundColumn).GetMethod("CoerceValue", instanceFlags);
-        Assert.That(coerce, Is.Not.Null,
-            "CoerceValue bridge exists because the shim DP system runs no coerce callbacks.");
-        Assert.That(coerce!.DeclaringType, Is.EqualTo(typeof(DataGridColumn)));
+        Assert.NotNull(coerce);
+        Assert.Equal(typeof(DataGridColumn), coerce!.DeclaringType);
     }
 
-    [Test]
+    [Fact]
     public void TextColumnBodyIsReusedFromUpstream()
     {
         // Session 59: the local DataGridTextColumn shim was deleted and the
         // upstream file linked. Evidence the upstream body is in the type: the
         // Font*/Foreground DPs and DefaultElementStyle (none of which existed in
         // the old 47-line local shim) are now present.
-        Assert.That(typeof(DataGridTextColumn).GetProperty("FontFamily"), Is.Not.Null);
-        Assert.That(typeof(DataGridTextColumn).GetProperty("FontSize"), Is.Not.Null);
-        Assert.That(typeof(DataGridTextColumn).GetProperty("FontWeight"), Is.Not.Null);
-        Assert.That(typeof(DataGridTextColumn).GetProperty("Foreground"), Is.Not.Null);
-        Assert.That(typeof(DataGridTextColumn).GetField("FontFamilyProperty"), Is.Not.Null);
-        Assert.That(typeof(DataGridTextColumn).GetProperty("DefaultElementStyle"), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridTextColumn).GetProperty("FontFamily"));
+        Assert.NotNull(typeof(DataGridTextColumn).GetProperty("FontSize"));
+        Assert.NotNull(typeof(DataGridTextColumn).GetProperty("FontWeight"));
+        Assert.NotNull(typeof(DataGridTextColumn).GetProperty("Foreground"));
+        Assert.NotNull(typeof(DataGridTextColumn).GetField("FontFamilyProperty"));
+        Assert.NotNull(typeof(DataGridTextColumn).GetProperty("DefaultElementStyle"));
 
         // The input substrate that lets concrete columns link: InputEventArgs is
         // the shared base of the input arg shims, and the column base exposes
         // OnInput/BeginEdit.
-        Assert.That(typeof(System.Windows.KeyEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)), Is.True);
-        Assert.That(typeof(System.Windows.Input.MouseEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)), Is.True);
+        Assert.True(typeof(System.Windows.KeyEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)));
+        Assert.True(typeof(System.Windows.Input.MouseEventArgs).IsSubclassOf(typeof(System.Windows.Input.InputEventArgs)));
         var onInput = typeof(DataGridColumn).GetMethod("OnInput", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(onInput, Is.Not.Null);
+        Assert.NotNull(onInput);
     }
 
-    [Test]
+    [Fact]
     public void RowDetailsSurfaceExists()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -506,21 +428,19 @@ public sealed class DataGridControlRootLinkTests
         // materializes the grid's RowDetailsTemplate into PART_DetailsHost;
         // behavior (Visible vs VisibleWhenSelected + selection) is verified by
         // the sample probe.
-        Assert.That(typeof(DataGridRow).GetMethod("ComputeDetailsVisibility", flags), Is.Not.Null,
-            "DataGridRow.ComputeDetailsVisibility mirrors OnCoerceDetailsVisibility.");
-        Assert.That(typeof(DataGridRow).GetMethod("BuildRowDetails", flags), Is.Not.Null,
-            "DataGridRow.BuildRowDetails materializes the details template.");
+        Assert.NotNull(typeof(DataGridRow).GetMethod("ComputeDetailsVisibility", flags));
+        Assert.NotNull(typeof(DataGridRow).GetMethod("BuildRowDetails", flags));
         // The linked WPF Loading/Unloading wrappers are reused (not reimplemented).
-        Assert.That(typeof(DataGrid).GetMethod("OnLoadingRowDetailsWrapper", flags), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetMethod("OnUnloadingRowDetailsWrapper", flags), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetMethod("OnLoadingRowDetailsWrapper", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("OnUnloadingRowDetailsWrapper", flags));
         // Public RowDetails surface from the linked control root.
-        Assert.That(typeof(DataGrid).GetProperty("RowDetailsTemplate"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetProperty("RowDetailsVisibilityMode"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetEvent("LoadingRowDetails"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetEvent("RowDetailsVisibilityChanged"), Is.Not.Null);
+        Assert.NotNull(typeof(DataGrid).GetProperty("RowDetailsTemplate"));
+        Assert.NotNull(typeof(DataGrid).GetProperty("RowDetailsVisibilityMode"));
+        Assert.NotNull(typeof(DataGrid).GetEvent("LoadingRowDetails"));
+        Assert.NotNull(typeof(DataGrid).GetEvent("RowDetailsVisibilityChanged"));
     }
 
-    [Test]
+    [Fact]
     public void RealSelectionEngineIsDriven()
     {
         // Session 61-63: row input now drives the linked Selector/MultiSelector
@@ -528,55 +448,34 @@ public sealed class DataGridControlRootLinkTests
         // SelectionChanged event). Behavior verified by the probe; here assert
         // the reused surface and WPF row-selection handler exist.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        Assert.That(
-            typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags,
-                [typeof(DataGridRow), typeof(bool)]),
-            Is.Not.Null,
-            "DataGrid row clicks reuse the linked WPF selection engine.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleSelectionForRowHeaderAndDetailsInput", flags, [typeof(DataGridRow), typeof(bool)]));
         // The reused engine surface comes from the linked Selector/MultiSelector.
-        Assert.That(typeof(DataGrid).GetProperty("SelectedItems"), Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetEvent("SelectionChanged"), Is.Not.Null);
-        Assert.That(
-            typeof(DataGrid).GetMethod("BeginUpdateSelectedItems", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null, "MultiSelector batch API is reused, not reimplemented.");
+        Assert.NotNull(typeof(DataGrid).GetProperty("SelectedItems"));
+        Assert.NotNull(typeof(DataGrid).GetEvent("SelectionChanged"));
+        Assert.NotNull(typeof(DataGrid).GetMethod("BeginUpdateSelectedItems", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void KeyboardNavigationSurfaceExists()
     {
         // Session 33: Up/Down move the selection. Behavior verified by probe.
-        Assert.That(
-            typeof(DataGrid).GetMethod("MoveSelectionByOffset", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.MoveSelectionByOffset(int) drives arrow-key selection.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("MoveSelectionToIndex", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.MoveSelectionToIndex(int) drives Home/End (session 33/34).");
-        Assert.That(
-            typeof(DataGrid).GetMethod("MoveCurrentCellByOffset", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.MoveCurrentCellByOffset(rowDelta, columnDelta, extendSelection) drives cell keyboard navigation.");
-        Assert.That(
-            typeof(DataGrid).GetMethod("ShimSelectAllCells", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null,
-            "DataGrid.ShimSelectAllCells() drives Ctrl+A for cell/row selection.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("MoveSelectionByOffset", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("MoveSelectionToIndex", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("MoveCurrentCellByOffset", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimSelectAllCells", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 
-    [Test]
+    [Fact]
     public void ClipboardCopySurfaceExists()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("ShimCopySelectionToClipboard", flags), Is.Not.Null,
-            "DataGrid.ShimCopySelectionToClipboard writes the selected-cell/row payload to Clipboard.");
-        Assert.That(typeof(DataGrid).GetMethod("ShimBuildClipboardDataObject", flags), Is.Not.Null,
-            "DataGrid.ShimBuildClipboardDataObject builds Text/UnicodeText/CSV payloads for probes and command routing.");
-        Assert.That(typeof(DataGrid).GetMethod("ShimBuildClipboardPlan", flags), Is.Not.Null,
-            "DataGrid.ShimBuildClipboardPlan maps SelectedCells/SelectedItems/CurrentCell to copy rows and columns.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimCopySelectionToClipboard", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimBuildClipboardDataObject", flags));
+        Assert.NotNull(typeof(DataGrid).GetMethod("ShimBuildClipboardPlan", flags));
     }
 
-    [Test]
+    [Fact]
     public void ColumnHeaderCursorSurfaceExists()
     {
         // Session 65: resize cursor. DataGridColumnHeader exposes
@@ -584,51 +483,37 @@ public sealed class DataGridControlRootLinkTests
         // the cursor without accessing ProtectedCursor (a protected member).
         var header = typeof(DataGrid).Assembly
             .GetType("System.Windows.Controls.Primitives.DataGridColumnHeader");
-        Assert.That(header, Is.Not.Null);
+        Assert.NotNull(header);
 
         var setCursor = header!.GetMethod("SetShimCursor",
             BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(setCursor, Is.Not.Null,
-            "DataGridColumnHeader.SetShimCursor() sets the resize cursor.");
-        Assert.That(setCursor!.ReturnType, Is.EqualTo(typeof(void)));
+        Assert.NotNull(setCursor);
+        Assert.Equal(typeof(void), setCursor!.ReturnType);
 
         var clearCursor = header!.GetMethod("ClearShimCursor",
             BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(clearCursor, Is.Not.Null,
-            "DataGridColumnHeader.ClearShimCursor() clears the custom cursor.");
-        Assert.That(clearCursor!.ReturnType, Is.EqualTo(typeof(void)));
+        Assert.NotNull(clearCursor);
+        Assert.Equal(typeof(void), clearCursor!.ReturnType);
     }
 
-    [Test]
+    [Fact]
     public void FilterInlineSurfaceExists()
     {
         // Session 65+: column-header filter inline panel builders.
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Assert.That(typeof(DataGrid).GetMethod("BuildFilterPanelForColumn", flags,
-            [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildFilterPanelForColumn builds the filter toggle panel.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildFilterPanelForColumn", flags, [typeof(DataGridColumn)]));
         var fctType = typeof(DataGrid).Assembly.GetType("DataGridExtensions.FilterControlTemplate");
-        Assert.That(fctType, Is.Not.Null);
+        Assert.NotNull(fctType);
 
-        Assert.That(typeof(DataGrid).GetMethod("BuildFilterInlineContent", flags,
-            [typeof(DataGridColumn), fctType!]), Is.Not.Null,
-            "DataGrid.BuildFilterInlineContent dispatches to Text/Hex/Flags inline builders.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildTextFilterInline", flags,
-            [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildTextFilterInline builds a text-filter inline.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildHexFilterInline", flags,
-            [typeof(DataGridColumn)]), Is.Not.Null,
-            "DataGrid.BuildHexFilterInline builds a hex-filter inline.");
-        Assert.That(typeof(DataGrid).GetMethod("BuildFlagsFilterInline", flags,
-            [typeof(DataGridColumn), typeof(Type)]), Is.Not.Null,
-            "DataGrid.BuildFlagsFilterInline builds a flags-enum filter inline.");
-        Assert.That(typeof(DataGrid).GetMethod("OnHeaderPointerExited", flags,
-            [typeof(object), typeof(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs)]), Is.Not.Null,
-            "DataGrid.OnHeaderPointerExited clears the resize cursor when the pointer leaves.");
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildFilterInlineContent", flags, [typeof(DataGridColumn), fctType!]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildTextFilterInline", flags, [typeof(DataGridColumn)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildHexFilterInline", flags, [typeof(DataGridColumn)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("BuildFlagsFilterInline", flags, [typeof(DataGridColumn), typeof(Type)]));
+        Assert.NotNull(typeof(DataGrid).GetMethod("OnHeaderPointerExited", flags, [typeof(object), typeof(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs)]));
     }
 
-    [Test]
+    [Fact]
     public void HeaderContentMethodIsInternal()
     {
         // Session 65: HeaderContent is the per-column header factory exposed
@@ -636,8 +521,7 @@ public sealed class DataGridControlRootLinkTests
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var headerContent = typeof(DataGrid).GetMethod("HeaderContent", flags,
             [typeof(DataGridColumn)]);
-        Assert.That(headerContent, Is.Not.Null,
-            "DataGrid.HeaderContent(DataGridColumn) is the internal header-content factory.");
-        Assert.That(headerContent!.ReturnType, Is.EqualTo(typeof(object)));
+        Assert.NotNull(headerContent);
+        Assert.Equal(typeof(object), headerContent!.ReturnType);
     }
 }

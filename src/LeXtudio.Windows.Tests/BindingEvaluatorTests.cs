@@ -1,52 +1,51 @@
 using System.Globalization;
 using System.Windows.Data;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class BindingEvaluatorTests
 {
-    [Test]
+    [Fact]
     public void EvaluatesPublicPropertyPath()
     {
         var item = new Row(new Details("metadata"));
 
         var value = BindingEvaluator.Evaluate(item, new Binding("RowDetails.Name"));
 
-        Assert.That(value, Is.EqualTo("metadata"));
+        Assert.Equal("metadata", value);
     }
 
-    [Test]
+    [Fact]
     public void EmptyAndDotPathsReturnSource()
     {
         var item = new Row(new Details("metadata"));
 
-        Assert.That(BindingEvaluator.Evaluate(item, new Binding()), Is.SameAs(item));
-        Assert.That(BindingEvaluator.Evaluate(item, new Binding(".")), Is.SameAs(item));
+        Assert.Same(item, BindingEvaluator.Evaluate(item, new Binding()));
+        Assert.Same(item, BindingEvaluator.Evaluate(item, new Binding(".")));
     }
 
-    [Test]
+    [Fact]
     public void MissingPropertyUsesFallbackValue()
     {
         var value = BindingEvaluator.Evaluate(
             new Row(null),
             new Binding("Missing") { FallbackValue = "fallback" });
 
-        Assert.That(value, Is.EqualTo("fallback"));
+        Assert.Equal("fallback", value);
     }
 
-    [Test]
+    [Fact]
     public void NullPropertyUsesTargetNullValue()
     {
         var value = BindingEvaluator.Evaluate(
             new Row(null),
             new Binding("RowDetails") { TargetNullValue = "null value" });
 
-        Assert.That(value, Is.EqualTo("null value"));
+        Assert.Equal("null value", value);
     }
 
-    [Test]
+    [Fact]
     public void AppliesConverterAndStringFormat()
     {
         var value = BindingEvaluator.Evaluate(
@@ -57,10 +56,10 @@ public sealed class BindingEvaluatorTests
                 StringFormat = "Value: {0}",
             });
 
-        Assert.That(value, Is.EqualTo("Value: METADATA"));
+        Assert.Equal("Value: METADATA", value);
     }
 
-    [Test]
+    [Fact]
     public void AppliesBindingToWritableProperty()
     {
         var item = new Row(new Details("metadata"));
@@ -68,20 +67,20 @@ public sealed class BindingEvaluatorTests
 
         BindingEvaluator.Apply(target, nameof(Target.Text), item, new Binding("RowDetails.Name"));
 
-        Assert.That(target.Text, Is.EqualTo("metadata"));
+        Assert.Equal("metadata", target.Text);
     }
 
-    [Test]
+    [Fact]
     public void AppliesBindingWithTypeConversion()
     {
         var target = new Target();
 
         BindingEvaluator.Apply(target, nameof(Target.Count), new CountRow("42"), new Binding("Count"));
 
-        Assert.That(target.Count, Is.EqualTo(42));
+        Assert.Equal(42, target.Count);
     }
 
-    [Test]
+    [Fact]
     public void ApplyRequiresWritableProperty()
     {
         var target = new Target();

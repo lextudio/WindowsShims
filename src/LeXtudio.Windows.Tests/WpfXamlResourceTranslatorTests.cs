@@ -1,12 +1,11 @@
 using System.Windows.Controls;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class WpfXamlResourceTranslatorTests
 {
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsStyleAndFilterTemplates()
     {
         const string xaml = """
@@ -30,19 +29,19 @@ public sealed class WpfXamlResourceTranslatorTests
 
         var specs = WpfXamlResourceTranslator.TranslateResourceDictionary(xaml, ResolveType);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[]
+        Assert.Equal(new[]
         {
             "DataGridCellStyle",
             "DefaultFilter",
             "AssemblyFlagsFilter"
-        }));
+        }, specs.Select(spec => spec.Key));
 
         var flagsTemplate = (DataGridExtensions.FilterControlTemplate)specs[2].CreateValue();
-        Assert.That(flagsTemplate.Kind, Is.EqualTo(DataGridExtensions.FilterKind.Flags));
-        Assert.That(flagsTemplate.FlagsType, Is.EqualTo(typeof(System.Reflection.AssemblyFlags)));
+        Assert.Equal(DataGridExtensions.FilterKind.Flags, flagsTemplate.Kind);
+        Assert.Equal(typeof(System.Reflection.AssemblyFlags), flagsTemplate.FlagsType);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryAppendsFallbackForUnsupportedResources()
     {
         const string xaml = """
@@ -58,12 +57,12 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             WpfResourceSpec.Value("Template", "fallback"));
 
-        Assert.That(specs, Has.Length.EqualTo(1));
-        Assert.That(specs[0].Key, Is.EqualTo("Template"));
-        Assert.That(specs[0].CreateValue(), Is.EqualTo("fallback"));
+        Assert.Equal(1, specs.Length);
+        Assert.Equal("Template", specs[0].Key);
+        Assert.Equal("fallback", specs[0].CreateValue());
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReportsTranslatedFallbackAndSkippedKeys()
     {
         const string xaml = """
@@ -84,12 +83,12 @@ public sealed class WpfXamlResourceTranslatorTests
             out var report,
             WpfResourceSpec.Value("Template", "fallback"));
 
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "ItemContainerStyle" }));
-        Assert.That(report.FallbackKeys, Is.EqualTo(new[] { "Template" }));
-        Assert.That(report.SkippedKeys, Is.EqualTo(new[] { "Unsupported", "Template" }));
+        Assert.Equal(new[] { "ItemContainerStyle" }, report.TranslatedKeys);
+        Assert.Equal(new[] { "Template" }, report.FallbackKeys);
+        Assert.Equal(new[] { "Unsupported", "Template" }, report.SkippedKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsStyleBasedOnAndStaticResourceSetter()
     {
         const string xaml = """
@@ -112,14 +111,14 @@ public sealed class WpfXamlResourceTranslatorTests
 
         var specs = WpfXamlResourceTranslator.TranslateResourceDictionary(xaml, ResolveType);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "BaseCellStyle", "DataGridCellStyle" }));
+        Assert.Equal(new[] { "BaseCellStyle", "DataGridCellStyle" }, specs.Select(spec => spec.Key));
         var styleSpec = (StyleSpec)specs[1].Descriptor!;
         var templateSetter = styleSpec.Setters.SingleOrDefault(setter => setter.PropertyName == "Template");
-        Assert.That(templateSetter?.Value, Is.TypeOf<System.Windows.Controls.ControlTemplate>());
-        Assert.That(((IWpfTemplateBridge)templateSetter!.Value!).TargetType, Is.EqualTo(typeof(DataGridCell)));
+        Assert.IsType<System.Windows.Controls.ControlTemplate>(templateSetter?.Value);
+        Assert.Equal(typeof(DataGridCell), ((IWpfTemplateBridge)templateSetter!.Value!).TargetType);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsKeyedObjectResource()
     {
         const string xaml = """
@@ -133,13 +132,13 @@ public sealed class WpfXamlResourceTranslatorTests
 
         var specs = WpfXamlResourceTranslator.TranslateResourceDictionary(xaml, ResolveType, out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "converter" }));
-        Assert.That(specs[0].CreateValue(), Is.SameAs(SharedConverter.Instance));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "converter" }));
-        Assert.That(report.SkippedKeys, Is.Empty);
+        Assert.Equal(new[] { "converter" }, specs.Select(spec => spec.Key));
+        Assert.Same(SharedConverter.Instance, specs[0].CreateValue());
+        Assert.Equal(new[] { "converter" }, report.TranslatedKeys);
+        Assert.Empty(report.SkippedKeys);
     }
 
-    [Test]
+    [Fact]
     public void DataTemplateSpecExposesResourceDictionaryFactoryOverload()
     {
         var overload = typeof(WpfResourceSpec).GetMethods()
@@ -148,10 +147,10 @@ public sealed class WpfXamlResourceTranslatorTests
                 && method.GetParameters() is { Length: 2 } parameters
                 && parameters[1].ParameterType.GenericTypeArguments.FirstOrDefault() == typeof(System.Windows.ResourceDictionary));
 
-        Assert.That(overload, Is.Not.Null);
+        Assert.NotNull(overload);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsSimpleTextBoxAndDataGridDataTemplates()
     {
         const string xaml = """
@@ -175,12 +174,12 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "TextBlob", "GridDetails" }));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "TextBlob", "GridDetails" }));
-        Assert.That(report.FallbackKeys, Is.Empty);
+        Assert.Equal(new[] { "TextBlob", "GridDetails" }, specs.Select(spec => spec.Key));
+        Assert.Equal(new[] { "TextBlob", "GridDetails" }, report.TranslatedKeys);
+        Assert.Empty(report.FallbackKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsImplicitDataTemplateKey()
     {
         const string xaml = """
@@ -199,12 +198,12 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs, Has.Length.EqualTo(1));
-        Assert.That(specs[0].Key, Is.EqualTo(typeof(SampleRow)));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { typeof(SampleRow).FullName }));
+        Assert.Equal(1, specs.Length);
+        Assert.Equal(typeof(SampleRow), specs[0].Key);
+        Assert.Equal(new[] { typeof(SampleRow).FullName }, report.TranslatedKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsResourcesFromControlRoot()
     {
         const string xaml = """
@@ -229,13 +228,13 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new object[] { "nullVisConv", typeof(SampleRow) }));
-        Assert.That(specs[0].CreateValue(), Is.SameAs(SharedConverter.Instance));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "nullVisConv", typeof(SampleRow).FullName }));
-        Assert.That(report.SkippedKeys, Is.Empty);
+        Assert.Equal(new object[] { "nullVisConv", typeof(SampleRow) }, specs.Select(spec => spec.Key));
+        Assert.Same(SharedConverter.Instance, specs[0].CreateValue());
+        Assert.Equal(new[] { "nullVisConv", typeof(SampleRow).FullName }, report.TranslatedKeys);
+        Assert.Empty(report.SkippedKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsNestedGridResourcesAndContextMenuSetter()
     {
         const string xaml = """
@@ -271,22 +270,22 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new[] { "BackgroundConverter", "alternatingWithBinding" }));
+        Assert.Equal(new[] { "BackgroundConverter", "alternatingWithBinding" }, specs.Select(spec => spec.Key));
         var converterSpec = (AlternationConverterSpec)specs[0].Descriptor!;
-        Assert.That(converterSpec.Values, Has.Count.EqualTo(2));
-        Assert.That(converterSpec.Values[1].Opacity, Is.EqualTo(0.15));
+        Assert.Equal(2, converterSpec.Values.Count);
+        Assert.Equal(0.15, converterSpec.Values[1].Opacity);
         var styleSpec = (StyleSpec)specs[1].Descriptor!;
-        Assert.That(styleSpec.TargetType, Is.EqualTo(typeof(Microsoft.UI.Xaml.Controls.ListViewItem)));
-        Assert.That(styleSpec.BasedOnReference?.Key, Is.EqualTo("ListViewItem"));
-        Assert.That(styleSpec.Setters.Single(setter => setter.PropertyName == "Background").Value, Is.TypeOf<System.Windows.Data.Binding>());
+        Assert.Equal(typeof(Microsoft.UI.Xaml.Controls.ListViewItem), styleSpec.TargetType);
+        Assert.Equal("ListViewItem", styleSpec.BasedOnReference?.Key);
+        Assert.IsType<System.Windows.Data.Binding>(styleSpec.Setters.Single(setter => setter.PropertyName == "Background").Value);
         var contextMenu = (ContextMenuSpec)styleSpec.Setters.Single(setter => setter.PropertyName == "ContextMenu").Value!;
-        Assert.That(contextMenu.Items, Has.Count.EqualTo(2));
-        Assert.That(contextMenu.Items[1].CommandParameter, Is.EqualTo("Value"));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { "BackgroundConverter", "alternatingWithBinding" }));
-        Assert.That(report.SkippedKeys, Is.Empty);
+        Assert.Equal(2, contextMenu.Items.Count);
+        Assert.Equal("Value", contextMenu.Items[1].CommandParameter);
+        Assert.Equal(new[] { "BackgroundConverter", "alternatingWithBinding" }, report.TranslatedKeys);
+        Assert.Empty(report.SkippedKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsStackPanelTextBlockDataTemplate()
     {
         const string xaml = """
@@ -308,13 +307,13 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new object[] { typeof(ChoiceRow) }));
-        Assert.That(report.SkippedKeys, Is.Empty);
+        Assert.Equal(new object[] { typeof(ChoiceRow) }, specs.Select(spec => spec.Key));
+        Assert.Empty(report.SkippedKeys);
 
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { typeof(ChoiceRow).FullName }));
+        Assert.Equal(new[] { typeof(ChoiceRow).FullName }, report.TranslatedKeys);
     }
 
-    [Test]
+    [Fact]
     public void TranslateResourceDictionaryReadsListBoxCheckBoxDataTemplate()
     {
         const string xaml = """
@@ -343,9 +342,9 @@ public sealed class WpfXamlResourceTranslatorTests
             ResolveType,
             out var report);
 
-        Assert.That(specs.Select(spec => spec.Key), Is.EqualTo(new object[] { typeof(MultiChoiceRow) }));
-        Assert.That(report.TranslatedKeys, Is.EqualTo(new[] { typeof(MultiChoiceRow).FullName }));
-        Assert.That(report.SkippedKeys, Is.Empty);
+        Assert.Equal(new object[] { typeof(MultiChoiceRow) }, specs.Select(spec => spec.Key));
+        Assert.Equal(new[] { typeof(MultiChoiceRow).FullName }, report.TranslatedKeys);
+        Assert.Empty(report.SkippedKeys);
     }
 
     private static Type? ResolveType(string name)

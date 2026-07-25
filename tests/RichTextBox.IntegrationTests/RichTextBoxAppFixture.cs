@@ -15,14 +15,14 @@ public sealed class RichTextBoxAppFixture : IAsyncLifetime
 
     public string HostProjectPath { get; } = LocateHostProject();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         StopApp();
         await WaitForPortFreeAsync(TimeSpan.FromSeconds(30));
         await StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         StopApp();
         _http.Dispose();
@@ -38,7 +38,7 @@ public sealed class RichTextBoxAppFixture : IAsyncLifetime
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", "net10.0-desktop", "--no-build" })
+        foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", "net10.0-desktop", "--configuration", "Debug" })
             psi.ArgumentList.Add(a);
 
         _app = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start RichTextBox.IntegrationTestHost");

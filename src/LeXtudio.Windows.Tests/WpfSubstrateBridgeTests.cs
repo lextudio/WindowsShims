@@ -2,14 +2,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Runtime.CompilerServices;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed partial class WpfSubstrateBridgeTests
 {
-    [Test]
+    [Fact]
     public void RelativeSourceCarriesFindAncestorState()
     {
         var source = new RelativeSource(RelativeSourceMode.FindAncestor, typeof(DataGrid), 2);
@@ -18,68 +17,60 @@ public sealed partial class WpfSubstrateBridgeTests
             RelativeSource = source,
         };
 
-        Assert.That(binding.RelativeSource, Is.SameAs(source));
-        Assert.That(source.Mode, Is.EqualTo(RelativeSourceMode.FindAncestor));
-        Assert.That(source.AncestorType, Is.EqualTo(typeof(DataGrid)));
-        Assert.That(source.AncestorLevel, Is.EqualTo(2));
+        Assert.Same(source, binding.RelativeSource);
+        Assert.Equal(RelativeSourceMode.FindAncestor, source.Mode);
+        Assert.Equal(typeof(DataGrid), source.AncestorType);
+        Assert.Equal(2, source.AncestorLevel);
     }
 
-    [Test]
+    [Fact]
     public void RelativeSourceProvidesWpfSingletons()
     {
-        Assert.That(RelativeSource.Self.Mode, Is.EqualTo(RelativeSourceMode.Self));
-        Assert.That(RelativeSource.TemplatedParent.Mode, Is.EqualTo(RelativeSourceMode.TemplatedParent));
-        Assert.That(RelativeSource.PreviousData.Mode, Is.EqualTo(RelativeSourceMode.PreviousData));
+        Assert.Equal(RelativeSourceMode.Self, RelativeSource.Self.Mode);
+        Assert.Equal(RelativeSourceMode.TemplatedParent, RelativeSource.TemplatedParent.Mode);
+        Assert.Equal(RelativeSourceMode.PreviousData, RelativeSource.PreviousData.Mode);
     }
 
-    [Test]
+    [Fact]
     public void ResourceExtensionsCarryObjectKeys()
     {
 #if WINDOWS_APP_SDK
         var componentKey = new ComponentResourceKey(typeof(DataGrid), "FocusVisual");
 
-        Assert.That(new StaticResourceExtension(typeof(DataGridCell)).ResourceKey, Is.EqualTo(typeof(DataGridCell)));
-        Assert.That(new DynamicResourceExtension(componentKey).ResourceKey, Is.EqualTo(componentKey));
+        Assert.Equal(typeof(DataGridCell), new StaticResourceExtension(typeof(DataGridCell)).ResourceKey);
+        Assert.Equal(componentKey, new DynamicResourceExtension(componentKey).ResourceKey);
 #else
-        Assert.Pass("Desktop target uses Uno.Xaml resource extensions.");
+        // Assert.Pass("Desktop target uses Uno.Xaml resource extensions.");
 #endif
     }
 
-    [Test]
+    [Fact]
     public void TemplateBindingExtensionProducesExpression()
     {
 #if WINDOWS_APP_SDK
         var extension = new TemplateBindingExtension(Microsoft.UI.Xaml.Controls.Control.BackgroundProperty);
         var value = extension.ProvideValue(TestServiceProvider.Instance);
 
-        Assert.That(extension.Property, Is.EqualTo(Microsoft.UI.Xaml.Controls.Control.BackgroundProperty));
-        Assert.That(value, Is.TypeOf<TemplateBindingExpression>());
-        Assert.That(((TemplateBindingExpression)value).TemplateBindingExtension, Is.SameAs(extension));
+        Assert.Equal(Microsoft.UI.Xaml.Controls.Control.BackgroundProperty, extension.Property);
+        Assert.IsType<TemplateBindingExpression>(value);
+        Assert.Same(extension, ((TemplateBindingExpression)value).TemplateBindingExtension);
 #else
-        Assert.Pass("Desktop target uses Uno.Xaml template-binding extensions.");
+        // Assert.Pass("Desktop target uses Uno.Xaml template-binding extensions.");
 #endif
     }
 
-    [Test]
+    [Fact]
     public void ShimDataTemplateImplementsGenericTemplateBridge()
     {
-        Assert.That(typeof(IWpfTemplateBridge).IsAssignableFrom(typeof(ShimDataTemplate)), Is.True);
-        Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.Factory)), Is.Not.Null);
-        Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.TemplatedParentFactory)), Is.Not.Null);
-        Assert.That(typeof(ShimDataTemplate).GetProperty(nameof(IWpfTemplateBridge.TargetType)), Is.Not.Null);
-        Assert.That(
-            typeof(IWpfTemplateBridge).GetMethod(
-                nameof(IWpfTemplateBridge.LoadContent),
-                new[] { typeof(object) }),
-            Is.Not.Null);
-        Assert.That(
-            typeof(IWpfTemplateBridge).GetMethod(
-                nameof(IWpfTemplateBridge.LoadContent),
-                new[] { typeof(object), typeof(Microsoft.UI.Xaml.DependencyObject) }),
-            Is.Not.Null);
+        Assert.True(typeof(IWpfTemplateBridge).IsAssignableFrom(typeof(ShimDataTemplate)));
+        Assert.NotNull(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.Factory)));
+        Assert.NotNull(typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.TemplatedParentFactory)));
+        Assert.NotNull(typeof(ShimDataTemplate).GetProperty(nameof(IWpfTemplateBridge.TargetType)));
+        Assert.NotNull(typeof(IWpfTemplateBridge).GetMethod( nameof(IWpfTemplateBridge.LoadContent), new[] { typeof(object) }));
+        Assert.NotNull(typeof(IWpfTemplateBridge).GetMethod( nameof(IWpfTemplateBridge.LoadContent), new[] { typeof(object), typeof(Microsoft.UI.Xaml.DependencyObject) }));
     }
 
-    [Test]
+    [Fact]
     public void TemplateBridgeCarriesTemplatedParent()
     {
         var parent = (Microsoft.UI.Xaml.DependencyObject)RuntimeHelpers.GetUninitializedObject(typeof(TestDependencyObject));
@@ -94,19 +85,19 @@ public sealed partial class WpfSubstrateBridgeTests
 
         ((IWpfTemplateBridge)template).LoadContent("row", parent);
 
-        Assert.That(capturedDataContext, Is.EqualTo("row"));
-        Assert.That(capturedParent, Is.SameAs(parent));
+        Assert.Equal("row", capturedDataContext);
+        Assert.Same(parent, capturedParent);
     }
 
-    [Test]
+    [Fact]
     public void ShimDataTemplateExposesTemplatedParentFactoryConstructor()
     {
         var factoryType = typeof(Func<object?, Microsoft.UI.Xaml.DependencyObject?, Microsoft.UI.Xaml.FrameworkElement?>);
 
-        Assert.That(typeof(ShimDataTemplate).GetConstructor(new[] { factoryType }), Is.Not.Null);
+        Assert.NotNull(typeof(ShimDataTemplate).GetConstructor(new[] { factoryType }));
     }
 
-    [Test]
+    [Fact]
     public void WpfTemplateBindingExposesTemplatedParentCopyHelper()
     {
         var method = typeof(WpfTemplateBinding).GetMethod(
@@ -119,17 +110,17 @@ public sealed partial class WpfSubstrateBridgeTests
                 typeof(DependencyProperty),
             });
 
-        Assert.That(method, Is.Not.Null);
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void ControlTemplateCarriesTargetTypeThroughBridge()
     {
         var template = new DataGridExtensions.FilterControlTemplate(DataGridExtensions.FilterKind.Hex);
         var bridge = (IWpfTemplateBridge)template;
 
-        Assert.That(bridge.TargetType, Is.EqualTo(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader)));
-        Assert.That(template.Kind, Is.EqualTo(DataGridExtensions.FilterKind.Hex));
+        Assert.Equal(typeof(System.Windows.Controls.Primitives.DataGridColumnHeader), bridge.TargetType);
+        Assert.Equal(DataGridExtensions.FilterKind.Hex, template.Kind);
     }
 
     private sealed class TestServiceProvider : IServiceProvider

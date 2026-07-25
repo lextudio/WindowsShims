@@ -1,4 +1,4 @@
-using NUnit.Framework;
+using Xunit;
 using System.Reflection;
 using System.Windows.Controls;
 
@@ -10,10 +10,9 @@ namespace LeXtudio.Windows.Tests;
 /// are properly wired. Tests are reflection-only so they don't require the full
 /// Uno runtime (no instance construction).
 /// </summary>
-[TestFixture]
 public sealed class DataGridNotificationChainTests
 {
-    [Test]
+    [Fact]
     public void DataGridRowTrackerPropertyExists()
     {
         // Tracker is initialized in PrepareRow; the property must exist so
@@ -22,13 +21,12 @@ public sealed class DataGridNotificationChainTests
             "Tracker",
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
-        Assert.That(tracker, Is.Not.Null, "DataGridRow.Tracker property exists");
+        Assert.NotNull(tracker);
         // Must be the ContainerTracking<DataGridRow> type.
-        Assert.That(tracker!.PropertyType.Name, Does.Contain("ContainerTracking"),
-            "Tracker is ContainerTracking<DataGridRow>");
+        Assert.Contains("ContainerTracking", tracker!.PropertyType.Name);
     }
 
-    [Test]
+    [Fact]
     public void DataGridRowNotifyPropertyChangedSignatureMatchesUpstream()
     {
         // The upstream DataGrid iterates _rowTrackingRoot and calls
@@ -41,10 +39,10 @@ public sealed class DataGridNotificationChainTests
             types: [typeof(DependencyObject), typeof(string), typeof(System.Windows.DependencyPropertyChangedEventArgs), typeof(DataGridNotificationTarget)],
             modifiers: null);
 
-        Assert.That(method, Is.Not.Null, "row.NotifyPropertyChanged(DependencyObject, string, DPChangedEventArgs, target) exists");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridCellNotifyPropertyChangedSignatureMatchesUpstream()
     {
         // The upstream DataGridRow forwards to each cell via this signature.
@@ -55,10 +53,10 @@ public sealed class DataGridNotificationChainTests
             types: [typeof(DependencyObject), typeof(string), typeof(System.Windows.DependencyPropertyChangedEventArgs), typeof(DataGridNotificationTarget)],
             modifiers: null);
 
-        Assert.That(method, Is.Not.Null, "cell.NotifyPropertyChanged(DependencyObject, string, DPChangedEventArgs, target) exists");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridRowOnColumnsChangedSignatureMatchesUpstream()
     {
         // The upstream DataGrid.UpdateColumnsOnRows calls
@@ -70,10 +68,10 @@ public sealed class DataGridNotificationChainTests
             types: [typeof(System.Collections.ObjectModel.ObservableCollection<DataGridColumn>), typeof(System.Collections.Specialized.NotifyCollectionChangedEventArgs)],
             modifiers: null);
 
-        Assert.That(method, Is.Not.Null, "row.OnColumnsChanged(ObservableCollection<DataGridColumn>, e) exists");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridCellNotifyCurrentCellContainerChangedSignatureExists()
     {
         // NotifyCurrentCellContainerChanged is called by the upstream
@@ -82,10 +80,10 @@ public sealed class DataGridNotificationChainTests
             "NotifyCurrentCellContainerChanged",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.That(method, Is.Not.Null, "cell.NotifyCurrentCellContainerChanged() is no longer a stub");
+        Assert.NotNull(method);
     }
 
-    [Test]
+    [Fact]
     public void DataGridHelperExposesNotificationTargetPredicates()
     {
         // Session 66 adds the ShouldNotify* predicates needed by the row/cell
@@ -96,7 +94,7 @@ public sealed class DataGridNotificationChainTests
         foreach (var name in names)
         {
             var m = helperType.GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.That(m, Is.Not.Null, $"DataGridHelper.{name} exists");
+            Assert.NotNull(m);
         }
     }
 }

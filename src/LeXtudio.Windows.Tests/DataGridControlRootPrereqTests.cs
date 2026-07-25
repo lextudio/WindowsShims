@@ -1,12 +1,11 @@
 using System.Globalization;
 using System.Windows.Controls;
 using System.Windows.Data;
-using NUnit.Framework;
+using Xunit;
 using WpfItemsControl = System.Windows.Controls.ItemsControl;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridControlRootPrereqTests
 {
     private sealed class AlwaysValidRule : ValidationRule
@@ -17,30 +16,30 @@ public sealed class DataGridControlRootPrereqTests
 
     private sealed record Person(string Name);
 
-    [Test]
+    [Fact]
     public void LinkedValidationRuleRoundTrips()
     {
         var rule = new AlwaysValidRule();
 
         var result = rule.Validate("anything", CultureInfo.InvariantCulture);
 
-        Assert.That(result.IsValid, Is.True);
-        Assert.That(result, Is.EqualTo(ValidationResult.ValidResult));
+        Assert.True(result.IsValid);
+        Assert.Equal(ValidationResult.ValidResult, result);
     }
 
-    [Test]
+    [Fact]
     public void BindingGroupBridgeProvidesRowValidationSurface()
     {
         // Construction is dispatcher-bound (DependencyObject-derived), so the
         // bridge is verified at surface level like the other shells.
-        Assert.That(typeof(BindingGroup).GetProperty(nameof(BindingGroup.ValidationRules)), Is.Not.Null);
-        Assert.That(typeof(BindingGroup).GetProperty(nameof(BindingGroup.SharesProposedValues)), Is.Not.Null);
-        Assert.That(typeof(BindingGroup).GetMethod(nameof(BindingGroup.BeginEdit)), Is.Not.Null);
-        Assert.That(typeof(BindingGroup).GetMethod(nameof(BindingGroup.CommitEdit))!.ReturnType, Is.EqualTo(typeof(bool)));
-        Assert.That(typeof(BindingGroup).GetMethod(nameof(BindingGroup.CancelEdit)), Is.Not.Null);
+        Assert.NotNull(typeof(BindingGroup).GetProperty(nameof(BindingGroup.ValidationRules)));
+        Assert.NotNull(typeof(BindingGroup).GetProperty(nameof(BindingGroup.SharesProposedValues)));
+        Assert.NotNull(typeof(BindingGroup).GetMethod(nameof(BindingGroup.BeginEdit)));
+        Assert.Equal(typeof(bool), typeof(BindingGroup).GetMethod(nameof(BindingGroup.CommitEdit))!.ReturnType);
+        Assert.NotNull(typeof(BindingGroup).GetMethod(nameof(BindingGroup.CancelEdit)));
     }
 
-    [Test]
+    [Fact]
     public void PropertyGroupDescriptionExtractsGroupNames()
     {
         var description = new PropertyGroupDescription("Name");
@@ -48,28 +47,28 @@ public sealed class DataGridControlRootPrereqTests
         var name = description.GroupNameFromItem(new Person("Ada"), 0, CultureInfo.InvariantCulture);
         var fallback = new PropertyGroupDescription().GroupNameFromItem("raw", 0, CultureInfo.InvariantCulture);
 
-        Assert.That(name, Is.EqualTo("Ada"));
-        Assert.That(fallback, Is.EqualTo("raw"));
-        Assert.That(description.StringComparison, Is.EqualTo(StringComparison.Ordinal));
+        Assert.Equal("Ada", name);
+        Assert.Equal("raw", fallback);
+        Assert.Equal(StringComparison.Ordinal, description.StringComparison);
     }
 
-    [Test]
+    [Fact]
     public void HeaderShellsProvideExpectedSurface()
     {
         var header = typeof(System.Windows.Controls.Primitives.DataGridColumnHeader);
         var presenter = typeof(System.Windows.Controls.Primitives.DataGridColumnHeadersPresenter);
 
-        Assert.That(header.GetProperty("Column"), Is.Not.Null);
-        Assert.That(presenter.IsSubclassOf(typeof(WpfItemsControl)), Is.True);
+        Assert.NotNull(header.GetProperty("Column"));
+        Assert.True(presenter.IsSubclassOf(typeof(WpfItemsControl)));
     }
 
-    [Test]
+    [Fact]
     public void EditableCollectionViewInterfacesAreLinked()
     {
         var view = typeof(System.ComponentModel.IEditableCollectionView);
         var addNew = typeof(System.ComponentModel.IEditableCollectionViewAddNewItem);
 
-        Assert.That(view.GetMethod("AddNew"), Is.Not.Null);
-        Assert.That(addNew.GetMethod("AddNewItem"), Is.Not.Null);
+        Assert.NotNull(view.GetMethod("AddNew"));
+        Assert.NotNull(addNew.GetMethod("AddNewItem"));
     }
 }

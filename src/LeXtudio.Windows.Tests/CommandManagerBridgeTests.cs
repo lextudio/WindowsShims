@@ -1,16 +1,15 @@
 using System.Windows.Input;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class CommandManagerBridgeTests
 {
     private sealed class OwnerControl;
 
     private sealed class OtherControl;
 
-    [Test]
+    [Fact]
     public void ClassCommandBindingScopesToOwnerType()
     {
         var command = new RoutedCommand("Test", typeof(OwnerControl));
@@ -25,10 +24,10 @@ public sealed class CommandManagerBridgeTests
         command.Execute(null, new OwnerControl());
         command.Execute(null, new OtherControl());
 
-        Assert.That(executedCount, Is.EqualTo(1));
+        Assert.Equal(1, executedCount);
     }
 
-    [Test]
+    [Fact]
     public void ClassCommandBindingDispatchesCanExecuteByTarget()
     {
         var command = new RoutedCommand("CanTest", typeof(OwnerControl));
@@ -39,10 +38,10 @@ public sealed class CommandManagerBridgeTests
 
         CommandManager.RegisterClassCommandBinding(typeof(OwnerControl), binding);
 
-        Assert.That(command.CanExecute(null, new OwnerControl()), Is.False);
+        Assert.False(command.CanExecute(null, new OwnerControl()));
     }
 
-    [Test]
+    [Fact]
     public void InvalidateRequerySuggestedRaisesEvent()
     {
         var raised = 0;
@@ -58,10 +57,10 @@ public sealed class CommandManagerBridgeTests
             CommandManager.RequerySuggested -= handler;
         }
 
-        Assert.That(raised, Is.EqualTo(1));
+        Assert.Equal(1, raised);
     }
 
-    [Test]
+    [Fact]
     public void ClassInputBindingsAreRecordedPerType()
     {
         var command = new RoutedCommand("KeyTest", typeof(OwnerControl));
@@ -70,13 +69,13 @@ public sealed class CommandManagerBridgeTests
         CommandManager.RegisterClassInputBinding(typeof(OwnerControl), new InputBinding(command, gesture));
         var bindings = CommandManager.GetClassInputBindings(typeof(OwnerControl));
 
-        Assert.That(bindings, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(bindings[^1].Command, Is.SameAs(command));
-        Assert.That(bindings[^1].Gesture, Is.SameAs(gesture));
-        Assert.That(CommandManager.GetClassInputBindings(typeof(OtherControl)), Is.Empty);
+        Assert.True(bindings.Count >= 1);
+        Assert.Same(command, bindings[^1].Command);
+        Assert.Same(gesture, bindings[^1].Gesture);
+        Assert.Empty(CommandManager.GetClassInputBindings(typeof(OtherControl)));
     }
 
-    [Test]
+    [Fact]
     public void InputBindingValidatesArguments()
     {
         var command = new RoutedCommand("X", typeof(OwnerControl));

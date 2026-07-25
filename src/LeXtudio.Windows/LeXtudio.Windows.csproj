@@ -21,7 +21,7 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
+    <NoWarn>$(NoWarn);1591;8632;0104;CA1512;CA1513;CA1510;CS1574;CS1587;CA1825;CA1018;CA1019;CA1041;IDE0044;IDE0028;IDE0090</NoWarn>
     <PackageIcon>company_logo_512.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <UseNuGetPackages>true</UseNuGetPackages>

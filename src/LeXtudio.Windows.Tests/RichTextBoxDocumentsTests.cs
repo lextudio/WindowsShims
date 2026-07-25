@@ -1,25 +1,24 @@
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Reflection;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class RichTextBoxDocumentsTests
 {
-    [Test]
+    [Fact]
     public void RichTextBoxExposesWpfDocumentSurface()
     {
         var documentProperty = typeof(RichTextBox).GetProperty(nameof(RichTextBox.Document));
 
-        Assert.That(documentProperty, Is.Not.Null);
-        Assert.That(documentProperty!.PropertyType, Is.EqualTo(typeof(FlowDocument)));
-        Assert.That(documentProperty.CanRead, Is.True);
-        Assert.That(documentProperty.CanWrite, Is.True);
+        Assert.NotNull(documentProperty);
+        Assert.Equal(typeof(FlowDocument), documentProperty!.PropertyType);
+        Assert.True(documentProperty.CanRead);
+        Assert.True(documentProperty.CanWrite);
     }
 
-    [Test]
+    [Fact]
     public void TextBoxBaseAppendTextIsAvailableToRichTextBox()
     {
         var appendText = typeof(RichTextBox).GetMethod(
@@ -29,35 +28,35 @@ public sealed class RichTextBoxDocumentsTests
             types: [typeof(string)],
             modifiers: null);
 
-        Assert.That(appendText, Is.Not.Null);
-        Assert.That(appendText!.DeclaringType, Is.EqualTo(typeof(System.Windows.Controls.Primitives.TextBoxBase)));
+        Assert.NotNull(appendText);
+        Assert.Equal(typeof(System.Windows.Controls.Primitives.TextBoxBase), appendText!.DeclaringType);
     }
 
-    [Test]
+    [Fact]
     public void FlowDocumentExposesTextRangeBoundaries()
     {
         var contentStart = typeof(FlowDocument).GetProperty(nameof(FlowDocument.ContentStart));
         var contentEnd = typeof(FlowDocument).GetProperty(nameof(FlowDocument.ContentEnd));
         var blocks = typeof(FlowDocument).GetProperty(nameof(FlowDocument.Blocks));
 
-        Assert.That(contentStart, Is.Not.Null);
-        Assert.That(contentStart!.PropertyType, Is.EqualTo(typeof(TextPointer)));
-        Assert.That(contentEnd, Is.Not.Null);
-        Assert.That(contentEnd!.PropertyType, Is.EqualTo(typeof(TextPointer)));
-        Assert.That(blocks, Is.Not.Null);
-        Assert.That(blocks!.PropertyType, Is.EqualTo(typeof(BlockCollection)));
+        Assert.NotNull(contentStart);
+        Assert.Equal(typeof(TextPointer), contentStart!.PropertyType);
+        Assert.NotNull(contentEnd);
+        Assert.Equal(typeof(TextPointer), contentEnd!.PropertyType);
+        Assert.NotNull(blocks);
+        Assert.Equal(typeof(BlockCollection), blocks!.PropertyType);
     }
 
-    [Test]
+    [Fact]
     public void TextRangeHasPublicPointerPairConstructorAndTextProperty()
     {
         var constructor = typeof(TextRange).GetConstructor([typeof(TextPointer), typeof(TextPointer)]);
         var textProperty = typeof(TextRange).GetProperty(nameof(TextRange.Text));
 
-        Assert.That(constructor, Is.Not.Null);
-        Assert.That(textProperty, Is.Not.Null);
-        Assert.That(textProperty!.PropertyType, Is.EqualTo(typeof(string)));
-        Assert.That(textProperty.CanRead, Is.True);
-        Assert.That(textProperty.CanWrite, Is.True);
+        Assert.NotNull(constructor);
+        Assert.NotNull(textProperty);
+        Assert.Equal(typeof(string), textProperty!.PropertyType);
+        Assert.True(textProperty.CanRead);
+        Assert.True(textProperty.CanWrite);
     }
 }

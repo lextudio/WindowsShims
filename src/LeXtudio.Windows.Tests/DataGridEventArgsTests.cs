@@ -1,44 +1,43 @@
 using System.Windows.Controls;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridEventArgsTests
 {
-    [Test]
+    [Fact]
     public void ColumnEventArgsStoresColumn()
     {
         var args = new DataGridColumnEventArgs(null!);
 
-        Assert.That(args.Column, Is.Null);
+        Assert.Null(args.Column);
     }
 
-    [Test]
+    [Fact]
     public void SortingEventArgsTracksHandled()
     {
         var args = new DataGridSortingEventArgs(null!);
 
         args.Handled = true;
 
-        Assert.That(args.Column, Is.Null);
-        Assert.That(args.Handled, Is.True);
+        Assert.Null(args.Column);
+        Assert.True(args.Handled);
     }
 
-    [Test]
+    [Fact]
     public void ReorderingEventArgsTracksCancelAndIndicators()
     {
         var args = new DataGridColumnReorderingEventArgs(null!);
 
         args.Cancel = true;
 
-        Assert.That(args.Column, Is.Null);
-        Assert.That(args.Cancel, Is.True);
-        Assert.That(args.DragIndicator, Is.Null);
-        Assert.That(args.DropLocationIndicator, Is.Null);
+        Assert.Null(args.Column);
+        Assert.True(args.Cancel);
+        Assert.Null(args.DragIndicator);
+        Assert.Null(args.DropLocationIndicator);
     }
 
-    [Test]
+    [Fact]
     public void AutoGeneratingColumnEventArgsTracksColumnAndMetadata()
     {
         var replacementColumn = (DataGridColumn)null!;
@@ -47,14 +46,14 @@ public sealed class DataGridEventArgsTests
         args.Column = replacementColumn;
         args.Cancel = true;
 
-        Assert.That(args.Column, Is.SameAs(replacementColumn));
-        Assert.That(args.PropertyName, Is.EqualTo("Name"));
-        Assert.That(args.PropertyType, Is.EqualTo(typeof(string)));
-        Assert.That(args.PropertyDescriptor, Is.Null);
-        Assert.That(args.Cancel, Is.True);
+        Assert.Same(replacementColumn, args.Column);
+        Assert.Equal("Name", args.PropertyName);
+        Assert.Equal(typeof(string), args.PropertyType);
+        Assert.Null(args.PropertyDescriptor);
+        Assert.True(args.Cancel);
     }
 
-    [Test]
+    [Fact]
     public void CellClipboardEventArgsTracksMutableContent()
     {
         var item = new object();
@@ -62,8 +61,8 @@ public sealed class DataGridEventArgsTests
 
         args.Content = "new";
 
-        Assert.That(args.Item, Is.SameAs(item));
-        Assert.That(args.Column, Is.Null);
-        Assert.That(args.Content, Is.EqualTo("new"));
+        Assert.Same(item, args.Item);
+        Assert.Null(args.Column);
+        Assert.Equal("new", args.Content);
     }
 }

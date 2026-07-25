@@ -1,28 +1,27 @@
 using System.Windows.Controls;
-using NUnit.Framework;
+using Xunit;
 using ItemInfo = System.Windows.Controls.ItemsControl.ItemInfo;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridCellInfoTests
 {
-    [Test]
+    [Fact]
     public void CellInfoRequiresColumn()
     {
         Assert.Throws<ArgumentNullException>(() => _ = new DataGridCellInfo(new object(), null!));
     }
 
-    [Test]
+    [Fact]
     public void CellInfoProvidesExpectedSurface()
     {
-        Assert.That(typeof(DataGridCellInfo).IsValueType, Is.True);
-        Assert.That(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.Item)), Is.Not.Null);
-        Assert.That(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.Column)), Is.Not.Null);
-        Assert.That(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.IsValid)), Is.Not.Null);
+        Assert.True(typeof(DataGridCellInfo).IsValueType);
+        Assert.NotNull(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.Item)));
+        Assert.NotNull(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.Column)));
+        Assert.NotNull(typeof(DataGridCellInfo).GetProperty(nameof(DataGridCellInfo.IsValid)));
     }
 
-    [Test]
+    [Fact]
     public void ItemInfoBridgeComparesByItem()
     {
         var item = new object();
@@ -30,13 +29,13 @@ public sealed class DataGridCellInfoTests
         var second = new ItemInfo(item);
         var other = new ItemInfo(new object());
 
-        Assert.That(first == second, Is.True);
-        Assert.That(first == other, Is.False);
-        Assert.That(first == null, Is.False);
-        Assert.That(first.GetHashCode(), Is.EqualTo(second.GetHashCode()));
+        Assert.True(first == second);
+        Assert.False(first == other);
+        Assert.False(first == null);
+        Assert.Equal(second.GetHashCode(), first.GetHashCode());
     }
 
-    [Test]
+    [Fact]
     public void ItemInfoBridgeHonorsIndexMismatch()
     {
         var item = new object();
@@ -44,11 +43,11 @@ public sealed class DataGridCellInfoTests
         var indexed = new ItemInfo(item, container: null, index: 2);
         var otherIndex = new ItemInfo(item, container: null, index: 5);
 
-        Assert.That(unindexed == indexed, Is.True);
-        Assert.That(indexed == otherIndex, Is.False);
+        Assert.True(unindexed == indexed);
+        Assert.False(indexed == otherIndex);
     }
 
-    [Test]
+    [Fact]
     public void ItemInfoBridgeClonesState()
     {
         var item = new object();
@@ -56,13 +55,13 @@ public sealed class DataGridCellInfoTests
 
         var clone = info.Clone();
 
-        Assert.That(clone, Is.Not.SameAs(info));
-        Assert.That(clone.Item, Is.SameAs(item));
-        Assert.That(clone.Index, Is.EqualTo(3));
-        Assert.That(clone == info, Is.True);
+        Assert.NotSame(info, clone);
+        Assert.Same(item, clone.Item);
+        Assert.Equal(3, clone.Index);
+        Assert.True(clone == info);
     }
 
-    [Test]
+    [Fact]
     public void NewItemEventArgsRoundTrip()
     {
         var adding = new AddingNewItemEventArgs();
@@ -71,16 +70,16 @@ public sealed class DataGridCellInfoTests
 
         var initializing = new InitializingNewItemEventArgs(newItem);
 
-        Assert.That(adding.NewItem, Is.SameAs(newItem));
-        Assert.That(initializing.NewItem, Is.SameAs(newItem));
+        Assert.Same(newItem, adding.NewItem);
+        Assert.Same(newItem, initializing.NewItem);
     }
 
-    [Test]
+    [Fact]
     public void InitializingNewItemHandlerDelegateIsAvailable()
     {
         var invoke = typeof(InitializingNewItemEventHandler).GetMethod("Invoke");
 
-        Assert.That(invoke, Is.Not.Null);
-        Assert.That(invoke!.GetParameters()[1].ParameterType, Is.EqualTo(typeof(InitializingNewItemEventArgs)));
+        Assert.NotNull(invoke);
+        Assert.Equal(typeof(InitializingNewItemEventArgs), invoke!.GetParameters()[1].ParameterType);
     }
 }

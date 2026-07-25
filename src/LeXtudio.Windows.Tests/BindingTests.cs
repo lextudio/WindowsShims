@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.UI.Xaml.Data;
-using NUnit.Framework;
+using Xunit;
 using WpfBinding = System.Windows.Data.Binding;
 using WpfBindingMode = System.Windows.Data.BindingMode;
 using WpfIValueConverter = System.Windows.Data.IValueConverter;
@@ -8,10 +8,9 @@ using WpfUpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class BindingTests
 {
-    [Test]
+    [Fact]
     public void WpfBindingStoresWpfShapedState()
     {
         var source = new object();
@@ -26,17 +25,17 @@ public sealed class BindingTests
             TargetNullValue = "null",
         };
 
-        Assert.That(binding.Path?.Path, Is.EqualTo("Name"));
-        Assert.That(binding.Source, Is.SameAs(source));
-        Assert.That(binding.ElementName, Is.EqualTo("Owner"));
-        Assert.That(System.Windows.Data.Binding.ToWinUIMode(binding.Mode), Is.EqualTo(BindingMode.TwoWay));
-        Assert.That(System.Windows.Data.Binding.ToWinUIUpdateSourceTrigger(binding.UpdateSourceTrigger), Is.EqualTo(UpdateSourceTrigger.PropertyChanged));
-        Assert.That(binding.ConverterParameter, Is.EqualTo("prefix"));
-        Assert.That(binding.FallbackValue, Is.EqualTo("fallback"));
-        Assert.That(binding.TargetNullValue, Is.EqualTo("null"));
+        Assert.Equal("Name", binding.Path?.Path);
+        Assert.Same(source, binding.Source);
+        Assert.Equal("Owner", binding.ElementName);
+        Assert.Equal(BindingMode.TwoWay, System.Windows.Data.Binding.ToWinUIMode(binding.Mode));
+        Assert.Equal(UpdateSourceTrigger.PropertyChanged, System.Windows.Data.Binding.ToWinUIUpdateSourceTrigger(binding.UpdateSourceTrigger));
+        Assert.Equal("prefix", binding.ConverterParameter);
+        Assert.Equal("fallback", binding.FallbackValue);
+        Assert.Equal("null", binding.TargetNullValue);
     }
 
-    [Test]
+    [Fact]
     public void WpfConverterIsAdaptedToWinUIConverter()
     {
         var binding = new WpfBinding("Name")
@@ -48,10 +47,8 @@ public sealed class BindingTests
 
         var converter = binding.CreateWinUIConverter();
 
-        Assert.That(converter, Is.Not.Null);
-        Assert.That(
-            converter!.Convert("text", typeof(string), binding.ConverterParameter, "en-US"),
-            Is.EqualTo("fr-CA:value:text"));
+        Assert.NotNull(converter);
+        Assert.Equal("fr-CA:value:text", converter!.Convert("text", typeof(string), binding.ConverterParameter, "en-US"));
     }
 
     private sealed class PrefixConverter : WpfIValueConverter

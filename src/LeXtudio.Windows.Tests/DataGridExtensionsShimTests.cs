@@ -1,46 +1,45 @@
 using DataGridExtensions;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridExtensionsShimTests
 {
-    [Test]
+    [Fact]
     public void RegexContentFilterFactoryFiltersText()
     {
         var filter = new RegexContentFilterFactory().Create("^abc\\d+$");
 
-        Assert.That(filter.IsMatch("abc123"), Is.True);
-        Assert.That(filter.IsMatch("ABC9"), Is.True);
-        Assert.That(filter.IsMatch("abc"), Is.False);
+        Assert.True(filter.IsMatch("abc123"));
+        Assert.True(filter.IsMatch("ABC9"));
+        Assert.False(filter.IsMatch("abc"));
     }
 
-    [Test]
+    [Fact]
     public void HexContentFilterMatchesFormattedValue()
     {
         var filter = new HexContentFilter("00ff");
 
-        Assert.That(filter.IsMatch(0x0000FF10), Is.True);
-        Assert.That(filter.IsMatch(0x0000EF10), Is.False);
+        Assert.True(filter.IsMatch(0x0000FF10));
+        Assert.False(filter.IsMatch(0x0000EF10));
     }
 
-    [Test]
+    [Fact]
     public void MaskContentFilterMatchesAnySelectedFlag()
     {
         var readOrWrite = new MaskContentFilter(0x0003);
 
-        Assert.That(readOrWrite.IsMatch(0x0001), Is.True);
-        Assert.That(readOrWrite.IsMatch(0x0002), Is.True);
-        Assert.That(readOrWrite.IsMatch(0x0004), Is.False);
+        Assert.True(readOrWrite.IsMatch(0x0001));
+        Assert.True(readOrWrite.IsMatch(0x0002));
+        Assert.False(readOrWrite.IsMatch(0x0004));
     }
 
-    [Test]
+    [Fact]
     public void SubstringContentFilterMatchesTextCaseInsensitively()
     {
         var filter = new SubstringContentFilter("system");
 
-        Assert.That(filter.IsMatch("System.String"), Is.True);
-        Assert.That(filter.IsMatch("Microsoft.CSharp"), Is.False);
+        Assert.True(filter.IsMatch("System.String"));
+        Assert.False(filter.IsMatch("Microsoft.CSharp"));
     }
 }

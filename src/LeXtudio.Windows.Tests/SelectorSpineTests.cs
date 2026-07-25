@@ -3,68 +3,67 @@ using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using NUnit.Framework;
+using Xunit;
 using WpfItemsControl = System.Windows.Controls.ItemsControl;
 using WpfRoutedEvent = System.Windows.RoutedEvent;
 using WpfSelectionChangedEventArgs = System.Windows.Controls.SelectionChangedEventArgs;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class SelectorSpineTests
 {
-    [Test]
+    [Fact]
     public void SelectorIsLinkedOverShimItemsControl()
     {
-        Assert.That(typeof(Selector).IsAbstract, Is.True);
-        Assert.That(typeof(Selector).IsSubclassOf(typeof(WpfItemsControl)), Is.True);
+        Assert.True(typeof(Selector).IsAbstract);
+        Assert.True(typeof(Selector).IsSubclassOf(typeof(WpfItemsControl)));
 
-        Assert.That(typeof(Selector).GetProperty(nameof(Selector.SelectedIndex)), Is.Not.Null);
-        Assert.That(typeof(Selector).GetProperty(nameof(Selector.SelectedItem)), Is.Not.Null);
-        Assert.That(typeof(Selector).GetProperty(nameof(Selector.SelectedValue)), Is.Not.Null);
-        Assert.That(typeof(Selector).GetProperty(nameof(Selector.SelectedValuePath)), Is.Not.Null);
+        Assert.NotNull(typeof(Selector).GetProperty(nameof(Selector.SelectedIndex)));
+        Assert.NotNull(typeof(Selector).GetProperty(nameof(Selector.SelectedItem)));
+        Assert.NotNull(typeof(Selector).GetProperty(nameof(Selector.SelectedValue)));
+        Assert.NotNull(typeof(Selector).GetProperty(nameof(Selector.SelectedValuePath)));
 
         var onSelectionChanged = typeof(Selector).GetMethod(
             "OnSelectionChanged",
             BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.That(onSelectionChanged, Is.Not.Null);
-        Assert.That(onSelectionChanged!.IsVirtual, Is.True);
+        Assert.NotNull(onSelectionChanged);
+        Assert.True(onSelectionChanged!.IsVirtual);
     }
 
-    [Test]
+    [Fact]
     public void MultiSelectorIsLinkedOverSelector()
     {
-        Assert.That(typeof(MultiSelector).IsAbstract, Is.True);
-        Assert.That(typeof(MultiSelector).IsSubclassOf(typeof(Selector)), Is.True);
-        Assert.That(typeof(MultiSelector).GetProperty(nameof(MultiSelector.SelectedItems))?.PropertyType, Is.EqualTo(typeof(IList)));
-        Assert.That(typeof(MultiSelector).GetMethod(nameof(MultiSelector.SelectAll)), Is.Not.Null);
-        Assert.That(typeof(MultiSelector).GetMethod(nameof(MultiSelector.UnselectAll)), Is.Not.Null);
+        Assert.True(typeof(MultiSelector).IsAbstract);
+        Assert.True(typeof(MultiSelector).IsSubclassOf(typeof(Selector)));
+        Assert.Equal(typeof(IList), typeof(MultiSelector).GetProperty(nameof(MultiSelector.SelectedItems))?.PropertyType);
+        Assert.NotNull(typeof(MultiSelector).GetMethod(nameof(MultiSelector.SelectAll)));
+        Assert.NotNull(typeof(MultiSelector).GetMethod(nameof(MultiSelector.UnselectAll)));
     }
 
-    [Test]
+    [Fact]
     public void SelectedItemCollectionIsLinked()
     {
         var type = typeof(Selector).Assembly.GetType("System.Windows.Controls.SelectedItemCollection");
 
-        Assert.That(type, Is.Not.Null);
-        Assert.That(type!.IsSubclassOf(typeof(ObservableCollection<object>)), Is.True);
+        Assert.NotNull(type);
+        Assert.True(type!.IsSubclassOf(typeof(ObservableCollection<object>)));
     }
 
-    [Test]
+    [Fact]
     public void DataGridShellDerivesFromMultiSelector()
     {
-        Assert.That(typeof(DataGrid).IsSubclassOf(typeof(MultiSelector)), Is.True);
+        Assert.True(typeof(DataGrid).IsSubclassOf(typeof(MultiSelector)));
 
         // Items and the item-info helpers now come from the spine.
         var items = typeof(WpfItemsControl).GetProperty(
             nameof(DataGrid.Items),
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-        Assert.That(items, Is.Not.Null);
-        Assert.That(items!.DeclaringType, Is.EqualTo(typeof(WpfItemsControl)));
+        Assert.NotNull(items);
+        Assert.Equal(typeof(WpfItemsControl), items!.DeclaringType);
     }
 
-    [Test]
+    [Fact]
     public void SelectionChangedEventArgsRoundTripsItems()
     {
         var removed = new object[] { new() };
@@ -72,8 +71,8 @@ public sealed class SelectorSpineTests
 
         var args = new WpfSelectionChangedEventArgs(new WpfRoutedEvent(), removed, added);
 
-        Assert.That(args.RemovedItems, Is.EqualTo(removed));
-        Assert.That(args.AddedItems, Is.EqualTo(added));
-        Assert.That(args.Handled, Is.False);
+        Assert.Equal(removed, args.RemovedItems);
+        Assert.Equal(added, args.AddedItems);
+        Assert.False(args.Handled);
     }
 }

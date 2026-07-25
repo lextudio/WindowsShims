@@ -3,70 +3,61 @@ using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Data;
 using Microsoft.UI.Xaml;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridComboBoxColumnTests
 {
-    [Test]
+    [Fact]
     public void ComboBoxColumnDerivesFromDataGridColumn()
     {
-        Assert.That(typeof(DataGridComboBoxColumn).IsSubclassOf(typeof(DataGridColumn)), Is.True);
-        Assert.That(typeof(DataGridComboBoxColumn).IsSubclassOf(typeof(DataGridBoundColumn)), Is.False);
+        Assert.True(typeof(DataGridComboBoxColumn).IsSubclassOf(typeof(DataGridColumn)));
+        Assert.False(typeof(DataGridComboBoxColumn).IsSubclassOf(typeof(DataGridBoundColumn)));
     }
 
-    [Test]
+    [Fact]
     public void ComboBoxColumnProvidesBindingSurface()
     {
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedItemBinding))?.PropertyType, Is.EqualTo(typeof(BindingBase)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValueBinding))?.PropertyType, Is.EqualTo(typeof(BindingBase)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.TextBinding))?.PropertyType, Is.EqualTo(typeof(BindingBase)));
+        Assert.Equal(typeof(BindingBase), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedItemBinding))?.PropertyType);
+        Assert.Equal(typeof(BindingBase), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValueBinding))?.PropertyType);
+        Assert.Equal(typeof(BindingBase), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.TextBinding))?.PropertyType);
 
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedItemBinding))!.GetMethod!.IsVirtual, Is.True);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValueBinding))!.GetMethod!.IsVirtual, Is.True);
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.TextBinding))!.GetMethod!.IsVirtual, Is.True);
+        Assert.True(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedItemBinding))!.GetMethod!.IsVirtual);
+        Assert.True(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValueBinding))!.GetMethod!.IsVirtual);
+        Assert.True(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.TextBinding))!.GetMethod!.IsVirtual);
     }
 
-    [Test]
+    [Fact]
     public void ComboBoxColumnProvidesItemsSourceSurface()
     {
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.ItemsSource))?.PropertyType, Is.EqualTo(typeof(IEnumerable)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DisplayMemberPath))?.PropertyType, Is.EqualTo(typeof(string)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValuePath))?.PropertyType, Is.EqualTo(typeof(string)));
+        Assert.Equal(typeof(IEnumerable), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.ItemsSource))?.PropertyType);
+        Assert.Equal(typeof(string), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DisplayMemberPath))?.PropertyType);
+        Assert.Equal(typeof(string), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.SelectedValuePath))?.PropertyType);
 
-        Assert.That(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.ItemsSourceProperty), BindingFlags.Public | BindingFlags.Static), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.DisplayMemberPathProperty), BindingFlags.Public | BindingFlags.Static), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.SelectedValuePathProperty), BindingFlags.Public | BindingFlags.Static), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.ItemsSourceProperty), BindingFlags.Public | BindingFlags.Static));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.DisplayMemberPathProperty), BindingFlags.Public | BindingFlags.Static));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.SelectedValuePathProperty), BindingFlags.Public | BindingFlags.Static));
     }
 
-    [Test]
+    [Fact]
     public void ComboBoxColumnProvidesStyleSurface()
     {
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.ElementStyle))?.PropertyType, Is.EqualTo(typeof(Style)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.EditingElementStyle))?.PropertyType, Is.EqualTo(typeof(Style)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DefaultElementStyle))?.PropertyType, Is.EqualTo(typeof(Style)));
-        Assert.That(typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DefaultEditingElementStyle))?.PropertyType, Is.EqualTo(typeof(Style)));
+        Assert.Equal(typeof(Style), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.ElementStyle))?.PropertyType);
+        Assert.Equal(typeof(Style), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.EditingElementStyle))?.PropertyType);
+        Assert.Equal(typeof(Style), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DefaultElementStyle))?.PropertyType);
+        Assert.Equal(typeof(Style), typeof(DataGridComboBoxColumn).GetProperty(nameof(DataGridComboBoxColumn.DefaultEditingElementStyle))?.PropertyType);
 
-        Assert.That(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.ElementStyleProperty), BindingFlags.Public | BindingFlags.Static), Is.Not.Null);
-        Assert.That(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.EditingElementStyleProperty), BindingFlags.Public | BindingFlags.Static), Is.Not.Null);
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.ElementStyleProperty), BindingFlags.Public | BindingFlags.Static));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetField(nameof(DataGridComboBoxColumn.EditingElementStyleProperty), BindingFlags.Public | BindingFlags.Static));
     }
 
-    [Test]
+    [Fact]
     public void ComboBoxColumnProvidesGenerationAndEditSurface()
     {
-        Assert.That(
-            typeof(DataGridComboBoxColumn).GetMethod("GenerateElement", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
-        Assert.That(
-            typeof(DataGridComboBoxColumn).GetMethod("GenerateEditingElement", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
-        Assert.That(
-            typeof(DataGridComboBoxColumn).GetMethod("PrepareCellForEdit", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
-        Assert.That(
-            typeof(DataGridComboBoxColumn).GetMethod("RefreshCellContent", BindingFlags.Instance | BindingFlags.NonPublic),
-            Is.Not.Null);
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetMethod("GenerateElement", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetMethod("GenerateEditingElement", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetMethod("PrepareCellForEdit", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGridComboBoxColumn).GetMethod("RefreshCellContent", BindingFlags.Instance | BindingFlags.NonPublic));
     }
 }

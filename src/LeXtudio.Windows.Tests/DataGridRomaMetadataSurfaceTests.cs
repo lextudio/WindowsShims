@@ -2,27 +2,26 @@ using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using DataGridExtensions;
-using NUnit.Framework;
+using Xunit;
 
 namespace LeXtudio.Windows.Tests;
 
-[TestFixture]
 public sealed class DataGridRomaMetadataSurfaceTests
 {
-    [Test]
+    [Fact]
     public void ShimDataTemplateCarriesFactoryForRowDetails()
     {
-        Assert.That(typeof(ShimDataTemplate).IsSubclassOf(typeof(Microsoft.UI.Xaml.DataTemplate)), Is.True);
+        Assert.True(typeof(ShimDataTemplate).IsSubclassOf(typeof(Microsoft.UI.Xaml.DataTemplate)));
 
         var factory = typeof(ShimDataTemplate).GetProperty(nameof(ShimDataTemplate.Factory));
-        Assert.That(factory, Is.Not.Null);
-        Assert.That(factory!.PropertyType, Is.EqualTo(typeof(Func<object?, Microsoft.UI.Xaml.FrameworkElement?>)));
+        Assert.NotNull(factory);
+        Assert.Equal(typeof(Func<object?, Microsoft.UI.Xaml.FrameworkElement?>), factory!.PropertyType);
 
         var ctor = typeof(ShimDataTemplate).GetConstructor([typeof(Func<object?, Microsoft.UI.Xaml.FrameworkElement?>)]);
-        Assert.That(ctor, Is.Not.Null);
+        Assert.NotNull(ctor);
     }
 
-    [Test]
+    [Fact]
     public void DetailsPresenterHasShimFactoryHandoff()
     {
         var bridge = typeof(DataGridDetailsPresenter).GetProperty(
@@ -39,28 +38,28 @@ public sealed class DataGridRomaMetadataSurfaceTests
             BindingFlags.Instance | BindingFlags.NonPublic,
             [typeof(DataGridRow)]);
 
-        Assert.That(bridge, Is.Not.Null);
-        Assert.That(bridge!.PropertyType, Is.EqualTo(typeof(IWpfTemplateBridge)));
-        Assert.That(factory, Is.Not.Null);
-        Assert.That(factory!.PropertyType, Is.EqualTo(typeof(Func<object?, Microsoft.UI.Xaml.FrameworkElement?>)));
-        Assert.That(effectiveRow, Is.Not.Null);
-        Assert.That(effectiveRow!.PropertyType, Is.EqualTo(typeof(DataGridRow)));
-        Assert.That(setOwner, Is.Not.Null);
+        Assert.NotNull(bridge);
+        Assert.Equal(typeof(IWpfTemplateBridge), bridge!.PropertyType);
+        Assert.NotNull(factory);
+        Assert.Equal(typeof(Func<object?, Microsoft.UI.Xaml.FrameworkElement?>), factory!.PropertyType);
+        Assert.NotNull(effectiveRow);
+        Assert.Equal(typeof(DataGridRow), effectiveRow!.PropertyType);
+        Assert.NotNull(setOwner);
     }
 
-    [Test]
+    [Fact]
     public void DataGridHelperTransfersDetailsTemplateSelector()
     {
         var transfer = typeof(DataGrid).Assembly
             .GetType("System.Windows.Controls.DataGridHelper")!
             .GetMethod("TransferProperty", BindingFlags.Static | BindingFlags.NonPublic);
 
-        Assert.That(transfer, Is.Not.Null);
-        Assert.That(typeof(DataGrid).GetProperty(nameof(DataGrid.RowDetailsTemplateSelector)), Is.Not.Null);
-        Assert.That(typeof(DataGridRow).GetProperty("DetailsTemplateSelector", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public), Is.Not.Null);
+        Assert.NotNull(transfer);
+        Assert.NotNull(typeof(DataGrid).GetProperty(nameof(DataGrid.RowDetailsTemplateSelector)));
+        Assert.NotNull(typeof(DataGridRow).GetProperty("DetailsTemplateSelector", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public));
     }
 
-    [Test]
+    [Fact]
     public void RowDetailsCanBeBuiltFromTemplateSelectorOnly()
     {
         var buildRowDetails = typeof(DataGridRow).GetMethod(
@@ -70,16 +69,12 @@ public sealed class DataGridRomaMetadataSurfaceTests
             "ComputeDetailsVisibility",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
-        Assert.That(buildRowDetails, Is.Not.Null);
-        Assert.That(computeVisibility, Is.Not.Null);
-        Assert.That(
-            typeof(DataGridRow).GetProperty(
-                "DetailsPresenter",
-                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public),
-            Is.Not.Null);
+        Assert.NotNull(buildRowDetails);
+        Assert.NotNull(computeVisibility);
+        Assert.NotNull(typeof(DataGridRow).GetProperty( "DetailsPresenter", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public));
     }
 
-    [Test]
+    [Fact]
     public void DataGridCellStyleApplicationSurfaceExists()
     {
         var applyStyle = typeof(DataGridCell).GetMethod(
@@ -89,23 +84,23 @@ public sealed class DataGridRomaMetadataSurfaceTests
             "ShimAppliedCellStyle",
             BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
-        Assert.That(applyStyle, Is.Not.Null);
-        Assert.That(appliedStyle, Is.Not.Null);
+        Assert.NotNull(applyStyle);
+        Assert.NotNull(appliedStyle);
     }
 
-    [Test]
+    [Fact]
     public void FilterStatePreservesTextSeparatelyFromFilterObject()
     {
         var stateType = typeof(DataGridFilter).GetNestedType("State", BindingFlags.NonPublic);
-        Assert.That(stateType, Is.Not.Null);
+        Assert.NotNull(stateType);
 
         var columnFilters = stateType!.GetField("ColumnFilters", BindingFlags.Instance | BindingFlags.NonPublic);
         var columnFilterText = stateType.GetField("ColumnFilterText", BindingFlags.Instance | BindingFlags.NonPublic);
         var contentFactory = stateType.GetField("ContentFilterFactory", BindingFlags.Instance | BindingFlags.Public);
 
-        Assert.That(columnFilters, Is.Not.Null);
-        Assert.That(columnFilterText, Is.Not.Null);
-        Assert.That(contentFactory, Is.Not.Null);
-        Assert.That(contentFactory!.FieldType, Is.EqualTo(typeof(IContentFilterFactory)));
+        Assert.NotNull(columnFilters);
+        Assert.NotNull(columnFilterText);
+        Assert.NotNull(contentFactory);
+        Assert.Equal(typeof(IContentFilterFactory), contentFactory!.FieldType);
     }
 }
