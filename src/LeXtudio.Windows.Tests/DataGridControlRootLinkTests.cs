@@ -216,7 +216,7 @@ public sealed class DataGridControlRootLinkTests
         // select). The interactive + visual behavior is verified by the
         // sample probe; here we pin the entry point and the IsSelected setter.
         Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimRowClicked", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataGridRow)]));
-        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.NotNull(typeof(DataGrid).GetMethod("HandleShimCellClicked", BindingFlags.Instance | BindingFlags.NonPublic, [typeof(DataGridCell)]));
 
         var isSelected = typeof(DataGridRow).GetProperty(nameof(DataGridRow.IsSelected));
         Assert.NotNull(isSelected);
