@@ -34,4 +34,8 @@ jobs:
         if: runner.os != 'Windows'
         run: dotnet build -c Release ${{ matrix.solution }}
       - name: Run unit tests
-        run: dotnet test --solution ${{ matrix.solution }} --no-build -c Release --verbosity minimal -- --parallel none
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -- --parallel none
+      - name: Run RichTextBox integration tests
+        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -- --parallel none
+      - name: Run DataGrid integration tests
+        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -- --parallel none
