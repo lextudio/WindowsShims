@@ -12,6 +12,12 @@ namespace System.Windows.Markup;
 
 public static class XamlReader
 {
+    static string StripQualifier(string name)
+    {
+        var dot = name.IndexOf('.');
+        return dot >= 0 ? name[(dot + 1)..] : name;
+    }
+
     public static object? Load(XmlReader reader) => Parse(reader);
 
     public static object? Load(XmlReader reader, bool useRestrictiveXamlXmlReader) => Parse(reader);
@@ -220,16 +226,21 @@ public static class XamlReader
         string? text = null;
         while (reader.MoveToNextAttribute())
         {
-            switch (reader.LocalName)
+            var attrName = StripQualifier(reader.LocalName);
+            switch (attrName)
             {
                 case "Text": text = reader.Value; break;
                 case "FontWeight":
                     if (reader.Value.Equals("Bold", StringComparison.OrdinalIgnoreCase))
                         run.FontWeight = FontWeights.Bold;
+                    else if (ushort.TryParse(reader.Value, out var w))
+                        run.FontWeight = new FontWeight { Weight = w };
                     break;
                 case "FontStyle":
                     if (reader.Value.Equals("Italic", StringComparison.OrdinalIgnoreCase))
                         run.FontStyle = FontStyles.Italic;
+                    else if (reader.Value.Equals("Oblique", StringComparison.OrdinalIgnoreCase))
+                        run.FontStyle = FontStyles.Oblique;
                     break;
                 case "FontSize":
                     if (double.TryParse(reader.Value, out var fs) && fs > 0)
@@ -244,8 +255,10 @@ public static class XamlReader
                         run.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bg);
                     break;
                 case "TextDecorations":
-                    // TextDecoration/TextDecorationCollection are PresentationCore types
-                    // not compiled in this project; skip attribute parsing.
+                    if (reader.Value.Equals("Underline", StringComparison.OrdinalIgnoreCase))
+                        run.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Underline);
+                    else if (reader.Value.Equals("Strikethrough", StringComparison.OrdinalIgnoreCase))
+                        run.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Strikethrough);
                     break;
             }
         }

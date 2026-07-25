@@ -200,11 +200,11 @@ for the duration of the composition).
 
 ### Top 3 remaining consumer-facing gaps
 
-1. **XAML formatting serialization** — Formatting properties (FontWeight,
-   FontStyle, TextDecorations) are not serialized to XAML because `GetValue`
-   on `TextPointer` contexts doesn't return locally-set values through Uno's
-   DP system. Fixing this would enable formatted clipboard copy/paste between
-   RichTextBox instances and document persistence with formatting.
+1. ~~XAML formatting serialization~~ — **Fixed in session 78**. FontWeight,
+   FontStyle, FontStretch, FontSize, Foreground, Background, and
+   TextDecorations are now serialized to XAML attributes and properly
+   deserialized on load. Both named and numeric formats are supported
+   (e.g., `FontWeight="700"` or `FontWeight="Bold"`).
 2. **TableCell collection population** — `TableCell`/`TableRow`/`TableRowGroup`
    `OnNewParent` is never invoked, so these collections rely on direct
    `Add` calls. If a consumer uses `LogicalTreeHelper` or `Parent`-walking

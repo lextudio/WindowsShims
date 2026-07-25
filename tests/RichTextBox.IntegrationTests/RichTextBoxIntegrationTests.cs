@@ -1369,6 +1369,106 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsBoldFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "bold text");
+        var boldState = await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        var boldRaw = boldState.ToString();
+        Assert.Equal("700", FirstRunFontWeight(boldState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("bold text", Text(state));
+        Assert.Equal("700", FirstRunFontWeight(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsItalicFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "italic text");
+        var italicState = await _app.InvokeAsync("richtextbox.probe.toggle-italic-selection-command");
+        Assert.Equal("Italic", FirstRunFontStyle(italicState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("italic text", Text(state));
+        Assert.Equal("Italic", FirstRunFontStyle(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsUnderlineFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "underline text");
+        var ulState = await _app.InvokeAsync("richtextbox.probe.toggle-underline-selection-command");
+        Assert.True(FirstRunHasUnderline(ulState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("underline text", Text(state));
+        Assert.True(FirstRunHasUnderline(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsFontSizeFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "size text");
+        var sizeState = await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 24);
+        Assert.Equal("24", FirstRunFontSize(sizeState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("size text", Text(state));
+        Assert.Equal("24", FirstRunFontSize(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsForegroundFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "color text");
+        var fgState = await _app.InvokeAsync("richtextbox.probe.apply-foreground-selection-command");
+        Assert.Equal("#FF90EE90", FirstRunForeground(fgState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("color text", Text(state));
+        Assert.Equal("#FF90EE90", FirstRunForeground(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsMixedFormatting()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "mixed");
+        await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        var boldState = await _app.InvokeAsync("richtextbox.probe.apply-font-size-selection-command", 20);
+        Assert.Equal("700", FirstRunFontWeight(boldState));
+        Assert.Equal("20", FirstRunFontSize(boldState));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("mixed", Text(state));
+        Assert.Equal("700", FirstRunFontWeight(state));
+        Assert.Equal("20", FirstRunFontSize(state));
+    }
+
+    [Fact]
     public async Task FlowDocument_PageCount_ReflectsContentHeight()
     {
         // Short document: 1 page

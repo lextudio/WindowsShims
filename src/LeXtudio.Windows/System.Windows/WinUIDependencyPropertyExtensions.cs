@@ -24,10 +24,24 @@ public sealed class DependencyPropertyKey
 public static class WinUIDependencyPropertyExtensions
 {
     private static readonly ConcurrentDictionary<Microsoft.UI.Xaml.DependencyProperty, Type> PropertyTypes = new();
+    private static readonly ConcurrentDictionary<Microsoft.UI.Xaml.DependencyProperty, Type> OwnerTypes = new();
+    private static readonly ConcurrentDictionary<Microsoft.UI.Xaml.DependencyProperty, string> PropertyNames = new();
 
     private static Microsoft.UI.Xaml.DependencyProperty TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty property, Type propertyType)
     {
         PropertyTypes[property] = propertyType;
+        return property;
+    }
+
+    private static Microsoft.UI.Xaml.DependencyProperty TrackOwner(Microsoft.UI.Xaml.DependencyProperty property, Type ownerType)
+    {
+        OwnerTypes[property] = ownerType;
+        return property;
+    }
+
+    private static Microsoft.UI.Xaml.DependencyProperty TrackName(Microsoft.UI.Xaml.DependencyProperty property, string name)
+    {
+        PropertyNames[property] = name;
         return property;
     }
 
@@ -41,49 +55,60 @@ public static class WinUIDependencyPropertyExtensions
 
         public static Microsoft.UI.Xaml.DependencyProperty Register(
             string name, System.Type propertyType, System.Type ownerType)
-            => TrackPropertyType(
+            => TrackName(TrackOwner(TrackPropertyType(
                 Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null)),
-                propertyType);
+                propertyType), ownerType), name);
 
         public static Microsoft.UI.Xaml.DependencyProperty Register(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
-            => TrackPropertyType(
+            => TrackName(TrackOwner(TrackPropertyType(
                 Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata),
-                propertyType);
+                propertyType), ownerType), name);
 
         public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
             string name, System.Type propertyType, System.Type ownerType)
-            => TrackPropertyType(
+            => TrackName(TrackOwner(TrackPropertyType(
                 Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, new Microsoft.UI.Xaml.PropertyMetadata(null)),
-                propertyType);
+                propertyType), ownerType), name);
 
         public static Microsoft.UI.Xaml.DependencyProperty RegisterAttached(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
-            => TrackPropertyType(
+            => TrackName(TrackOwner(TrackPropertyType(
                 Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata),
-                propertyType);
+                propertyType), ownerType), name);
 
         public static DependencyPropertyKey RegisterReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             Microsoft.UI.Xaml.PropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType));
+            => new DependencyPropertyKey(TrackOwner(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType), ownerType));
 
         public static DependencyPropertyKey RegisterReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType));
+            => new DependencyPropertyKey(TrackOwner(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.Register(name, propertyType, ownerType, typeMetadata), propertyType), ownerType));
 
         public static DependencyPropertyKey RegisterAttachedReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             Microsoft.UI.Xaml.PropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType));
+            => new DependencyPropertyKey(TrackOwner(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType), ownerType));
 
         public static DependencyPropertyKey RegisterAttachedReadOnly(
             string name, System.Type propertyType, System.Type ownerType,
             FrameworkPropertyMetadata typeMetadata)
-            => new DependencyPropertyKey(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType));
+            => new DependencyPropertyKey(TrackOwner(TrackPropertyType(Microsoft.UI.Xaml.DependencyProperty.RegisterAttached(name, propertyType, ownerType, typeMetadata), propertyType), ownerType));
+    }
+
+    private static readonly System.Reflection.FieldInfo? _dpNameField =
+        typeof(Microsoft.UI.Xaml.DependencyProperty).GetField("_name",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+    private static string GetDependencyPropertyName(Microsoft.UI.Xaml.DependencyProperty dp)
+    {
+        if (PropertyNames.TryGetValue(dp, out var tracked)) return tracked;
+        if (_dpNameField != null && _dpNameField.GetValue(dp) is string name) return name;
+        return dp.ToString();
     }
 
     // GlobalIndex: WPF assigns each DP a unique int. Shim returns a hash of the property name.
@@ -91,7 +116,7 @@ public static class WinUIDependencyPropertyExtensions
     {
         public int GlobalIndex => property.GetHashCode();
 
-        public string Name => property.ToString();
+        public string Name => GetDependencyPropertyName(property);
 
         public Type PropertyType => PropertyTypes.TryGetValue(property, out var propertyType) ? propertyType : typeof(object);
 
@@ -105,8 +130,8 @@ public static class WinUIDependencyPropertyExtensions
             => property.GetMetadata(typeof(object)) ?? new Microsoft.UI.Xaml.PropertyMetadata(null);
 
         // WPF OwnerType: the type that originally registered the property.
-        // Not tracked by WinUI; return null as shim (serialization-only path).
-        public Type? OwnerType => null;
+        // Tracked via OwnerTypes dictionary populated by Register/RegisterAttached shims.
+        public Type? OwnerType => OwnerTypes.TryGetValue(property, out var ownerType) ? ownerType : null;
 
         // WPF DependencyProperty.GetDefaultValue(Type) — returns the registered
         // default for that owner type. WinUI exposes PropertyMetadata.DefaultValue
