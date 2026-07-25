@@ -466,11 +466,61 @@ namespace MS.Internal.Florence
                     case System.Windows.Documents.List list:
                         FormatList(list, availWidth, ref y, ref globalOffset, page);
                         break;
+                    case System.Windows.Documents.BlockUIContainer:
+                        // Single-line placeholder for embedded UI elements
+                        double lineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
+                        var run = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, Windows.UI.Text.TextDecorations.None, null);
+                        page.AddLine(new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { run }));
+                        y += lineH;
+                        globalOffset += 1;
+                        break;
                 }
             }
 
             page.PageSize = new Windows.Foundation.Size(availWidth, Math.Max(y, constraint.Height));
             return page;
+        }
+
+        internal static List<FlorencePage> FormatPages(System.Windows.Documents.FlowDocument document, Windows.Foundation.Size constraint)
+        {
+            double availWidth = constraint.Width <= 0 ? 600 : constraint.Width;
+            double pageHeight = constraint.Height <= 0 ? 1000 : constraint.Height;
+            var pages = new List<FlorencePage>();
+
+            // Format with infinite height to get the full flow, then split into pages.
+            var full = Format(document, new Windows.Foundation.Size(availWidth, double.PositiveInfinity));
+            double y = 0;
+            var currentPageLines = new List<FlorenceLine>();
+
+            foreach (var line in full.Lines)
+            {
+                if (y + line.Height > pageHeight && currentPageLines.Count > 0)
+                {
+                    FlushPage();
+                }
+
+                currentPageLines.Add(line);
+                y += line.Height;
+            }
+
+            if (currentPageLines.Count > 0 || pages.Count == 0)
+                FlushPage();
+
+            if (pages.Count == 0)
+                pages.Add(new FlorencePage { PageSize = constraint });
+
+            return pages;
+
+            void FlushPage()
+            {
+                if (currentPageLines.Count == 0) return;
+                var page = new FlorencePage { PageSize = new Windows.Foundation.Size(availWidth, y) };
+                foreach (var l in currentPageLines)
+                    page.AddLine(l);
+                pages.Add(page);
+                currentPageLines.Clear();
+                y = 0;
+            }
         }
 
         private static void FormatTable(
@@ -716,6 +766,13 @@ namespace MS.Internal.Florence
                     result.Add(new SpanInfo("\n", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
                     localOffset++;
                 }
+                else if (inline is System.Windows.Documents.InlineUIContainer)
+                {
+                    // Placeholder: a single space character. The actual UIElement
+                    // is rendered by FlowDocumentView, not by the layout engine.
+                    result.Add(new SpanInfo("\u00a0", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
+                    localOffset++;
+                }
             }
             return result;
         }
@@ -946,6 +1003,7 @@ namespace MS.Internal.Documents
         : System.Windows.Documents.DocumentPaginator, IFlowDocumentFormatter
     {
         private readonly System.Windows.Documents.FlowDocument _owner;
+        private List<FlorencePage>? _pages;
 
         internal FlowDocumentPaginator(System.Windows.Documents.FlowDocument owner)
         {
@@ -953,11 +1011,37 @@ namespace MS.Internal.Documents
         }
 
         // ── DocumentPaginator ───────────────────────────────────────────
-        public override bool IsPageCountValid => false;
-        public override int  PageCount        => 0;
+        public override bool IsPageCountValid => _pages != null;
+
+        public override int PageCount
+        {
+            get
+            {
+                EnsurePages();
+                return _pages?.Count ?? 0;
+            }
+        }
+
         private Size _pageSize;
         public override Size PageSize { get => _pageSize; set => _pageSize = value; }
+
         public override System.Windows.Documents.IDocumentPaginatorSource Source => _owner;
+
+        public override System.Windows.Documents.DocumentPage GetPage(int pageNumber)
+        {
+            EnsurePages();
+            if (_pages == null || pageNumber < 0 || pageNumber >= _pages.Count)
+                return System.Windows.Documents.DocumentPage.Missing;
+            var fp = _pages[pageNumber];
+            return new System.Windows.Documents.DocumentPage(null, new Size((double)fp.PageSize.Width, (double)fp.PageSize.Height));
+        }
+
+        void EnsurePages()
+        {
+            if (_pages != null) return;
+            double pageHeight = _pageSize.Height > 0 ? _pageSize.Height : 1000;
+            _pages = FlorenceLayoutEngine.FormatPages(_owner, new Windows.Foundation.Size(_pageSize.Width > 0 ? _pageSize.Width : 600, pageHeight));
+        }
 
         // ── IFlowDocumentFormatter ──────────────────────────────────────
         public void Suspend() { }
@@ -967,9 +1051,9 @@ namespace MS.Internal.Documents
 
         public void OnContentInvalidated(bool affectsLayout, ITextPointer start, ITextPointer end)
         {
-            // TODO: schedule a full Florence pagination pass.
+            _pages = null;
         }
 
-        public bool IsLayoutDataValid => false;
+        public bool IsLayoutDataValid => _pages != null;
     }
 }

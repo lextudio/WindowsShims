@@ -297,9 +297,9 @@
                    Link="MS.Internal.Documents\UndoManager.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\PtsTable\RowSpanVector.cs"
              Link="MS.Internal.PtsTable\RowSpanVector.cs" />
-    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Markup\IAddChild.cs"
-             Link="System.Windows.Markup\IAddChild.cs" />
-    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LogicalDirection.cs"
+     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Markup\IAddChild.cs"
+              Link="System.Windows.Markup\IAddChild.cs" />
+     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\LogicalDirection.cs"
              Link="System.Windows.Documents\LogicalDirection.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\MoveSizeWinEventHandler.cs"
              Link="System.Windows.Documents\MoveSizeWinEventHandler.cs" />

@@ -573,6 +573,42 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.set-inlineui-document", Description = "Create a RichTextBox with an InlineUIContainer (Button) in a paragraph.")]
+    public static string ProbeSetInlineUiDocument() => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 240,
+            AcceptsReturn = true,
+            Document = RichTextBoxScenarios.BuildInlineUiContainerDocument(),
+        };
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.set-blockui-document", Description = "Create a RichTextBox with a BlockUIContainer (Button) between paragraphs.")]
+    public static string ProbeSetBlockUiDocument() => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 240,
+            AcceptsReturn = true,
+            Document = RichTextBoxScenarios.BuildBlockUiContainerDocument(),
+        };
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return Snapshot(page);
+    });
+
     static object RequireRenderScope(WpfRichTextBox box) =>
         GetInternalProperty(box, "RenderScope")
             ?? throw new InvalidOperationException("RichTextBox.RenderScope is not available.");
@@ -1945,6 +1981,44 @@ public sealed partial class MainPage : Page
         stream.Position = 0;
         range.Load(stream, System.Windows.DataFormats.Xaml);
         page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.get-page-count", Description = "Report the number of pages in the current document via FlowDocumentPaginator.")]
+    public static string ProbeGetPageCount() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+        var document = page._box.Document;
+        if (document is null)
+            return "{\"count\":0}";
+
+        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator;
+        paginator.PageSize = new Windows.Foundation.Size(640, 100);
+        return $"{{\"count\":{paginator.PageCount}}}";
+    });
+
+    [DevFlowAction("richtextbox.probe.create-large-document", Description = "Create a RichTextBox with N paragraphs of text in one shot.")]
+    public static string ProbeCreateLargeDocument(int paragraphCount) => RunOnUi(page =>
+    {
+        var box = new WpfRichTextBox
+        {
+            Width = 640,
+            Height = 480,
+            AcceptsReturn = true,
+        };
+        var doc = new System.Windows.Documents.FlowDocument();
+        for (int i = 0; i < paragraphCount; i++)
+        {
+            var para = new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run($"paragraph {i} with some text for testing"));
+            doc.Blocks.Add(para);
+        }
+        box.Document = doc;
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
         return Snapshot(page);
     });
 

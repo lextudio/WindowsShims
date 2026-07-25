@@ -229,3 +229,7 @@ Each session is tracked as a separate file:
 | 63 | [session63.md](session63.md) | Table Arrow-Key Navigation (completed) |
 | 64 | [session64.md](session64.md) | Text Search (Find/FindNext) (completed) |
 | 65 | [session65.md](session65.md) | Catalog Refresh and Consumer Gap Prioritization (completed) |
+| 66 | [session66.md](session66.md) | Flowing Document Pagination / Printing (planned) |
+| 67 | [session67.md](session67.md) | InlineUIContainer / BlockUIContainer Embedding (planned) |
+| 68 | [session68.md](session68.md) | Performance Stress Testing (planned) |
+| 69 | [session69.md](session69.md) | Consumer Gap Triage and Documentation (planned) |

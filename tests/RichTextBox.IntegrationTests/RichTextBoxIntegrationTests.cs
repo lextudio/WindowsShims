@@ -1369,6 +1369,71 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task FlowDocument_PageCount_ReflectsContentHeight()
+    {
+        // Short document: 1 page
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "hello");
+        var count = await _app.InvokeAsync("richtextbox.probe.get-page-count");
+        Assert.True(count.GetProperty("count").GetInt32() >= 1);
+
+        // Wide document: multiple pages with small page height
+        await _app.InvokeAsync("richtextbox.probe.create-plain",
+            "one two three four five six seven eight nine ten " +
+            "eleven twelve thirteen fourteen fifteen sixteen " +
+            "seventeen eighteen nineteen twenty");
+        var multiCount = await _app.InvokeAsync("richtextbox.probe.get-page-count");
+        Assert.True(multiCount.GetProperty("count").GetInt32() > 0);
+    }
+
+    [Fact]
+    public async Task InlineUIContainer_Button_RendersWithoutCrashing()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-inlineui-document");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("before", Text(state));
+        Assert.Contains("after", Text(state));
+    }
+
+    [Fact]
+    public async Task BlockUIContainer_Button_RendersWithoutCrashing()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-blockui-document");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("before block", Text(state));
+        Assert.Contains("after block", Text(state));
+    }
+
+    [Fact]
+    public async Task Stress_LargeDocument_CreateAndFormat()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.create-large-document", 500);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.True(BlockCount(state) >= 500, $"Expected >=500 blocks, got {BlockCount(state)}");
+    }
+
+    [Fact]
+    public async Task Stress_LargeDocument_UndoRedo()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.create-large-document", 100);
+        Assert.True(HasRichTextBox(state));
+
+        var undo = await _app.InvokeAsync("richtextbox.probe.undo");
+        Assert.True(HasRichTextBox(undo));
+
+        var redo = await _app.InvokeAsync("richtextbox.probe.redo");
+        Assert.True(HasRichTextBox(redo));
+    }
+
+    [Fact]
     public async Task UndoRedo_RestoresTextInputMutation()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");

@@ -112,4 +112,24 @@ public static class RichTextBoxScenarios
         document.Blocks.Add(para);
         return document;
     }
+
+    public static FlowDocument BuildInlineUiContainerDocument()
+    {
+        var document = new FlowDocument();
+        var para = new Paragraph();
+        para.Inlines.Add(new Run("before "));
+        para.Inlines.Add(new InlineUIContainer(new Microsoft.UI.Xaml.Controls.Button { Content = "click", Width = 80, Height = 24 }));
+        para.Inlines.Add(new Run(" after"));
+        document.Blocks.Add(para);
+        return document;
+    }
+
+    public static FlowDocument BuildBlockUiContainerDocument()
+    {
+        var document = new FlowDocument();
+        document.Blocks.Add(new Paragraph(new Run("before block")));
+        document.Blocks.Add(new BlockUIContainer(new Microsoft.UI.Xaml.Controls.Button { Content = "block btn", Width = 100, Height = 30 }));
+        document.Blocks.Add(new Paragraph(new Run("after block")));
+        return document;
+    }
 }
