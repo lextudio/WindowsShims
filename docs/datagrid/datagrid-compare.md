@@ -1,6 +1,6 @@
 # DataGrid comparison: WCT v7 / WinUI.TableView / CommunityToolkit DataTable / this project's WPF-ported DataGrid
 
-Four DataGrid-family implementations exist in the [Uno Platform](https://github.com/unoplatform/uno)/ [WinUI](https://github.com/microsoft/microsoft-ui-xaml) ecosystem.
+Four open source DataGrid-family implementations exist in the [WinUI](https://github.com/microsoft/microsoft-ui-xaml)/[Uno Platform](https://github.com/unoplatform/uno) ecosystem.
 This document compares all four: **WindowsCommunityToolkit v7's** `DataGrid`
 (`Microsoft.Toolkit.Uwp.UI.Controls.DataGrid`, removed from the toolkit in v8),
 **WinUI.TableView** (`WinUI.TableView.TableView`, a `ListView`-based grid from
@@ -17,6 +17,8 @@ v7's DataGrid was subsequently adapted from the Silverlight implementation for U
 WinUI.TableView and CommunityToolkit DataTable start from different foundations again.
 Understanding those historical and architectural differences explains the feature
 gaps below.
+
+> Commercial solutions are out of scope and not covered by this report.
 
 ## Sources
 
