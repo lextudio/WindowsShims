@@ -59,8 +59,18 @@ namespace System.Windows.Controls
         internal virtual void OnClickImpl(bool userInitiated) { }
     }
 
+    // A toolbar/menu group divider (classic WPF ToolBar look: a thin vertical rule with a little
+    // breathing room on each side). Must stay Control-derived: DataGridColumnDropSeparator (real
+    // vendored WPF source under ext/wpf) derives from this Separator and needs it to be a Control
+    // for its own DefaultStyleKeyProperty/Width/HeightProperty overrides - changing the base type
+    // breaks that unrelated feature. DefaultStyleKey + a real Style/ControlTemplate (Generic.xaml)
+    // is the same pattern ToggleButton uses.
     public class Separator : Control
     {
+        public Separator()
+        {
+            DefaultStyleKey = typeof(Separator);
+        }
     }
 
     public static class ContextMenuService

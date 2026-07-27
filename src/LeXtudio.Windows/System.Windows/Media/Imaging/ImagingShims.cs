@@ -45,6 +45,11 @@ namespace System.Windows.Media.Imaging
 			return new byte[PixelWidth * PixelHeight * 4];
 		}
 
+		public static BitmapSource Create(int pixelWidth, int pixelHeight, double dpiX, double dpiY, PixelFormat pixelFormat, BitmapPalette? palette, byte[] pixels, int stride)
+		{
+			return new BitmapSource { PixelWidth = pixelWidth, PixelHeight = pixelHeight, DpiX = dpiX, DpiY = dpiY, Format = pixelFormat };
+		}
+
 		public void CopyPixels(Array pixels, int stride, int offset)
 		{
 			var data = GetPixelData();
@@ -55,12 +60,6 @@ namespace System.Windows.Media.Imaging
 	public class BitmapPalette
 	{
 		public IList<Color> Colors { get; } = new List<Color>();
-	}
-
-	public static class BitmapFrame
-	{
-		public static BitmapSource Create(System.IO.Stream stream) => new BitmapSource();
-		public static BitmapSource Create(BitmapSource source) => source;
 	}
 
 	// Shim for WPF BitmapImage; used by TextRangeSerialization for image embedding in XAML packages.
@@ -200,22 +199,6 @@ namespace System.Windows.Media
 	}
 }
 
-namespace System.Windows.Media
-{
-	// PixelFormats provides well-known PixelFormat values.
-	public static class PixelFormats
-	{
-		public static PixelFormat Default => new(32, 24, 8);
-		public static PixelFormat Bgra32 => new(32, 24, 0, 8, 8, 8, 8);
-		public static PixelFormat Pbgra32 => new(32, 32, 8, 8, 8, 8, 8);
-	}
-
-	public readonly struct PixelFormat
-	{
-		public int BitsPerPixel { get; }
-		public PixelFormat(int bpp, params int[] channelDepths) => BitsPerPixel = bpp;
-	}
-}
 
 // ── PackagePart extension: GetSeekableStream ──────────────────────────────
 

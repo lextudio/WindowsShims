@@ -34,9 +34,28 @@ namespace Microsoft.Win32
         public bool? DialogResult { get; set; }
 
         // Synchronous WPF entry point. Blocks on the async picker; do not call on the UI thread.
-        public bool? ShowDialog() => ShowDialogAsync().GetAwaiter().GetResult();
+        //
+        // On macOS the picker must be shown from the UI thread's DispatcherQueue (AppKit
+        // requires NSPanel/NSWindow creation on the main thread) — see RunPickerAsync below.
+        // Calling ShowDialog() from that same thread would therefore deadlock: this call
+        // blocks the UI thread waiting for a picker completion that can only be delivered by
+        // that same UI thread pumping its queue. Fail fast instead of hanging silently.
+        [Obsolete("Use ShowDialogAsync() instead. ShowDialog() blocks the caller and throws on the UI thread.")]
+        public bool? ShowDialog()
+        {
+            if (Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread() is not null)
+            {
+                throw new InvalidOperationException(
+                    $"{GetType().Name}.ShowDialog() was called on the UI thread. This would deadlock " +
+                    "waiting for the native file picker, which itself needs the UI thread to pump. " +
+                    "Use 'await ShowDialogAsync()' instead.");
+            }
+
+            return ShowDialogAsync().GetAwaiter().GetResult();
+        }
 
         // WPF overload that takes an owner window.
+        [Obsolete("Use ShowDialogAsync() instead. ShowDialog() blocks the caller and throws on the UI thread.")]
         public bool? ShowDialog(object? owner)
         {
             Owner = owner;
