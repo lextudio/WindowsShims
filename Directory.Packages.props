@@ -8,10 +8,10 @@
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
     <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
     <PackageVersion Include="LeXtudio.Win2D.UnoCompat" Version="0.2.0" />
-    <PackageVersion Include="LeXtudio.UI.Text.Core" Version="1.0.0" />
+    <PackageVersion Include="LeXtudio.UI.Text.Core" Version="1.1.0" />
     <PackageVersion Include="LeXtudio.DevFlow.Agent.Uno" Version="0.2.2" />
     <PackageVersion Include="System.IO.Packaging" Version="10.0.10" />
-    <PackageVersion Include="SkiaSharp" Version="3.119.1" />
+    <PackageVersion Include="SkiaSharp" Version="3.119.2" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

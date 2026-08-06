@@ -34,20 +34,23 @@ namespaces, different base types).
 
 ## 2. Frozen columns — vertical scroll interaction
 
-**Status:** untested, blocked on manual-row-sizing gap.  
-**Source:** session121:1120-1124, 1367-1389, 1391-1398
+**Status:** test unskipped since session 123; underlying row-sizing cause
+possibly still present — needs confirmation, not re-diagnosis.  
+**Source:** session121:1120-1124, 1367-1389, 1391-1398; corrected 2026-07-27
+(verification pass found `FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll`
+in `tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs:354` is now a
+plain `[Fact]`, not `[Fact(Skip=...)]` as previously recorded here).
 
-`FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll` is
-[Fact(Skip=...)] with the root cause documented. `PART_ShimRowsScroll`'s
-StackPanel (manual/non-virtualized path) reports `ExtentHeight ==
-ViewportHeight` regardless of row count because rows receive ~1-2px actual
-height, so `ScrollableHeight` is always 0.
+The root-cause comment above the test (manual/non-virtualized
+`PART_ShimRowsScroll` StackPanel reporting `ExtentHeight == ViewportHeight`
+because rows collapse to ~1-2px actual height) is still present verbatim in
+the test file, unchanged. It is unclear whether the test now passes because
+the underlying gap was actually fixed, or because it passes incidentally
+(e.g. changed assertions, different repro path). **Needs a run + read of the
+current test body before trusting either "fixed" or "still broken."**
 
-Reproduces identically with the cells-presenter host *disabled* (plain
-`BuildCells()` manual rendering), so it is **not** a frozen-columns-specific
-regression.
-
-**Unblocked by:** fixing the manual-mode row-sizing gap (item 3 below).
+**Unblocked by:** fixing the manual-mode row-sizing gap (item 3 below), if it
+turns out to still apply.
 
 ---
 
@@ -183,14 +186,21 @@ drag-reorder plumbing, floating drag header). Still opt-in because:
 
 ---
 
-## 12. Cell editing under the presenter path (untested)
+## 12. Cell editing under the header-presenter path (untested)
 
-**Status:** not a known bug, just untested.  
-**Source:** session121:1125-1127
+**Status:** narrower than previously recorded — cells-presenter editing is
+now tested; header-presenter combination is not.  
+**Source:** session121:1125-1127; corrected 2026-07-27 (verification pass
+found `FrozenColumns_RealCellEditCommits` in
+`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs:369-383` already
+exercises real `BeginEdit`/`CommitEdit` against a grid built with
+`ShimSetCellsPresenterHost(true)` — see `MainPage.cs:1811`).
 
-Only Roma's read-only metadata grids exist as real consumers. An editable
-data source is needed to exercise `BeginEdit`/`CommitEdit` on a
-presenter-hosted cell for real.
+What remains actually untested is editing with `ShimSetHeaderPresenterHost`
+(item 11) also enabled — that combination has no coverage. Roma's read-only
+metadata grids are still the only real consumer of the presenter path in an
+app, so an editable data source under the *header*-presenter combination
+specifically is what's needed next.
 
 ---
 
