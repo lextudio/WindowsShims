@@ -193,6 +193,14 @@ namespace System.Windows.Media
 	// DrawingImage is a WPF type representing an image backed by a Drawing.
 	public class DrawingImage : Microsoft.UI.Xaml.Media.ImageSource
 	{
+		public DrawingImage()
+#if WINDOWS_APP_SDK
+			: base((WinRT.IObjectReference)null)
+#else
+			: base("")
+#endif
+		{ }
+
 		public object? Drawing { get; set; }
 		public double Width { get; set; }
 		public double Height { get; set; }
