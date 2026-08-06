@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 181/181 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 192/192 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 233/233 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -42,8 +42,10 @@ Practical completion estimate:
 
 The gap is not the presence of the control type anymore. The gap is verified
 editable behavior on Uno: text-tree movement, selection semantics, undo,
-clipboard/serialization fidelity, keyboard editing edge cases, IME/spelling,
-drag/drop, and layout/caret precision.
+clipboard/serialization fidelity, keyboard editing edge cases, remaining
+IME/TSF parity, drag/drop, and layout/caret precision. Spell-check is wired
+(session 80): `SpellCheck.IsEnabled` bridges to Uno's
+`ISpellCheckingService` and renders squiggles.
 
 ## Working Rules
 
@@ -158,7 +160,8 @@ Deferred unless a consumer requires them:
 - Full document pagination/printing.
 - Fixed document/document sequence families.
 - Advanced typography.
-- Speller/TSF/IME parity.
+- Speller/TSF/IME parity beyond the current `SpellCheck.IsEnabled` → Uno
+  `ISpellCheckingService` bridge (session 80).
 - Full table layout fidelity.
 
 ## Session Log
@@ -246,3 +249,4 @@ Each session is tracked as a separate file:
 | 77 | [session77.md](session77.md) | Post-77 Test Audit and Catalog Refresh (completed) |
 | 78 | [session78.md](session78.md) | XAML Formatting Serialization (completed) |
 | 79 | [session79.md](session79.md) | TableCell Collection Population / OnNewParent (completed) |
+| 80 | [session80.md](session80.md) | SpellCheck.IsEnabled Bridge + Squiggle Rendering (completed) |

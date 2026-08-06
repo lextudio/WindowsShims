@@ -1037,6 +1037,70 @@ public sealed partial class MainPage : Page
         return $"{{\"count\":{count}}}";
     });
 
+    static string SpellCheckSnapshot(MainPage page)
+    {
+        var box = page._box;
+        if (box is null)
+            return "{\"error\":\"no box\"}";
+        box.UpdateLayout();
+
+        var spellCheckField = typeof(WpfRichTextBox).GetField("_spellCheckEnabled", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("RichTextBox._spellCheckEnabled not found.");
+        bool enabled = (bool)spellCheckField.GetValue(box)!;
+
+        var view = RequireRenderScope(box);
+        var squiggleCountProp = view.GetType().GetProperty("SpellCheckSquiggleCount", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            ?? throw new InvalidOperationException("FlowDocumentView.SpellCheckSquiggleCount not found.");
+        int squiggleCount = (int)squiggleCountProp.GetValue(view)!;
+
+        var linesField = view.GetType().GetField("_spellCheckLines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("FlowDocumentView._spellCheckLines not found.");
+        var lines = (System.Collections.IEnumerable)linesField.GetValue(view)!;
+        var ranges = new List<string>();
+        foreach (var line in lines)
+        {
+            var visibility = line.GetType().GetProperty("Visibility")?.GetValue(line);
+            if (visibility is not Microsoft.UI.Xaml.Visibility.Visible)
+                continue;
+            var points = (System.Collections.IEnumerable)line.GetType().GetProperty("Points")!.GetValue(line)!;
+            string? x1 = null, x2 = null;
+            int count = 0;
+            foreach (var point in points)
+            {
+                var x = (double)point.GetType().GetProperty("X")!.GetValue(point)!;
+                if (count == 0) x1 = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                x2 = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                count++;
+            }
+            ranges.Add($"{{\"x1\":{x1 ?? "0"},\"x2\":{x2 ?? "0"}}}");
+        }
+
+        return $"{{\"spellCheckEnabled\":{Jb(enabled)},\"squiggleCount\":{squiggleCount},\"squiggleRanges\":[{string.Join(",", ranges)}]}}";
+    }
+
+    [DevFlowAction("richtextbox.probe.set-spellcheck-document", Description = "Create a RichTextBox with plain text and enable WPF SpellCheck.IsEnabled on it.")]
+    public static string ProbeSetSpellCheckDocument(string text) => RunOnUi(page =>
+    {
+        var box = RichTextBoxScenarios.BuildPlainTextBox(text);
+        box.SpellCheck.IsEnabled = true;
+        page._root.Children.Clear();
+        page._box = box;
+        page._root.Children.Add(box);
+        box.ApplyTemplate();
+        box.UpdateLayout();
+        return SpellCheckSnapshot(page);
+    });
+
+    [DevFlowAction("richtextbox.probe.set-spellcheck", Description = "Set WPF SpellCheck.IsEnabled on the current RichTextBox.")]
+    public static string ProbeSetSpellCheck(bool enabled) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+        page._box.SpellCheck.IsEnabled = enabled;
+        page._box.UpdateLayout();
+        return SpellCheckSnapshot(page);
+    });
+
     [DevFlowAction("richtextbox.probe.get-florence-line-count", Description = "Report how many lines the Florence layout engine produced for the current document.")]
     public static string ProbeGetFlorenceLineCount() => RunOnUi(page =>
     {

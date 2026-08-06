@@ -33,6 +33,29 @@ public partial class RichTextBox
         Log($"InitializeDefaultStyleKey: set to typeof(RichTextBox)");
     }
 
+    private bool _spellCheckEnabled;
+
+    /// <summary>Whether WPF SpellCheck.IsEnabled has been turned on for this RichTextBox.</summary>
+    internal bool IsSpellCheckEnabledInternal => _spellCheckEnabled;
+
+    /// <summary>Bridges WPF SpellCheck.IsEnabled into the Uno spell-check renderer.</summary>
+    internal void SetSpellCheckEnabledInternal(bool enabled)
+    {
+        if (_spellCheckEnabled == enabled)
+            return;
+        _spellCheckEnabled = enabled;
+        Log($"SetSpellCheckEnabledInternal: {enabled}");
+        PushSpellCheckToView();
+    }
+
+    private void PushSpellCheckToView()
+    {
+        if (TextEditor?.TextView?.RenderScope is MS.Internal.Documents.FlowDocumentView fdv)
+        {
+            fdv.SetSpellCheckEnabled(_spellCheckEnabled);
+        }
+    }
+
     protected override void OnApplyTemplate()
     {
         Log($"OnApplyTemplate: DefaultStyleKey={DefaultStyleKey}, Template={Template}");
@@ -42,6 +65,7 @@ public partial class RichTextBox
             Log($"OnApplyTemplate: done, Template={Template}");
             EnsureImeContext();
             EnsureDragDrop();
+            PushSpellCheckToView();
         }
         catch (Exception ex)
         {
@@ -498,6 +522,7 @@ public partial class RichTextBox
             fdv.InheritedFontSize = FontSize;
             fdv.InheritedFontWeight = FontWeight;
             fdv.InheritedFontStyle = FontStyle;
+            fdv.SetSpellCheckEnabled(_spellCheckEnabled);
             var position = te.Selection?.MovingPosition;
             if (position == null)
                 return;

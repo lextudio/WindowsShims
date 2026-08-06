@@ -12,8 +12,16 @@ public sealed class SpellCheck
     private readonly Action<bool>? _isEnabledChanged;
 
     public SpellCheck() { }
-    // Legacy overload: owner is a WPF TextBoxBase; no callback needed on that path.
-    public SpellCheck(object owner) { }
+    // WPF surface: owner is a TextBoxBase. RichTextBox forwards IsEnabled into the
+    // Uno spell-check bridge (RichTextBox.SetSpellCheckEnabledInternal); plain TextBox
+    // spell-check is not wired yet, so those owners get no callback.
+    public SpellCheck(object owner)
+    {
+        if (owner is RichTextBox richTextBox)
+        {
+            _isEnabledChanged = enabled => richTextBox.SetSpellCheckEnabledInternal(enabled);
+        }
+    }
     public SpellCheck(Action<bool> isEnabledChanged) { _isEnabledChanged = isEnabledChanged; }
 
     private bool _isEnabled;

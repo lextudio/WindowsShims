@@ -209,7 +209,10 @@ for the duration of the composition).
    `FrameworkContentElement.Parent` setter now invokes `OnNewParent`, which
    populates the `Items` arrays in `TableRowGroup.Rows` and `TableRow.Cells`.
    `Count`, indexer, and iteration now work correctly.
-3. **Spell-check integration** — WPF's `SpellCheck.IsEnabled` is commonly
-   used in consumer apps. The `Speller*.cs` files are excluded from
-   compilation. A lightweight bridge to the OS spell-check API (or a
-   no-op stub that doesn't crash) would improve consumer compatibility.
+3. ~~Spell-check integration~~ — **Fixed in session 80**. WPF's
+   `SpellCheck.IsEnabled` now flows from the `SpellCheck` shim into the
+   `RichTextBox`, which resolves Uno's `ISpellCheckingService`
+   (the `Uno.WinUI.SpellChecking` add-in, embedded Hunspell en_US) and renders
+   red wavy squiggles under misspelled words in the `FlowDocumentView`. The
+   `Speller*.cs` files remain excluded; the bridge goes through the Uno add-in
+   rather than the OS spell-check API.

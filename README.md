@@ -42,7 +42,7 @@ The closest of the three to full parity. `ToolBar`, `ToolBarTray`, `ToolBarPanel
 
 ### RichTextBox
 
-The full text-document spine is linked upstream: `RichTextBox`, `FlowDocument`, `TextElement`, `TextPointer`, `TextRange` (including edit/list/table variants), `TextSelection`, the `ITextPointer`/`ITextRange`/`ITextSelection` interfaces, undo units, and the word-breaker — all real WPF code. Local bridges add Uno-specific plumbing: pointer/hyperlink hit-testing and template wiring (`RichTextBox.uno.cs`), collection-changed notification on `TextElementCollection`, and serialization support surfaces.
+The full text-document spine is linked upstream: `RichTextBox`, `FlowDocument`, `TextElement`, `TextPointer`, `TextRange` (including edit/list/table variants), `TextSelection`, the `ITextPointer`/`ITextRange`/`ITextSelection` interfaces, undo units, and the word-breaker — all real WPF code. Local bridges add Uno-specific plumbing: pointer/hyperlink hit-testing and template wiring (`RichTextBox.uno.cs`), collection-changed notification on `TextElementCollection`, serialization support surfaces, and spell-check (`SpellCheck.IsEnabled` → Uno's `ISpellCheckingService` add-in, with red squiggle underlines in the Florence view).
 
 **Known gap**: the `TextEditor*` spine — the internal command orchestrator behind typing, selection, and formatting commands — remains a thin bridge rather than linked upstream code; this is the largest remaining fidelity gap. Also out of scope: table layout in `FlowDocument`, fixed-document/paginator support, document sequences, and annotations.
 

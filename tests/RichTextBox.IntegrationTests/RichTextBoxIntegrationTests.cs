@@ -61,6 +61,9 @@ public sealed class RichTextBoxIntegrationTests
             ? null
             : state.GetProperty("nestedListItemCount").GetInt32();
     static string? TextViewType(JsonElement state) => state.GetProperty("textViewType").GetString();
+    static bool SpellCheckEnabled(JsonElement state) => state.GetProperty("spellCheckEnabled").GetBoolean();
+    static int SquiggleCount(JsonElement state) => state.GetProperty("squiggleCount").GetInt32();
+    static IEnumerable<JsonElement> SquiggleRanges(JsonElement state) => state.GetProperty("squiggleRanges").EnumerateArray();
 
     [Fact]
     public async Task SetListDocument_BuildsListWithoutCrashing()
@@ -367,6 +370,57 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(state.GetProperty("contentHostAvailable").GetBoolean(), raw);
         Assert.Equal("MS.Internal.Documents.FlowDocumentView", RenderScopeType(state));
         Assert.Equal("MS.Internal.Documents.UnoFlowDocumentTextView", TextViewType(state));
+    }
+
+    [Fact]
+    public async Task SpellCheckDisabledByDefault_ShowsNoSquiggles()
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "teh quick brown foxx");
+
+        var state = await _app.InvokeAsync("richtextbox.probe.set-spellcheck", false);
+        var raw = state.ToString();
+
+        Assert.False(SpellCheckEnabled(state), raw);
+        Assert.Equal(0, SquiggleCount(state));
+    }
+
+    [Fact]
+    public async Task SpellCheckEnabled_UnderlinesMisspelledWords()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-spellcheck-document", "teh quick brown foxx");
+        var raw = state.ToString();
+
+        Assert.True(SpellCheckEnabled(state), raw);
+        // "teh" and "foxx" are not in the embedded en_US dictionary.
+        Assert.True(SquiggleCount(state) >= 2, raw);
+        foreach (var range in SquiggleRanges(state))
+        {
+            Assert.True(range.GetProperty("x1").GetDouble() >= 0, raw);
+            Assert.True(range.GetProperty("x2").GetDouble() > range.GetProperty("x1").GetDouble(), raw);
+        }
+    }
+
+    [Fact]
+    public async Task SpellCheckEnabled_CorrectWords_ProduceNoSquiggles()
+    {
+        var state = await _app.InvokeAsync("richtextbox.probe.set-spellcheck-document", "the quick brown dog");
+        var raw = state.ToString();
+
+        Assert.True(SpellCheckEnabled(state), raw);
+        Assert.Equal(0, SquiggleCount(state));
+    }
+
+    [Fact]
+    public async Task SpellCheckToggleOff_ClearsSquiggles()
+    {
+        var onState = await _app.InvokeAsync("richtextbox.probe.set-spellcheck-document", "teh foxx");
+        Assert.True(SquiggleCount(onState) >= 2, onState.ToString());
+
+        var offState = await _app.InvokeAsync("richtextbox.probe.set-spellcheck", false);
+        var raw = offState.ToString();
+
+        Assert.False(SpellCheckEnabled(offState), raw);
+        Assert.Equal(0, SquiggleCount(offState));
     }
 
     [Fact]

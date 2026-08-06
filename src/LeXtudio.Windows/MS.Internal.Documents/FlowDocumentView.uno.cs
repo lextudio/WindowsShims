@@ -25,6 +25,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private int _imeCompositionStart = -1;
     private int _imeCompositionLength = -1;
     private readonly List<Microsoft.UI.Xaml.Shapes.Line> _imeUnderlineLines = [];
+    private bool _spellCheckEnabled;
+    private readonly List<Microsoft.UI.Xaml.Shapes.Polyline> _spellCheckLines = [];
     private readonly AdornerLayer _adornerLayer;
 
     // Caret overlay. The visual lives here, but hit-testing and geometry come
@@ -58,6 +60,30 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
     }
     private bool _readOnly;
+
+    // ── Spell Check ─────────────────────────────────────────────────────────
+
+    internal void SetSpellCheckEnabled(bool enabled)
+    {
+        if (_spellCheckEnabled == enabled)
+            return;
+        _spellCheckEnabled = enabled;
+        InvalidateArrange();
+    }
+
+    private static readonly Lazy<Microsoft.UI.Xaml.Documents.ISpellCheckingService?> SpellCheckingService = new(() =>
+    {
+        // The Hunspell service registers itself via a generated module initializer in the
+        // Uno.WinUI.SpellChecking add-in. Loading the assembly by name (present only when
+        // the SpellChecking UnoFeature is enabled) guarantees that initializer runs before
+        // ApiExtensibility is asked for the instance.
+        try { System.Reflection.Assembly.Load("Uno.WinUI.SpellChecking"); } catch { }
+
+        return Uno.Foundation.Extensibility.ApiExtensibility.CreateInstance<Microsoft.UI.Xaml.Documents.ISpellCheckingService>(
+            typeof(FlowDocumentView), out var service)
+            ? service
+            : null;
+    });
 
     internal Microsoft.UI.Xaml.TextWrapping TextWrapping { get; set; } = Microsoft.UI.Xaml.TextWrapping.Wrap;
     internal Microsoft.UI.Xaml.Media.Brush? InheritedForeground { get; set; }
@@ -226,6 +252,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
 
         RefreshImeCompositionUnderline();
+        RefreshSpellCheckSquiggles();
 
         var lines = _page.Lines;
         for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
@@ -478,6 +505,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     internal int ImeUnderlineLineCount => _imeUnderlineLines.Count(l => l.Opacity > 0);
 
+    /// <summary>Visible spell-check squiggle polylines (test observability).</summary>
+    internal int SpellCheckSquiggleCount => _spellCheckLines.Count(l => l.Visibility == Microsoft.UI.Xaml.Visibility.Visible);
+
     internal void SetImeCompositionRange(int start, int length)
     {
         _imeCompositionStart = start;
@@ -520,6 +550,128 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
         for (int i = lineIndex; i < _imeUnderlineLines.Count; i++)
             _imeUnderlineLines[i].Opacity = 0;
+    }
+
+    // ── Spell Check Squiggles ───────────────────────────────────────────────
+    //
+    // Misspelled words are underlined with a red wavy XAML Polyline, mirroring the
+    // WPF/Word squiggle. The Hunspell-backed service is resolved through Uno's
+    // ApiExtensibility (Uno.WinUI.SpellChecking add-in); when it is unavailable
+    // (e.g. the feature is off) spelling simply renders nothing.
+    //
+    // Each FlorenceLine is spell-checked independently against its own text, then
+    // correction ranges are mapped to pixels via the same TextBlock-measured widths
+    // the caret/hit-testing use, so squiggles line up with the rendered glyphs.
+
+    private void RefreshSpellCheckSquiggles()
+    {
+        int used = 0;
+
+        if (_spellCheckEnabled && _page is not null && SpellCheckingService.Value is { } service)
+        {
+            foreach (var pageLine in _page.Lines)
+            {
+                if (string.IsNullOrEmpty(pageLine.FullText))
+                    continue;
+
+                var boundaries = GetWords(pageLine.FullText);
+                if (boundaries.Count == 0)
+                    continue;
+
+                var corrections = service.SpellCheck(boundaries, pageLine.FullText);
+                for (int i = 0; i < corrections.Count && i < boundaries.Count; i++)
+                {
+                    if (corrections[i] is not (int correctionStart, int correctionEnd) || correctionEnd <= correctionStart)
+                        continue;
+
+                    int wordStart = i == 0 ? 0 : boundaries[i - 1];
+                    double x1 = UnoFlowDocumentTextView.GetPixelXForOffset(pageLine, pageLine.StartOffset + wordStart + correctionStart);
+                    double x2 = UnoFlowDocumentTextView.GetPixelXForOffset(pageLine, pageLine.StartOffset + wordStart + correctionEnd);
+
+                    var squiggle = AcquireSpellCheckLine(used++);
+                    squiggle.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+                    squiggle.Points = BuildSquigglePoints(x1, x2, pageLine.Baseline + 2);
+                }
+            }
+        }
+
+        for (int i = used; i < _spellCheckLines.Count; i++)
+            _spellCheckLines[i].Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+    }
+
+    private Microsoft.UI.Xaml.Shapes.Polyline AcquireSpellCheckLine(int index)
+    {
+        while (_spellCheckLines.Count <= index)
+        {
+            var squiggle = new Microsoft.UI.Xaml.Shapes.Polyline
+            {
+                Stroke = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red),
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+                Visibility = Microsoft.UI.Xaml.Visibility.Collapsed,
+            };
+            _spellCheckLines.Add(squiggle);
+            Children.Add(squiggle);
+        }
+        return _spellCheckLines[index];
+    }
+
+    private static Microsoft.UI.Xaml.Media.PointCollection BuildSquigglePoints(double x1, double x2, double baseY)
+    {
+        var points = new Microsoft.UI.Xaml.Media.PointCollection();
+        double width = x2 - x1;
+        if (width <= 0.5)
+            return points;
+
+        const double step = 2.5;
+        int n = Math.Max(1, (int)Math.Ceiling(width / step));
+        for (int i = 0; i <= n; i++)
+        {
+            double x = x1 + width * i / n;
+            double y = baseY + Math.Sin(i * Math.PI / 2) * 1.25;
+            points.Add(new Windows.Foundation.Point(x, y));
+        }
+        return points;
+    }
+
+    /// <summary>
+    /// Word boundary end offsets for the given text, mirroring how Uno's own
+    /// UnicodeText computes boundaries (whitespace-delimited words, with adjacent
+    /// single punctuation/symbol runs folded into the neighboring word). The
+    /// spell-check service consumes this same boundary format.
+    /// </summary>
+    private static List<int> GetWords(string text)
+    {
+        var tokens = new List<int>();
+        int i = 0;
+        while (i < text.Length)
+        {
+            if (char.IsWhiteSpace(text[i]))
+            {
+                i++;
+                continue;
+            }
+            while (i < text.Length && !char.IsWhiteSpace(text[i]))
+                i++;
+            tokens.Add(i);
+        }
+
+        if (tokens.Count == 0)
+            return [];
+
+        var ret = new List<int> { tokens[0] };
+        for (int index = 1; index < tokens.Count; index++)
+        {
+            int boundary = tokens[index];
+            if (boundary - ret[^1] == 1 &&
+                (char.IsPunctuation(text[boundary - 1]) || char.IsSymbol(text[boundary - 1])) &&
+                (char.IsPunctuation(text[ret[^1] - 1]) || char.IsSymbol(text[ret[^1] - 1])))
+            {
+                ret.RemoveAt(ret.Count - 1);
+            }
+            ret.Add(boundary);
+        }
+        return ret;
     }
 
     internal System.Windows.Documents.Hyperlink? GetHyperlinkAt(Windows.Foundation.Point point)
