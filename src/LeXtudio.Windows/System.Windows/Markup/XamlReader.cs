@@ -379,6 +379,10 @@ public static class XamlReader
                 if (decorations is not null)
                     element.SetValue(Inline.TextDecorationsProperty, decorations);
                 break;
+            case "FlowDirection":
+                if (element is Inline inline && Enum.TryParse<FlowDirection>(value, out var flowDirection))
+                    inline.FlowDirection = flowDirection;
+                break;
         }
     }
 

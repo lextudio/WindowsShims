@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 212/212 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 214/214 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -159,7 +159,13 @@ Candidate coverage:
   serialized via its `Source`, combined `TextDecorations` written as a
   comma-separated list). `<Span>`-wrapped formatting is not visible on a nested
   `Run`'s `FontWeight` because the shim's property system reports only
-  Default/Local (no inheritance) — see `PropertySystem.cs`.
+  Default/Local (no inheritance) — see `PropertySystem.cs`. Session 84 added
+  background (`\highlightN` round-trips via `<Span Background>`) and pinned the
+  WPF-faithful drop of Overline/Baseline. Session 85 added paragraph-level
+  TextAlignment/FlowDirection/Margin/TextIndent round-trips (Thickness
+  serialized as `"left,top,right,bottom"`) and pinned the LineHeight drop.
+  Session 86 added inline FlowDirection: `\rtlch`/`\ltrch` round-trip through
+  `<Span FlowDirection>` (the `XamlReader` now applies it to `Inline`).
 
 Done when:
 
@@ -273,3 +279,4 @@ Each session is tracked as a separate file:
 | 83 | [session83.md](session83.md) | RTF Round-Trip for FontSize/FontFamily/Foreground/Strikethrough (completed) |
 | 84 | [session84.md](session84.md) | RTF Round-Trip for Background + Overline/Baseline Behavior (completed) |
 | 85 | [session85.md](session85.md) | RTF Round-Trip for Paragraph TextAlignment/FlowDirection/Margin/TextIndent (completed) |
+| 86 | [session86.md](session86.md) | RTF Round-Trip for Inline FlowDirection (completed) |

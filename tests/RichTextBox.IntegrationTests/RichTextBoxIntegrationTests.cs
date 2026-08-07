@@ -39,6 +39,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstInlineForeground(JsonElement state) => state.GetProperty("firstInlineForeground").GetString();
     static string? FirstInlineBackground(JsonElement state) => state.GetProperty("firstInlineBackground").GetString();
     static string? FirstInlineFlowDirection(JsonElement state) => state.GetProperty("firstInlineFlowDirection").GetString();
+    static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
     static string? FirstRunFontStyle(JsonElement state) => state.GetProperty("firstRunFontStyle").GetString();
@@ -1649,6 +1650,39 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("rtl", Text(state));
         Assert.Equal("RightToLeft", FirstParagraphFlowDirection(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsInlineFlowDirection()
+    {
+        // RtfToXamlReader wraps runs whose \rtlch/\ltrch direction differs from the
+        // paragraph in a <Span FlowDirection="..."> attribute; ApplyInlineProperty
+        // now parses that back onto the span.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Span FlowDirection=\"RightToLeft\"><Run>rtl</Run></Span><Run> ltr</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("rtl ltr", Text(state));
+        Assert.Contains("Span", FirstInlineType(state));
+        Assert.Equal("RightToLeft", FirstInlineFlowDirection(state));
+        Assert.Contains("fd=RightToLeft", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsMixedDirectionRuns()
+    {
+        // A left-to-right span inside a right-to-left paragraph keeps its own
+        // direction while the paragraph direction is preserved.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph FlowDirection=\"RightToLeft\"><Span FlowDirection=\"LeftToRight\"><Run>ltr</Run></Span><Run> rtl</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("ltr rtl", Text(state));
+        Assert.Equal("RightToLeft", FirstParagraphFlowDirection(state));
+        Assert.Contains("Span", FirstInlineType(state));
+        Assert.Equal("LeftToRight", FirstInlineFlowDirection(state));
     }
 
     [Fact]
