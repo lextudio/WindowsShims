@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 199/199 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 205/205 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -147,14 +147,19 @@ Candidate coverage:
 - Image/package payload limitations.
 
 - **RTF clipboard serialization** — WPF's `XamlRtfConverter` stack is linked;
-  RTF `Save`/`Load` round-trips text + inline formatting (bold/italic/color).
-  Two shim fixes were needed: the `XamlReader` now captures text-node content
-  inside `Span`/`Paragraph` (RTF conversion emits `<Span>text</Span>`, not
-  `<Run Text="..."/>`) and reads inline attributes on `Span`, and
-  `FontWeightConverter` emits WPF-faithful named weights (`"Bold"`, not `"700"`)
-  so the upstream `XamlToRtfWriter` picks them up. `<Span>`-wrapped formatting
-  is not visible on a nested `Run`'s `FontWeight` because the shim's property
-  system reports only Default/Local (no inheritance) — see `PropertySystem.cs`.
+  RTF `Save`/`Load` round-trips text + inline formatting (bold/italic/color,
+  font size, font family, underline, strikethrough). Two shim fixes were needed:
+  the `XamlReader` now captures text-node content inside `Span`/`Paragraph` (RTF
+  conversion emits `<Span>text</Span>`, not `<Run Text="..."/>`) and reads
+  inline/paragraph attributes on `Span`/`Paragraph`, and `FontWeightConverter`
+  emits WPF-faithful named weights (`"Bold"`, not `"700"`) so the upstream
+  `XamlToRtfWriter` picks them up. Session 83 added mixed font size/family/
+  foreground + combined `Underline, Strikethrough` round-trips (dotted
+  `Owner.Property` attribute names parsed by `XamlToRtfWriter`, `FontFamily`
+  serialized via its `Source`, combined `TextDecorations` written as a
+  comma-separated list). `<Span>`-wrapped formatting is not visible on a nested
+  `Run`'s `FontWeight` because the shim's property system reports only
+  Default/Local (no inheritance) — see `PropertySystem.cs`.
 
 Done when:
 
@@ -265,3 +270,4 @@ Each session is tracked as a separate file:
 | 80 | [session80.md](session80.md) | SpellCheck.IsEnabled Bridge + Squiggle Rendering (completed) |
 | 81 | [session81.md](session81.md) | RTF Clipboard Serialization Round-Trips Text + Formatting (completed) |
 | 82 | [session82.md](session82.md) | RTF Round-Trip for Mixed/Nested Inline Formatting (completed) |
+| 83 | [session83.md](session83.md) | RTF Round-Trip for FontSize/FontFamily/Foreground/Strikethrough (completed) |

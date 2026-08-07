@@ -71,6 +71,23 @@ public sealed partial class MainPage : Page
         return false;
     }
 
+    static bool HasStrikethrough(object? value)
+    {
+        if (value is not WpfTextDecorationCollection decorations)
+            return false;
+
+        foreach (var decoration in decorations)
+        {
+            foreach (var strikethrough in WpfTextDecorations.Strikethrough)
+            {
+                if (Equals(decoration, strikethrough))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
     static string? FormatBrush(object? value)
     {
         if (value is Microsoft.UI.Xaml.Media.SolidColorBrush brush)
@@ -134,16 +151,18 @@ public sealed partial class MainPage : Page
                 var style = run.GetValue(WpfTextElement.FontStyleProperty)?.ToString();
                 var size = run.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
                 var underline = HasUnderline(run.GetValue(WpfInline.TextDecorationsProperty)) ? "U" : "-";
+                var strikethrough = HasStrikethrough(run.GetValue(WpfInline.TextDecorationsProperty)) ? "S" : "-";
                 var flowDirection = run.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
-                parts.Add($"Run:{InlineText(run.Text)}:w={FormatFontWeight(run.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:fd={flowDirection}");
+                parts.Add($"Run:{InlineText(run.Text)}:w={FormatFontWeight(run.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:st={strikethrough}:fd={flowDirection}");
             }
             else if (inline is WpfSpan span)
             {
                 var style = span.GetValue(WpfTextElement.FontStyleProperty)?.ToString();
                 var size = span.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
                 var underline = HasUnderline(span.GetValue(WpfInline.TextDecorationsProperty)) ? "U" : "-";
+                var strikethrough = HasStrikethrough(span.GetValue(WpfInline.TextDecorationsProperty)) ? "S" : "-";
                 var flowDirection = span.GetValue(WpfInline.FlowDirectionProperty)?.ToString();
-                parts.Add($"{span.GetType().Name}:w={FormatFontWeight(span.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:fd={flowDirection}");
+                parts.Add($"{span.GetType().Name}:w={FormatFontWeight(span.GetValue(WpfTextElement.FontWeightProperty))}:s={style}:z={size}:d={underline}:st={strikethrough}:fd={flowDirection}");
                 AppendInlineTree(parts, span.Inlines.FirstInline);
             }
             else
@@ -230,6 +249,9 @@ public sealed partial class MainPage : Page
         var firstParagraphLineHeight = firstParagraph?.LineHeight.ToString();
         var firstParagraphLineStackingStrategy = firstParagraph?.LineStackingStrategy.ToString();
         var firstParagraphFlowDirection = firstParagraph?.FlowDirection.ToString();
+        var firstParagraphFontSize = firstParagraph is null
+            ? null
+            : firstParagraph.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
         var inlineTree = FormatInlineTree(firstInline);
         var firstInlineFontWeight = firstInline is null
             ? null
@@ -278,7 +300,7 @@ public sealed partial class MainPage : Page
         var firstRunHasUnderline = firstRun is not null
             && HasUnderline(firstRun.GetValue(WpfInline.TextDecorationsProperty));
 
-        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"firstParagraphFontSize\":{Js(firstParagraphFontSize)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
     }
 
     static object? GetInternalProperty(object instance, string name)

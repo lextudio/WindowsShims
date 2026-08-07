@@ -29,6 +29,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstParagraphLineHeight(JsonElement state) => state.GetProperty("firstParagraphLineHeight").GetString();
     static string? FirstParagraphLineStackingStrategy(JsonElement state) => state.GetProperty("firstParagraphLineStackingStrategy").GetString();
     static string? FirstParagraphFlowDirection(JsonElement state) => state.GetProperty("firstParagraphFlowDirection").GetString();
+    static string? FirstParagraphFontSize(JsonElement state) => state.GetProperty("firstParagraphFontSize").GetString();
     static string? FirstInlineFontWeight(JsonElement state) => state.GetProperty("firstInlineFontWeight").GetString();
     static string? FirstInlineFontStyle(JsonElement state) => state.GetProperty("firstInlineFontStyle").GetString();
     static string? FirstInlineFontSize(JsonElement state) => state.GetProperty("firstInlineFontSize").GetString();
@@ -1510,6 +1511,84 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("alpha", Text(state));
         Assert.Contains("beta", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsFontSize()
+    {
+        // A size that differs from its siblings is wrapped in a <Span> by
+        // RtfToXamlReader (which the shim parses back to FontSize DIPs).
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>plain </Run><Run FontSize=\"16\">big</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("plain big", Text(state));
+        Assert.Contains("z=16", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsFontSizeOnUniformParagraph()
+    {
+        // When the whole paragraph shares one size, RtfToXamlReader emits it as a
+        // <Paragraph> attribute; the shim's ParseParagraph now applies it locally.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run FontSize=\"16\">big text</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("big text", Text(state));
+        Assert.True(double.TryParse(FirstParagraphFontSize(state), out var size), raw);
+        Assert.True(Math.Abs(size - 16) < 0.01, raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsFontFamily()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run FontFamily=\"Arial\">arial</Run><Run>plain </Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("arialplain", Text(state));
+        Assert.True(FirstInlineFontFamily(state)?.Contains("Arial") ?? false, raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsForegroundColor()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run Foreground=\"#FF00AA00\">green</Run><Run>plain </Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("greenplain", Text(state));
+        Assert.Equal("#FF00AA00", FirstInlineForeground(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsStrikethrough()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>plain </Run><Run TextDecorations=\"Strikethrough\">struck</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("plain struck", Text(state));
+        Assert.Contains("st=S", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsCombinedUnderlineAndStrikethrough()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>plain </Run><Run TextDecorations=\"Underline, Strikethrough\">both</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("plain both", Text(state));
+        Assert.Contains("d=U", InlineTree(state));
+        Assert.Contains("st=S", InlineTree(state));
     }
 
     [Fact]

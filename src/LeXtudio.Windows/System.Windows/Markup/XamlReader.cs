@@ -183,6 +183,17 @@ public static class XamlReader
     static Paragraph ParseParagraph(XmlReader reader)
     {
         var para = new Paragraph();
+        // RTF->XAML emits whole-paragraph formatting (FontSize, FontFamily,
+        // FontWeight, FontStyle, ...) as attributes on <Paragraph>; WPF flows these
+        // to runs via DP inheritance. The shim applies them as local values so they
+        // survive save/load (ITextPointer.GetValue re-derives them for the runs).
+        while (reader.MoveToNextAttribute())
+        {
+            var attrName = StripQualifier(reader.LocalName);
+            if (attrName is "FontSize" or "FontFamily" or "FontWeight" or "FontStyle" or "Foreground" or "Background")
+                ApplyInlineProperty(para, attrName, reader.Value);
+        }
+        reader.MoveToElement();
         var textBuffer = new StringBuilder();
         void FlushText()
         {
@@ -322,6 +333,10 @@ public static class XamlReader
                 if (double.TryParse(fsText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var fs) && fs > 0)
                     element.FontSize = fs * pt;
                 break;
+            case "FontFamily":
+                if (!string.IsNullOrWhiteSpace(value))
+                    element.FontFamily = new Microsoft.UI.Xaml.Media.FontFamily(value);
+                break;
             case "Foreground":
                 if (TryParseColor(value, out var color))
                     element.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
@@ -331,12 +346,35 @@ public static class XamlReader
                     element.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bg);
                 break;
             case "TextDecorations":
-                if (value.Equals("Underline", StringComparison.OrdinalIgnoreCase))
-                    element.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Underline);
-                else if (value.Equals("Strikethrough", StringComparison.OrdinalIgnoreCase))
-                    element.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Strikethrough);
+                var decorations = ParseTextDecorations(value);
+                if (decorations is not null)
+                    element.SetValue(Inline.TextDecorationsProperty, decorations);
                 break;
         }
+    }
+
+    // Parse a TextDecorations attribute value ("Underline", "Strikethrough", or a
+    // comma-separated combination such as "Underline, Strikethrough" as emitted by
+    // RtfToXamlReader). Reuses the TextDecoration instances from the TextDecorations
+    // singletons so reference-based equality (HasUnderline in the test host) holds.
+    static System.Windows.Media.TextDecorationCollection? ParseTextDecorations(string value)
+    {
+        System.Windows.Media.TextDecorationCollection? result = null;
+        foreach (var part in value.Split(','))
+        {
+            var name = part.Trim();
+            System.Windows.Media.TextDecorationCollection? collection = name.Equals("Underline", StringComparison.OrdinalIgnoreCase) ? System.Windows.Media.TextDecorations.Underline
+                : name.Equals("Strikethrough", StringComparison.OrdinalIgnoreCase) ? System.Windows.Media.TextDecorations.Strikethrough
+                : name.Equals("Overline", StringComparison.OrdinalIgnoreCase) ? System.Windows.Media.TextDecorations.Overline
+                : name.Equals("Baseline", StringComparison.OrdinalIgnoreCase) ? System.Windows.Media.TextDecorations.Baseline
+                : null;
+            if (collection is null)
+                continue;
+            result ??= new System.Windows.Media.TextDecorationCollection();
+            foreach (var decoration in collection)
+                result.Add(decoration);
+        }
+        return result;
     }
 
     static Bold ParseBold(XmlReader reader)
