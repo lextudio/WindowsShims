@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 205/205 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 212/212 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -271,3 +271,5 @@ Each session is tracked as a separate file:
 | 81 | [session81.md](session81.md) | RTF Clipboard Serialization Round-Trips Text + Formatting (completed) |
 | 82 | [session82.md](session82.md) | RTF Round-Trip for Mixed/Nested Inline Formatting (completed) |
 | 83 | [session83.md](session83.md) | RTF Round-Trip for FontSize/FontFamily/Foreground/Strikethrough (completed) |
+| 84 | [session84.md](session84.md) | RTF Round-Trip for Background + Overline/Baseline Behavior (completed) |
+| 85 | [session85.md](session85.md) | RTF Round-Trip for Paragraph TextAlignment/FlowDirection/Margin/TextIndent (completed) |

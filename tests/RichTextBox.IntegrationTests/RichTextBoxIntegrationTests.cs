@@ -30,6 +30,8 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstParagraphLineStackingStrategy(JsonElement state) => state.GetProperty("firstParagraphLineStackingStrategy").GetString();
     static string? FirstParagraphFlowDirection(JsonElement state) => state.GetProperty("firstParagraphFlowDirection").GetString();
     static string? FirstParagraphFontSize(JsonElement state) => state.GetProperty("firstParagraphFontSize").GetString();
+    static string? FirstParagraphMargin(JsonElement state) => state.GetProperty("firstParagraphMargin").GetString();
+    static string? FirstParagraphTextIndent(JsonElement state) => state.GetProperty("firstParagraphTextIndent").GetString();
     static string? FirstInlineFontWeight(JsonElement state) => state.GetProperty("firstInlineFontWeight").GetString();
     static string? FirstInlineFontStyle(JsonElement state) => state.GetProperty("firstInlineFontStyle").GetString();
     static string? FirstInlineFontSize(JsonElement state) => state.GetProperty("firstInlineFontSize").GetString();
@@ -1589,6 +1591,108 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Contains("plain both", Text(state));
         Assert.Contains("d=U", InlineTree(state));
         Assert.Contains("st=S", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsBackground()
+    {
+        // The RTF writer encodes background as a run-level \highlightN (WPF style,
+        // an index into the shared colortbl); RtfToXamlReader restores it as a
+        // <Span Background="#FF..."> attribute the shim parses back to a brush.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run Background=\"#FFFFFF00\">yellow</Run><Run>plain </Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("yellowplain", Text(state));
+        Assert.Equal("#FFFFFF00", FirstInlineBackground(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_DropsOverlineAndBaselineLikeWpf()
+    {
+        // RTF has no encoding for OverLine/Baseline decorations (only \ul and
+        // \strike exist), so WPF's XamlToRtfWriter silently drops them. Assert the
+        // WPF-faithful behavior: the text survives, the decorations do not.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>plain </Run><Run TextDecorations=\"OverLine\">overline</Run>" +
+            "<Run TextDecorations=\"Baseline\">baseline</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("plain overlinebaseline", Text(state));
+        Assert.DoesNotContain("d=U", InlineTree(state));
+        Assert.DoesNotContain("st=S", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsParagraphTextAlignment()
+    {
+        // RtfToXamlReader emits TextAlignment as a <Paragraph> attribute when it
+        // differs from default; ParseParagraph now applies it back.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph TextAlignment=\"Center\"><Run>centered</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("centered", Text(state));
+        Assert.Equal("Center", FirstParagraphTextAlignment(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsParagraphFlowDirection()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph FlowDirection=\"RightToLeft\"><Run>rtl</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("rtl", Text(state));
+        Assert.Equal("RightToLeft", FirstParagraphFlowDirection(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsParagraphMargin()
+    {
+        // The RTF converter always writes Margin (twips->px); ParseParagraph parses
+        // the "left,top,right,bottom" value back into a Thickness.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph Margin=\"20,0,0,0\"><Run>indented</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("indented", Text(state));
+        var margin = FirstParagraphMargin(state);
+        Assert.True(margin?.Contains("20-0-0-0", StringComparison.Ordinal) ?? false, raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsParagraphTextIndent()
+    {
+        // \fi (first-line indent) is restored as TextIndent on the paragraph.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph TextIndent=\"10\"><Run>indented</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("indented", Text(state));
+        Assert.True(double.TryParse(FirstParagraphTextIndent(state), out var indent), raw);
+        Assert.True(Math.Abs(indent - 10) < 0.5, raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_DropsParagraphLineHeightLikeWpf()
+    {
+        // The RTF writer emits \sl for LineHeight, but RtfToXamlReader deliberately
+        // does not read it back ("Avalon only supports lineheight exact - we're just
+        // not going to output it"). Assert the WPF-faithful drop.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph LineHeight=\"20\"><Run>line</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("line", Text(state));
+        Assert.NotEqual("20", FirstParagraphLineHeight(state));
     }
 
     [Fact]

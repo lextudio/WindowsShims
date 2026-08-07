@@ -190,8 +190,37 @@ public static class XamlReader
         while (reader.MoveToNextAttribute())
         {
             var attrName = StripQualifier(reader.LocalName);
-            if (attrName is "FontSize" or "FontFamily" or "FontWeight" or "FontStyle" or "Foreground" or "Background")
-                ApplyInlineProperty(para, attrName, reader.Value);
+            switch (attrName)
+            {
+                case "FontSize":
+                case "FontFamily":
+                case "FontWeight":
+                case "FontStyle":
+                case "Foreground":
+                case "Background":
+                    ApplyInlineProperty(para, attrName, reader.Value);
+                    break;
+                case "TextAlignment":
+                    if (Enum.TryParse<TextAlignment>(reader.Value, out var alignment))
+                        para.TextAlignment = alignment;
+                    break;
+                case "FlowDirection":
+                    if (Enum.TryParse<FlowDirection>(reader.Value, out var flowDirection))
+                        para.FlowDirection = flowDirection;
+                    break;
+                case "Margin":
+                    if (TryParseThickness(reader.Value, out var margin))
+                        para.Margin = margin;
+                    break;
+                case "TextIndent":
+                    if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var indent))
+                        para.TextIndent = indent;
+                    break;
+                case "LineHeight":
+                    if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lineHeight))
+                        para.LineHeight = lineHeight;
+                    break;
+            }
         }
         reader.MoveToElement();
         var textBuffer = new StringBuilder();
@@ -375,6 +404,23 @@ public static class XamlReader
                 result.Add(decoration);
         }
         return result;
+    }
+
+    // Parse a comma-separated "left,top,right,bottom" Margin value into a Thickness.
+    static bool TryParseThickness(string value, out Thickness thickness)
+    {
+        thickness = new Thickness();
+        var parts = value.Split(',');
+        if (parts.Length != 4)
+            return false;
+        var values = new double[4];
+        for (int i = 0; i < 4; i++)
+        {
+            if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out values[i]))
+                return false;
+        }
+        thickness = new Thickness(values[0], values[1], values[2], values[3]);
+        return true;
     }
 
     static Bold ParseBold(XmlReader reader)
