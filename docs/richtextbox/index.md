@@ -18,8 +18,8 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 192/192 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
-Model tests: 233/233 (LeXtudio.Windows.Tests).
+Integration tests: 199/199 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
 
@@ -146,10 +146,23 @@ Candidate coverage:
 - RTF support status.
 - Image/package payload limitations.
 
+- **RTF clipboard serialization** — WPF's `XamlRtfConverter` stack is linked;
+  RTF `Save`/`Load` round-trips text + inline formatting (bold/italic/color).
+  Two shim fixes were needed: the `XamlReader` now captures text-node content
+  inside `Span`/`Paragraph` (RTF conversion emits `<Span>text</Span>`, not
+  `<Run Text="..."/>`) and reads inline attributes on `Span`, and
+  `FontWeightConverter` emits WPF-faithful named weights (`"Bold"`, not `"700"`)
+  so the upstream `XamlToRtfWriter` picks them up. `<Span>`-wrapped formatting
+  is not visible on a nested `Run`'s `FontWeight` because the shim's property
+  system reports only Default/Local (no inheritance) — see `PropertySystem.cs`.
+
 Done when:
 
 - Supported formats are tested.
 - Unsupported formats fail predictably or are explicitly documented.
+
+Status: met as of Session 81 — `Text`, `Xaml`, `Rtf`, and `XamlPackage` all
+round-trip; RTF preserves text and inline formatting.
 
 ### M5 - Optional WPF Parity Families
 
@@ -250,3 +263,5 @@ Each session is tracked as a separate file:
 | 78 | [session78.md](session78.md) | XAML Formatting Serialization (completed) |
 | 79 | [session79.md](session79.md) | TableCell Collection Population / OnNewParent (completed) |
 | 80 | [session80.md](session80.md) | SpellCheck.IsEnabled Bridge + Squiggle Rendering (completed) |
+| 81 | [session81.md](session81.md) | RTF Clipboard Serialization Round-Trips Text + Formatting (completed) |
+| 82 | [session82.md](session82.md) | RTF Round-Trip for Mixed/Nested Inline Formatting (completed) |

@@ -1387,18 +1387,129 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
-    public async Task SaveLoad_Rtf_RoundTripsWithoutCrashing()
+    public async Task SaveLoad_Rtf_RoundTripsTextAndFormatting()
     {
-        await _app.InvokeAsync("richtextbox.probe.create-plain", "rtf text");
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "rtf bold text");
+        var boldState = await _app.InvokeAsync("richtextbox.probe.toggle-bold-selection-command");
+        var boldRaw = boldState.ToString();
+        Assert.Equal("700", FirstRunFontWeight(boldState));
 
-        // Rtf round-trip now completes without NRE (Registry font mapping
-        // guarded under HAS_UNO). Content fidelity varies by platform font
-        // availability; the key verification is no crash.
         var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Rtf");
         var raw = state.ToString();
 
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
+        Assert.Contains("rtf bold text", Text(state));
+        // The RTF converter wraps bold on a <Span>; the shim's property system
+        // reports only Default/Local (no inheritance), so assert the inline's own value.
+        Assert.Equal("700", FirstInlineFontWeight(state));
+    }
+
+    static string Xaml(string body) =>
+        $"<Section xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">{body}</Section>";
+
+    async Task<JsonElement> SetAndRtfRoundTrip(string xaml)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "seed");
+        await _app.InvokeAsync("richtextbox.probe.set-xaml-document", xaml);
+        return await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Rtf");
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsMixedInlineFormatting()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>plain </Run><Bold><Run>bold</Run></Bold>" +
+            "<Italic><Run> italic</Run></Italic><Underline><Run> underline</Run></Underline></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("plain bold italic underline", Text(state));
+        // RTF round-trips formatting as <Span> wrappers (FontWeight/FontStyle/
+        // TextDecorations attributes), so assert the encoded values in the inline tree.
+        Assert.Contains("w=700", InlineTree(state));
+        Assert.Contains("s=Italic", InlineTree(state));
+        Assert.Contains("d=U", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsNestedBoldInsideItalic()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Italic><Run>it </Run><Bold><Run>both</Run></Bold></Italic></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("it both", Text(state));
+        Assert.Contains("s=Italic", InlineTree(state));
+        Assert.Contains("w=700", InlineTree(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsMultipleParagraphs()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph>first</Paragraph><Paragraph>second</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("first", Text(state));
+        Assert.Contains("second", Text(state));
+        Assert.Equal(2, BlockCount(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsUnicodeText()
+    {
+        const string text = "café 中文 你好 — ✓\u00E9\u6C49";
+        var state = await SetAndRtfRoundTrip(Xaml($"<Paragraph>{text}</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("café", Text(state));
+        Assert.Contains("中文", Text(state));
+        Assert.Contains("你好", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsHyperlinkText()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph>before <Hyperlink NavigateUri=\"https://example.com/\">click me</Hyperlink> after</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("click me", Text(state));
+        Assert.Contains("before", Text(state));
+        Assert.Contains("after", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsListText()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<List><ListItem><Paragraph>alpha</Paragraph></ListItem>" +
+            "<ListItem><Paragraph>beta</Paragraph></ListItem></List>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Contains("beta", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableCellText()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>alpha</Paragraph></TableCell>" +
+            "<TableCell><Paragraph>beta</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Contains("beta", Text(state));
     }
 
     [Fact]

@@ -112,13 +112,14 @@ scope, not a bug:
 - **Misc niche/legacy internals**: `Glyphs.cs`, `RubberbandSelector.cs`,
   `HighlightVisual.cs`, `TextFlow.cs`, `FlowNode.cs`, `FlowPosition.cs`.
 
-Also intentionally unsupported (not excluded from compilation, but gated
-`#if HAS_UNO` inside linked files rather than via `Compile Remove`):
-`TextRangeBase.CanSave`/`CanLoad`/`Save`/`Load` now recognize
-`DataFormats.Text` and `DataFormats.Xaml` (session 61); `Rtf`/`XamlPackage`
-still throw a predictable `ArgumentException`. `List.Apply` (new-list creation
-from plain paragraphs via `TextRangeEditLists.ConvertParagraphsToListItems`)
-was un-gated in session 53 and now works correctly.
+Also intentionally gated `#if HAS_UNO` inside linked files rather than via
+`Compile Remove`: `TextRangeBase.CanSave`/`CanLoad`/`Save`/`Load` recognize all
+four `DataFormats` — `Text` and `Xaml` (session 61), plus `Rtf` (session 81,
+round-trips text and inline formatting through `XamlRtfConverter`) and
+`XamlPackage` (OPC, plain text via the shim `XamlReader` package path).
+`List.Apply` (new-list creation from plain paragraphs via
+`TextRangeEditLists.ConvertParagraphsToListItems`) was un-gated in session 53
+and now works correctly.
 
 ## Status by milestone (see `docs/richtextbox/index.md` for full detail)
 
@@ -129,9 +130,11 @@ was un-gated in session 53 and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61 — supported
-  formats (`Text`, `Xaml`) tested; unsupported formats (`Rtf`, `XamlPackage`)
-  fail predictably.
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81 — all four
+  supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
+  round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
+  (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
+  `FontWeight` serialization), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
   now integrated (see "IME integration" below), even though WPF's own

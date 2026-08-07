@@ -5,6 +5,7 @@
 
 using System.IO;
 using System.IO.Packaging;
+using System.Text;
 using System.Xml;
 using System.Windows.Documents;
 
@@ -174,7 +175,7 @@ public static class XamlReader
             case "Table":
                 return ParseTable(reader);
             default:
-                reader.Skip();
+                ConsumeUnknownElement(reader);
                 return null;
         }
     }
@@ -182,16 +183,33 @@ public static class XamlReader
     static Paragraph ParseParagraph(XmlReader reader)
     {
         var para = new Paragraph();
+        var textBuffer = new StringBuilder();
+        void FlushText()
+        {
+            if (textBuffer.Length == 0)
+                return;
+            var text = textBuffer.ToString();
+            textBuffer.Clear();
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+            para.Inlines.Add(new Run(text));
+        }
         int depth = reader.Depth;
         while (reader.Read() && reader.Depth > depth)
         {
             if (reader.NodeType == XmlNodeType.Element)
             {
+                FlushText();
                 var inline = ParseInline(reader);
                 if (inline is not null)
                     para.Inlines.Add(inline);
             }
+            else if (reader.NodeType == XmlNodeType.Text || reader.NodeType == XmlNodeType.SignificantWhitespace)
+            {
+                textBuffer.Append(reader.Value);
+            }
         }
+        FlushText();
         return para;
     }
 
@@ -212,12 +230,26 @@ public static class XamlReader
             case "Span":
                 return ParseSpanInline(reader);
             case "LineBreak":
-                reader.Skip();
+                // Leave the reader on the element; the caller's reader.Read()
+                // advances to the following sibling.
                 return new LineBreak();
             default:
-                reader.Skip();
+                ConsumeUnknownElement(reader);
                 return null;
         }
+    }
+
+    // Consume an unknown element subtree, leaving the reader positioned at the
+    // element's end tag (or on the element itself when empty), so the caller's
+    // next reader.Read() advances to the following sibling element.
+    static void ConsumeUnknownElement(XmlReader reader)
+    {
+        if (reader.IsEmptyElement)
+            return;
+        int depth = reader.Depth;
+        reader.Read();
+        while (reader.Depth > depth)
+            reader.Read();
     }
 
     static Run ParseRun(XmlReader reader)
@@ -227,51 +259,29 @@ public static class XamlReader
         while (reader.MoveToNextAttribute())
         {
             var attrName = StripQualifier(reader.LocalName);
-            switch (attrName)
-            {
-                case "Text": text = reader.Value; break;
-                case "FontWeight":
-                    if (reader.Value.Equals("Bold", StringComparison.OrdinalIgnoreCase))
-                        run.FontWeight = FontWeights.Bold;
-                    else if (ushort.TryParse(reader.Value, out var w))
-                        run.FontWeight = new FontWeight { Weight = w };
-                    break;
-                case "FontStyle":
-                    if (reader.Value.Equals("Italic", StringComparison.OrdinalIgnoreCase))
-                        run.FontStyle = FontStyles.Italic;
-                    else if (reader.Value.Equals("Oblique", StringComparison.OrdinalIgnoreCase))
-                        run.FontStyle = FontStyles.Oblique;
-                    break;
-                case "FontSize":
-                    if (double.TryParse(reader.Value, out var fs) && fs > 0)
-                        run.FontSize = fs;
-                    break;
-                case "Foreground":
-                    if (TryParseColor(reader.Value, out var color))
-                        run.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
-                    break;
-                case "Background":
-                    if (TryParseColor(reader.Value, out var bg))
-                        run.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bg);
-                    break;
-                case "TextDecorations":
-                    if (reader.Value.Equals("Underline", StringComparison.OrdinalIgnoreCase))
-                        run.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Underline);
-                    else if (reader.Value.Equals("Strikethrough", StringComparison.OrdinalIgnoreCase))
-                        run.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Strikethrough);
-                    break;
-            }
+            if (attrName == "Text")
+                text = reader.Value;
+            else
+                ApplyInlineProperty(run, attrName, reader.Value);
         }
         reader.MoveToElement();
-        // Read text content if present between elements
-        if (text is null)
+        // Consume <Run>text</Run> and end positioned AT its </Run> end tag, so the
+        // caller's next reader.Read() advances to the following sibling element.
+        // (ReadElementContentAsString must NOT be used: it leaves the reader
+        // positioned on the next sibling, causing that element to be skipped.)
+        if (text is null && !reader.IsEmptyElement)
         {
-            text = reader.ReadElementContentAsString();
+            reader.Read();
+            if (reader.NodeType == XmlNodeType.Text || reader.NodeType == XmlNodeType.SignificantWhitespace)
+            {
+                text = reader.Value;
+                reader.Read();
+            }
+            while (reader.NodeType != XmlNodeType.EndElement)
+                reader.Read();
         }
-        else
-        {
-            reader.Skip();
-        }
+        // For <Run Text="..."/> self-closing elements, leave the reader positioned
+        // on the element itself so the caller's reader.Read() reaches the next sibling.
         if (text is not null)
         {
             run.Text = text;
@@ -279,9 +289,62 @@ public static class XamlReader
         return run;
     }
 
+    static void ApplyInlineProperty(TextElement element, string attrName, string value)
+    {
+        switch (attrName)
+        {
+            case "FontWeight":
+                if (value.Equals("Bold", StringComparison.OrdinalIgnoreCase))
+                    element.FontWeight = FontWeights.Bold;
+                else if (value.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+                    element.FontWeight = FontWeights.Normal;
+                else if (ushort.TryParse(value, out var w))
+                    element.FontWeight = new FontWeight { Weight = w };
+                break;
+            case "FontStyle":
+                if (value.Equals("Italic", StringComparison.OrdinalIgnoreCase))
+                    element.FontStyle = FontStyles.Italic;
+                else if (value.Equals("Oblique", StringComparison.OrdinalIgnoreCase))
+                    element.FontStyle = FontStyles.Oblique;
+                break;
+            case "FontSize":
+                var fsText = value.Trim();
+                double pt = 1.0;
+                if (fsText.EndsWith("pt", StringComparison.OrdinalIgnoreCase))
+                {
+                    fsText = fsText[..^2].Trim();
+                    pt = 96.0 / 72.0;
+                }
+                else if (fsText.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+                {
+                    fsText = fsText[..^2].Trim();
+                }
+                if (double.TryParse(fsText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var fs) && fs > 0)
+                    element.FontSize = fs * pt;
+                break;
+            case "Foreground":
+                if (TryParseColor(value, out var color))
+                    element.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+                break;
+            case "Background":
+                if (TryParseColor(value, out var bg))
+                    element.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bg);
+                break;
+            case "TextDecorations":
+                if (value.Equals("Underline", StringComparison.OrdinalIgnoreCase))
+                    element.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Underline);
+                else if (value.Equals("Strikethrough", StringComparison.OrdinalIgnoreCase))
+                    element.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Strikethrough);
+                break;
+        }
+    }
+
     static Bold ParseBold(XmlReader reader)
     {
         var bold = new Bold();
+        // Bold is a marker element; carry the formatting as a local property value
+        // so WriteXaml (which reduces it to <Span>) can serialize FontWeight.
+        bold.FontWeight = FontWeights.Bold;
         PopulateSpan(bold, reader);
         return bold;
     }
@@ -289,6 +352,7 @@ public static class XamlReader
     static Italic ParseItalic(XmlReader reader)
     {
         var italic = new Italic();
+        italic.FontStyle = FontStyles.Italic;
         PopulateSpan(italic, reader);
         return italic;
     }
@@ -296,6 +360,7 @@ public static class XamlReader
     static Underline ParseUnderline(XmlReader reader)
     {
         var underline = new Underline();
+        underline.SetValue(Inline.TextDecorationsProperty, System.Windows.Media.TextDecorations.Underline);
         PopulateSpan(underline, reader);
         return underline;
     }
@@ -319,6 +384,9 @@ public static class XamlReader
     static Span ParseSpanInline(XmlReader reader)
     {
         var span = new Span();
+        while (reader.MoveToNextAttribute())
+            ApplyInlineProperty(span, StripQualifier(reader.LocalName), reader.Value);
+        reader.MoveToElement();
         PopulateSpan(span, reader);
         return span;
     }
@@ -332,16 +400,33 @@ public static class XamlReader
 
     static void PopulateSpan(Span span, XmlReader reader)
     {
+        var textBuffer = new StringBuilder();
+        void FlushText()
+        {
+            if (textBuffer.Length == 0)
+                return;
+            var text = textBuffer.ToString();
+            textBuffer.Clear();
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+            span.Inlines.Add(new Run(text));
+        }
         int depth = reader.Depth;
         while (reader.Read() && reader.Depth > depth)
         {
             if (reader.NodeType == XmlNodeType.Element)
             {
+                FlushText();
                 var inline = ParseInline(reader);
                 if (inline is not null)
                     span.Inlines.Add(inline);
             }
+            else if (reader.NodeType == XmlNodeType.Text || reader.NodeType == XmlNodeType.SignificantWhitespace)
+            {
+                textBuffer.Append(reader.Value);
+            }
         }
+        FlushText();
     }
 
     static List ParseList(XmlReader reader)

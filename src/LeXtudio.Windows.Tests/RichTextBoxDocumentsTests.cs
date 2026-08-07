@@ -8,6 +8,17 @@ namespace LeXtudio.Windows.Tests;
 public sealed class RichTextBoxDocumentsTests
 {
     [Fact]
+    public void FontWeightConverterEmitsWpfNamedWeights()
+    {
+        var converter = new System.Windows.Media.FontWeightConverter();
+
+        Assert.Equal("Bold", converter.ConvertToInvariantString(System.Windows.FontWeights.Bold));
+        Assert.Equal("Normal", converter.ConvertToInvariantString(System.Windows.FontWeights.Normal));
+        Assert.Equal("ExtraLight", converter.ConvertToInvariantString(System.Windows.FontWeights.ExtraLight));
+        Assert.Equal("Black", converter.ConvertToInvariantString(System.Windows.FontWeights.Black));
+    }
+
+    [Fact]
     public void RichTextBoxExposesWpfDocumentSurface()
     {
         var documentProperty = typeof(RichTextBox).GetProperty(nameof(RichTextBox.Document));
