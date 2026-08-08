@@ -520,6 +520,21 @@ public static class XamlReader
     static List ParseList(XmlReader reader)
     {
         var list = new List();
+        while (reader.MoveToNextAttribute())
+        {
+            switch (StripQualifier(reader.LocalName))
+            {
+                case "MarkerStyle":
+                    if (Enum.TryParse<TextMarkerStyle>(reader.Value, out var markerStyle))
+                        list.MarkerStyle = markerStyle;
+                    break;
+                case "StartIndex":
+                    if (int.TryParse(reader.Value, out var startIndex))
+                        list.StartIndex = startIndex;
+                    break;
+            }
+        }
+        reader.MoveToElement();
         int depth = reader.Depth;
         while (reader.Read() && reader.Depth > depth)
         {

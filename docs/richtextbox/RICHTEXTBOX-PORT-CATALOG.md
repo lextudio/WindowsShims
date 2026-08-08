@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-86 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-87 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -147,7 +147,9 @@ and now works correctly.
   `XamlToRtfWriter.ConvertToThickness` parses), and LineHeight is dropped
   WPF-faithfully; session 86 added inline FlowDirection — `\rtlch`/`\ltrch`
   round-trip through `<Span FlowDirection>` because the shim `XamlReader` now
-  applies the attribute to `Inline`), `XamlPackage` round-trips plain text.
+  applies the attribute to `Inline`; session 87 added list markers — `MarkerStyle`
+  and `StartIndex` survive RTF save/load because `ParseList` now applies the
+  attributes `RtfToXamlReader` emits on `<List>`), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
   now integrated (see "IME integration" below), even though WPF's own

@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 214/214 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 216/216 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -165,7 +165,10 @@ Candidate coverage:
   TextAlignment/FlowDirection/Margin/TextIndent round-trips (Thickness
   serialized as `"left,top,right,bottom"`) and pinned the LineHeight drop.
   Session 86 added inline FlowDirection: `\rtlch`/`\ltrch` round-trip through
-  `<Span FlowDirection>` (the `XamlReader` now applies it to `Inline`).
+  `<Span FlowDirection>` (the `XamlReader` now applies it to `Inline`). Session 87
+  added list marker round-trips: `MarkerStyle` (bullets/disc, decimal) and
+  `StartIndex` survive RTF save/load (`RtfToXamlReader` emits them as `<List>`
+  attributes and `ParseList` now applies them).
 
 Done when:
 
@@ -280,3 +283,4 @@ Each session is tracked as a separate file:
 | 84 | [session84.md](session84.md) | RTF Round-Trip for Background + Overline/Baseline Behavior (completed) |
 | 85 | [session85.md](session85.md) | RTF Round-Trip for Paragraph TextAlignment/FlowDirection/Margin/TextIndent (completed) |
 | 86 | [session86.md](session86.md) | RTF Round-Trip for Inline FlowDirection (completed) |
+| 87 | [session87.md](session87.md) | RTF Round-Trip for List MarkerStyle/StartIndex (completed) |

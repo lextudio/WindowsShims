@@ -53,6 +53,10 @@ public sealed class RichTextBoxIntegrationTests
     static string? RenderScopeType(JsonElement state) => state.GetProperty("renderScopeType").GetString();
     static string? FirstBlockType(JsonElement state) => state.GetProperty("firstBlockType").GetString();
     static string? FirstListMarkerStyle(JsonElement state) => state.GetProperty("firstListMarkerStyle").GetString();
+    static int? FirstListStartIndex(JsonElement state) =>
+        state.GetProperty("firstListStartIndex").ValueKind == JsonValueKind.Null
+            ? null
+            : state.GetProperty("firstListStartIndex").GetInt32();
     static int? FirstListItemCount(JsonElement state) =>
         state.GetProperty("firstListItemCount").ValueKind == JsonValueKind.Null
             ? null
@@ -1499,6 +1503,41 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("alpha", Text(state));
         Assert.Contains("beta", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsBulletListMarker()
+    {
+        // RtfToXamlReader restores list formatting as <List MarkerStyle>; ParseList
+        // now applies it back (the RTF writer emits the bullet list level and the
+        // reader converts it to a Disc marker).
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<List MarkerStyle=\"Disc\"><ListItem><Paragraph>alpha</Paragraph></ListItem>" +
+            "<ListItem><Paragraph>beta</Paragraph></ListItem></List>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Contains("beta", Text(state));
+        Assert.Equal("Disc", FirstListMarkerStyle(state));
+        Assert.Equal(2, FirstListItemCount(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsNumberedListMarkerAndStart()
+    {
+        // Decimal markers round-trip through the RTF list level, and \pnstart keeps
+        // a non-default StartIndex.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<List MarkerStyle=\"Decimal\" StartIndex=\"3\"><ListItem><Paragraph>alpha</Paragraph></ListItem>" +
+            "<ListItem><Paragraph>beta</Paragraph></ListItem></List>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Contains("beta", Text(state));
+        Assert.Equal("Decimal", FirstListMarkerStyle(state));
+        Assert.Equal(3, FirstListStartIndex(state));
     }
 
     [Fact]
