@@ -52,6 +52,7 @@ public sealed class RichTextBoxIntegrationTests
     static string InlineTree(JsonElement state) => state.GetProperty("inlineTree").GetString() ?? "";
     static string? RenderScopeType(JsonElement state) => state.GetProperty("renderScopeType").GetString();
     static string? FirstBlockType(JsonElement state) => state.GetProperty("firstBlockType").GetString();
+    static string? FirstHyperlinkNavigateUri(JsonElement state) => state.GetProperty("firstHyperlinkNavigateUri").GetString();
     static string? FirstListMarkerStyle(JsonElement state) => state.GetProperty("firstListMarkerStyle").GetString();
     static int? FirstListStartIndex(JsonElement state) =>
         state.GetProperty("firstListStartIndex").ValueKind == JsonValueKind.Null
@@ -1490,6 +1491,41 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Contains("click me", Text(state));
         Assert.Contains("before", Text(state));
         Assert.Contains("after", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsHyperlinkNavigateUri()
+    {
+        // RTF stores hyperlinks as {\field{\*\fldinst { HYPERLINK "..."}}}; the
+        // writer emits it, RtfToXamlReader parses it back to a <Hyperlink
+        // NavigateUri> attribute, and the shim XamlReader reads NavigateUri.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph>before <Hyperlink NavigateUri=\"https://example.com/\">click me</Hyperlink> after</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("click me", Text(state));
+        Assert.Equal("https://example.com/", FirstHyperlinkNavigateUri(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsNestedListText()
+    {
+        // A list whose first item contains a nested list keeps all three texts
+        // (alpha, nested, beta) and both list levels across the RTF round-trip.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<List><ListItem><Paragraph>alpha</Paragraph>" +
+            "<List><ListItem><Paragraph>nested</Paragraph></ListItem></List>" +
+            "</ListItem><ListItem><Paragraph>beta</Paragraph></ListItem></List>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Contains("nested", Text(state));
+        Assert.Contains("beta", Text(state));
+        Assert.Equal(2, FirstListItemCount(state));
+        Assert.Equal("Disc", NestedListMarkerStyle(state));
+        Assert.Equal(1, NestedListItemCount(state));
     }
 
     [Fact]

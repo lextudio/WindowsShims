@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 216/216 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 218/218 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -168,7 +168,9 @@ Candidate coverage:
   `<Span FlowDirection>` (the `XamlReader` now applies it to `Inline`). Session 87
   added list marker round-trips: `MarkerStyle` (bullets/disc, decimal) and
   `StartIndex` survive RTF save/load (`RtfToXamlReader` emits them as `<List>`
-  attributes and `ParseList` now applies them).
+  attributes and `ParseList` now applies them). Session 88 added regression
+  coverage confirming hyperlink `NavigateUri` (`\field{\*\fldinst HYPERLINK}`)
+  and nested lists (both levels, all text) round-trip intact.
 
 Done when:
 
@@ -284,3 +286,4 @@ Each session is tracked as a separate file:
 | 85 | [session85.md](session85.md) | RTF Round-Trip for Paragraph TextAlignment/FlowDirection/Margin/TextIndent (completed) |
 | 86 | [session86.md](session86.md) | RTF Round-Trip for Inline FlowDirection (completed) |
 | 87 | [session87.md](session87.md) | RTF Round-Trip for List MarkerStyle/StartIndex (completed) |
+| 88 | [session88.md](session88.md) | RTF Round-Trip Coverage for Hyperlink NavigateUri + Nested Lists (completed) |

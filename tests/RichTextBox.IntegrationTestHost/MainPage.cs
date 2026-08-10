@@ -226,6 +226,7 @@ public sealed partial class MainPage : Page
             ? (int?)null
             : firstRun.ContentStart.GetOffsetToPosition(selection.End);
         var firstBlockType = document?.Blocks.FirstBlock?.GetType().Name;
+        var firstHyperlinkNavigateUri = FindFirstHyperlinkNavigateUri(document);
         var firstList = document?.Blocks.FirstBlock as System.Windows.Documents.List;
         var firstListMarkerStyle = firstList?.MarkerStyle.ToString();
         var firstListStartIndex = firstList?.StartIndex;
@@ -303,7 +304,27 @@ public sealed partial class MainPage : Page
         var firstRunHasUnderline = firstRun is not null
             && HasUnderline(firstRun.GetValue(WpfInline.TextDecorationsProperty));
 
-        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListStartIndex\":{(firstListStartIndex?.ToString() ?? "null")},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"firstParagraphFontSize\":{Js(firstParagraphFontSize)},\"firstParagraphMargin\":{Js(firstParagraphMargin)},\"firstParagraphTextIndent\":{Js(firstParagraphTextIndent)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstHyperlinkNavigateUri\":{Js(firstHyperlinkNavigateUri)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListStartIndex\":{(firstListStartIndex?.ToString() ?? "null")},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"firstParagraphFontSize\":{Js(firstParagraphFontSize)},\"firstParagraphMargin\":{Js(firstParagraphMargin)},\"firstParagraphTextIndent\":{Js(firstParagraphTextIndent)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+    }
+
+    static string? FindFirstHyperlinkNavigateUri(System.Windows.Documents.FlowDocument? document)
+    {
+        if (document?.Blocks.FirstBlock is not WpfParagraph paragraph)
+            return null;
+        return FindHyperlinkUri(paragraph.Inlines.FirstInline);
+    }
+
+    static string? FindHyperlinkUri(WpfInline? inline)
+    {
+        while (inline is not null)
+        {
+            if (inline is System.Windows.Documents.Hyperlink hyperlink)
+                return hyperlink.NavigateUri?.ToString();
+            if (inline is WpfSpan span && FindHyperlinkUri(span.Inlines.FirstInline) is { } nested)
+                return nested;
+            inline = inline.NextInline;
+        }
+        return null;
     }
 
     static object? GetInternalProperty(object instance, string name)
