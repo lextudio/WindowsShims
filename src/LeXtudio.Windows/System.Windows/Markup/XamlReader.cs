@@ -560,6 +560,18 @@ public static class XamlReader
     static Table ParseTable(XmlReader reader)
     {
         var table = new Table();
+        while (reader.MoveToNextAttribute())
+        {
+            var attrName = StripQualifier(reader.LocalName);
+            switch (attrName)
+            {
+                case "Background":
+                    if (TryParseColor(reader.Value, out var tableBg))
+                        table.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(tableBg);
+                    break;
+            }
+        }
+        reader.MoveToElement();
         int depth = reader.Depth;
         TableRowGroup? currentRg = null;
         TableRow? currentRow = null;
@@ -571,14 +583,58 @@ public static class XamlReader
                 {
                     case "TableRowGroup":
                         currentRg = new TableRowGroup();
+                        while (reader.MoveToNextAttribute())
+                        {
+                            if (StripQualifier(reader.LocalName) == "Background" && TryParseColor(reader.Value, out var rgBg))
+                                currentRg.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(rgBg);
+                        }
+                        reader.MoveToElement();
                         table.RowGroups.Add(currentRg);
                         break;
                     case "TableRow":
                         currentRow = new TableRow();
+                        while (reader.MoveToNextAttribute())
+                        {
+                            if (StripQualifier(reader.LocalName) == "Background" && TryParseColor(reader.Value, out var rowBg))
+                                currentRow.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(rowBg);
+                        }
+                        reader.MoveToElement();
                         currentRg?.Rows.Add(currentRow);
                         break;
                     case "TableCell":
                         var cell = new TableCell();
+                        while (reader.MoveToNextAttribute())
+                        {
+                            var attrName = StripQualifier(reader.LocalName);
+                            switch (attrName)
+                            {
+                                case "ColumnSpan":
+                                    if (int.TryParse(reader.Value, out var columnSpan))
+                                        cell.ColumnSpan = columnSpan;
+                                    break;
+                                case "RowSpan":
+                                    if (int.TryParse(reader.Value, out var rowSpan))
+                                        cell.RowSpan = rowSpan;
+                                    break;
+                                case "Padding":
+                                    if (TryParseThickness(reader.Value, out var padding))
+                                        cell.Padding = padding;
+                                    break;
+                                case "BorderThickness":
+                                    if (TryParseThickness(reader.Value, out var borderThickness))
+                                        cell.BorderThickness = borderThickness;
+                                    break;
+                                case "BorderBrush":
+                                    if (TryParseColor(reader.Value, out var borderColor))
+                                        cell.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(borderColor);
+                                    break;
+                                case "Background":
+                                    if (TryParseColor(reader.Value, out var cellBg))
+                                        cell.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(cellBg);
+                                    break;
+                            }
+                        }
+                        reader.MoveToElement();
                         int cellDepth = reader.Depth;
                         while (reader.Read() && reader.Depth > cellDepth)
                         {

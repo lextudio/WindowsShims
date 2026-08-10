@@ -65,6 +65,18 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstListItemText(JsonElement state) => state.GetProperty("firstListItemText").GetString();
     static string? FirstListItemBlockTypes(JsonElement state) => state.GetProperty("firstListItemBlockTypes").GetString();
     static string? NestedListMarkerStyle(JsonElement state) => state.GetProperty("nestedListMarkerStyle").GetString();
+    static string? FirstTableCellBackground(JsonElement state) => state.GetProperty("firstTableCellBackground").GetString();
+    static string? FirstTableCellBorderThickness(JsonElement state) => state.GetProperty("firstTableCellBorderThickness").GetString();
+    static string? FirstTableCellBorderBrush(JsonElement state) => state.GetProperty("firstTableCellBorderBrush").GetString();
+    static string? FirstTableCellPadding(JsonElement state) => state.GetProperty("firstTableCellPadding").GetString();
+    static int? FirstTableCellRowSpan(JsonElement state) =>
+        state.GetProperty("firstTableCellRowSpan").ValueKind == JsonValueKind.Null
+            ? null
+            : state.GetProperty("firstTableCellRowSpan").GetInt32();
+    static int? FirstTableCellColumnSpan(JsonElement state) =>
+        state.GetProperty("firstTableCellColumnSpan").ValueKind == JsonValueKind.Null
+            ? null
+            : state.GetProperty("firstTableCellColumnSpan").GetInt32();
     static int? NestedListItemCount(JsonElement state) =>
         state.GetProperty("nestedListItemCount").ValueKind == JsonValueKind.Null
             ? null
@@ -1589,6 +1601,70 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("alpha", Text(state));
         Assert.Contains("beta", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableCellBackground()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell Background=\"#FFFF0000\"><Paragraph>alpha</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Equal("#FFFF0000", FirstTableCellBackground(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableCellBorders()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>alpha</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Equal("[Thickness: 1-1-1-1]", FirstTableCellBorderThickness(state));
+        Assert.Equal("#FF000000", FirstTableCellBorderBrush(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableCellRowSpan()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell RowSpan=\"2\"><Paragraph>alpha</Paragraph></TableCell>" +
+            "<TableCell><Paragraph>beta</Paragraph></TableCell>" +
+            "</TableRow><TableRow>" +
+            "<TableCell><Paragraph>gamma</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Equal(2, FirstTableCellRowSpan(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_DropsTableCellColumnSpanAndPaddingLikeWpf()
+    {
+        // The RTF converter cannot express column spans (it never writes
+        // \clgridspan) and deliberately skips cell padding (WriteCellPadding is
+        // empty), so both are silently dropped on save. Assert the WPF-faithful drop.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell ColumnSpan=\"2\" Padding=\"4,4,4,4\"><Paragraph>alpha</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("alpha", Text(state));
+        Assert.Equal(1, FirstTableCellColumnSpan(state));
+        Assert.NotEqual("[Thickness: 4-4-4-4]", FirstTableCellPadding(state));
     }
 
     [Fact]
