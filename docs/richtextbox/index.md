@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 227/227 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 228/228 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -189,6 +189,9 @@ Candidate coverage:
   `BorderThickness`/`BorderBrush` round-trip via `\brdr*` (the shim converter
   formats block border brushes and `ParseParagraph` applies the border
   attributes, including the uniform single-value thickness form).
+  Session 94 added regression coverage confirming nested tables (a table in a
+  table cell) round-trip via `\nesttableprops`/`\nestrow` — the shim already
+  parsed them with no changes.
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -311,3 +314,4 @@ Each session is tracked as a separate file:
 | 91 | [session91.md](session91.md) | RTF Round-Trip for Inline Language (completed) |
 | 92 | [session92.md](session92.md) | RTF Round-Trip for Table Column Widths (completed) |
 | 93 | [session93.md](session93.md) | RTF Round-Trip for Paragraph Borders (completed) |
+| 94 | [session94.md](session94.md) | RTF Round-Trip Coverage for Nested Tables (completed) |

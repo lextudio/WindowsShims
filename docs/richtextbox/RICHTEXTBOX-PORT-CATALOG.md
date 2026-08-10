@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-93 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-94 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -167,7 +167,9 @@ and now works correctly.
   session 93 added paragraph borders — `BorderThickness`/`BorderBrush`
   round-trip via `\brdr*` (the shim converter formats block border brushes and
   `ParseParagraph` applies the border attributes, including the uniform
-  single-value thickness form),
+  single-value thickness form);
+  session 94 added regression coverage for nested tables — a table inside a
+  cell round-trips via `\nesttableprops`/`\nestrow` with no shim changes,
   while FontStretch and LineHeight stay pinned WPF-faithful drops), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is

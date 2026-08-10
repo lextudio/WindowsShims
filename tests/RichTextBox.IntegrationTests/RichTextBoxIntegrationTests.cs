@@ -44,6 +44,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstTableColumnWidths(JsonElement state) => state.GetProperty("firstTableColumnWidths").GetString();
     static string? FirstParagraphBorderThickness(JsonElement state) => state.GetProperty("firstParagraphBorderThickness").GetString();
     static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
+    static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
@@ -1587,6 +1588,27 @@ public sealed class RichTextBoxIntegrationTests
 
         Assert.True(HasDocument(state), raw);
         Assert.Equal("100,200", FirstTableColumnWidths(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsNestedTable()
+    {
+        // Regression coverage: the RTF writer emits \nesttableprops/\nestrow and
+        // the reader reconstructs the inner <Table> block inside the cell; the
+        // shim ParseTable already parses nested tables (cells parse via ParseBlock).
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>outer</Paragraph>" +
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>inner</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>" +
+            "</TableCell></TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.True(FirstTableCellHasNestedTable(state), raw);
+        Assert.Contains("outer", Text(state));
+        Assert.Contains("inner", Text(state));
     }
 
     [Fact]
