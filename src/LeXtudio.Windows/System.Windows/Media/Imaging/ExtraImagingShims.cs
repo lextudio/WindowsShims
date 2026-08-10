@@ -83,7 +83,29 @@ namespace System.Windows.Media.Imaging
 
 	public class BitmapFrame : BitmapSource
 	{
-		public static BitmapFrame Create(Stream stream) => new BitmapFrame();
+		public static BitmapFrame Create(Stream stream)
+		{
+			// Decode the stream so the RTF writer's WriteShapeImage gets a real
+			// natural size for \picwgoal/\pichgoal.
+			var frame = new BitmapFrame();
+			if (stream is not null)
+			{
+				long position = stream.CanSeek ? stream.Position : -1;
+				using var memory = new MemoryStream();
+				stream.CopyTo(memory);
+				if (position >= 0)
+					stream.Position = position;
+				using var skBitmap = SkiaSharp.SKBitmap.Decode(memory.ToArray());
+				if (skBitmap is not null)
+				{
+					frame.PixelWidth = skBitmap.Width;
+					frame.PixelHeight = skBitmap.Height;
+					frame.Width = skBitmap.Width;
+					frame.Height = skBitmap.Height;
+				}
+			}
+			return frame;
+		}
 		public static BitmapFrame Create(BitmapSource source) => (BitmapFrame)source;
 		public static BitmapFrame Create(int pixelWidth, int pixelHeight, double dpiX, double dpiY, PixelFormat pixelFormat, BitmapPalette palette, BitmapSource source, byte[] unused) => new BitmapFrame();
 	}

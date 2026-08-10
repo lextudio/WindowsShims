@@ -45,6 +45,8 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstParagraphBorderThickness(JsonElement state) => state.GetProperty("firstParagraphBorderThickness").GetString();
     static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
+    static string? FirstInlineImageDims(JsonElement state) => state.GetProperty("firstInlineImageDims").GetString();
+    static string? FirstBlockImageDims(JsonElement state) => state.GetProperty("firstBlockImageDims").GetString();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
@@ -1635,6 +1637,43 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(FirstTableCellHasNestedTable(state), raw);
         Assert.Contains("outer", Text(state));
         Assert.Contains("inner", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsInlineImage()
+    {
+        // Under HAS_UNO, embedded images serialize as self-contained data-URI
+        // sources: WriteEmbeddedObject emits <Image Source="data:image/png;base64,...">,
+        // the RTF writer decodes it into \pict\pngblip + hex, and the reader
+        // re-emits the data URI which ParseImageElement decodes back into a
+        // BitmapSource with the original pixel dimensions.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><InlineUIContainer>" +
+            "<Image Width=\"40\" Height=\"20\" Source=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAYAAAD/Rn+7AAAAL0lEQVR4nO3OMQ0AAAjAsPk3DSrIOHb0LwPzGXagYEE7ULCgHShY0A4ULGgHCl5biXs6G0TdvUkAAAAASUVORK5CYII=\"/>" +
+            "</InlineUIContainer><Run> after</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains(" after", Text(state));
+        Assert.Equal("40x20", FirstInlineImageDims(state));
+    }
+
+
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsBlockImage()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph>before</Paragraph>" +
+            "<BlockUIContainer>" +
+            "<Image Width=\"40\" Height=\"20\" Source=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAYAAAD/Rn+7AAAAL0lEQVR4nO3OMQ0AAAjAsPk3DSrIOHb0LwPzGXagYEE7ULCgHShY0A4ULGgHCl5biXs6G0TdvUkAAAAASUVORK5CYII=\"/>" +
+            "</BlockUIContainer><Paragraph>after</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("before", Text(state));
+        Assert.Contains("after", Text(state));
+        Assert.Equal("40x20", FirstBlockImageDims(state));
     }
 
     [Fact]

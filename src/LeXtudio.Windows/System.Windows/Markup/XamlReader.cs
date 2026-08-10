@@ -170,6 +170,10 @@ public static class XamlReader
         {
             case "Paragraph":
                 return ParseParagraph(reader);
+            case "BlockUIContainer":
+                return ParseBlockUiContainer(reader);
+            case "Image":
+                return new BlockUIContainer(ParseImageElement(reader));
             case "List":
                 return ParseList(reader);
             case "Table":
@@ -281,6 +285,12 @@ public static class XamlReader
                 return ParseUnderline(reader);
             case "Hyperlink":
                 return ParseHyperlink(reader);
+            case "InlineUIContainer":
+                return ParseInlineUiContainer(reader);
+            case "Image":
+                // RtfToXamlReader emits <Image .../> directly; wrap it in an
+                // InlineUIContainer like WPF's XamlReader does.
+                return new InlineUIContainer(ParseImageElement(reader));
             case "Span":
                 return ParseSpanInline(reader);
             case "LineBreak":
@@ -506,11 +516,84 @@ public static class XamlReader
         return hyperlink;
     }
 
+    static InlineUIContainer ParseInlineUiContainer(XmlReader reader)
+    {
+        var container = new InlineUIContainer();
+        int depth = reader.Depth;
+        while (reader.Read() && reader.Depth > depth)
+        {
+            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "Image")
+                container.Child = ParseImageElement(reader);
+        }
+        return container;
+    }
+
+    static BlockUIContainer ParseBlockUiContainer(XmlReader reader)
+    {
+        var container = new BlockUIContainer();
+        int depth = reader.Depth;
+        while (reader.Read() && reader.Depth > depth)
+        {
+            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "Image")
+                container.Child = ParseImageElement(reader);
+        }
+        return container;
+    }
+
+    static Microsoft.UI.Xaml.FrameworkElement? ParseImageElement(XmlReader reader)
+    {
+        var image = new System.Windows.Controls.Image();
+        while (reader.MoveToNextAttribute())
+        {
+            switch (StripQualifier(reader.LocalName))
+            {
+                case "Source":
+                    // Under HAS_UNO the serializer and RTF reader emit self-contained
+                    // data URIs ("data:image/png;base64,...") instead of package URIs.
+                    if (TryParseDataUri(reader.Value, out var bytes))
+                        image.Source = System.Windows.Media.Imaging.BitmapSource.Decode(bytes);
+                    break;
+                case "Width":
+                    if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var width))
+                        image.Width = width;
+                    break;
+                case "Height":
+                    if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var height))
+                        image.Height = height;
+                    break;
+            }
+        }
+        reader.MoveToElement();
+        if (!reader.IsEmptyElement)
+            ConsumeUnknownElement(reader);
+        return image;
+    }
+
+    static bool TryParseDataUri(string value, out byte[] bytes)
+    {
+        bytes = [];
+        if (!value.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            return false;
+        int comma = value.IndexOf(',');
+        if (comma < 0)
+            return false;
+        if (!value.AsSpan(5, comma - 5).Contains("base64", StringComparison.OrdinalIgnoreCase))
+            return false;
+        try
+        {
+            bytes = Convert.FromBase64String(value[(comma + 1)..]);
+            return bytes.Length > 0;
+        }
+        catch (System.FormatException)
+        {
+            return false;
+        }
+    }
+
     static Span ParseSpanInline(XmlReader reader)
     {
         var span = new Span();
-        while (reader.MoveToNextAttribute())
-            ApplyInlineProperty(span, StripQualifier(reader.LocalName), reader.Value);
+        while (reader.MoveToNextAttribute())            ApplyInlineProperty(span, StripQualifier(reader.LocalName), reader.Value);
         reader.MoveToElement();
         PopulateSpan(span, reader);
         return span;

@@ -277,6 +277,8 @@ public sealed partial class MainPage : Page
             ? null
             : FormatBrush(firstParagraph.GetValue(System.Windows.Documents.Block.BorderBrushProperty));
         var inlineTree = FormatInlineTree(firstInline);
+        var firstInlineImageDims = FindFirstImageDims(firstInline);
+        var firstBlockImageDims = FindFirstBlockImageDims(document?.Blocks.FirstBlock);
         var firstInlineFontWeight = firstInline is null
             ? null
             : FormatFontWeight(firstInline.GetValue(WpfTextElement.FontWeightProperty));
@@ -330,7 +332,7 @@ public sealed partial class MainPage : Page
         var firstRunHasUnderline = firstRun is not null
             && HasUnderline(firstRun.GetValue(WpfInline.TextDecorationsProperty));
 
-        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstHyperlinkNavigateUri\":{Js(firstHyperlinkNavigateUri)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListStartIndex\":{(firstListStartIndex?.ToString() ?? "null")},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstTableCellBackground\":{Js(firstTableCellBackground)},\"firstTableCellBorderThickness\":{Js(firstTableCellBorderThickness)},\"firstTableCellBorderBrush\":{Js(firstTableCellBorderBrush)},\"firstTableCellPadding\":{Js(firstTableCellPadding)},\"firstTableCellRowSpan\":{(firstTableCellRowSpan?.ToString() ?? "null")},\"firstTableCellColumnSpan\":{(firstTableCellColumnSpan?.ToString() ?? "null")},\"firstTableCellHasNestedTable\":{Jb(firstTableCellHasNestedTable)},\"firstTableColumnWidths\":{Js(firstTableColumnWidths)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"firstParagraphFontSize\":{Js(firstParagraphFontSize)},\"firstParagraphMargin\":{Js(firstParagraphMargin)},\"firstParagraphTextIndent\":{Js(firstParagraphTextIndent)},\"firstParagraphBorderThickness\":{Js(firstParagraphBorderThickness)},\"firstParagraphBorderBrush\":{Js(firstParagraphBorderBrush)},\"inlineTree\":{Js(inlineTree)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineVariants\":{Js(firstInlineVariants)},\"firstInlineLanguage\":{Js(firstInlineLanguage)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
+        return $"{{\"hasRichTextBox\":{Jb(box is not null)},\"hasDocument\":{Jb(document is not null)},\"blockCount\":{(document?.Blocks.Count ?? 0)},\"text\":{Js(text)},\"canUndo\":{Jb(canUndo)},\"canRedo\":{Jb(canRedo)},\"selectionText\":{Js(selectionText)},\"selectionFontWeight\":{Js(selectionFontWeight)},\"selectionStartRunOffset\":{(selectionStartRunOffset?.ToString() ?? "null")},\"selectionEndRunOffset\":{(selectionEndRunOffset?.ToString() ?? "null")},\"clipboardText\":{Js(clipboardText)},\"firstBlockType\":{Js(firstBlockType)},\"firstHyperlinkNavigateUri\":{Js(firstHyperlinkNavigateUri)},\"firstListMarkerStyle\":{Js(firstListMarkerStyle)},\"firstListStartIndex\":{(firstListStartIndex?.ToString() ?? "null")},\"firstListItemCount\":{(firstListItemCount?.ToString() ?? "null")},\"firstListItemText\":{Js(firstListItemText)},\"firstListItemBlockTypes\":{Js(firstListItemBlockTypes)},\"nestedListMarkerStyle\":{Js(nestedListMarkerStyle)},\"nestedListItemCount\":{(nestedListItemCount?.ToString() ?? "null")},\"firstTableCellBackground\":{Js(firstTableCellBackground)},\"firstTableCellBorderThickness\":{Js(firstTableCellBorderThickness)},\"firstTableCellBorderBrush\":{Js(firstTableCellBorderBrush)},\"firstTableCellPadding\":{Js(firstTableCellPadding)},\"firstTableCellRowSpan\":{(firstTableCellRowSpan?.ToString() ?? "null")},\"firstTableCellColumnSpan\":{(firstTableCellColumnSpan?.ToString() ?? "null")},\"firstTableCellHasNestedTable\":{Jb(firstTableCellHasNestedTable)},\"firstTableColumnWidths\":{Js(firstTableColumnWidths)},\"firstParagraphTextAlignment\":{Js(firstParagraphTextAlignment)},\"firstParagraphLineHeight\":{Js(firstParagraphLineHeight)},\"firstParagraphLineStackingStrategy\":{Js(firstParagraphLineStackingStrategy)},\"firstParagraphFlowDirection\":{Js(firstParagraphFlowDirection)},\"firstParagraphFontSize\":{Js(firstParagraphFontSize)},\"firstParagraphMargin\":{Js(firstParagraphMargin)},\"firstParagraphTextIndent\":{Js(firstParagraphTextIndent)},\"firstParagraphBorderThickness\":{Js(firstParagraphBorderThickness)},\"firstParagraphBorderBrush\":{Js(firstParagraphBorderBrush)},\"inlineTree\":{Js(inlineTree)},\"firstInlineImageDims\":{Js(firstInlineImageDims)},\"firstBlockImageDims\":{Js(firstBlockImageDims)},\"firstInlineType\":{Js(firstInline?.GetType().FullName)},\"firstInlineFontWeight\":{Js(firstInlineFontWeight)},\"firstInlineFontStyle\":{Js(firstInlineFontStyle)},\"firstInlineFontSize\":{Js(firstInlineFontSize)},\"firstInlineFontFamily\":{Js(firstInlineFontFamily)},\"firstInlineForeground\":{Js(firstInlineForeground)},\"firstInlineBackground\":{Js(firstInlineBackground)},\"firstInlineFlowDirection\":{Js(firstInlineFlowDirection)},\"firstInlineVariants\":{Js(firstInlineVariants)},\"firstInlineLanguage\":{Js(firstInlineLanguage)},\"firstInlineHasUnderline\":{Jb(firstInlineHasUnderline)},\"firstRunFontWeight\":{Js(firstRunFontWeight)},\"firstRunFontStyle\":{Js(firstRunFontStyle)},\"firstRunFontSize\":{Js(firstRunFontSize)},\"firstRunFontFamily\":{Js(firstRunFontFamily)},\"firstRunForeground\":{Js(firstRunForeground)},\"firstRunBackground\":{Js(firstRunBackground)},\"firstRunFlowDirection\":{Js(firstRunFlowDirection)},\"firstRunHasUnderline\":{Jb(firstRunHasUnderline)},\"contentHostAvailable\":{Jb(contentHostAvailable)},\"renderScopeType\":{Js(renderScope?.GetType().FullName)},\"textViewType\":{Js(textView?.GetType().FullName)}}}";
     }
 
     static string? FindFirstHyperlinkNavigateUri(System.Windows.Documents.FlowDocument? document)
@@ -351,6 +353,34 @@ public sealed partial class MainPage : Page
                 if (row.Cells.Count > 0)
                     return row.Cells[0];
             }
+        }
+        return null;
+    }
+
+    static string? FindFirstBlockImageDims(System.Windows.Documents.Block? block)
+    {
+        var current = block;
+        while (current is not null)
+        {
+            if (current is System.Windows.Documents.BlockUIContainer { Child: System.Windows.Controls.Image { Source: System.Windows.Media.Imaging.BitmapSource bs } })
+                return $"{bs.PixelWidth}x{bs.PixelHeight}";
+            // RTF has no block-level image concept; block images reload as inline.
+            if (current is System.Windows.Documents.Paragraph { Inlines.FirstInline: { } firstInline } && FindFirstImageDims(firstInline) is { } inlineDims)
+                return inlineDims;
+            current = current.NextBlock;
+        }
+        return null;
+    }
+
+    static string? FindFirstImageDims(WpfInline? inline)
+    {
+        while (inline is not null)
+        {
+            if (inline is System.Windows.Documents.InlineUIContainer { Child: System.Windows.Controls.Image { Source: System.Windows.Media.Imaging.BitmapSource bs } })
+                return $"{bs.PixelWidth}x{bs.PixelHeight}";
+            if (inline is WpfSpan span && FindFirstImageDims(span.Inlines.FirstInline) is { } nested)
+                return nested;
+            inline = inline.NextInline;
         }
         return null;
     }

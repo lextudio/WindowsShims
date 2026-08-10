@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-95 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-96 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -170,10 +170,14 @@ and now works correctly.
   single-value thickness form);
   session 94 added regression coverage for nested tables — a table inside a
   cell round-trips via `\nesttableprops`/`\nestrow` with no shim changes,
-  and session 95 covered `LineBreak` (`\line`) and tab characters (`\tab`),
-  while FontStretch and LineHeight stay pinned WPF-faithful drops and
-  embedded images (`\pict`) remain the one unround-tripped RTF feature
-  (`WriteEmbeddedObject` excluded under `HAS_UNO`), `XamlPackage` round-trips plain text.
+  and session 95 covered `LineBreak` (`\line`) and tab characters (`\tab`);
+  session 96 completed the surface with embedded images — under `HAS_UNO` the
+  intermediate XAML carries self-contained `data:image/png;base64,...`
+  sources: `WriteEmbeddedObject` emits them, the RTF writer decodes them into
+  `\pict`/`\pngblip`+hex, the reader re-emits them, and the shim `XamlReader`
+  decodes them back into `BitmapSource` (`BitmapSource` now retains pixels and
+  `BitmapFrame.Create` decodes real dimensions),
+  while FontStretch and LineHeight stay pinned WPF-faithful drops), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
   now integrated (see "IME integration" below), even though WPF's own

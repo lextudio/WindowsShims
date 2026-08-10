@@ -17,6 +17,8 @@ namespace System.Windows.Media.Imaging
 
 	public class BitmapSource : Microsoft.UI.Xaml.Media.ImageSource
 	{
+		private byte[] _pixels = [];
+
 		public BitmapSource()
 #if WINDOWS_APP_SDK
 			: base((WinRT.IObjectReference)null)
@@ -42,18 +44,42 @@ namespace System.Windows.Media.Imaging
 
 		public virtual byte[] GetPixelData()
 		{
-			return new byte[PixelWidth * PixelHeight * 4];
+			return _pixels;
 		}
 
 		public static BitmapSource Create(int pixelWidth, int pixelHeight, double dpiX, double dpiY, PixelFormat pixelFormat, BitmapPalette? palette, byte[] pixels, int stride)
 		{
-			return new BitmapSource { PixelWidth = pixelWidth, PixelHeight = pixelHeight, DpiX = dpiX, DpiY = dpiY, Format = pixelFormat };
+			return new BitmapSource
+			{
+				PixelWidth = pixelWidth,
+				PixelHeight = pixelHeight,
+				Width = pixelWidth,
+				Height = pixelHeight,
+				DpiX = dpiX,
+				DpiY = dpiY,
+				Format = pixelFormat,
+				_pixels = (byte[])pixels.Clone(),
+			};
 		}
 
 		public void CopyPixels(Array pixels, int stride, int offset)
 		{
 			var data = GetPixelData();
 			Buffer.BlockCopy(data, 0, pixels, offset, Math.Min(data.Length, pixels.Length));
+		}
+
+		// Decodes encoded image bytes (PNG/JPEG/...) into a BitmapSource holding
+		// BGRA pixel data. Used by the shim XamlReader for data-URI image sources.
+		public static BitmapSource? Decode(byte[] data)
+		{
+			if (data.Length == 0)
+				return null;
+			using var skBitmap = SkiaSharp.SKBitmap.Decode(data);
+			if (skBitmap is null)
+				return null;
+			var pixels = new byte[skBitmap.Width * skBitmap.Height * 4];
+			System.Runtime.InteropServices.Marshal.Copy(skBitmap.GetPixels(), pixels, 0, pixels.Length);
+			return Create(skBitmap.Width, skBitmap.Height, 96.0, 96.0, PixelFormats.Pbgra32, null, pixels, skBitmap.Width * 4);
 		}
 	}
 
