@@ -383,6 +383,14 @@ public static class XamlReader
                 if (element is Inline inline && Enum.TryParse<FlowDirection>(value, out var flowDirection))
                     inline.FlowDirection = flowDirection;
                 break;
+            case "Variants":
+                // RtfToXamlReader emits super/subscript as <Span
+                // Typography.Variants="Superscript|Subscript">; StripQualifier has
+                // already reduced the attribute name to "Variants". Carry it on the
+                // element so WriteXaml can serialize it back to \super / \sub.
+                if (Enum.TryParse<FontVariants>(value, out var variants))
+                    element.SetValue(System.Windows.Documents.Typography.VariantsProperty, variants);
+                break;
         }
     }
 

@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-89 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-90 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -153,7 +153,11 @@ and now works correctly.
   coverage for hyperlink `NavigateUri` and nested-list content; session 89
   round-trips table cell background/borders/row spans — the `#if !HAS_UNO` guard
   on `_tableCellProperties` was removed and `ParseTable` applies cell attributes —
-  while column spans and cell padding are pinned as WPF-faithful drops), `XamlPackage` round-trips plain text.
+  while column spans and cell padding are pinned as WPF-faithful drops;   session
+  90 added superscript/subscript — `Typography.Variants` round-trips through
+  `\super`/`\sub` (the DP is registered with an explicit null validate callback
+  and `XamlToRtfWriter`'s attribute table accepts the owner-stripped `Variants`
+  name)), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
   now integrated (see "IME integration" below), even though WPF's own

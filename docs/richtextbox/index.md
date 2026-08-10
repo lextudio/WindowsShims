@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 222/222 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 224/224 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -174,7 +174,11 @@ Candidate coverage:
   table cell formatting: background, borders, and row spans round-trip (the
   `#if !HAS_UNO` guard in `TextSchema._tableCellProperties` was removed and
   `ParseTable` now applies cell attributes); column spans and cell padding are
-  pinned as WPF-faithful RTF drops.
+  pinned as WPF-faithful RTF drops. Session 90 added superscript/subscript:
+  `Typography.Variants="Superscript|Subscript"` round-trips through `\super`/
+  `\sub` (the DP is now registered with an explicit null validate callback and
+  `XamlToRtfWriter`'s attribute table accepts the owner-stripped `Variants`
+  name).
 
 Done when:
 
@@ -292,3 +296,4 @@ Each session is tracked as a separate file:
 | 87 | [session87.md](session87.md) | RTF Round-Trip for List MarkerStyle/StartIndex (completed) |
 | 88 | [session88.md](session88.md) | RTF Round-Trip Coverage for Hyperlink NavigateUri + Nested Lists (completed) |
 | 89 | [session89.md](session89.md) | RTF Round-Trip for Table Cell Formatting (completed) |
+| 90 | [session90.md](session90.md) | RTF Round-Trip for Superscript/Subscript (completed) |
