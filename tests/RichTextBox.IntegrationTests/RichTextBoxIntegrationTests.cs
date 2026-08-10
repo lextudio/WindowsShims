@@ -41,6 +41,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstInlineFlowDirection(JsonElement state) => state.GetProperty("firstInlineFlowDirection").GetString();
     static string? FirstInlineVariants(JsonElement state) => state.GetProperty("firstInlineVariants").GetString();
     static string? FirstInlineLanguage(JsonElement state) => state.GetProperty("firstInlineLanguage").GetString();
+    static string? FirstTableColumnWidths(JsonElement state) => state.GetProperty("firstTableColumnWidths").GetString();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
@@ -1565,6 +1566,25 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("x2 plain", Text(state));
         Assert.Equal("Superscript", FirstInlineVariants(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableColumnWidths()
+    {
+        // WriteXaml serializes TableColumn.Width as a bare "100" (WPF's
+        // GridLengthConverter form); XamlToRtfWriter emits \clwWidth (twips), and
+        // RtfToXamlReader re-emits <TableColumn Width="<px>"/> which ParseTable
+        // now applies.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableColumn Width=\"100\"/><TableColumn Width=\"200\"/>" +
+            "<TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>a</Paragraph></TableCell>" +
+            "<TableCell><Paragraph>b</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("100,200", FirstTableColumnWidths(state));
     }
 
     [Fact]

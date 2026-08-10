@@ -607,6 +607,21 @@ public static class XamlReader
             {
                 switch (reader.LocalName)
                 {
+                    case "TableColumn":
+                        var column = new TableColumn();
+                        while (reader.MoveToNextAttribute())
+                        {
+                            if (StripQualifier(reader.LocalName) == "Width" &&
+                                double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var width))
+                                column.Width = new System.Windows.GridLength(width);
+                        }
+                        reader.MoveToElement();
+                        table.Columns.Add(column);
+                        break;
+                    case "Table.Columns":
+                        // Complex-property wrapper emitted by WriteXaml; its
+                        // <TableColumn> children are handled by the case above.
+                        break;
                     case "TableRowGroup":
                         currentRg = new TableRowGroup();
                         while (reader.MoveToNextAttribute())

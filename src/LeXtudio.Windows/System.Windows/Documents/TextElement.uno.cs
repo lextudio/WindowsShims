@@ -132,10 +132,11 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
 
     internal void InsertLogicalChild(int index, object child)
     {
-        if (child is TextElement te)
+        if (child is FrameworkContentElement fce)
         {
-            te.Parent = this;
-            te.SetLayoutHostRecursive(LayoutHost);
+            fce.Parent = this;
+            if (child is TextElement te)
+                te.SetLayoutHostRecursive(LayoutHost);
         }
         ContainerTextElementField.SetValue(child, this);
         _children.Insert(index, child);
