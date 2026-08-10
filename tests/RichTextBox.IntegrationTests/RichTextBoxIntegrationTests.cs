@@ -1591,6 +1591,32 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsLineBreak()
+    {
+        // Regression coverage: the RTF writer emits \line for LineBreak and the
+        // reader reconstructs the <LineBreak /> inline (already supported by the
+        // shim's ParseInline); tabs survive in run text via \tab.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>a</Run><LineBreak/><Run>b</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("LineBreak", InlineTree(state));
+        Assert.Contains("a\nb", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTabCharacters()
+    {
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run>a\tb\tc</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("a\tb\tc\n", Text(state));
+    }
+
+    [Fact]
     public async Task SaveLoad_Rtf_RoundTripsNestedTable()
     {
         // Regression coverage: the RTF writer emits \nesttableprops/\nestrow and
