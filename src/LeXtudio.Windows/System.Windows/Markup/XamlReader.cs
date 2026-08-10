@@ -220,6 +220,14 @@ public static class XamlReader
                     if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lineHeight))
                         para.LineHeight = lineHeight;
                     break;
+                case "BorderThickness":
+                    if (TryParseThickness(reader.Value, out var borderThickness))
+                        para.BorderThickness = borderThickness;
+                    break;
+                case "BorderBrush":
+                    if (TryParseColor(reader.Value, out var borderColor))
+                        para.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(borderColor);
+                    break;
                 case "Language":
                 case "xml:lang":
                 case "lang":
@@ -437,19 +445,22 @@ public static class XamlReader
     }
 
     // Parse a comma-separated "left,top,right,bottom" Margin value into a Thickness.
+    // Also accepts the uniform single-value form ("1") like WPF's ThicknessConverter.
     static bool TryParseThickness(string value, out Thickness thickness)
     {
         thickness = new Thickness();
         var parts = value.Split(',');
-        if (parts.Length != 4)
+        if (parts.Length != 1 && parts.Length != 4)
             return false;
-        var values = new double[4];
-        for (int i = 0; i < 4; i++)
+        var values = new double[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
         {
             if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out values[i]))
                 return false;
         }
-        thickness = new Thickness(values[0], values[1], values[2], values[3]);
+        thickness = parts.Length == 1
+            ? new Thickness(values[0])
+            : new Thickness(values[0], values[1], values[2], values[3]);
         return true;
     }
 

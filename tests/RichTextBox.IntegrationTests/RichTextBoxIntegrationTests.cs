@@ -42,6 +42,8 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstInlineVariants(JsonElement state) => state.GetProperty("firstInlineVariants").GetString();
     static string? FirstInlineLanguage(JsonElement state) => state.GetProperty("firstInlineLanguage").GetString();
     static string? FirstTableColumnWidths(JsonElement state) => state.GetProperty("firstTableColumnWidths").GetString();
+    static string? FirstParagraphBorderThickness(JsonElement state) => state.GetProperty("firstParagraphBorderThickness").GetString();
+    static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
@@ -1585,6 +1587,23 @@ public sealed class RichTextBoxIntegrationTests
 
         Assert.True(HasDocument(state), raw);
         Assert.Equal("100,200", FirstTableColumnWidths(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsParagraphBorder()
+    {
+        // WriteXaml serializes Paragraph BorderThickness/BorderBrush; the RTF
+        // writer emits \brdr* controls from ParaBorder, and RtfToXamlReader
+        // re-emits BorderThickness="l,t,r,b" + BorderBrush which ParseParagraph
+        // now applies.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph BorderThickness=\"1,2,3,4\" BorderBrush=\"#FFFF0000\">bordered</Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("bordered", Text(state));
+        Assert.Equal("[Thickness: 1-2-3-4]", FirstParagraphBorderThickness(state));
+        Assert.Equal("#FFFF0000", FirstParagraphBorderBrush(state));
     }
 
     [Fact]
