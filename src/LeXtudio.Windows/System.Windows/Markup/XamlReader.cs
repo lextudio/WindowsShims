@@ -220,6 +220,12 @@ public static class XamlReader
                     if (double.TryParse(reader.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lineHeight))
                         para.LineHeight = lineHeight;
                     break;
+                case "Language":
+                case "xml:lang":
+                case "lang":
+                    if (!string.IsNullOrWhiteSpace(reader.Value))
+                        para.SetValue(Microsoft.UI.Xaml.FrameworkElement.LanguageProperty, reader.Value);
+                    break;
             }
         }
         reader.MoveToElement();
@@ -390,6 +396,18 @@ public static class XamlReader
                 // element so WriteXaml can serialize it back to \super / \sub.
                 if (Enum.TryParse<FontVariants>(value, out var variants))
                     element.SetValue(System.Windows.Documents.Typography.VariantsProperty, variants);
+                break;
+            case "Language":
+            case "xml:lang":
+            case "lang":
+                // WriteXaml serializes FrameworkElement.LanguageProperty (an
+                // inheritable property) as a "Language" attribute, while
+                // RtfToXamlReader re-emits it as xml:lang="<culture>". Both map to
+                // the same WinUI language property so the value survives RTF
+                // save/load as \langN (XmlReader.LocalName already dropped the
+                // "xml:" prefix, hence the extra "lang" arm).
+                if (!string.IsNullOrWhiteSpace(value))
+                    element.SetValue(Microsoft.UI.Xaml.FrameworkElement.LanguageProperty, value);
                 break;
         }
     }

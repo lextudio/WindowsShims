@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 224/224 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 225/225 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -178,7 +178,10 @@ Candidate coverage:
   `Typography.Variants="Superscript|Subscript"` round-trips through `\super`/
   `\sub` (the DP is now registered with an explicit null validate callback and
   `XamlToRtfWriter`'s attribute table accepts the owner-stripped `Variants`
-  name).
+  name). Session 91 added inline language: `Language="de-DE"` round-trips
+  through `\langN`/`xml:lang` (the writer's table accepts the shim's `Language`
+  attribute and the `XamlReader` applies both `Language` and `xml:lang`).
+  FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
 
@@ -297,3 +300,4 @@ Each session is tracked as a separate file:
 | 88 | [session88.md](session88.md) | RTF Round-Trip Coverage for Hyperlink NavigateUri + Nested Lists (completed) |
 | 89 | [session89.md](session89.md) | RTF Round-Trip for Table Cell Formatting (completed) |
 | 90 | [session90.md](session90.md) | RTF Round-Trip for Superscript/Subscript (completed) |
+| 91 | [session91.md](session91.md) | RTF Round-Trip for Inline Language (completed) |

@@ -40,6 +40,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstInlineBackground(JsonElement state) => state.GetProperty("firstInlineBackground").GetString();
     static string? FirstInlineFlowDirection(JsonElement state) => state.GetProperty("firstInlineFlowDirection").GetString();
     static string? FirstInlineVariants(JsonElement state) => state.GetProperty("firstInlineVariants").GetString();
+    static string? FirstInlineLanguage(JsonElement state) => state.GetProperty("firstInlineLanguage").GetString();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
     static string? FirstRunFontWeight(JsonElement state) => state.GetProperty("firstRunFontWeight").GetString();
@@ -1564,6 +1565,21 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("x2 plain", Text(state));
         Assert.Equal("Superscript", FirstInlineVariants(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsInlineLanguage()
+    {
+        // WriteXaml serializes FrameworkElement.LanguageProperty as a "Language"
+        // attribute; XamlToRtfWriter emits \langN (LCID), and RtfToXamlReader
+        // re-emits xml:lang="<culture>" which the shim XamlReader applies.
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Paragraph><Run Language=\"de-DE\">bonjour</Run><Run> plain</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains("bonjour plain", Text(state));
+        Assert.Equal("de-DE", FirstInlineLanguage(state));
     }
 
     [Fact]
