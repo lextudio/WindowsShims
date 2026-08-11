@@ -223,7 +223,10 @@ Candidate coverage:
   rows; text stays in the first row's band). Session 103 fixed pagination:
   `FormatPages` now re-bases lines per page and distributes cell boxes,
   paragraph borders, and background fills to the pages they overlap,
-  splitting boxes that cross page boundaries. Session 104 fixed IME
+  splitting boxes that cross page boundaries. Session 125 closed the row-span
+  text approximation: a row-spanned cell's lines are shifted down by half the
+  extra spanned height, vertically centering them like WPF.
+  Session 104 fixed IME
   composition through tables: `GetPlainTextOffset` now uses `GetTextInternal`
   (bypassing `NormalizeRange`'s table-cell range expansion), resolved
   boundary positions step forward into text content, and `OnImeTextUpdating`
@@ -366,3 +369,4 @@ Each session is tracked as a separate file:
 | 103 | [session103.md](session103.md) | Pagination Carries Boxes Across Pages (completed) |
 | 104 | [session104.md](session104.md) | IME Composition Mapping Through Tables (completed) |
 | 105 | [session105.md](session105.md) | XAML/XamlPackage Image Round-Trip Fix (completed) |
+| 125 | [session125.md](session125.md) | Row-Span Text Vertical Centering (completed) |

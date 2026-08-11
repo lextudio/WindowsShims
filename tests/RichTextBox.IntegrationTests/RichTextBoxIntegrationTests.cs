@@ -48,6 +48,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? CellVisualRectCount(JsonElement state) => state.GetProperty("cellVisualRectCount").GetString();
     static string? CellBoxLayout(JsonElement state) => state.GetProperty("cellBoxLayout").GetString();
     static string? CellBoxHeightLayout(JsonElement state) => state.GetProperty("cellBoxHeightLayout").GetString();
+    static string? LineYLayout(JsonElement state) => state.GetProperty("lineYLayout").GetString();
     static string? FillBoxRectCount(JsonElement state) => state.GetProperty("fillBoxRectCount").GetString();
     static string? InlineBackgroundRectCount(JsonElement state) => state.GetProperty("inlineBackgroundRectCount").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
@@ -1885,6 +1886,15 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Equal(3, heights.Count);
         Assert.True(heights[0] > heights[1], raw);
         Assert.True(Math.Abs(heights[0] - (heights[1] + heights[2])) < 2, raw);
+        // The row-spanning cell's text is vertically centered over the spanned
+        // height (WPF behavior): its line starts half the extra height down the
+        // box, while the same-row and next-row cells stay in their bands.
+        var lineYs = (LineYLayout(state) ?? "").Split(',').Select(s => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        Assert.Equal(3, lineYs.Count);
+        double alphaY = lineYs[0], betaY = lineYs[1], gammaY = lineYs[2];
+        Assert.True(alphaY > betaY + 1, raw);
+        Assert.True(Math.Abs(alphaY - (heights[0] - gammaY) / 2) < 2, raw);
+        Assert.True(gammaY > betaY, raw);
     }
 
     [Fact]

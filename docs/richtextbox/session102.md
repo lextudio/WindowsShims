@@ -19,7 +19,9 @@ Findings:
 - The flat line model constrains the row-span approach: a row-spanned cell's
   text stays in its first row's band (WPF vertically centers it over the
   spanned height), but its background/border box extends over the spanned
-  rows once all row heights are known.
+  rows once all row heights are known. Session 124 closed the text-side
+  approximation: `FormatTable` now shifts a row-spanned cell's lines down by
+  half the extra spanned height, vertically centering them like WPF.
 
 Changes:
 

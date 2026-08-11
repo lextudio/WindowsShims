@@ -79,6 +79,10 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // Cell box heights as comma-joined values (used to verify row spans extend boxes).
     internal string CellBoxHeightLayout => string.Join(",", _page?.CellBoxes.Select(b => b.Height.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) ?? []);
 
+    // Line top Ys as comma-joined values (used to verify row-span text is
+    // vertically centered over the spanned rows).
+    internal string LineYLayout => string.Join(",", _page?.Lines.Select(l => l.Y.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) ?? []);
+
     // Number of paragraph background fill rectangles in the visual tree.
     internal int FillBoxRectCount => _fillRects.Count;
 

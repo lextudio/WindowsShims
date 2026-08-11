@@ -312,11 +312,19 @@ namespace MS.Internal.Florence
         internal int    StartOffset { get; }
         internal int    EndOffset   => StartOffset + Length;
         internal int    Length      { get; }
-        internal double Y           { get; }
-        internal double Baseline    { get; }
+        internal double Y           { get; set; }
+        internal double Baseline    { get; set; }
         internal double Height      { get; }
         internal string FullText    { get; }
         internal IReadOnlyList<FlorenceRun> Runs { get; }
+
+        // Moves the line vertically without changing its offsets or width
+        // (used to center a row-spanned cell's text over the spanned rows).
+        internal void ShiftY(double delta)
+        {
+            Y += delta;
+            Baseline += delta;
+        }
     }
 
     /// <summary>A single laid-out page within a document.</summary>
@@ -665,7 +673,8 @@ namespace MS.Internal.Florence
             // Row Y positions and row-spanned cells are recorded so their boxes
             // can be extended over the spanned rows once all row heights are known.
             var rowBounds = new List<(double y, double height)>();
-            var rowSpannedCells = new List<(FlorenceCellBox box, int rowIndex, int rowSpan)>();
+            var rowSpannedBoxes = new List<(FlorenceCellBox box, int rowIndex, int rowSpan)>();
+            var rowSpannedText = new List<(int rowIndex, int rowSpan, int lineStart, int lineEnd)>();
 
             foreach (var rg in table.RowGroups)
             {
@@ -688,6 +697,7 @@ namespace MS.Internal.Florence
                         double cellY = rowY;
                         double localY = rowY;
                         int paragraphCount = 0;
+                        int lineStart = page.Lines.Count;
                         foreach (var block in cell.Blocks)
                         {
                             if (block is System.Windows.Documents.Paragraph para)
@@ -696,6 +706,7 @@ namespace MS.Internal.Florence
                                 paragraphCount++;
                             }
                         }
+                        int lineEnd = page.Lines.Count;
                         // WPF text model counts each paragraph's invisible
                         // boundary position; reserve one slot per cell paragraph
                         // so Florence offsets align with caret navigation.
@@ -709,6 +720,10 @@ namespace MS.Internal.Florence
                         if (cellH > rowHeight)
                             rowHeight = cellH;
 
+                        int rowSpan = Math.Max(1, cell.RowSpan);
+                        if (rowSpan > 1)
+                            rowSpannedText.Add((rowBounds.Count, rowSpan, lineStart, lineEnd));
+
                         var cellBackground = cell.Background;
                         var cellBorderBrush = cell.BorderBrush;
                         var cellBorderThickness = cell.BorderThickness;
@@ -719,9 +734,8 @@ namespace MS.Internal.Florence
                             var box = new FlorenceCellBox(
                                 cellX, rowY, cellW, rowHeight, cellBackground, cellBorderBrush, cellBorderThickness);
                             page.AddCellBox(box);
-                            int rowSpan = Math.Max(1, cell.RowSpan);
                             if (rowSpan > 1)
-                                rowSpannedCells.Add((box, rowBounds.Count, rowSpan));
+                                rowSpannedBoxes.Add((box, rowBounds.Count, rowSpan));
                         }
                         col += colSpan;
                     }
@@ -733,12 +747,29 @@ namespace MS.Internal.Florence
             }
 
             // Extend row-spanned cell boxes over the spanned rows.
-            foreach (var (box, rowIndex, rowSpan) in rowSpannedCells)
+            foreach (var (box, rowIndex, rowSpan) in rowSpannedBoxes)
             {
-                double bottom = box.Y + box.Height;
+                double bottom = rowBounds[rowIndex].y + rowBounds[rowIndex].height;
                 for (int i = rowIndex + 1; i < rowIndex + rowSpan && i < rowBounds.Count; i++)
                     bottom += rowBounds[i].height;
                 box.Height = Math.Max(box.Height, bottom - box.Y);
+            }
+
+            // Vertically center a row-spanned cell's text over the spanned
+            // height, matching WPF: the flat line model laid it out at the top
+            // of the first row's band, so shift those lines down by half the
+            // extra spanned height once all row heights are known.
+            foreach (var (rowIndex, rowSpan, lineStart, lineEnd) in rowSpannedText)
+            {
+                double spannedHeight = rowBounds[rowIndex].height;
+                for (int i = rowIndex + 1; i < rowIndex + rowSpan && i < rowBounds.Count; i++)
+                    spannedHeight += rowBounds[i].height;
+                double shift = (spannedHeight - rowBounds[rowIndex].height) / 2;
+                if (shift <= 0)
+                    continue;
+                int lineCount = page.Lines.Count;
+                for (int i = lineStart; i < lineEnd && i < lineCount; i++)
+                    page.Lines[i].ShiftY(shift);
             }
         }
 
