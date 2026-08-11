@@ -136,11 +136,18 @@ the milestone backlog is complete.
   to `src/LeXtudio.Windows/System.Windows/Documents/DPTypeDescriptorContext.uno.cs`
   (`TryGetShimStringValue`); the linked file keeps a one-line call-site guard
   and a `partial` modifier.
-- `RtfToXamlReader`'s data-URI image path (~9.9k) and
-  `TextRangeSerialization.WriteEmbeddedObject` are the remaining candidates.
-  The trade-off to evaluate first is the same as before: the replacements
-  share private local state with their host file (member access), so a
-  partial split only wins if the replacement body is self-contained.
+- The remaining candidates were evaluated and **left in place**, for distinct
+  reasons:
+  - `RtfToXamlReader`'s data-URI image path (~9.9k) is inline code inside
+    `ProcessImage` and touches four private fields (`_converterState`,
+    `_imageCount`, `_lexer`, `_wpfPayload`); splitting it out would force the
+    host to expose internal state, so the in-file guard is the cheaper option.
+  - `TextRangeSerialization.WriteEmbeddedObject` (~4.9k) is a method-level
+    `#if HAS_UNO`/`#else` pair of the same method; C# partials cannot host two
+    definitions of one method, so a split would need an indirection method for
+    no net guard savings.
+  - Both blocks are stable (unchanged across the RTF/XAML image work in
+    sessions 96/105) and covered by round-trip tests.
 
 ### P4 — Reduce `#if WINDOWS_APP_SDK` (26 occurrences, shim side) — NOT STARTED
 
