@@ -169,6 +169,9 @@ def main():
 
     all_big.sort(reverse=True)
 
+    csproj_text = CSPROJ.read_text(encoding="utf-8", errors="replace")
+    compile_remove_rules = len(re.findall(r'<Compile Remove="([^"]*ext\\wpf[^"]*)"', csproj_text))
+
     report = {
         "linked_files": len(linked),
         "total_lines": total_lines,
@@ -179,7 +182,7 @@ def main():
         "documents_density_pct": round(docs_density, 3),
         "documents_pristine_pct": round(docs_pristine_pct, 1),
         "big_has_uno_blocks": all_big[:20],
-        "compile_remove_count": CSPROJ.read_text(encoding="utf-8", errors="replace").count("Compile Remove"),
+        "compile_remove_rules": compile_remove_rules,
     }
 
     if args.json:
@@ -191,7 +194,7 @@ def main():
         print(f"total lines:               {report['total_lines']}")
         print(f"HAS_UNO blocks total:      {report['total_has_uno_blocks']}")
         print(f"pristine files (no guard): {report['pristine_files']}")
-        print(f"Compile Remove exclusions: {report['compile_remove_count']}")
+        print(f"Compile Remove rules:         {report['compile_remove_rules']}")
         print()
         print("by namespace:")
         for ns, v in report["by_namespace"].items():

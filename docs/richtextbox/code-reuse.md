@@ -54,7 +54,7 @@ selection, copy/paste, drag/drop, context menu), the `Inline`/`Block` family
 | Linked Documents family — `#if !HAS_UNO` blocks | 92 (13 larger than 2,000 chars) |
 | Guard density (Documents family) | 0.083% of lines |
 | Shim side | 18 `HAS_UNO`, 25 `WINDOWS_APP_SDK` (9 concentrated in `ImeCompat.cs` shape helpers), 5 `WINUI_BRIDGE` |
-| `Compile Remove` exclusions (deferred families) | 35 |
+| `Compile Remove` exclusions (28 rules, 77 files) | 28 |
 
 Guard profile of the large blocks:
 
@@ -87,7 +87,7 @@ brought guarded call sites from 248 to 0.
    original OLE/TSF paths in the linked files means the port can be built
    against real WPF for diffing and future feature ports; they cost nothing
    at runtime and only a little compile time.
-3. **Deferred families (34 `Compile Remove`)** are scope cuts by design
+3. **Deferred families (28 `Compile Remove` rules, 77 files)** are scope cuts by design
    (`TextServices`, `TextStore`, `ImmComposition`, `Speller`,
    `NLGSpellerInterop`, `Fixed`/`DocumentSequence`, `ColumnResize*`,
    `AnchoredBlock`, ...). Spell-check and IME were re-integrated through
@@ -171,21 +171,24 @@ the milestone backlog is complete.
   All carry explanatory comments; the count is now stable and each site is
   individually justified.
 
-### P5 — Periodic deferred-family re-review (M5)
+### P5 — Periodic deferred-family re-review (M5) — HYGIENE DONE, PORTING CONSUMER-DRIVEN
 
-- The 35 `Compile Remove` families should be revisited when a consumer asks
-  for one, with a cheap triage: link-and-compile attempt, then count the
-  guards the attempt needs. `TextSchema`/`TextFlow`/`FlowNode`/`FlowPosition`
-  are the likely first candidates if fixed-layout rendering or advanced text
-  features are ever needed. The `NaturalLanguageHyphenator` family is a
-  good "never" candidate — WPF itself ships it only for legacy line-breaking.
+- Hygiene pass done: the `Compile Remove` list is complete and valid — 28
+  rules expand to 77 real files with no missing paths, and the guard script
+  reports **zero** file-level-guarded stragglers (files linked but compiled
+  to nothing, like `TextMapOffsetErrorLogger` was). The link set now honestly
+  reflects what compiles.
+- Actual family porting stays consumer-driven (the catalog's M5 guidance):
+  `TextSchema`/`TextFlow`/`FlowNode`/`FlowPosition` are the first candidates
+  if fixed-layout/advanced-text features are ever requested;
+  `NaturalLanguageHyphenator` is a "never" candidate.
 
 ### P6 — Cross-cutting guard census across namespaces — DONE
 
 - `scripts/count-guards.py` reports the guard budget per WPF family
   (Documents, Controls, Media, Markup, Input, WindowsBase, ...), not just
   Documents. Current repo-wide totals: 313 linked files, ~174.7k lines, 195
-  `HAS_UNO` blocks, 263 pristine files, 35 `Compile Remove` exclusions.
+  `HAS_UNO` blocks, 263 pristine files, 28 `Compile Remove` rules (77 files).
 
 ## Bottom line
 
