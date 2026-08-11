@@ -48,9 +48,7 @@ public partial class RichTextBox
                 _imeCompositionLength = -1;
                 NotifyImeCompositionRangeToView();
             };
-#if !WINDOWS_APP_SDK
-            _imeContext.CommandReceived += OnImeCommandReceived;
-#endif
+            WireImeCommands(_imeContext);
 
             bool attached = AttachImeToWindow(_imeContext, window);
             Log($"Ime: ensure -> attached={attached}");
@@ -157,11 +155,7 @@ public partial class RichTextBox
         {
             var start = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition);
             var end = GetPositionAtPlainTextOffset(document, e.Range.EndCaretPosition);
-#if WINDOWS_APP_SDK
-            string newText = e.Text ?? string.Empty;
-#else
-            string newText = e.NewText ?? string.Empty;
-#endif
+            string newText = ImeTextOf(e) ?? string.Empty;
             // Do not use TextRange.Text here: TextRange construction clamps
             // positions inside a table cell to the containing cell's boundaries,
             // so composing inside a cell would insert at the wrong place.
@@ -182,13 +176,8 @@ public partial class RichTextBox
             }
 
             _imeCompositionStart = e.Range.StartCaretPosition;
-#if WINDOWS_APP_SDK
-            _imeCompositionLength = e.Text?.Length ?? 0;
-            Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.Text}'");
-#else
-            _imeCompositionLength = e.NewText?.Length ?? 0;
-            Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{e.NewText}'");
-#endif
+            _imeCompositionLength = ImeTextOf(e)?.Length ?? 0;
+            Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{ImeTextOf(e)}'");
             NotifyImeCompositionRangeToView();
         }
         catch (Exception ex)
@@ -204,14 +193,9 @@ public partial class RichTextBox
         if (te?.Selection is not { } selection || document is null)
             return;
 
-#if WINDOWS_APP_SDK
         var selStart = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
         var selEnd = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End);
-        e.Request.Selection = new CoreTextRange { StartCaretPosition = selStart, EndCaretPosition = selEnd };
-#else
-        e.Request.Start = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.Start);
-        e.Request.Length = GetPlainTextOffset(document, (System.Windows.Documents.TextPointer)selection.End) - e.Request.Start;
-#endif
+        SetImeRequestedSelection(e, selStart, selEnd);
     }
 
     private void OnImeSelectionUpdating(CoreTextEditContext sender, CoreTextSelectionUpdatingEventArgs e)
@@ -223,13 +207,9 @@ public partial class RichTextBox
 
         try
         {
-#if WINDOWS_APP_SDK
-            var start = GetPositionAtPlainTextOffset(document, e.Selection.StartCaretPosition);
-            var end = GetPositionAtPlainTextOffset(document, e.Selection.EndCaretPosition);
-#else
-            var start = GetPositionAtPlainTextOffset(document, e.NewStart);
-            var end = GetPositionAtPlainTextOffset(document, e.NewStart + e.NewLength);
-#endif
+            var (selStart, selEnd) = GetImeSelectionUpdatingRange(e);
+            var start = GetPositionAtPlainTextOffset(document, selStart);
+            var end = GetPositionAtPlainTextOffset(document, selEnd);
             selection.Select(start, end);
             UpdateCaretFromSelection();
         }
@@ -249,13 +229,7 @@ public partial class RichTextBox
                 return;
 
             var rect = position.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
-#if WINDOWS_APP_SDK
-            e.Request.LayoutBounds.TextBounds = new Rect(rect.X, rect.Y, rect.Width, rect.Height);
-            e.Request.LayoutBounds.ControlBounds = new Rect(0, 0, ActualWidth, ActualHeight);
-#else
-            e.Request.LayoutBounds.TextBounds = new CoreTextRect { X = rect.X, Y = rect.Y, Width = rect.Width, Height = rect.Height };
-            e.Request.LayoutBounds.ControlBounds = new CoreTextRect { X = 0, Y = 0, Width = ActualWidth, Height = ActualHeight };
-#endif
+            SetImeLayoutBounds(e, rect, ActualWidth, ActualHeight);
         }
         catch (Exception ex)
         {

@@ -53,7 +53,7 @@ selection, copy/paste, drag/drop, context menu), the `Inline`/`Block` family
 | Linked Documents family — `#if HAS_UNO` blocks | 100 |
 | Linked Documents family — `#if !HAS_UNO` blocks | 92 (13 larger than 2,000 chars) |
 | Guard density (Documents family) | 0.083% of lines |
-| Shim side | 18 `HAS_UNO`, 26 `WINDOWS_APP_SDK`, 5 `WINUI_BRIDGE` |
+| Shim side | 18 `HAS_UNO`, 25 `WINDOWS_APP_SDK` (9 concentrated in `ImeCompat.cs` shape helpers), 5 `WINUI_BRIDGE` |
 | `Compile Remove` exclusions (deferred families) | 35 |
 
 Guard profile of the large blocks:
@@ -149,12 +149,27 @@ the milestone backlog is complete.
   - Both blocks are stable (unchanged across the RTF/XAML image work in
     sessions 96/105) and covered by round-trip tests.
 
-### P4 — Reduce `#if WINDOWS_APP_SDK` (26 occurrences, shim side) — NOT STARTED
+### P4 — Reduce `#if WINDOWS_APP_SDK` (26 occurrences, shim side) — DONE
 
-- Most are 1–2-line WinRT-vs-Uno constructor/coercion differences. Group them
-  behind small helpers (e.g. a `WinRt.Factory`-style indirection) so the
-  per-site guards collapse to calls, or at least document each site's purpose
-  in one place so the count stops drifting.
+- The IME family (12 of the 26) was the tractable cluster: every
+  `WINDOWS_APP_SDK` difference in `RichTextBox.Ime.uno.cs` was moved into five
+  shape helpers in `RichTextBox.ImeCompat.cs` (`ImeTextOf`,
+  `SetImeRequestedSelection`, `GetImeSelectionUpdatingRange`,
+  `SetImeLayoutBounds`, `WireImeCommands`), leaving the call sites
+  guard-free. `Ime.uno.cs` went from 8 sites to 1 (the `OnImeCommandReceived`
+  method itself only exists off WinUI).
+- The remaining 13 sites were evaluated and kept, each an irreducible
+  platform difference that C# cannot express guard-free:
+  - base-class selection (`VisualBrush`, `TextBlock`, `TextEditorSystemShims`,
+    `BitmapSource`/`DrawingImage` constructors — WinUI seals
+    `SolidColorBrush`/`ImageSource`), 
+  - native API calls (`MessageBoxW`, `InitializeWithWindow`, `AsTask`),
+  - type aliasing (`GlobalUsings.cs` maps `Windows.UI.Text.Core` ⇄
+    `LeXtudio.UI.Text.Core` — the single point where the whole IME surface
+    picks its platform),
+  - whole-file alternatives (`ResourceExtensions`, `MarkupExtension`).
+  All carry explanatory comments; the count is now stable and each site is
+  individually justified.
 
 ### P5 — Periodic deferred-family re-review (M5)
 
