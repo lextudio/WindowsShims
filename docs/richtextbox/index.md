@@ -8,6 +8,8 @@ The older top-level files still matter:
 - `docs/PLAN.md` records the original source-first migration playbook.
 - `docs/richtextbox/RICHTEXTBOX-PORT-CATALOG.md` is a useful catalog, but it is currently
   stale for several core files. The project file is the source of truth.
+- `docs/richtextbox/code-reuse.md` audits the linked-upstream reuse ratio and
+  the `#if HAS_UNO` guard footprint, and proposes further hygiene work.
 
 ## Current State
 
