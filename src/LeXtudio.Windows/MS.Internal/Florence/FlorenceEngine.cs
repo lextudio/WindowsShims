@@ -250,6 +250,7 @@ namespace MS.Internal.Florence
             double fontSize, bool bold, bool italic,
             Microsoft.UI.Xaml.Media.FontFamily? fontFamily,
             Microsoft.UI.Xaml.Media.Brush? foreground,
+            Microsoft.UI.Xaml.Media.Brush? background,
             Windows.UI.Text.TextDecorations textDecorations,
             System.Windows.Documents.Hyperlink? hyperlink,
             Microsoft.UI.Xaml.UIElement? embeddedElement = null)
@@ -264,6 +265,7 @@ namespace MS.Internal.Florence
             Italic      = italic;
             FontFamily  = fontFamily;
             Foreground  = foreground;
+            Background  = background;
             TextDecorations = textDecorations;
             Hyperlink   = hyperlink;
             EmbeddedElement = embeddedElement;
@@ -284,6 +286,7 @@ namespace MS.Internal.Florence
         // whatever the host's TextBlock default resolves to.
         internal Microsoft.UI.Xaml.Media.FontFamily? FontFamily { get; }
         internal Microsoft.UI.Xaml.Media.Brush? Foreground { get; }
+        internal Microsoft.UI.Xaml.Media.Brush? Background { get; }
         internal Windows.UI.Text.TextDecorations TextDecorations { get; }
         internal System.Windows.Documents.Hyperlink? Hyperlink { get; }
 
@@ -322,16 +325,38 @@ namespace MS.Internal.Florence
         private readonly List<FlorenceLine> _lines = new List<FlorenceLine>();
         private readonly List<FlorenceParagraphBorder> _paragraphBorders = new List<FlorenceParagraphBorder>();
         private readonly List<FlorenceCellBox> _cellBoxes = new List<FlorenceCellBox>();
+        private readonly List<FlorenceFillBox> _fillBoxes = new List<FlorenceFillBox>();
 
         internal Windows.Foundation.Size PageSize  { get; set; }
         internal IReadOnlyList<FlorenceLine> Lines => _lines;
         internal IReadOnlyList<FlorenceParagraphBorder> ParagraphBorders => _paragraphBorders;
         internal IReadOnlyList<FlorenceCellBox> CellBoxes => _cellBoxes;
+        internal IReadOnlyList<FlorenceFillBox> FillBoxes => _fillBoxes;
 
         internal void AddLine(FlorenceLine line) => _lines.Add(line);
         internal void AddParagraphBorder(FlorenceParagraphBorder border) => _paragraphBorders.Add(border);
         internal void AddCellBox(FlorenceCellBox box) => _cellBoxes.Add(box);
-        internal void Clear() { _lines.Clear(); _paragraphBorders.Clear(); _cellBoxes.Clear(); }
+        internal void AddFillBox(FlorenceFillBox box) => _fillBoxes.Add(box);
+        internal void Clear() { _lines.Clear(); _paragraphBorders.Clear(); _cellBoxes.Clear(); _fillBoxes.Clear(); }
+    }
+
+    /// <summary>A solid background box (e.g. a paragraph background).</summary>
+    internal sealed class FlorenceFillBox
+    {
+        internal FlorenceFillBox(double x, double y, double width, double height, Microsoft.UI.Xaml.Media.Brush brush)
+        {
+            X = x;
+            Y = y;
+            Width = width;
+            Height = height;
+            Brush = brush;
+        }
+
+        internal double X { get; }
+        internal double Y { get; }
+        internal double Width { get; }
+        internal double Height { get; }
+        internal Microsoft.UI.Xaml.Media.Brush Brush { get; }
     }
 
     /// <summary>A table cell box to render behind the cell's paragraphs.</summary>
@@ -526,7 +551,7 @@ namespace MS.Internal.Florence
                     case System.Windows.Documents.BlockUIContainer:
                         // Single-line placeholder for embedded UI elements
                         double lineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
-                        var run = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, Windows.UI.Text.TextDecorations.None, null);
+                        var run = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, null, Windows.UI.Text.TextDecorations.None, null);
                         page.AddLine(new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { run }));
                         y += lineH;
                         globalOffset += 1;
@@ -723,7 +748,7 @@ namespace MS.Internal.Florence
             if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
             {
                 double lineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
-                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, Windows.UI.Text.TextDecorations.None, null);
+                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, null, Windows.UI.Text.TextDecorations.None, null);
                 var emptyLine = new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { emptyRun });
                 page.AddLine(emptyLine);
                 y += lineH;
@@ -736,6 +761,7 @@ namespace MS.Internal.Florence
                 int runStart, int runLen, double fontSize, bool bold, bool italic,
                 Microsoft.UI.Xaml.Media.FontFamily? fontFamily,
                 Microsoft.UI.Xaml.Media.Brush? foreground,
+                Microsoft.UI.Xaml.Media.Brush? background,
                 Windows.UI.Text.TextDecorations textDecorations,
                 System.Windows.Documents.Hyperlink? hyperlink)>();
             int lineStart = globalOffset;
@@ -758,7 +784,7 @@ namespace MS.Internal.Florence
                     {
                         double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
-                            span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
+                            span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.Background, span.TextDecorations, span.Hyperlink));
                         paragraphMaxX = Math.Max(paragraphMaxX, xOffset + x + w);
                         x += w;
                         lineText += remaining;
@@ -771,7 +797,7 @@ namespace MS.Internal.Florence
                         string lineChunk = remaining[..breakAt];
                         double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
-                            span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
+                            span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.Background, span.TextDecorations, span.Hyperlink));
                         paragraphMaxX = Math.Max(paragraphMaxX, xOffset + x + w);
                         lineText += lineChunk;
                         int consumed = breakAt;
@@ -806,6 +832,14 @@ namespace MS.Internal.Florence
                     paragraphMaxX > xOffset ? paragraphMaxX - xOffset : availWidth,
                     y - paragraphStartY, borderBrush, borderThickness));
             }
+
+            if (para.Background is { } paragraphBackground)
+            {
+                page.AddFillBox(new FlorenceFillBox(
+                    xOffset, paragraphStartY,
+                    paragraphMaxX > xOffset ? paragraphMaxX - xOffset : availWidth,
+                    y - paragraphStartY, paragraphBackground));
+            }
         }
 
         private static void EmitLine(FlorencePage page,
@@ -813,12 +847,13 @@ namespace MS.Internal.Florence
                 double fontSize, bool bold, bool italic,
                 Microsoft.UI.Xaml.Media.FontFamily? fontFamily,
                 Microsoft.UI.Xaml.Media.Brush? foreground,
+                Microsoft.UI.Xaml.Media.Brush? background,
                 Windows.UI.Text.TextDecorations textDecorations,
                 System.Windows.Documents.Hyperlink? hyperlink)> runData,
             int lineStart, string lineText, double y, double lineHeight, double xOffset = 0)
         {
             var runs = runData.Select(r => new FlorenceRun(r.runStart, r.runLen, xOffset + r.runX, r.runWidth,
-                r.text, r.fontSize, r.bold, r.italic, r.fontFamily, r.foreground, r.textDecorations, r.hyperlink)).ToList();
+                r.text, r.fontSize, r.bold, r.italic, r.fontFamily, r.foreground, r.background, r.textDecorations, r.hyperlink)).ToList();
             var line = new FlorenceLine(lineStart, lineText.Length, y, y + lineHeight * 0.8,
                 lineHeight, lineText, runs);
             page.AddLine(line);
@@ -855,6 +890,7 @@ namespace MS.Internal.Florence
              string Text, int GlobalOffset, double FontSize, bool Bold, bool Italic,
              Microsoft.UI.Xaml.Media.FontFamily? FontFamily,
              Microsoft.UI.Xaml.Media.Brush? Foreground,
+             Microsoft.UI.Xaml.Media.Brush? Background,
              Windows.UI.Text.TextDecorations TextDecorations,
              System.Windows.Documents.Hyperlink? Hyperlink,
              Microsoft.UI.Xaml.UIElement? EmbeddedElement = null);
@@ -864,6 +900,7 @@ namespace MS.Internal.Florence
             double fontSize, bool bold, bool italic,
             Microsoft.UI.Xaml.Media.FontFamily? fontFamily,
             Microsoft.UI.Xaml.Media.Brush? foreground = null,
+            Microsoft.UI.Xaml.Media.Brush? background = null,
             Windows.UI.Text.TextDecorations textDecorations = Windows.UI.Text.TextDecorations.None,
             System.Windows.Documents.Hyperlink? hyperlink = null)
         {
@@ -880,49 +917,50 @@ namespace MS.Internal.Florence
                 // no-override and pass null down for the default branch.
                 var ff = ResolveInheritedFontFamily(inline.FontFamily, fontFamily);
                 var fg = ResolveForeground(inline, foreground);
+                var bg = inline.Background ?? background;
                 var currentTextDecorations = textDecorations | GetTextDecorations(inline);
                 var currentHyperlink = inline as System.Windows.Documents.Hyperlink ?? hyperlink;
 
                 if (inline is System.Windows.Documents.Run run)
                 {
                     string text = new System.Windows.Documents.TextRange(run.ContentStart, run.ContentEnd).Text;
-                    result.Add(new SpanInfo(text, localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
+                    result.Add(new SpanInfo(text, localOffset, fs, isBold, isItalic, ff, fg, bg, currentTextDecorations, currentHyperlink));
                     localOffset += text.Length;
                 }
                 else if (inline is System.Windows.Documents.Hyperlink link)
                 {
-                    var sub = CollectSpans(link.Inlines, fs, isBold, isItalic, ff, fg, currentTextDecorations, link);
+                    var sub = CollectSpans(link.Inlines, fs, isBold, isItalic, ff, fg, bg, currentTextDecorations, link);
                     result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Bold b)
                 {
-                    var sub = CollectSpans(b.Inlines, fs, bold: true, isItalic, ff, fg, currentTextDecorations, currentHyperlink);
+                    var sub = CollectSpans(b.Inlines, fs, bold: true, isItalic, ff, fg, bg, currentTextDecorations, currentHyperlink);
                     result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Italic it)
                 {
-                    var sub = CollectSpans(it.Inlines, fs, isBold, italic: true, ff, fg, currentTextDecorations, currentHyperlink);
+                    var sub = CollectSpans(it.Inlines, fs, isBold, italic: true, ff, fg, bg, currentTextDecorations, currentHyperlink);
                     result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.Span sp)
                 {
-                    var sub = CollectSpans(sp.Inlines, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink);
+                    var sub = CollectSpans(sp.Inlines, fs, isBold, isItalic, ff, fg, bg, currentTextDecorations, currentHyperlink);
                     result.AddRange(RebaseSpans(sub, localOffset));
                     localOffset += sub.Sum(s => s.Text.Length);
                 }
                 else if (inline is System.Windows.Documents.LineBreak)
                 {
-                    result.Add(new SpanInfo("\n", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink));
+                    result.Add(new SpanInfo("\n", localOffset, fs, isBold, isItalic, ff, fg, bg, currentTextDecorations, currentHyperlink));
                     localOffset++;
                 }
                 else if (inline is System.Windows.Documents.InlineUIContainer container)
                 {
                     var childProp = container.GetType().GetProperty("Child", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
                     var child = childProp?.GetValue(container) as Microsoft.UI.Xaml.UIElement;
-                    result.Add(new SpanInfo("\u00a0", localOffset, fs, isBold, isItalic, ff, fg, currentTextDecorations, currentHyperlink, child));
+                    result.Add(new SpanInfo("\u00a0", localOffset, fs, isBold, isItalic, ff, fg, bg, currentTextDecorations, currentHyperlink, child));
                     localOffset++;
                 }
             }

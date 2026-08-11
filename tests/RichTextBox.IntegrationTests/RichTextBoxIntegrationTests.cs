@@ -47,6 +47,8 @@ public sealed class RichTextBoxIntegrationTests
     static string? ParagraphBorderRectCount(JsonElement state) => state.GetProperty("paragraphBorderRectCount").GetString();
     static string? CellVisualRectCount(JsonElement state) => state.GetProperty("cellVisualRectCount").GetString();
     static string? CellBoxLayout(JsonElement state) => state.GetProperty("cellBoxLayout").GetString();
+    static string? FillBoxRectCount(JsonElement state) => state.GetProperty("fillBoxRectCount").GetString();
+    static string? InlineBackgroundRectCount(JsonElement state) => state.GetProperty("inlineBackgroundRectCount").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
     static string? FirstInlineImageDims(JsonElement state) => state.GetProperty("firstInlineImageDims").GetString();
     static bool FirstInlineImageRendered(JsonElement state) => state.GetProperty("firstInlineImageRendered").GetBoolean();
@@ -1932,12 +1934,17 @@ public sealed class RichTextBoxIntegrationTests
         // an index into the shared colortbl); RtfToXamlReader restores it as a
         // <Span Background="#FF..."> attribute the shim parses back to a brush.
         var state = await SetAndRtfRoundTrip(Xaml(
-            "<Paragraph><Run Background=\"#FFFFFF00\">yellow</Run><Run>plain </Run></Paragraph>"));
+            "<Paragraph><Run Background=\"#FFFFFF00\">yellow</Run><Run>plain </Run></Paragraph>" +
+            "<Paragraph Background=\"#FF00FF00\">green para</Paragraph>"));
         var raw = state.ToString();
 
         Assert.True(HasDocument(state), raw);
         Assert.Contains("yellowplain", Text(state));
         Assert.Equal("#FFFFFF00", FirstInlineBackground(state));
+        // The inline background paints inside the line canvas; the paragraph
+        // background paints a fill box behind its lines.
+        Assert.Equal("1", FillBoxRectCount(state));
+        Assert.True(int.Parse(InlineBackgroundRectCount(state) ?? "0") >= 1, raw);
     }
 
     [Fact]

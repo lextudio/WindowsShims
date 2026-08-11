@@ -211,6 +211,9 @@ Candidate coverage:
   each cell's paragraphs at its column's width and x offset, with cell
   backgrounds/borders rendered as filled rectangles + border sides (cells
   flow vertically; `ColumnSpan`/`RowSpan` are not honored by the layout).
+  Session 100 added background rendering: inline backgrounds paint a
+  rectangle behind each run inside the line canvas (inherited down the span
+  tree), and `Paragraph.Background` paints a fill box behind its lines.
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -339,3 +342,4 @@ Each session is tracked as a separate file:
 | 97 | [session97.md](session97.md) | Visual Rendering for Embedded Images (completed) |
 | 98 | [session98.md](session98.md) | Visual Rendering for Paragraph Borders (completed) |
 | 99 | [session99.md](session99.md) | Visual Rendering for Table Columns and Cells (completed) |
+| 100 | [session100.md](session100.md) | Visual Rendering for Inline and Paragraph Backgrounds (completed) |

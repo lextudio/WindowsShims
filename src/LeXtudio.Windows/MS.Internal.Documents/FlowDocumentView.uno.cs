@@ -21,6 +21,8 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private readonly List<Microsoft.UI.Xaml.FrameworkElement> _lineBlocks = [];
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _borderRects = [];
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _cellRects = [];
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _fillRects = [];
+    private int _inlineBackgroundRectCount;
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
     private ITextSelection? _trackedSelection;
@@ -73,6 +75,12 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // Layout of the page's cell boxes as "X:Width" pairs joined by commas
     // (used by integration tests to verify column widths drive cell layout).
     internal string CellBoxLayout => string.Join(",", _page?.CellBoxes.Select(b => $"{b.X.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}:{b.Width.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}") ?? []);
+
+    // Number of paragraph background fill rectangles in the visual tree.
+    internal int FillBoxRectCount => _fillRects.Count;
+
+    // Number of inline background rectangles painted inside line canvases.
+    internal int InlineBackgroundRectCount => _inlineBackgroundRectCount;
 
     // ── Spell Check ─────────────────────────────────────────────────────────
 
@@ -309,6 +317,10 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
                     _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X + cellBox.Width - ct.Right, cellBox.Y, ct.Right, cellBox.Height));
             }
         }
+
+        var fillBoxes = _page.FillBoxes;
+        for (int i = 0; i < fillBoxes.Count && i < _fillRects.Count; i++)
+            _fillRects[i].Arrange(new Windows.Foundation.Rect(fillBoxes[i].X, fillBoxes[i].Y, fillBoxes[i].Width, fillBoxes[i].Height));
 
         foreach (var (adorner, _) in _adorners)
         {
@@ -570,8 +582,29 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             Children.Remove(cell);
         _cellRects.Clear();
 
+        foreach (var fill in _fillRects)
+            Children.Remove(fill);
+        _fillRects.Clear();
+
+        _inlineBackgroundRectCount = 0;
+
         if (_page == null)
             return;
+
+        foreach (var fillBox in _page.FillBoxes)
+        {
+            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = fillBox.Width,
+                Height = fillBox.Height,
+                Fill = fillBox.Brush,
+                IsHitTestVisible = false,
+            };
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(rect, fillBox.X);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(rect, fillBox.Y);
+            _fillRects.Add(rect);
+            Children.Add(rect);
+        }
 
         foreach (var paragraphBorder in _page.ParagraphBorders)
         {
@@ -884,6 +917,21 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
                 Microsoft.UI.Xaml.Controls.Canvas.SetLeft(ee, run.X);
                 Microsoft.UI.Xaml.Controls.Canvas.SetTop(ee, 0);
                 continue;
+            }
+
+            if (run.Background is not null)
+            {
+                // Paint the run's background before its text blocks.
+                var bg = new Microsoft.UI.Xaml.Shapes.Rectangle
+                {
+                    Width = run.Width,
+                    Height = line.Height,
+                    Fill = run.Background,
+                    IsHitTestVisible = false,
+                };
+                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(bg, run.X);
+                canvas.Children.Add(bg);
+                _inlineBackgroundRectCount++;
             }
 
             for (int i = 0; i < run.Text.Length; i++)
