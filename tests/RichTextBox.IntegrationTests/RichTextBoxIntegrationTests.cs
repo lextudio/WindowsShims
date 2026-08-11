@@ -44,6 +44,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstTableColumnWidths(JsonElement state) => state.GetProperty("firstTableColumnWidths").GetString();
     static string? FirstParagraphBorderThickness(JsonElement state) => state.GetProperty("firstParagraphBorderThickness").GetString();
     static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
+    static string? ParagraphBorderRectCount(JsonElement state) => state.GetProperty("paragraphBorderRectCount").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
     static string? FirstInlineImageDims(JsonElement state) => state.GetProperty("firstInlineImageDims").GetString();
     static bool FirstInlineImageRendered(JsonElement state) => state.GetProperty("firstInlineImageRendered").GetBoolean();
@@ -1693,6 +1694,8 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Contains("bordered", Text(state));
         Assert.Equal("[Thickness: 1-2-3-4]", FirstParagraphBorderThickness(state));
         Assert.Equal("#FFFF0000", FirstParagraphBorderBrush(state));
+        // The border renders as four side rectangles in FlowDocumentView.
+        Assert.Equal("4", ParagraphBorderRectCount(state));
     }
 
     [Fact]

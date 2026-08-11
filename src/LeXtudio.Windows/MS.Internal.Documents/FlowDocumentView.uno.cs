@@ -19,6 +19,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private uint _lastFormattedGeneration;
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
     private readonly List<Microsoft.UI.Xaml.FrameworkElement> _lineBlocks = [];
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _borderRects = [];
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
     private ITextSelection? _trackedSelection;
@@ -60,6 +61,10 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
     }
     private bool _readOnly;
+
+    // Number of paragraph border side rectangles currently in the visual tree
+    // (used by integration tests to verify paragraph borders render).
+    internal int ParagraphBorderRectCount => _borderRects.Count;
 
     // ── Spell Check ─────────────────────────────────────────────────────────
 
@@ -258,6 +263,25 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
             _lineBlocks[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
 
+        var paragraphBorders = _page.ParagraphBorders;
+        int borderRectIndex = 0;
+        foreach (var paragraphBorder in paragraphBorders)
+        {
+            var t = paragraphBorder.Thickness;
+            double bx = paragraphBorder.X;
+            double by = paragraphBorder.Y;
+            double bw = paragraphBorder.Width;
+            double bh = paragraphBorder.Height;
+            if (t.Top > 0)
+                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by, bw, t.Top));
+            if (t.Bottom > 0)
+                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by + bh - t.Bottom, bw, t.Bottom));
+            if (t.Left > 0)
+                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by, t.Left, bh));
+            if (t.Right > 0)
+                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx + bw - t.Right, by, t.Right, bh));
+        }
+
         foreach (var (adorner, _) in _adorners)
         {
             adorner.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width, finalSize.Height));
@@ -448,14 +472,60 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
+    private static IEnumerable<Microsoft.UI.Xaml.Shapes.Rectangle> BuildParagraphBorderSides(MS.Internal.Florence.FlorenceParagraphBorder border)
+    {
+        var t = border.Thickness;
+        double x = border.X;
+        double y = border.Y;
+        double w = border.Width;
+        double h = border.Height;
+
+        Microsoft.UI.Xaml.Shapes.Rectangle Side(double left, double top, double width, double height)
+        {
+            var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = width,
+                Height = height,
+                Fill = border.Brush,
+                Stroke = null,
+                IsHitTestVisible = false,
+            };
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(rect, left);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(rect, top);
+            return rect;
+        }
+
+        if (t.Top > 0)
+            yield return Side(x, y, w, t.Top);
+        if (t.Bottom > 0)
+            yield return Side(x, y + h - t.Bottom, w, t.Bottom);
+        if (t.Left > 0)
+            yield return Side(x, y, t.Left, h);
+        if (t.Right > 0)
+            yield return Side(x + w - t.Right, y, t.Right, h);
+    }
+
     private void RebuildLineBlocks()
     {
         foreach (var block in _lineBlocks)
             Children.Remove(block);
         _lineBlocks.Clear();
 
+        foreach (var border in _borderRects)
+            Children.Remove(border);
+        _borderRects.Clear();
+
         if (_page == null)
             return;
+
+        foreach (var paragraphBorder in _page.ParagraphBorders)
+        {
+            foreach (var side in BuildParagraphBorderSides(paragraphBorder))
+            {
+                _borderRects.Add(side);
+                Children.Add(side);
+            }
+        }
 
         foreach (var line in _page.Lines)
         {

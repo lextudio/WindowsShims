@@ -320,12 +320,37 @@ namespace MS.Internal.Florence
     internal sealed class FlorencePage
     {
         private readonly List<FlorenceLine> _lines = new List<FlorenceLine>();
+        private readonly List<FlorenceParagraphBorder> _paragraphBorders = new List<FlorenceParagraphBorder>();
 
         internal Windows.Foundation.Size PageSize  { get; set; }
         internal IReadOnlyList<FlorenceLine> Lines => _lines;
+        internal IReadOnlyList<FlorenceParagraphBorder> ParagraphBorders => _paragraphBorders;
 
         internal void AddLine(FlorenceLine line) => _lines.Add(line);
-        internal void Clear()                    => _lines.Clear();
+        internal void AddParagraphBorder(FlorenceParagraphBorder border) => _paragraphBorders.Add(border);
+        internal void Clear() { _lines.Clear(); _paragraphBorders.Clear(); }
+    }
+
+    /// <summary>A paragraph border box to render behind the paragraph's lines.</summary>
+    internal sealed class FlorenceParagraphBorder
+    {
+        internal FlorenceParagraphBorder(double x, double y, double width, double height,
+            Microsoft.UI.Xaml.Media.Brush brush, Microsoft.UI.Xaml.Thickness thickness)
+        {
+            X = x;
+            Y = y;
+            Width = width;
+            Height = height;
+            Brush = brush;
+            Thickness = thickness;
+        }
+
+        internal double X { get; }
+        internal double Y { get; }
+        internal double Width { get; }
+        internal double Height { get; }
+        internal Microsoft.UI.Xaml.Media.Brush Brush { get; }
+        internal Microsoft.UI.Xaml.Thickness Thickness { get; }
     }
 
     /// <summary>
@@ -582,6 +607,14 @@ namespace MS.Internal.Florence
             int paragraphStartOffset = globalOffset;
             var spans = CollectSpans(para.Inlines, DefaultFontSize, bold: false, italic: false, fontFamily: null);
 
+            // Paragraph border box: drawn around the paragraph's laid-out lines.
+            var borderThickness = para.BorderThickness;
+            var borderBrush = para.BorderBrush;
+            bool hasBorder = borderBrush is not null &&
+                (borderThickness.Left + borderThickness.Top + borderThickness.Right + borderThickness.Bottom) > 0;
+            double paragraphStartY = y;
+            double paragraphMaxX = 0;
+
             // Empty paragraph: emit a blank line so the cursor can be placed.
             if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
             {
@@ -622,6 +655,7 @@ namespace MS.Internal.Florence
                         double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
                             span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
+                        paragraphMaxX = Math.Max(paragraphMaxX, x + w);
                         x += w;
                         lineText += remaining;
                         spanOffset += remaining.Length;
@@ -634,6 +668,7 @@ namespace MS.Internal.Florence
                         double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
                             span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
+                        paragraphMaxX = Math.Max(paragraphMaxX, x + w);
                         lineText += lineChunk;
                         int consumed = breakAt;
                         while (consumed < remaining.Length && remaining[consumed] == ' ')
@@ -658,6 +693,14 @@ namespace MS.Internal.Florence
                 EmitLine(page, currentLineRuns, lineStart, lineText, y,
                     lineHeight > 0 ? lineHeight : TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding);
                 y += lineHeight > 0 ? lineHeight : TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
+            }
+
+            if (hasBorder)
+            {
+                page.AddParagraphBorder(new FlorenceParagraphBorder(
+                    0, paragraphStartY,
+                    paragraphMaxX > 0 ? paragraphMaxX : availWidth,
+                    y - paragraphStartY, borderBrush, borderThickness));
             }
         }
 
