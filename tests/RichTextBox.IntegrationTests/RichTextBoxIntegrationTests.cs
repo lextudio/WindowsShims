@@ -1687,6 +1687,29 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task SaveLoad_Rtf_RoundTripsTableCellHitTest()
+    {
+        // Cells in a row share a vertical band; hit-testing must pick the line
+        // whose run X-range contains the click (side-by-side cells).
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableColumn Width=\"100\"/><TableColumn Width=\"200\"/>" +
+            "<TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>left</Paragraph></TableCell>" +
+            "<TableCell><Paragraph>right</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        var result = await _app.InvokeAsync("richtextbox.probe.hit-test-first-inline", "right");
+        var json = System.Text.Json.JsonDocument.Parse(result.ToString()).RootElement;
+        // Clicking the 'right' character must round-trip to a position whose
+        // rect is in the same column (|ΔX| < 5), not the left cell.
+        double rectX = json.GetProperty("rectX").GetDouble();
+        double hitRectX = json.GetProperty("hitRectX").GetDouble();
+        Assert.True(Math.Abs(rectX - hitRectX) < 5, result.ToString());
+    }
+
+    [Fact]
     public async Task SaveLoad_Rtf_RoundTripsParagraphBorder()
     {
         // WriteXaml serializes Paragraph BorderThickness/BorderBrush; the RTF

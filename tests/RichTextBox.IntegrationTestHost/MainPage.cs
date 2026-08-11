@@ -916,6 +916,100 @@ public sealed partial class MainPage : Page
         return $"{{\"rectX\":{rect.X.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectY\":{rect.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectWidth\":{rect.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"rectHeight\":{rect.Height.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"requestedOffset\":{offset},\"hitOffset\":{hitOffset}}}";
     });
 
+    [DevFlowAction("richtextbox.probe.hit-test-first-inline", Description = "Find the first Run containing the given text anywhere in the document, hit-test its first character's rect center, and report the resulting character index within that run.")]
+    public static string ProbeHitTestFirstInline(string text) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
+
+        var document = page._box.Document ?? throw new InvalidOperationException("RichTextBox has no Document.");
+        (WpfRun run, int charIndex)? found = null;
+        foreach (var paragraph in EnumerateParagraphs(document))
+        {
+            if (FindRunInInlines(paragraph.Inlines, text) is { } match)
+            {
+                found = match;
+                break;
+            }
+        }
+        if (found is not { } target)
+            throw new InvalidOperationException($"No Run containing '{text}' found.");
+
+        var position = target.run.ContentStart.GetPositionAtOffset(target.charIndex)
+            ?? throw new InvalidOperationException("Invalid offset in Run.");
+        var rect = position.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+        var requestedAbs = document.ContentStart.GetOffsetToPosition(position);
+
+        var renderScope = RequireRenderScope(page._box);
+        var textView = GetInternalProperty(renderScope, "TextView")
+            ?? throw new InvalidOperationException("FlowDocumentView.TextView is not available.");
+        var method = textView.GetType().GetMethod(
+            "GetTextPositionFromPoint",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(Windows.Foundation.Point), typeof(bool)],
+            modifiers: null)
+            ?? throw new InvalidOperationException("ITextView.GetTextPositionFromPoint not found.");
+        var hitPoint = new Windows.Foundation.Point(rect.X + 1, rect.Y + rect.Height / 2);
+        var hitPosition = (System.Windows.Documents.TextPointer)method.Invoke(textView, [hitPoint, true])!;
+        var hitRect = hitPosition.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward);
+
+        return $"{{\"requestedAbs\":{requestedAbs},\"rectX\":{rect.X.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"hitRectX\":{hitRect.X.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}";
+    });
+
+    static (WpfRun run, int charIndex)? FindRunInInlines(System.Windows.Documents.InlineCollection inlines, string text)
+    {
+        foreach (var inline in inlines)
+        {
+            if (inline is WpfRun run && run.Text.Contains(text, StringComparison.Ordinal))
+                return (run, run.Text.IndexOf(text, StringComparison.Ordinal));
+            if (inline is WpfSpan span && FindRunInInlines(span.Inlines, text) is { } nested)
+                return nested;
+            if (inline is System.Windows.Documents.Hyperlink hyperlink && FindRunInInlines(hyperlink.Inlines, text) is { } linkNested)
+                return linkNested;
+        }
+        return null;
+    }
+
+    static IEnumerable<WpfParagraph> EnumerateParagraphs(System.Windows.Documents.FlowDocument document)
+    {
+        foreach (var block in document.Blocks)
+        {
+            switch (block)
+            {
+                case WpfParagraph paragraph:
+                    yield return paragraph;
+                    break;
+                case System.Windows.Documents.Table table:
+                    foreach (var rg in table.RowGroups)
+                        foreach (var row in rg.Rows)
+                            foreach (var cell in row.Cells)
+                                foreach (var inner in EnumerateParagraphs(cell))
+                                    yield return inner;
+                    break;
+                case System.Windows.Documents.List list:
+                    foreach (var item in list.ListItems)
+                        foreach (var inner in EnumerateParagraphs(item))
+                            yield return inner;
+                    break;
+            }
+        }
+    }
+
+    static IEnumerable<WpfParagraph> EnumerateParagraphs(System.Windows.Documents.TableCell cell)
+    {
+        foreach (var block in cell.Blocks)
+            if (block is WpfParagraph paragraph)
+                yield return paragraph;
+    }
+
+    static IEnumerable<WpfParagraph> EnumerateParagraphs(System.Windows.Documents.ListItem item)
+    {
+        foreach (var block in item.Blocks)
+            if (block is WpfParagraph paragraph)
+                yield return paragraph;
+    }
+
     static System.Windows.Documents.IRichTextDragDropHost RequireDragDropHost(WpfRichTextBox box) =>
         box as System.Windows.Documents.IRichTextDragDropHost
             ?? throw new InvalidOperationException("RichTextBox does not implement IRichTextDragDropHost.");

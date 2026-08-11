@@ -122,17 +122,29 @@ internal sealed class UnoFlowDocumentTextView : ITextView
         if (lines.Count == 0)
             return tc.Start;
 
-        // Find the line whose Y band contains the point.
+        // Find the line whose Y band contains the point. When multiple lines
+        // share a band (side-by-side table cells), prefer the one whose run
+        // X-range contains the point.
         FlorenceLine? hit = null;
+        FlorenceLine? fallback = null;
         foreach (var line in lines)
         {
             if (point.Y >= line.Y && point.Y < line.Y + line.Height)
             {
-                hit = line;
-                break;
+                fallback ??= line;
+                foreach (var run in line.Runs)
+                {
+                    if (point.X >= run.X && point.X < run.X + run.Width)
+                    {
+                        hit = line;
+                        break;
+                    }
+                }
+                if (hit != null)
+                    break;
             }
         }
-        hit ??= snapToText ? lines[^1] : null;
+        hit ??= fallback ?? (snapToText ? lines[^1] : null);
         if (hit == null)
             return tc.Start;
 

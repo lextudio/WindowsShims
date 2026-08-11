@@ -214,6 +214,11 @@ Candidate coverage:
   Session 100 added background rendering: inline backgrounds paint a
   rectangle behind each run inside the line canvas (inherited down the span
   tree), and `Paragraph.Background` paints a fill box behind its lines.
+  Session 101 replaced the stacked table layout with a true side-by-side
+  grid: cells in a row share a vertical band (row height = tallest cell),
+  hit-testing picks the line whose run X-range contains the click, and cell
+  offsets reserve one slot per paragraph so caret mapping stays aligned.
+  `ColumnSpan`/`RowSpan` are still not honored by the layout.
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -343,3 +348,4 @@ Each session is tracked as a separate file:
 | 98 | [session98.md](session98.md) | Visual Rendering for Paragraph Borders (completed) |
 | 99 | [session99.md](session99.md) | Visual Rendering for Table Columns and Cells (completed) |
 | 100 | [session100.md](session100.md) | Visual Rendering for Inline and Paragraph Backgrounds (completed) |
+| 101 | [session101.md](session101.md) | Side-by-Side Table Cell Layout (completed) |

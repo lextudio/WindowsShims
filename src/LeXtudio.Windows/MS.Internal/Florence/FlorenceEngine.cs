@@ -621,6 +621,8 @@ namespace MS.Internal.Florence
             {
                 foreach (var row in rg.Rows)
                 {
+                    double rowY = y;
+                    double rowHeight = 0;
                     int col = 0;
                     foreach (var cell in row.Cells)
                     {
@@ -628,15 +630,29 @@ namespace MS.Internal.Florence
                             break;
                         double cellX = xStarts[col];
                         double cellW = widths[col];
-                        double cellY = y;
+                        double cellY = rowY;
+                        double localY = rowY;
+                        int paragraphCount = 0;
                         foreach (var block in cell.Blocks)
                         {
                             if (block is System.Windows.Documents.Paragraph para)
-                                FormatParagraph(para, cellW, cellX, ref y, ref globalOffset, page);
+                            {
+                                FormatParagraph(para, cellW, cellX, ref localY, ref globalOffset, page);
+                                paragraphCount++;
+                            }
                         }
-                        if (cell.Blocks.Count == 0)
-                            y += emptyLineH;
-                        double cellH = y - cellY;
+                        // WPF text model counts each paragraph's invisible
+                        // boundary position; reserve one slot per cell paragraph
+                        // so Florence offsets align with caret navigation.
+                        globalOffset += paragraphCount;
+                        double cellH = localY - cellY;
+                        if (cell.Blocks.Count == 0 || cellH == 0)
+                        {
+                            cellH = emptyLineH;
+                            globalOffset += 1;
+                        }
+                        if (cellH > rowHeight)
+                            rowHeight = cellH;
 
                         var cellBackground = cell.Background;
                         var cellBorderBrush = cell.BorderBrush;
@@ -646,10 +662,13 @@ namespace MS.Internal.Florence
                              (cellBorderThickness.Left + cellBorderThickness.Top + cellBorderThickness.Right + cellBorderThickness.Bottom) > 0))
                         {
                             page.AddCellBox(new FlorenceCellBox(
-                                cellX, cellY, cellW, cellH, cellBackground, cellBorderBrush, cellBorderThickness));
+                                cellX, rowY, cellW, rowHeight, cellBackground, cellBorderBrush, cellBorderThickness));
                         }
                         col++;
                     }
+
+                    // Cells in a row share the vertical band; the row spans the tallest.
+                    y = rowY + rowHeight;
                 }
             }
         }
@@ -748,8 +767,8 @@ namespace MS.Internal.Florence
             if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
             {
                 double lineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
-                var emptyRun = new FlorenceRun(globalOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, null, Windows.UI.Text.TextDecorations.None, null);
-                var emptyLine = new FlorenceLine(globalOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { emptyRun });
+                var emptyRun = new FlorenceRun(paragraphStartOffset, 0, 0, 0, "", DefaultFontSize, false, false, null, null, null, Windows.UI.Text.TextDecorations.None, null);
+                var emptyLine = new FlorenceLine(paragraphStartOffset, 0, y, y + DefaultFontSize, lineH, "", new[] { emptyRun });
                 page.AddLine(emptyLine);
                 y += lineH;
                 return;
@@ -764,7 +783,7 @@ namespace MS.Internal.Florence
                 Microsoft.UI.Xaml.Media.Brush? background,
                 Windows.UI.Text.TextDecorations textDecorations,
                 System.Windows.Documents.Hyperlink? hyperlink)>();
-            int lineStart = globalOffset;
+            int lineStart = paragraphStartOffset;
             string lineText = "";
 
             foreach (var span in spans)
@@ -808,7 +827,7 @@ namespace MS.Internal.Florence
                         globalOffset = spanOffset;
                         EmitLine(page, currentLineRuns, lineStart, lineText, y, lineHeight, xOffset);
                         y += lineHeight;
-                        lineStart = globalOffset;
+                        lineStart = spanOffset;
                         lineText = "";
                         x = 0;
                         lineHeight = measuredLineHeight;
