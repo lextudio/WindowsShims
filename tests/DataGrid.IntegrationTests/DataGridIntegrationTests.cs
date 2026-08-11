@@ -694,8 +694,13 @@ public sealed class DataGridIntegrationTests
     {
         if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
             return; // Drag injection is only supported on macOS
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")))
-            return; // Cliclick-driven drag not available on GitHub Actions CI
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATAGRID_DRAG_TESTS")))
+            return; // Opt-in: cliclick injected into the host app needs macOS
+                    // Accessibility (TCC) permission for the host process, and
+                    // header drag feel is blocked by the Uno synthetic-click
+                    // issue (see docs/datagrid/uno-macos-synthetic-click-issue.md
+                    // and todo.md item 17). Set DATAGRID_DRAG_TESTS=1 after
+                    // granting the permission to exercise it.
 
         await _app.InvokeAsync("datagrid.probe.create-reorder-grid");
 

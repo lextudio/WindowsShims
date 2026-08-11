@@ -1,6 +1,6 @@
 # DataGrid Port — Remaining Work
 
-Status as of session 123 (2026-07-22). All items below are **still open**
+Status as of session 124 (2026-08-11). All items below are **still open**
 unless marked otherwise. Items closed in sessions 121–123 (grouping,
 hyperlink column, frozen columns, row-details variable-height virtualization,
 VSM sort/hover, TextSearch, redundant separator cleanup, Fluent theme, test
@@ -263,11 +263,33 @@ Likely either a different installed CoreLib/table-schema version or a
 
 ## 17. Header interactive drag verification
 
-**Status:** blocked on Uno Platform synthetic-click issue.  
-**Source:** session120:840-841
+**Status:** blocked on Uno Platform synthetic-click issue; the
+`ReorderGrid_HeaderDragDevFlowUpdatesDisplayOrder` integration test is gated
+behind `DATAGRID_DRAG_TESTS=1` (2026-08-11, Uno 6.6 verification pass) because
+cliclick launched *from inside the host app* needs macOS Accessibility (TCC)
+permission for the host process (granted only to the terminal so far), and the
+drag-reorder itself remains blocked by the synthetic-click gap below. **Source:**
+session120:840-841
 
 Real interactive mouse-drag feel (smooth cursor tracking) not verified.
 Blocked on `docs/uno-macos-synthetic-click-issue.md` — an Uno Platform macOS
 input-bridge gap where `PointerPoint.IsLeftButtonPressed` is never `true` for
 synthetic CGEvent clicks, preventing automated testing of any `ButtonBase`-
 derived control interaction (sort-click, drag-reorder) on this platform.
+
+## 18. Uno 6.6 verification (2026-08-11)
+
+**Status:** done — DataGrid suite green (62/62), deterministic across runs.
+
+- The DataGrid.IntegrationTestHost had a stale `obj/` locked to Uno.WinUI
+  6.5.153; `dotnet restore` after `rm -rf bin obj` picked up 6.6.184 (matching
+  the Uno.Sdk 6.6.42 bump in commit 292f209).
+- `SelectedRow_UsesWpfFluentAccentWithReadableForeground` failed only in the
+  suite: the shared collection's app instance runs tests alphabetically, and
+  `datagrid.probe.dark-theme-contrast` permanently flipped the host *page*
+  to Dark, so later tests measured dark-theme colors (WPF-faithful black
+  foreground on the light accent). Fixed by scoping the dark switch to the
+  grid subtree the probe creates (`grid.RequestedTheme = Dark` only), leaving
+  the shared host Light.
+- The frozen-column tracked-row test (`FrozenColumns_TrackedRowKeepsFrozenX-
+  AcrossVerticalScroll`, the pre-6.6 documented failure) now passes.

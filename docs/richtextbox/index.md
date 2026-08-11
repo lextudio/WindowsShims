@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 238/238 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 238/238 (RichTextBox), 62/62 (DataGrid, drag-reorder test gated behind DATAGRID_DRAG_TESTS=1 pending host Accessibility permission).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:

@@ -1249,15 +1249,17 @@ public sealed partial class MainPage : Page
                $"\"rowHeaderMinHeight\":{Jn(rowHeader?.MinHeight ?? double.NaN)}}}";
     });
 
-    [DevFlowAction("datagrid.probe.dark-theme-contrast", Description = "Switch the host and DataGrid to Dark and read realized row/cell contrast colors.")]
+    [DevFlowAction("datagrid.probe.dark-theme-contrast", Description = "Build a Dark-themed DataGrid (grid subtree only, leaving the host page Light) and read realized row/cell contrast colors.")]
     public static string ProbeDarkThemeContrast() => RunOnUi(page =>
     {
         var grid = DataGridScenarios.BuildMetadataGrid();
         page._root.Children.Clear();
         page._grid = grid;
         page._root.Children.Add(grid);
-        page.RequestedTheme = ElementTheme.Dark;
-        page._root.RequestedTheme = ElementTheme.Dark;
+        // Scope Dark to the grid subtree: setting RequestedTheme on the page/
+        // root here would permanently flip the shared host for every later test
+        // in the collection (the suite runs alphabetically, and the theme state
+        // survives across tests in the shared app instance).
         grid.RequestedTheme = ElementTheme.Dark;
         grid.Width = 800;
         grid.Height = 400;
