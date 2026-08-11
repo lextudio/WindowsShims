@@ -25,12 +25,12 @@
     </PackageReference>
   </ItemGroup>
 
-  <PropertyGroup>
-    <DataGridIntegrationTestHostProject>$(MSBuildThisFileDirectory)..\DataGrid.IntegrationTestHost\DataGrid.IntegrationTestHost.csproj</DataGridIntegrationTestHostProject>
-  </PropertyGroup>
-
-  <Target Name="BuildDataGridIntegrationTestHost" BeforeTargets="Build">
-    <Exec Command="dotnet build &quot;$(DataGridIntegrationTestHostProject)&quot; -f net10.0-desktop --configuration $(Configuration) --no-restore" />
-  </Target>
+  <ItemGroup>
+    <ProjectReference Include="..\DataGrid.IntegrationTestHost\DataGrid.IntegrationTestHost.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+      <SetTargetFramework>TargetFramework=net10.0-desktop</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
 
 </Project>
