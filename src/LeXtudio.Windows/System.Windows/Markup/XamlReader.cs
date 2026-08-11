@@ -316,17 +316,21 @@ public static class XamlReader
             reader.Read();
     }
 
-    static Run ParseRun(XmlReader reader)
+    static Inline ParseRun(XmlReader reader)
     {
         var run = new Run();
         string? text = null;
+        var formatting = new List<(string Name, string Value)>();
         while (reader.MoveToNextAttribute())
         {
             var attrName = StripQualifier(reader.LocalName);
             if (attrName == "Text")
                 text = reader.Value;
             else
+            {
+                formatting.Add((attrName, reader.Value));
                 ApplyInlineProperty(run, attrName, reader.Value);
+            }
         }
         reader.MoveToElement();
         // Consume <Run>text</Run> and end positioned AT its </Run> end tag, so the
@@ -335,14 +339,27 @@ public static class XamlReader
         // positioned on the next sibling, causing that element to be skipped.)
         if (text is null && !reader.IsEmptyElement)
         {
-            reader.Read();
-            if (reader.NodeType == XmlNodeType.Text || reader.NodeType == XmlNodeType.SignificantWhitespace)
+            int depth = reader.Depth;
+            while (reader.Read() && reader.Depth > depth)
             {
-                text = reader.Value;
-                reader.Read();
+                if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "Image")
+                {
+                    // With preserveTextElements=false the serializer collapses an
+                    // InlineUIContainer holding an image into <Run><Image .../></Run>;
+                    // reconstruct the container and carry the Run's formatting.
+                    var container = new InlineUIContainer(ParseImageElement(reader));
+                    foreach (var (name, value) in formatting)
+                        ApplyInlineProperty(container, name, value);
+                    return container;
+                }
+                if (reader.NodeType == XmlNodeType.Text || reader.NodeType == XmlNodeType.SignificantWhitespace)
+                {
+                    text = reader.Value;
+                    while (reader.NodeType != XmlNodeType.EndElement)
+                        reader.Read();
+                    break;
+                }
             }
-            while (reader.NodeType != XmlNodeType.EndElement)
-                reader.Read();
         }
         // For <Run Text="..."/> self-closing elements, leave the reader positioned
         // on the element itself so the caller's reader.Read() reaches the next sibling.

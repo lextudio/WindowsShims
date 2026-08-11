@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 236/236 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 238/238 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -230,6 +230,9 @@ Candidate coverage:
   inserts via `InsertTextInRun` instead of `TextRange.Text` (which clamps
   in-cell ranges).
   FontStretch and LineHeight remain pinned WPF-faithful drops.
+  Session 105 pinned Xaml/XamlPackage image round trips: the serializer's
+  reduced-container shape `<Run><Image .../></Run>` is now reconstructed into
+  an InlineUIContainer by `ParseRun`.
 
 Done when:
 
@@ -362,3 +365,4 @@ Each session is tracked as a separate file:
 | 102 | [session102.md](session102.md) | Table Layout Honors ColumnSpan/RowSpan (completed) |
 | 103 | [session103.md](session103.md) | Pagination Carries Boxes Across Pages (completed) |
 | 104 | [session104.md](session104.md) | IME Composition Mapping Through Tables (completed) |
+| 105 | [session105.md](session105.md) | XAML/XamlPackage Image Round-Trip Fix (completed) |

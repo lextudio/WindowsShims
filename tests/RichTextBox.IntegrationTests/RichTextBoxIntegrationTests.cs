@@ -1451,6 +1451,13 @@ public sealed class RichTextBoxIntegrationTests
         return await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Rtf");
     }
 
+    async Task<JsonElement> SetAndXamlRoundTrip(string xaml)
+    {
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "seed");
+        await _app.InvokeAsync("richtextbox.probe.set-xaml-document", xaml);
+        return await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "Xaml");
+    }
+
     [Fact]
     public async Task SaveLoad_Rtf_RoundTripsMixedInlineFormatting()
     {
@@ -2135,6 +2142,48 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasRichTextBox(state), raw);
         Assert.True(HasDocument(state), raw);
         Assert.Contains("xaml pkg test", Text(state));
+    }
+
+    [Fact]
+    public async Task SaveLoad_XamlPackage_RoundTripsInlineImage()
+    {
+        // Regression coverage for the XamlPackage + images path: the OPC package's
+        // XAML part is produced by WriteEmbeddedObject's HAS_UNO branch, which emits
+        // self-contained data URIs ("data:image/png;base64,..."), and the shim
+        // XamlReader decodes them back into a BitmapSource on load.
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "seed");
+        await _app.InvokeAsync("richtextbox.probe.set-xaml-document", Xaml(
+            "<Paragraph><InlineUIContainer>" +
+            "<Image Width=\"40\" Height=\"20\" Source=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAYAAAD/Rn+7AAAAL0lEQVR4nO3OMQ0AAAjAsPk3DSrIOHb0LwPzGXagYEE7ULCgHShY0A4ULGgHCl5biXs6G0TdvUkAAAAASUVORK5CYII=\"/>" +
+            "</InlineUIContainer><Run> after</Run></Paragraph>"));
+
+        var state = await _app.InvokeAsync("richtextbox.probe.save-load-format-roundtrip", "XamlPackage");
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains(" after", Text(state));
+        Assert.Equal("40x20", FirstInlineImageDims(state));
+        Assert.True(FirstInlineImageRendered(state), raw);
+    }
+
+    [Fact]
+    public async Task SaveLoad_Xaml_RoundTripsInlineImage()
+    {
+        // Unlike stock WPF (which replaces embedded images with whitespace when
+        // saving plain Xaml because the package is null), the HAS_UNO branch of
+        // WriteEmbeddedObject emits self-contained data URIs, so the Xaml format
+        // round-trips images through the shim XamlReader.
+        var state = await SetAndXamlRoundTrip(Xaml(
+            "<Paragraph><InlineUIContainer>" +
+            "<Image Width=\"40\" Height=\"20\" Source=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAYAAAD/Rn+7AAAAL0lEQVR4nO3OMQ0AAAjAsPk3DSrIOHb0LwPzGXagYEE7ULCgHShY0A4ULGgHCl5biXs6G0TdvUkAAAAASUVORK5CYII=\"/>" +
+            "</InlineUIContainer><Run> after</Run></Paragraph>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Contains(" after", Text(state));
+        Assert.Equal("40x20", FirstInlineImageDims(state));
+        Assert.True(FirstInlineImageRendered(state), raw);
     }
 
     [Fact]
