@@ -2315,6 +2315,61 @@ public sealed partial class MainPage : Page
         return Snapshot(page);
     });
 
+    [DevFlowAction("richtextbox.probe.get-page-layout", Description = "Report per-page layout from the FlowDocumentPaginator: line Y range, and cell box / paragraph border / fill box bounds.")]
+    public static string ProbeGetPageLayout() => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+        var document = page._box.Document;
+        if (document is null)
+            return "{\"pages\":[]}";
+
+        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator;
+        paginator.PageSize = new Windows.Foundation.Size(640, 100);
+        _ = paginator.PageCount; // triggers EnsurePages
+        var pagesField = paginator.GetType().GetField("_pages", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (pagesField?.GetValue(paginator) is not System.Collections.IList pages)
+            return "{\"pages\":[]}";
+
+        string F(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        var result = new List<string>();
+        foreach (var fp in pages)
+        {
+            var lines = (System.Collections.IEnumerable)fp.GetType().GetProperty("Lines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(fp)!;
+            double minY = double.MaxValue, maxY = 0;
+            int lineCount = 0;
+            foreach (var line in lines)
+            {
+                double ly = (double)line.GetType().GetProperty("Y", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(line)!;
+                double lh = (double)line.GetType().GetProperty("Height", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(line)!;
+                minY = Math.Min(minY, ly);
+                maxY = Math.Max(maxY, ly + lh);
+                lineCount++;
+            }
+
+            var cellBoxes = (System.Collections.IEnumerable)fp.GetType().GetProperty("CellBoxes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(fp)!;
+            var cellBoxParts = new List<string>();
+            foreach (var box in cellBoxes)
+            {
+                var bt = box.GetType();
+                double bx = (double)bt.GetProperty("X", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(box)!;
+                double by = (double)bt.GetProperty("Y", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(box)!;
+                double bh = (double)bt.GetProperty("Height", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(box)!;
+                cellBoxParts.Add($"{F(bx)}:{F(by)}:{F(bh)}");
+            }
+
+            var borders = (System.Collections.IEnumerable)fp.GetType().GetProperty("ParagraphBorders", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(fp)!;
+            var fills = (System.Collections.IEnumerable)fp.GetType().GetProperty("FillBoxes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)!.GetValue(fp)!;
+            int borderCount = 0, fillCount = 0;
+            foreach (var _ in borders) borderCount++;
+            foreach (var _ in fills) fillCount++;
+
+            result.Add($"{{\"lines\":{lineCount},\"minY\":{F(minY == double.MaxValue ? 0 : minY)},\"maxY\":{F(maxY)},\"cellBoxes\":[{string.Join(",", cellBoxParts.Select(p => "\"" + p + "\""))}],\"borderCount\":{borderCount},\"fillCount\":{fillCount}}}");
+        }
+
+        return $"{{\"pages\":[{string.Join(",", result)}]}}";
+    });
+
     [DevFlowAction("richtextbox.probe.get-page-count", Description = "Report the number of pages in the current document via FlowDocumentPaginator.")]
     public static string ProbeGetPageCount() => RunOnUi(page =>
     {

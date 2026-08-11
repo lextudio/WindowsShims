@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-102 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-103 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -192,7 +192,10 @@ and now works correctly.
   cells in a row share a vertical band, hit-testing picks the line whose run
   X-range contains the click, and cell offsets reserve one slot per paragraph;
   session 102 made the layout honor `ColumnSpan` (cells span the summed
-  column widths) and `RowSpan` (boxes extend over the spanned rows),
+  column widths) and `RowSpan` (boxes extend over the spanned rows);
+  session 103 fixed pagination — `FormatPages` re-bases lines per page and
+  distributes cell boxes/paragraph borders/background fills across pages,
+  splitting boxes at page boundaries,
   while FontStretch and LineHeight stay pinned WPF-faithful drops), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is

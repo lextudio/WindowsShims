@@ -2238,6 +2238,43 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task FlowDocument_PaginationCarriesTableBoxesAcrossPages()
+    {
+        // A tall bordered table paginates; cell boxes are re-based per page and
+        // any box crossing a page boundary is split across both pages.
+        var rows = string.Concat(Enumerable.Range(0, 30).Select(i =>
+            "<TableRow><TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>row " + i + "</Paragraph></TableCell></TableRow>"));
+        var state = await SetAndRtfRoundTrip(Xaml(
+            "<Table><TableRowGroup>" + rows + "</TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        var result = await _app.InvokeAsync("richtextbox.probe.get-page-layout");
+        var pages = System.Text.Json.JsonDocument.Parse(result.ToString()).RootElement.GetProperty("pages");
+        Assert.True(pages.GetArrayLength() >= 2, result.ToString());
+
+        // Every page's lines must be re-based into the page (Y range within the
+        // 100px page height, allowing the last line to be clipped).
+        foreach (var pg in pages.EnumerateArray())
+        {
+            Assert.True(pg.GetProperty("maxY").GetDouble() <= 110, result.ToString());
+            Assert.True(pg.GetProperty("minY").GetDouble() >= 0, result.ToString());
+        }
+
+        // A row-span-free table has one box per row; total box height across all
+        // pages equals the sum of per-page box heights (splits preserved).
+        int totalBoxes = pages.EnumerateArray().Sum(p => p.GetProperty("cellBoxes").GetArrayLength());
+        Assert.True(totalBoxes >= 30, result.ToString());
+        Assert.True(pages.EnumerateArray().All(p => p.GetProperty("cellBoxes").GetArrayLength() >= 1), result.ToString());
+
+        // Boxes crossing a page boundary are split; total heights are preserved.
+        double totalHeight = pages.EnumerateArray()
+            .SelectMany(p => p.GetProperty("cellBoxes").EnumerateArray())
+            .Sum(b => double.Parse(b.GetString()!.Split(':')[2], System.Globalization.CultureInfo.InvariantCulture));
+        Assert.True(Math.Abs(totalHeight - 30 * 22.0) < 2, result.ToString());
+    }
+
+    [Fact]
     public async Task FlowDocument_PageCount_ReflectsContentHeight()
     {
         // Short document: 1 page

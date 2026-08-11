@@ -568,17 +568,38 @@ namespace MS.Internal.Florence
             double availWidth = constraint.Width <= 0 ? 600 : constraint.Width;
             double pageHeight = constraint.Height <= 0 ? 1000 : constraint.Height;
             var pages = new List<FlorencePage>();
+            var pageRanges = new List<(double startY, double endY)>();
 
             // Format with infinite height to get the full flow, then split into pages.
             var full = Format(document, new Windows.Foundation.Size(availWidth, double.PositiveInfinity));
             double y = 0;
+            double pageStartY = 0;
             var currentPageLines = new List<FlorenceLine>();
+
+            void FlushPage()
+            {
+                if (currentPageLines.Count == 0)
+                    return;
+                pageRanges.Add((pageStartY, pageStartY + y));
+                var page = new FlorencePage { PageSize = new Windows.Foundation.Size(availWidth, y) };
+                foreach (var l in currentPageLines)
+                {
+                    // Re-base the line's Y (and baseline) to page coordinates.
+                    page.AddLine(new FlorenceLine(l.StartOffset, l.Length,
+                        l.Y - pageStartY, l.Baseline - pageStartY, l.Height, l.FullText, l.Runs));
+                }
+                pages.Add(page);
+                currentPageLines.Clear();
+                y = 0;
+            }
 
             foreach (var line in full.Lines)
             {
                 if (y + line.Height > pageHeight && currentPageLines.Count > 0)
                 {
+                    double flushedHeight = y;
                     FlushPage();
+                    pageStartY += flushedHeight;
                 }
 
                 currentPageLines.Add(line);
@@ -591,17 +612,41 @@ namespace MS.Internal.Florence
             if (pages.Count == 0)
                 pages.Add(new FlorencePage { PageSize = constraint });
 
+            // Distribute boxes (cell boxes, paragraph borders, background fills)
+            // to the pages that overlap them, re-basing Y and splitting any box
+            // that crosses a page boundary.
+            foreach (var box in full.CellBoxes)
+            {
+                DistributeBox(pages, pageRanges, box.X, box.Y, box.Width, box.Height,
+                    (page, top, height) => page.AddCellBox(new FlorenceCellBox(box.X, top, box.Width, height, box.Background, box.BorderBrush, box.BorderThickness)));
+            }
+            foreach (var border in full.ParagraphBorders)
+            {
+                DistributeBox(pages, pageRanges, border.X, border.Y, border.Width, border.Height,
+                    (page, top, height) => page.AddParagraphBorder(new FlorenceParagraphBorder(border.X, top, border.Width, height, border.Brush, border.Thickness)));
+            }
+            foreach (var fill in full.FillBoxes)
+            {
+                DistributeBox(pages, pageRanges, fill.X, fill.Y, fill.Width, fill.Height,
+                    (page, top, height) => page.AddFillBox(new FlorenceFillBox(fill.X, top, fill.Width, height, fill.Brush)));
+            }
+
             return pages;
 
-            void FlushPage()
+            static void DistributeBox(
+                List<FlorencePage> targetPages, List<(double startY, double endY)> ranges,
+                double x, double boxTop, double boxWidth, double boxHeight,
+                Action<FlorencePage, double, double> addSegment)
             {
-                if (currentPageLines.Count == 0) return;
-                var page = new FlorencePage { PageSize = new Windows.Foundation.Size(availWidth, y) };
-                foreach (var l in currentPageLines)
-                    page.AddLine(l);
-                pages.Add(page);
-                currentPageLines.Clear();
-                y = 0;
+                double top = boxTop;
+                double bottom = boxTop + boxHeight;
+                for (int i = 0; i < ranges.Count && i < targetPages.Count; i++)
+                {
+                    double segTop = Math.Max(top, ranges[i].startY);
+                    double segBottom = Math.Min(bottom, ranges[i].endY);
+                    if (segTop < segBottom)
+                        addSegment(targetPages[i], segTop - ranges[i].startY, segBottom - segTop);
+                }
             }
         }
 

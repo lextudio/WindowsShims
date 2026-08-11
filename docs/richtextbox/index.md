@@ -220,7 +220,10 @@ Candidate coverage:
   offsets reserve one slot per paragraph so caret mapping stays aligned.
   Session 102 made the layout honor `ColumnSpan` (a cell spans the summed
   widths of its columns) and `RowSpan` (its box extends over the spanned
-  rows; text stays in the first row's band).
+  rows; text stays in the first row's band). Session 103 fixed pagination:
+  `FormatPages` now re-bases lines per page and distributes cell boxes,
+  paragraph borders, and background fills to the pages they overlap,
+  splitting boxes that cross page boundaries.
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -352,3 +355,4 @@ Each session is tracked as a separate file:
 | 100 | [session100.md](session100.md) | Visual Rendering for Inline and Paragraph Backgrounds (completed) |
 | 101 | [session101.md](session101.md) | Side-by-Side Table Cell Layout (completed) |
 | 102 | [session102.md](session102.md) | Table Layout Honors ColumnSpan/RowSpan (completed) |
+| 103 | [session103.md](session103.md) | Pagination Carries Boxes Across Pages (completed) |
