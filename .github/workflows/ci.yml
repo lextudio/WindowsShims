@@ -27,6 +27,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.x'
+      - name: Guard budget check
+        if: runner.os != 'Windows'
+        run: python3 scripts/count-guards.py --gate
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: ./build.windows.bat Release

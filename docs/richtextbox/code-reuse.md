@@ -24,15 +24,18 @@ DataGrid `index.md` row for session 22 ("third link attempt succeeded;
 
 ## Verified numbers (measured, not recalled)
 
+Measurements are reproducible via `scripts/count-guards.py` (repo root;
+`--gate` enforces the budget in CI).
+
 ### WPF code reuse
 
 | Metric | Value |
 |---|---|
-| `ext/wpf` files linked via `Compile Include` (net of `Compile Remove`) | **314** |
-| Linked `System.Windows.Documents` files | 244 |
-| Lines of linked upstream WPF code | ~175,700 (Documents family ~143,845) |
-| Documents files compiling **with zero guards** (pristine upstream) | **200 / 244 (82%)** |
-| Files carrying any `HAS_UNO` guard | 44 |
+| `ext/wpf` files linked via `Compile Include` (net of `Compile Remove`) | **313** |
+| Linked `System.Windows.Documents` files | 203 |
+| Lines of linked upstream WPF code | ~174,700 (Documents family ~119,300) |
+| Documents files compiling **with zero guards** (pristine upstream) | **172 / 203 (85%)** |
+| Files carrying any `HAS_UNO` guard | 41 |
 | Shim-local code (`.uno.cs` partials + bridges) | ~22,400 lines |
 
 The linked set is essentially the whole non-deferred WPF document/editing
@@ -47,25 +50,25 @@ selection, copy/paste, drag/drop, context menu), the `Inline`/`Block` family
 
 | Location | Guards |
 |---|---|
-| Linked Documents family — `#if HAS_UNO` blocks | 100 (7 larger than 2,000 chars) |
+| Linked Documents family — `#if HAS_UNO` blocks | 100 |
 | Linked Documents family — `#if !HAS_UNO` blocks | 92 (13 larger than 2,000 chars) |
-| Guard density (Documents family) | 0.13% of lines |
+| Guard density (Documents family) | 0.083% of lines |
 | Shim side | 18 `HAS_UNO`, 26 `WINDOWS_APP_SDK`, 5 `WINUI_BRIDGE` |
-| `Compile Remove` exclusions (deferred families) | 34 |
+| `Compile Remove` exclusions (deferred families) | 35 |
 
 Guard profile of the large blocks:
 
 - `#if !HAS_UNO` (dead under Uno, original WPF implementation compiled out):
-  `TextEditorDragDrop.cs` (~31k — the OLE drag-drop process),
-  `TextMapOffsetErrorLogger.cs` (~10k — debug error logger),
-  `TextElement.cs` (~4.8k — docs), `TextEditorCopyPaste.cs` (two blocks,
-  ~6.4k total — TSF/`TextStore` clipboard paths), `RtfToXamlReader.cs` (~4k —
-  the `WpfPayload`-package image path).
+  `TextEditorDragDrop.cs` (~31k — the OLE drag-drop process, **deleted** in
+  the cleanup pass below), `TextMapOffsetErrorLogger.cs` (~10k — debug error
+  logger, **re-excluded with the Speller family**), `TextElement.cs` (~4.8k —
+  docs), `TextEditorCopyPaste.cs` (two blocks, ~6.4k total — TSF/`TextStore`
+  clipboard paths), `RtfToXamlReader.cs` (~4k — the `WpfPayload`-package
+  image path).
 - `#if HAS_UNO` (Uno replacement):
   `RtfToXamlReader.cs` (~9.9k — `\pict` → self-contained data-URI image
-  emission), `TextRangeSerialization.cs` (~4.9k — `WriteEmbeddedObject` data
-  URI instead of OPC package URIs), `DPTypeDescriptorContext.cs` (~4.1k —
-  `TypeConverter` bridge for WinRT-aliased structs), plus narrow guards in
+  emission), `DPTypeDescriptorContext.cs` (~4k — **extracted to a shim
+  partial** in the cleanup pass below), plus narrow guards in
   `TextEditorDragDrop` (drag-drop returns early — real drop handling lives in
   the shim), `TextEditorContextMenu`, `TextPointer`, `TextEditorMouse`.
 
@@ -95,46 +98,51 @@ brought guarded call sites from 248 to 0.
 Prioritized by expected value. None of these are required for correctness;
 the milestone backlog is complete.
 
-### P1 — Make the guard budget measurable and policed
+### P1 — Make the guard budget measurable and policed — DONE
 
-- Add `scripts/count-guards.sh` (or a small Python script) reproducing the
-  table above: linked-file count, pristine-file count, `HAS_UNO` block count
-  and density, big-block list, `Compile Remove` count.
-- Wire it into CI as a soft gate: fail (or report) when guard density grows
-  beyond ~0.2% or when a new `#if HAS_UNO` block exceeds ~2,000 chars without
-  a review note. This is the cheapest way to keep the 82%-pristine property
-  from eroding as new families get linked.
-- Record the measured numbers in `RICHTEXTBOX-PORT-CATALOG.md` (the baseline
-  section already went stale twice: 235/235→238/238, 53/54→62/62).
+- `scripts/count-guards.py` reproduces the table above (linked-file count,
+  pristine-file count, per-family `HAS_UNO` block counts and density,
+  file-level-guarded files, big-block list, `Compile Remove` count), with
+  `--json` output and a `--gate` mode.
+- CI (`ci.yml`) runs `scripts/count-guards.py --gate` on macOS/Ubuntu before
+  building. The gate currently enforces: Documents-family guard density
+  ≤ 0.25%, pristine share ≥ 75%, and no forward `HAS_UNO` block over 4,000
+  chars (reverse `#if !HAS_UNO` halves are the retained upstream WPF code and
+  are exempt by design).
+- To keep the measured numbers honest, the baseline section of this document
+  should be refreshed whenever the budget shifts (it already went stale
+  twice: 235/235→238/238, 53/54→62/62).
 
-### P2 — Shrink the dead `#if !HAS_UNO` halves where fidelity no longer pays
+### P2 — Shrink the dead `#if !HAS_UNO` halves where fidelity no longer pays — PARTIALLY DONE
 
 - `TextEditorDragDrop.cs`: the ~31k OLE path is permanently dead under Uno
-  (shim handles drop via its own `FlowDocumentView` path). Either delete the
-  `#else` branch (keeping the file) or extract the OLE body into a
-  `TextEditorDragDrop.Ole.cs` that only real-WPF builds include. Saves ~31k
-  lines of compiled-out source and makes the HAS_UNO path the single source
-  of truth for the shim.
-- `TextMapOffsetErrorLogger.cs` (~10k): a DEBUG-only logger the shim replaces;
-  consider `Compile Remove` + a 30-line shim if a consumer ever needs it.
-- Audit the remaining `#if !HAS_UNO` blocks with the same question: is the
-  original half ever going to be exercised here, or is it archaeology?
+  (every build defines HAS_UNO; `TextEditor.cs` only instantiates
+  `_DragDropProcess` under `#if !HAS_UNO`). **Deleted** the whole
+  `_DragDropProcess` class (960 → 305 lines); `_RegisterClassHandlers` is now
+  an empty method and the Uno stub (`_DragDropProcessUno`) remains the
+  `IDragDropProcess` implementation. Deleted code stays in git history.
+- `TextMapOffsetErrorLogger.cs` (~10k): a nested `Speller` partial that the
+  `Speller*.cs` `Compile Remove` wildcard missed; it compiled to nothing under
+  its own `#if !HAS_UNO` file guard. **Re-excluded** via `Compile Remove` so
+  the link set honestly reflects the deferred family.
+- Remaining audit candidates: `TextEditorCopyPaste.cs` TSF blocks (~6.4k),
+  `TextElement.cs` docs (~4.8k), `RtfToXamlReader.cs` WpfPayload image path
+  (~4k). Each is smaller, still upstream-faithful code, and needs the same
+  "will it ever compile here?" question answered before deletion.
 
-### P3 — Consider moving the 7 large `#if HAS_UNO` replacements into partials
+### P3 — Consider moving the large `#if HAS_UNO` replacements into partials — STARTED
 
-- `RtfToXamlReader`'s data-URI image path and
-  `TextRangeSerialization.WriteEmbeddedObject` are big enough to become
-  `RtfToXamlReader.uno.cs` / `TextRangeSerialization.uno.cs` partials,
-  keeping the linked files 100% pristine and shrinking the guard footprint to
-  a single `partial class` declaration.
-- Trade-off to evaluate first: the replacements share private local state with
-  their host file (member access). The current in-file guard is a deliberate,
-  documented choice for exactly this reason (see the catalog's note about
-  `CanSave`/`CanLoad`/`Save`/`Load`); a partial split only wins if the
-  replacement body is self-contained.
-- Same question for `DPTypeDescriptorContext` (~4k) — likely fine where it is.
+- `DPTypeDescriptorContext` (~4k): **done** — the Uno converter routing moved
+  to `src/LeXtudio.Windows/System.Windows/Documents/DPTypeDescriptorContext.uno.cs`
+  (`TryGetShimStringValue`); the linked file keeps a one-line call-site guard
+  and a `partial` modifier.
+- `RtfToXamlReader`'s data-URI image path (~9.9k) and
+  `TextRangeSerialization.WriteEmbeddedObject` are the remaining candidates.
+  The trade-off to evaluate first is the same as before: the replacements
+  share private local state with their host file (member access), so a
+  partial split only wins if the replacement body is self-contained.
 
-### P4 — Reduce `#if WINDOWS_APP_SDK` (26 occurrences, shim side)
+### P4 — Reduce `#if WINDOWS_APP_SDK` (26 occurrences, shim side) — NOT STARTED
 
 - Most are 1–2-line WinRT-vs-Uno constructor/coercion differences. Group them
   behind small helpers (e.g. a `WinRt.Factory`-style indirection) so the
@@ -143,20 +151,19 @@ the milestone backlog is complete.
 
 ### P5 — Periodic deferred-family re-review (M5)
 
-- The 34 `Compile Remove` families should be revisited when a consumer asks
+- The 35 `Compile Remove` families should be revisited when a consumer asks
   for one, with a cheap triage: link-and-compile attempt, then count the
   guards the attempt needs. `TextSchema`/`TextFlow`/`FlowNode`/`FlowPosition`
   are the likely first candidates if fixed-layout rendering or advanced text
   features are ever needed. The `NaturalLanguageHyphenator` family is a
   good "never" candidate — WPF itself ships it only for legacy line-breaking.
 
-### P6 — Cross-cutting guard census across namespaces
+### P6 — Cross-cutting guard census across namespaces — DONE
 
-- This audit covered `System.Windows.Documents` only. `Controls` (DataGrid
-  family), `Media`, `Markup`, and `WindowsBase`-linked files carry their own
-  guards (e.g. the DataGrid bridge, `Automation` stubs). Run the same
-  measurement across all linked namespaces once, so the "guard budget" is a
-  repo-wide number, not a per-family one.
+- `scripts/count-guards.py` reports the guard budget per WPF family
+  (Documents, Controls, Media, Markup, Input, WindowsBase, ...), not just
+  Documents. Current repo-wide totals: 313 linked files, ~174.7k lines, 195
+  `HAS_UNO` blocks, 263 pristine files, 35 `Compile Remove` exclusions.
 
 ## Bottom line
 

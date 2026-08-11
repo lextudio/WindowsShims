@@ -81,16 +81,18 @@ def analyze(path: Path):
     has_uno_fwd = [b for b in has_uno if not b[2].startswith("!")]
     has_uno_neg = [b for b in has_uno if b[2].startswith("!")]
     big = [b for b in has_uno if b[1] - b[0] > BLOCK_CHAR_LIMIT]
-    # File-level guard: the whole file (minus license header) sits in one
-    # guard block — such files are effectively excluded, not bridged.
+    # File-level guard: everything after the license header and using block
+    # sits in one guard block — such files are effectively excluded, not bridged.
     file_level = False
     if has_uno:
-        src_trimmed = src.lstrip()
-        if src_trimmed.startswith("//"):
-            first_nl = src_trimmed.find("\n")
-            src_trimmed = src_trimmed[first_nl + 1:]
-        src_trimmed = src_trimmed.lstrip()
-        if src_trimmed.startswith("#if") and src_trimmed.rstrip().endswith("#endif"):
+        body_lines = src.splitlines()
+        idx = 0
+        while idx < len(body_lines) and (body_lines[idx].startswith("//") or body_lines[idx].strip() == ""):
+            idx += 1
+        while idx < len(body_lines) and body_lines[idx].startswith("using "):
+            idx += 1
+        tail = "\n".join(body_lines[idx:]).strip()
+        if tail.startswith("#if") and tail.splitlines()[-1].lstrip().startswith("#endif"):
             file_level = True
     return {
         "lines": lines,
