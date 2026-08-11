@@ -2829,6 +2829,32 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task SimulateImeTextUpdating_OnTableDocument_InsertsIntoCorrectCell()
+    {
+        // The IME plain-text offset mapping must work through table structure:
+        // composing at the plain-text offset of the second cell's first character
+        // must land inside that cell.
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "");
+        var setup = await _app.InvokeAsync("richtextbox.probe.set-xaml-document", Xaml(
+            "<Table><TableRowGroup><TableRow>" +
+            "<TableCell><Paragraph>left</Paragraph></TableCell>" +
+            "<TableCell><Paragraph>right</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+
+        int target = Text(setup).IndexOf("right", StringComparison.Ordinal);
+        Assert.True(target > 0, setup.ToString());
+
+        var state = await _app.InvokeAsync("richtextbox.probe.simulate-ime-text-updating", "字", target, target);
+        var raw = state.ToString();
+
+        Assert.True(HasRichTextBox(state), raw);
+        Assert.Equal(Text(setup).Insert(target, "字"), Text(state));
+        // The composed text must be inside the second cell's paragraph.
+        var xaml = (await _app.InvokeAsync("richtextbox.probe.save-xaml")).ToString();
+        Assert.Contains("字right", xaml);
+    }
+
+    [Fact]
     public async Task SimulateImeTextUpdating_OnMultiParagraphDocument_InsertsAtCorrectParagraph()
     {
         await _app.InvokeAsync("richtextbox.probe.create-plain", "");

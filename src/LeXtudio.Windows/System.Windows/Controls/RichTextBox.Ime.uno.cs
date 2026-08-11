@@ -89,8 +89,11 @@ public partial class RichTextBox
 
     // ── Plain-text offset helpers (shared with DragDrop) ─────────────────────
 
+    // Uses GetTextInternal directly: TextRange.Text runs NormalizeRange, which
+    // expands a range ending inside a table to the containing cell's end, so
+    // offsets inside table cells would all collapse to the cell boundary.
     internal static int GetPlainTextOffset(System.Windows.Documents.FlowDocument document, System.Windows.Documents.TextPointer position) =>
-        new System.Windows.Documents.TextRange(document.ContentStart, position).Text?.Length ?? 0;
+        System.Windows.Documents.TextRangeBase.GetTextInternal(document.ContentStart, position)?.Length ?? 0;
 
     internal static System.Windows.Documents.TextPointer GetPositionAtPlainTextOffset(System.Windows.Documents.FlowDocument document, int targetOffset)
     {
@@ -112,7 +115,24 @@ public partial class RichTextBox
                 lo = mid + 1;
         }
 
-        return document.ContentStart.GetPositionAtOffset(lo) ?? document.ContentStart;
+        var position = document.ContentStart.GetPositionAtOffset(lo) ?? document.ContentStart;
+
+        // A boundary position (e.g. at a table cell edge) is not an insertion
+        // position and the shim's insertion machinery would move it backward;
+        // step forward into the first text content at/after this position so
+        // composition lands inside the intended cell.
+        if (!System.Windows.Documents.TextSchema.IsInTextContent(position))
+        {
+            var pointer = position.CreatePointer();
+            while (pointer.CompareTo(document.ContentEnd) < 0 &&
+                   pointer.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward) != System.Windows.Documents.TextPointerContext.Text)
+            {
+                pointer.MoveToNextContextPosition(System.Windows.Documents.LogicalDirection.Forward);
+            }
+            return (System.Windows.Documents.TextPointer)pointer;
+        }
+
+        return position;
     }
 
     // ── CoreText event handlers ─────────────────────────────────────────────
@@ -137,14 +157,24 @@ public partial class RichTextBox
         {
             var start = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition);
             var end = GetPositionAtPlainTextOffset(document, e.Range.EndCaretPosition);
-            var range = new System.Windows.Documents.TextRange(start, end);
 #if WINDOWS_APP_SDK
-            range.Text = e.Text;
+            string newText = e.Text ?? string.Empty;
 #else
-            range.Text = e.NewText;
+            string newText = e.NewText ?? string.Empty;
 #endif
+            // Do not use TextRange.Text here: TextRange construction clamps
+            // positions inside a table cell to the containing cell's boundaries,
+            // so composing inside a cell would insert at the wrong place.
+            if (start.CompareTo(end) != 0)
+            {
+                ((System.Windows.Documents.TextContainer)start.TextContainer).DeleteContentInternal(start, end);
+            }
+            if (newText.Length > 0)
+            {
+                start.InsertTextInRun(newText);
+            }
 
-            var newCaret = range.End;
+            var newCaret = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition + newText.Length);
             if (te.Selection is { } selection)
             {
                 selection.Select(newCaret, newCaret);

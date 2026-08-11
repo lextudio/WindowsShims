@@ -18,7 +18,7 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 warnings, 0 errors
 ```
 
-Integration tests: 235/235 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
+Integration tests: 236/236 (RichTextBox), 53/54 (DataGrid, 1 pre-existing skip).
 Model tests: 234/234 (LeXtudio.Windows.Tests).
 
 The compile frontier is substantially past the first local-shell milestone:
@@ -223,7 +223,12 @@ Candidate coverage:
   rows; text stays in the first row's band). Session 103 fixed pagination:
   `FormatPages` now re-bases lines per page and distributes cell boxes,
   paragraph borders, and background fills to the pages they overlap,
-  splitting boxes that cross page boundaries.
+  splitting boxes that cross page boundaries. Session 104 fixed IME
+  composition through tables: `GetPlainTextOffset` now uses `GetTextInternal`
+  (bypassing `NormalizeRange`'s table-cell range expansion), resolved
+  boundary positions step forward into text content, and `OnImeTextUpdating`
+  inserts via `InsertTextInRun` instead of `TextRange.Text` (which clamps
+  in-cell ranges).
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -356,3 +361,4 @@ Each session is tracked as a separate file:
 | 101 | [session101.md](session101.md) | Side-by-Side Table Cell Layout (completed) |
 | 102 | [session102.md](session102.md) | Table Layout Honors ColumnSpan/RowSpan (completed) |
 | 103 | [session103.md](session103.md) | Pagination Carries Boxes Across Pages (completed) |
+| 104 | [session104.md](session104.md) | IME Composition Mapping Through Tables (completed) |
