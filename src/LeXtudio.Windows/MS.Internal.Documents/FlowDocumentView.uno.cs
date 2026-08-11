@@ -20,6 +20,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _selectionRects = [];
     private readonly List<Microsoft.UI.Xaml.FrameworkElement> _lineBlocks = [];
     private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _borderRects = [];
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _cellRects = [];
     private readonly List<(Adorner Adorner, int ZOrder)> _adorners = [];
     private bool _selectionDirty = true;
     private ITextSelection? _trackedSelection;
@@ -65,6 +66,13 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // Number of paragraph border side rectangles currently in the visual tree
     // (used by integration tests to verify paragraph borders render).
     internal int ParagraphBorderRectCount => _borderRects.Count;
+
+    // Number of cell background/border rectangles currently in the visual tree.
+    internal int CellVisualRectCount => _cellRects.Count;
+
+    // Layout of the page's cell boxes as "X:Width" pairs joined by commas
+    // (used by integration tests to verify column widths drive cell layout).
+    internal string CellBoxLayout => string.Join(",", _page?.CellBoxes.Select(b => $"{b.X.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}:{b.Width.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}") ?? []);
 
     // ── Spell Check ─────────────────────────────────────────────────────────
 
@@ -282,6 +290,26 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
                 _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx + bw - t.Right, by, t.Right, bh));
         }
 
+        var cellBoxes = _page.CellBoxes;
+        int cellRectIndex = 0;
+        foreach (var cellBox in cellBoxes)
+        {
+            if (cellBox.Background is not null)
+                _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, cellBox.Width, cellBox.Height));
+            var ct = cellBox.BorderThickness;
+            if (cellBox.BorderBrush is not null)
+            {
+                if (ct.Top > 0)
+                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, cellBox.Width, ct.Top));
+                if (ct.Bottom > 0)
+                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y + cellBox.Height - ct.Bottom, cellBox.Width, ct.Bottom));
+                if (ct.Left > 0)
+                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, ct.Left, cellBox.Height));
+                if (ct.Right > 0)
+                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X + cellBox.Width - ct.Right, cellBox.Y, ct.Right, cellBox.Height));
+            }
+        }
+
         foreach (var (adorner, _) in _adorners)
         {
             adorner.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width, finalSize.Height));
@@ -474,19 +502,42 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
 
     private static IEnumerable<Microsoft.UI.Xaml.Shapes.Rectangle> BuildParagraphBorderSides(MS.Internal.Florence.FlorenceParagraphBorder border)
     {
-        var t = border.Thickness;
-        double x = border.X;
-        double y = border.Y;
-        double w = border.Width;
-        double h = border.Height;
+        return BuildBorderSides(border.X, border.Y, border.Width, border.Height, border.Brush, border.Thickness);
+    }
 
+    private static IEnumerable<Microsoft.UI.Xaml.Shapes.Rectangle> BuildCellVisuals(MS.Internal.Florence.FlorenceCellBox box)
+    {
+        if (box.Background is not null)
+        {
+            var fill = new Microsoft.UI.Xaml.Shapes.Rectangle
+            {
+                Width = box.Width,
+                Height = box.Height,
+                Fill = box.Background,
+                IsHitTestVisible = false,
+            };
+            Microsoft.UI.Xaml.Controls.Canvas.SetLeft(fill, box.X);
+            Microsoft.UI.Xaml.Controls.Canvas.SetTop(fill, box.Y);
+            yield return fill;
+        }
+
+        if (box.BorderBrush is not null)
+        {
+            foreach (var side in BuildBorderSides(box.X, box.Y, box.Width, box.Height, box.BorderBrush, box.BorderThickness))
+                yield return side;
+        }
+    }
+
+    private static IEnumerable<Microsoft.UI.Xaml.Shapes.Rectangle> BuildBorderSides(
+        double x, double y, double w, double h, Microsoft.UI.Xaml.Media.Brush brush, Microsoft.UI.Xaml.Thickness t)
+    {
         Microsoft.UI.Xaml.Shapes.Rectangle Side(double left, double top, double width, double height)
         {
             var rect = new Microsoft.UI.Xaml.Shapes.Rectangle
             {
                 Width = width,
                 Height = height,
-                Fill = border.Brush,
+                Fill = brush,
                 Stroke = null,
                 IsHitTestVisible = false,
             };
@@ -515,6 +566,10 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             Children.Remove(border);
         _borderRects.Clear();
 
+        foreach (var cell in _cellRects)
+            Children.Remove(cell);
+        _cellRects.Clear();
+
         if (_page == null)
             return;
 
@@ -524,6 +579,15 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             {
                 _borderRects.Add(side);
                 Children.Add(side);
+            }
+        }
+
+        foreach (var cellBox in _page.CellBoxes)
+        {
+            foreach (var visual in BuildCellVisuals(cellBox))
+            {
+                _cellRects.Add(visual);
+                Children.Add(visual);
             }
         }
 

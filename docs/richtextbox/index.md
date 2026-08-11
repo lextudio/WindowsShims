@@ -206,6 +206,11 @@ Candidate coverage:
   decoded `\pict` pixels. Session 98 added visual rendering for paragraph
   borders: the Florence layout emits a border box per bordered paragraph and
   `FlowDocumentView` draws one rectangle per non-zero side behind the lines.
+  Session 99 added table column/cell rendering: `FormatTable` now computes
+  column widths (explicit `TableColumn.Width` or equal split) and formats
+  each cell's paragraphs at its column's width and x offset, with cell
+  backgrounds/borders rendered as filled rectangles + border sides (cells
+  flow vertically; `ColumnSpan`/`RowSpan` are not honored by the layout).
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -333,3 +338,4 @@ Each session is tracked as a separate file:
 | 96 | [session96.md](session96.md) | RTF Round-Trip for Embedded Images \pict (completed) |
 | 97 | [session97.md](session97.md) | Visual Rendering for Embedded Images (completed) |
 | 98 | [session98.md](session98.md) | Visual Rendering for Paragraph Borders (completed) |
+| 99 | [session99.md](session99.md) | Visual Rendering for Table Columns and Cells (completed) |

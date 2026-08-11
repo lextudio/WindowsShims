@@ -45,6 +45,8 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstParagraphBorderThickness(JsonElement state) => state.GetProperty("firstParagraphBorderThickness").GetString();
     static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
     static string? ParagraphBorderRectCount(JsonElement state) => state.GetProperty("paragraphBorderRectCount").GetString();
+    static string? CellVisualRectCount(JsonElement state) => state.GetProperty("cellVisualRectCount").GetString();
+    static string? CellBoxLayout(JsonElement state) => state.GetProperty("cellBoxLayout").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
     static string? FirstInlineImageDims(JsonElement state) => state.GetProperty("firstInlineImageDims").GetString();
     static bool FirstInlineImageRendered(JsonElement state) => state.GetProperty("firstInlineImageRendered").GetBoolean();
@@ -1581,17 +1583,20 @@ public sealed class RichTextBoxIntegrationTests
         // WriteXaml serializes TableColumn.Width as a bare "100" (WPF's
         // GridLengthConverter form); XamlToRtfWriter emits \clwWidth (twips), and
         // RtfToXamlReader re-emits <TableColumn Width="<px>"/> which ParseTable
-        // now applies.
+        // now applies. The cells carry borders so the Florence layout emits cell
+        // boxes whose X positions prove the column widths drive the layout.
         var state = await SetAndRtfRoundTrip(Xaml(
             "<Table><TableColumn Width=\"100\"/><TableColumn Width=\"200\"/>" +
             "<TableRowGroup><TableRow>" +
-            "<TableCell><Paragraph>a</Paragraph></TableCell>" +
-            "<TableCell><Paragraph>b</Paragraph></TableCell>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>a</Paragraph></TableCell>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>b</Paragraph></TableCell>" +
             "</TableRow></TableRowGroup></Table>"));
         var raw = state.ToString();
 
         Assert.True(HasDocument(state), raw);
         Assert.Equal("100,200", FirstTableColumnWidths(state));
+        // Cell boxes start at x=0 and x=100 with the columns' widths.
+        Assert.Equal("0:100,100:200", CellBoxLayout(state));
     }
 
     [Fact]
@@ -1786,6 +1791,8 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains("alpha", Text(state));
         Assert.Equal("#FFFF0000", FirstTableCellBackground(state));
+        // The background renders as one filled rectangle behind the cell.
+        Assert.Equal("1", CellVisualRectCount(state));
     }
 
     [Fact]
@@ -1801,6 +1808,8 @@ public sealed class RichTextBoxIntegrationTests
         Assert.Contains("alpha", Text(state));
         Assert.Equal("[Thickness: 1-1-1-1]", FirstTableCellBorderThickness(state));
         Assert.Equal("#FF000000", FirstTableCellBorderBrush(state));
+        // The border renders as four side rectangles around the cell.
+        Assert.Equal("4", CellVisualRectCount(state));
     }
 
     [Fact]

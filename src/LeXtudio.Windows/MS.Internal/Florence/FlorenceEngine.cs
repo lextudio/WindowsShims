@@ -321,14 +321,42 @@ namespace MS.Internal.Florence
     {
         private readonly List<FlorenceLine> _lines = new List<FlorenceLine>();
         private readonly List<FlorenceParagraphBorder> _paragraphBorders = new List<FlorenceParagraphBorder>();
+        private readonly List<FlorenceCellBox> _cellBoxes = new List<FlorenceCellBox>();
 
         internal Windows.Foundation.Size PageSize  { get; set; }
         internal IReadOnlyList<FlorenceLine> Lines => _lines;
         internal IReadOnlyList<FlorenceParagraphBorder> ParagraphBorders => _paragraphBorders;
+        internal IReadOnlyList<FlorenceCellBox> CellBoxes => _cellBoxes;
 
         internal void AddLine(FlorenceLine line) => _lines.Add(line);
         internal void AddParagraphBorder(FlorenceParagraphBorder border) => _paragraphBorders.Add(border);
-        internal void Clear() { _lines.Clear(); _paragraphBorders.Clear(); }
+        internal void AddCellBox(FlorenceCellBox box) => _cellBoxes.Add(box);
+        internal void Clear() { _lines.Clear(); _paragraphBorders.Clear(); _cellBoxes.Clear(); }
+    }
+
+    /// <summary>A table cell box to render behind the cell's paragraphs.</summary>
+    internal sealed class FlorenceCellBox
+    {
+        internal FlorenceCellBox(double x, double y, double width, double height,
+            Microsoft.UI.Xaml.Media.Brush? background,
+            Microsoft.UI.Xaml.Media.Brush? borderBrush, Microsoft.UI.Xaml.Thickness borderThickness)
+        {
+            X = x;
+            Y = y;
+            Width = width;
+            Height = height;
+            Background = background;
+            BorderBrush = borderBrush;
+            BorderThickness = borderThickness;
+        }
+
+        internal double X { get; }
+        internal double Y { get; }
+        internal double Width { get; }
+        internal double Height { get; }
+        internal Microsoft.UI.Xaml.Media.Brush? Background { get; }
+        internal Microsoft.UI.Xaml.Media.Brush? BorderBrush { get; }
+        internal Microsoft.UI.Xaml.Thickness BorderThickness { get; }
     }
 
     /// <summary>A paragraph border box to render behind the paragraph's lines.</summary>
@@ -472,7 +500,7 @@ namespace MS.Internal.Florence
             for (int i = 0; i < paragraphs.Count; i++)
             {
                 var para = paragraphs[i];
-                FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                FormatParagraph(para, availWidth, 0, ref y, ref globalOffset, page);
 
                 // WPF text model exposes an invisible paragraph boundary position
                 // between neighboring paragraphs. Reserve one logical char slot so
@@ -557,21 +585,97 @@ namespace MS.Internal.Florence
             double availWidth, ref double y, ref int globalOffset,
             FlorencePage page)
         {
-            var start = table.ContentStart;
-            var end = table.ContentEnd;
-            var pos = start.CreatePointer();
-            while (pos.CompareTo(end) < 0)
+            var widths = GetColumnWidths(table, availWidth);
+            var xStarts = new double[widths.Length];
+            for (int i = 1; i < widths.Length; i++)
+                xStarts[i] = xStarts[i - 1] + widths[i - 1];
+
+            double emptyLineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
+
+            foreach (var rg in table.RowGroups)
             {
-                if (pos.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward) == System.Windows.Documents.TextPointerContext.ElementStart)
+                foreach (var row in rg.Rows)
                 {
-                    var element = pos.GetAdjacentElement(System.Windows.Documents.LogicalDirection.Forward);
-                    if (element is System.Windows.Documents.Paragraph para)
+                    int col = 0;
+                    foreach (var cell in row.Cells)
                     {
-                        FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                        if (col >= widths.Length)
+                            break;
+                        double cellX = xStarts[col];
+                        double cellW = widths[col];
+                        double cellY = y;
+                        foreach (var block in cell.Blocks)
+                        {
+                            if (block is System.Windows.Documents.Paragraph para)
+                                FormatParagraph(para, cellW, cellX, ref y, ref globalOffset, page);
+                        }
+                        if (cell.Blocks.Count == 0)
+                            y += emptyLineH;
+                        double cellH = y - cellY;
+
+                        var cellBackground = cell.Background;
+                        var cellBorderBrush = cell.BorderBrush;
+                        var cellBorderThickness = cell.BorderThickness;
+                        if (cellBackground is not null ||
+                            (cellBorderBrush is not null &&
+                             (cellBorderThickness.Left + cellBorderThickness.Top + cellBorderThickness.Right + cellBorderThickness.Bottom) > 0))
+                        {
+                            page.AddCellBox(new FlorenceCellBox(
+                                cellX, cellY, cellW, cellH, cellBackground, cellBorderBrush, cellBorderThickness));
+                        }
+                        col++;
                     }
                 }
-                pos.MoveToNextContextPosition(System.Windows.Documents.LogicalDirection.Forward);
             }
+        }
+
+        // Computes per-column widths in DIPs: explicit TableColumn.Width values
+        // when present, otherwise an equal split of the available width.
+        private static double[] GetColumnWidths(System.Windows.Documents.Table table, double availWidth)
+        {
+            int columnCount = table.Columns.Count;
+            if (columnCount == 0)
+            {
+                foreach (var rg in table.RowGroups)
+                    foreach (var row in rg.Rows)
+                        columnCount = Math.Max(columnCount, row.Cells.Count);
+            }
+            if (columnCount == 0)
+                return [availWidth];
+
+            var widths = new double[columnCount];
+            if (table.Columns.Count == columnCount)
+            {
+                bool allAbsolute = true;
+                for (int i = 0; i < columnCount; i++)
+                {
+                    var width = table.Columns[i].Width;
+                    if (width.IsAbsolute && width.Value > 0)
+                        widths[i] = width.Value;
+                    else
+                    {
+                        allAbsolute = false;
+                        break;
+                    }
+                }
+                if (allAbsolute)
+                {
+                    double total = 0;
+                    foreach (var w in widths)
+                        total += w;
+                    if (total <= 0)
+                        return Enumerable.Repeat(availWidth / columnCount, columnCount).ToArray();
+                    // Scale down to the available width if the columns overflow.
+                    double scale = total > availWidth ? availWidth / total : 1.0;
+                    for (int i = 0; i < columnCount; i++)
+                        widths[i] *= scale;
+                    return widths;
+                }
+            }
+
+            for (int i = 0; i < columnCount; i++)
+                widths[i] = availWidth / columnCount;
+            return widths;
         }
 
         private static void FormatList(
@@ -585,7 +689,7 @@ namespace MS.Internal.Florence
                 {
                     if (itemBlock is System.Windows.Documents.Paragraph para)
                     {
-                        FormatParagraph(para, availWidth, ref y, ref globalOffset, page);
+                        FormatParagraph(para, availWidth, 0, ref y, ref globalOffset, page);
                     }
                     else if (itemBlock is System.Windows.Documents.List nestedList)
                     {
@@ -601,7 +705,7 @@ namespace MS.Internal.Florence
 
         private static void FormatParagraph(
             System.Windows.Documents.Paragraph para,
-            double availWidth, ref double y, ref int globalOffset,
+            double availWidth, double xOffset, ref double y, ref int globalOffset,
             FlorencePage page)
         {
             int paragraphStartOffset = globalOffset;
@@ -613,7 +717,7 @@ namespace MS.Internal.Florence
             bool hasBorder = borderBrush is not null &&
                 (borderThickness.Left + borderThickness.Top + borderThickness.Right + borderThickness.Bottom) > 0;
             double paragraphStartY = y;
-            double paragraphMaxX = 0;
+            double paragraphMaxX = xOffset;
 
             // Empty paragraph: emit a blank line so the cursor can be placed.
             if (spans.Count == 0 || spans.All(s => s.Text.Length == 0))
@@ -655,7 +759,7 @@ namespace MS.Internal.Florence
                         double w = TextMeasurer.MeasureWidth(remaining, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((remaining, x, w, spanOffset, remaining.Length,
                             span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
-                        paragraphMaxX = Math.Max(paragraphMaxX, x + w);
+                        paragraphMaxX = Math.Max(paragraphMaxX, xOffset + x + w);
                         x += w;
                         lineText += remaining;
                         spanOffset += remaining.Length;
@@ -668,7 +772,7 @@ namespace MS.Internal.Florence
                         double w = TextMeasurer.MeasureWidth(lineChunk, span.FontSize, span.Bold, span.Italic, span.FontFamily);
                         currentLineRuns.Add((lineChunk, x, w, spanOffset, lineChunk.Length,
                             span.FontSize, span.Bold, span.Italic, span.FontFamily, span.Foreground, span.TextDecorations, span.Hyperlink));
-                        paragraphMaxX = Math.Max(paragraphMaxX, x + w);
+                        paragraphMaxX = Math.Max(paragraphMaxX, xOffset + x + w);
                         lineText += lineChunk;
                         int consumed = breakAt;
                         while (consumed < remaining.Length && remaining[consumed] == ' ')
@@ -676,7 +780,7 @@ namespace MS.Internal.Florence
                         spanOffset += consumed;
                         remaining = remaining[consumed..];
                         globalOffset = spanOffset;
-                        EmitLine(page, currentLineRuns, lineStart, lineText, y, lineHeight);
+                        EmitLine(page, currentLineRuns, lineStart, lineText, y, lineHeight, xOffset);
                         y += lineHeight;
                         lineStart = globalOffset;
                         lineText = "";
@@ -691,15 +795,15 @@ namespace MS.Internal.Florence
             if (currentLineRuns.Count > 0 || lineText.Length == 0)
             {
                 EmitLine(page, currentLineRuns, lineStart, lineText, y,
-                    lineHeight > 0 ? lineHeight : TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding);
+                    lineHeight > 0 ? lineHeight : TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding, xOffset);
                 y += lineHeight > 0 ? lineHeight : TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
             }
 
             if (hasBorder)
             {
                 page.AddParagraphBorder(new FlorenceParagraphBorder(
-                    0, paragraphStartY,
-                    paragraphMaxX > 0 ? paragraphMaxX : availWidth,
+                    xOffset, paragraphStartY,
+                    paragraphMaxX > xOffset ? paragraphMaxX - xOffset : availWidth,
                     y - paragraphStartY, borderBrush, borderThickness));
             }
         }
@@ -711,9 +815,9 @@ namespace MS.Internal.Florence
                 Microsoft.UI.Xaml.Media.Brush? foreground,
                 Windows.UI.Text.TextDecorations textDecorations,
                 System.Windows.Documents.Hyperlink? hyperlink)> runData,
-            int lineStart, string lineText, double y, double lineHeight)
+            int lineStart, string lineText, double y, double lineHeight, double xOffset = 0)
         {
-            var runs = runData.Select(r => new FlorenceRun(r.runStart, r.runLen, r.runX, r.runWidth,
+            var runs = runData.Select(r => new FlorenceRun(r.runStart, r.runLen, xOffset + r.runX, r.runWidth,
                 r.text, r.fontSize, r.bold, r.italic, r.fontFamily, r.foreground, r.textDecorations, r.hyperlink)).ToList();
             var line = new FlorenceLine(lineStart, lineText.Length, y, y + lineHeight * 0.8,
                 lineHeight, lineText, runs);
