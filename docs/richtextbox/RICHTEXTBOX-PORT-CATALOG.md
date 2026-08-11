@@ -37,10 +37,11 @@ notes.
 - Target: `net10.0-desktop`
 - Build: `dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop` — 0 errors.
 - Test suites:
-  - `tests/RichTextBox.IntegrationTests` (DevFlow-driven, real Uno dispatcher): 235/235.
+  - `tests/RichTextBox.IntegrationTests` (DevFlow-driven, real Uno dispatcher): 238/238.
   - `tests/DataGrid.IntegrationTests` (cross-cutting regression check, since
-    some shim infrastructure — e.g. `LogicalTreeHelper` — is shared): 53/54
-    (1 pre-existing skip; reorder test needs macOS Accessibility permission).
+    some shim infrastructure — e.g. `LogicalTreeHelper` — is shared): 62/62
+    on Uno 6.6 (the cliclick drag-reorder test is gated behind
+    `DATAGRID_DRAG_TESTS=1`; see `docs/datagrid/todo.md` item 17).
   - `src/LeXtudio.Windows.Tests` (xUnit v3 + MTP v2, document-model-only, no
     dispatcher): 234/234.
 
