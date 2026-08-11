@@ -76,6 +76,9 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // (used by integration tests to verify column widths drive cell layout).
     internal string CellBoxLayout => string.Join(",", _page?.CellBoxes.Select(b => $"{b.X.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}:{b.Width.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}") ?? []);
 
+    // Cell box heights as comma-joined values (used to verify row spans extend boxes).
+    internal string CellBoxHeightLayout => string.Join(",", _page?.CellBoxes.Select(b => b.Height.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) ?? []);
+
     // Number of paragraph background fill rectangles in the visual tree.
     internal int FillBoxRectCount => _fillRects.Count;
 

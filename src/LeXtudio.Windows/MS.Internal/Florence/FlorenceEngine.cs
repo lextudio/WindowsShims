@@ -378,7 +378,7 @@ namespace MS.Internal.Florence
         internal double X { get; }
         internal double Y { get; }
         internal double Width { get; }
-        internal double Height { get; }
+        internal double Height { get; set; }
         internal Microsoft.UI.Xaml.Media.Brush? Background { get; }
         internal Microsoft.UI.Xaml.Media.Brush? BorderBrush { get; }
         internal Microsoft.UI.Xaml.Thickness BorderThickness { get; }
@@ -617,6 +617,11 @@ namespace MS.Internal.Florence
 
             double emptyLineH = TextMeasurer.MeasureLineHeight(DefaultFontSize, bold: false, italic: false) + LineHeightPadding;
 
+            // Row Y positions and row-spanned cells are recorded so their boxes
+            // can be extended over the spanned rows once all row heights are known.
+            var rowBounds = new List<(double y, double height)>();
+            var rowSpannedCells = new List<(FlorenceCellBox box, int rowIndex, int rowSpan)>();
+
             foreach (var rg in table.RowGroups)
             {
                 foreach (var row in rg.Rows)
@@ -626,10 +631,15 @@ namespace MS.Internal.Florence
                     int col = 0;
                     foreach (var cell in row.Cells)
                     {
+                        int colSpan = Math.Max(1, cell.ColumnSpan);
                         if (col >= widths.Length)
                             break;
+                        if (col + colSpan > widths.Length)
+                            colSpan = widths.Length - col;
                         double cellX = xStarts[col];
-                        double cellW = widths[col];
+                        double cellW = 0;
+                        for (int i = 0; i < colSpan; i++)
+                            cellW += widths[col + i];
                         double cellY = rowY;
                         double localY = rowY;
                         int paragraphCount = 0;
@@ -661,15 +671,29 @@ namespace MS.Internal.Florence
                             (cellBorderBrush is not null &&
                              (cellBorderThickness.Left + cellBorderThickness.Top + cellBorderThickness.Right + cellBorderThickness.Bottom) > 0))
                         {
-                            page.AddCellBox(new FlorenceCellBox(
-                                cellX, rowY, cellW, rowHeight, cellBackground, cellBorderBrush, cellBorderThickness));
+                            var box = new FlorenceCellBox(
+                                cellX, rowY, cellW, rowHeight, cellBackground, cellBorderBrush, cellBorderThickness);
+                            page.AddCellBox(box);
+                            int rowSpan = Math.Max(1, cell.RowSpan);
+                            if (rowSpan > 1)
+                                rowSpannedCells.Add((box, rowBounds.Count, rowSpan));
                         }
-                        col++;
+                        col += colSpan;
                     }
 
                     // Cells in a row share the vertical band; the row spans the tallest.
+                    rowBounds.Add((rowY, rowHeight));
                     y = rowY + rowHeight;
                 }
+            }
+
+            // Extend row-spanned cell boxes over the spanned rows.
+            foreach (var (box, rowIndex, rowSpan) in rowSpannedCells)
+            {
+                double bottom = box.Y + box.Height;
+                for (int i = rowIndex + 1; i < rowIndex + rowSpan && i < rowBounds.Count; i++)
+                    bottom += rowBounds[i].height;
+                box.Height = Math.Max(box.Height, bottom - box.Y);
             }
         }
 
@@ -680,9 +704,15 @@ namespace MS.Internal.Florence
             int columnCount = table.Columns.Count;
             if (columnCount == 0)
             {
+                // Count effective columns (column spans widen a cell).
                 foreach (var rg in table.RowGroups)
                     foreach (var row in rg.Rows)
-                        columnCount = Math.Max(columnCount, row.Cells.Count);
+                    {
+                        int effective = 0;
+                        foreach (var cell in row.Cells)
+                            effective += Math.Max(1, cell.ColumnSpan);
+                        columnCount = Math.Max(columnCount, effective);
+                    }
             }
             if (columnCount == 0)
                 return [availWidth];

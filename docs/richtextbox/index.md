@@ -218,7 +218,9 @@ Candidate coverage:
   grid: cells in a row share a vertical band (row height = tallest cell),
   hit-testing picks the line whose run X-range contains the click, and cell
   offsets reserve one slot per paragraph so caret mapping stays aligned.
-  `ColumnSpan`/`RowSpan` are still not honored by the layout.
+  Session 102 made the layout honor `ColumnSpan` (a cell spans the summed
+  widths of its columns) and `RowSpan` (its box extends over the spanned
+  rows; text stays in the first row's band).
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -349,3 +351,4 @@ Each session is tracked as a separate file:
 | 99 | [session99.md](session99.md) | Visual Rendering for Table Columns and Cells (completed) |
 | 100 | [session100.md](session100.md) | Visual Rendering for Inline and Paragraph Backgrounds (completed) |
 | 101 | [session101.md](session101.md) | Side-by-Side Table Cell Layout (completed) |
+| 102 | [session102.md](session102.md) | Table Layout Honors ColumnSpan/RowSpan (completed) |

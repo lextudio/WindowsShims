@@ -47,6 +47,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? ParagraphBorderRectCount(JsonElement state) => state.GetProperty("paragraphBorderRectCount").GetString();
     static string? CellVisualRectCount(JsonElement state) => state.GetProperty("cellVisualRectCount").GetString();
     static string? CellBoxLayout(JsonElement state) => state.GetProperty("cellBoxLayout").GetString();
+    static string? CellBoxHeightLayout(JsonElement state) => state.GetProperty("cellBoxHeightLayout").GetString();
     static string? FillBoxRectCount(JsonElement state) => state.GetProperty("fillBoxRectCount").GetString();
     static string? InlineBackgroundRectCount(JsonElement state) => state.GetProperty("inlineBackgroundRectCount").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
@@ -1710,6 +1711,26 @@ public sealed class RichTextBoxIntegrationTests
     }
 
     [Fact]
+    public async Task TableColumnSpan_LayoutSpansColumns()
+    {
+        // ColumnSpan does not round-trip through RTF (WPF-faithful drop, pinned
+        // in session 89), so build the document directly: a column-spanning cell
+        // occupies the summed widths of its columns and the following cell
+        // starts after the spanned columns.
+        await _app.InvokeAsync("richtextbox.probe.create-plain", "seed");
+        var state = await _app.InvokeAsync("richtextbox.probe.set-xaml-document", Xaml(
+            "<Table><TableColumn Width=\"100\"/><TableColumn Width=\"100\"/><TableColumn Width=\"100\"/>" +
+            "<TableRowGroup><TableRow>" +
+            "<TableCell ColumnSpan=\"2\" BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>wide</Paragraph></TableCell>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>tail</Paragraph></TableCell>" +
+            "</TableRow></TableRowGroup></Table>"));
+        var raw = state.ToString();
+
+        Assert.True(HasDocument(state), raw);
+        Assert.Equal("0:200,200:100", CellBoxLayout(state));
+    }
+
+    [Fact]
     public async Task SaveLoad_Rtf_RoundTripsParagraphBorder()
     {
         // WriteXaml serializes Paragraph BorderThickness/BorderBrush; the RTF
@@ -1842,16 +1863,21 @@ public sealed class RichTextBoxIntegrationTests
     {
         var state = await SetAndRtfRoundTrip(Xaml(
             "<Table><TableRowGroup><TableRow>" +
-            "<TableCell RowSpan=\"2\"><Paragraph>alpha</Paragraph></TableCell>" +
-            "<TableCell><Paragraph>beta</Paragraph></TableCell>" +
+            "<TableCell RowSpan=\"2\" BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>alpha</Paragraph></TableCell>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>beta</Paragraph></TableCell>" +
             "</TableRow><TableRow>" +
-            "<TableCell><Paragraph>gamma</Paragraph></TableCell>" +
+            "<TableCell BorderThickness=\"1,1,1,1\" BorderBrush=\"#FF000000\"><Paragraph>gamma</Paragraph></TableCell>" +
             "</TableRow></TableRowGroup></Table>"));
         var raw = state.ToString();
 
         Assert.True(HasDocument(state), raw);
         Assert.Contains("alpha", Text(state));
         Assert.Equal(2, FirstTableCellRowSpan(state));
+        // The row-spanning cell's box extends over both rows' heights.
+        var heights = (CellBoxHeightLayout(state) ?? "").Split(',').Select(s => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        Assert.Equal(3, heights.Count);
+        Assert.True(heights[0] > heights[1], raw);
+        Assert.True(Math.Abs(heights[0] - (heights[1] + heights[2])) < 2, raw);
     }
 
     [Fact]
