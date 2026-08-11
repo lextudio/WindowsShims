@@ -47,8 +47,7 @@ Findings:
   the pixel array (both were needed by the encode/decode round-trip).
 - Note: RTF has no block-level image concept, so a `BlockUIContainer` image
   reloads as an inline image (WPF-faithful). Visual rendering of the image in
-  `FlowDocumentView` is not part of this session (the image round-trips at
-  the document-model level; the shim `Image` is a plain `FrameworkElement`).
+  `FlowDocumentView` is covered in session 97.
 
 Changes:
 

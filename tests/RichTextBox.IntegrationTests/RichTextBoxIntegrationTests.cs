@@ -46,6 +46,7 @@ public sealed class RichTextBoxIntegrationTests
     static string? FirstParagraphBorderBrush(JsonElement state) => state.GetProperty("firstParagraphBorderBrush").GetString();
     static bool FirstTableCellHasNestedTable(JsonElement state) => state.GetProperty("firstTableCellHasNestedTable").GetBoolean();
     static string? FirstInlineImageDims(JsonElement state) => state.GetProperty("firstInlineImageDims").GetString();
+    static bool FirstInlineImageRendered(JsonElement state) => state.GetProperty("firstInlineImageRendered").GetBoolean();
     static string? FirstBlockImageDims(JsonElement state) => state.GetProperty("firstBlockImageDims").GetString();
     static string? FirstInlineType(JsonElement state) => state.GetProperty("firstInlineType").GetString();
     static bool FirstInlineHasUnderline(JsonElement state) => state.GetProperty("firstInlineHasUnderline").GetBoolean();
@@ -1656,6 +1657,7 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(HasDocument(state), raw);
         Assert.Contains(" after", Text(state));
         Assert.Equal("40x20", FirstInlineImageDims(state));
+        Assert.True(FirstInlineImageRendered(state), raw);
     }
 
 

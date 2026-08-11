@@ -199,7 +199,11 @@ Candidate coverage:
   decodes them into `\pict\pngblip`/`\jpegblip` + hex, the reader re-emits
   them, and the shim `XamlReader` decodes them back into `BitmapSource`
   (InlineUIContainer/BlockUIContainer). `BitmapSource` now retains pixels and
-  `BitmapFrame.Create` decodes real dimensions.
+  `BitmapFrame.Create` decodes real dimensions. Session 97 made the images
+  render: the shim `Image` derives from the WinUI `Image` control and feeds
+  its `BitmapSource` pixels into a WinUI `BitmapImage` (WriteableBitmap is
+  unavailable on this Uno Skia build), so `FlowDocumentView` displays the
+  decoded `\pict` pixels.
   FontStretch and LineHeight remain pinned WPF-faithful drops.
 
 Done when:
@@ -325,3 +329,4 @@ Each session is tracked as a separate file:
 | 94 | [session94.md](session94.md) | RTF Round-Trip Coverage for Nested Tables (completed) |
 | 95 | [session95.md](session95.md) | RTF Round-Trip Coverage for LineBreaks and Tabs (completed) |
 | 96 | [session96.md](session96.md) | RTF Round-Trip for Embedded Images \pict (completed) |
+| 97 | [session97.md](session97.md) | Visual Rendering for Embedded Images (completed) |

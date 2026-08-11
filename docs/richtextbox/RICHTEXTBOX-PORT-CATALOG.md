@@ -130,7 +130,7 @@ and now works correctly.
   merge, navigation, undo/redo): done, sessions 4-32, 35-36. Notably, the
   bridge code no longer relies on one-off fast paths for common editing
   cases — the last two (paragraph-merge, Enter) were removed in session 35.
-- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-96 — all
+- **M4** (clipboard/serialization): done, sessions 27, 34, 61, 81, 83-97 — all
   four supported formats tested: `Text`/`Xaml` round-trip with formatting, `Rtf`
   round-trips text + inline formatting via the WPF `XamlRtfConverter` stack
   (session 81 fixed text-node parsing in the shim `XamlReader` and WPF-faithful
@@ -175,8 +175,11 @@ and now works correctly.
   intermediate XAML carries self-contained `data:image/png;base64,...`
   sources: `WriteEmbeddedObject` emits them, the RTF writer decodes them into
   `\pict`/`\pngblip`+hex, the reader re-emits them, and the shim `XamlReader`
-  decodes them back into `BitmapSource` (`BitmapSource` now retains pixels and
-  `BitmapFrame.Create` decodes real dimensions),
+  decodes   them back into `BitmapSource` (`BitmapSource` now retains pixels and
+  `BitmapFrame.Create` decodes real dimensions); session 97 added visual
+  rendering — the shim `Image` derives from the WinUI `Image` control and
+  feeds its pixels into a WinUI `BitmapImage` (WriteableBitmap is unavailable
+  on the Uno Skia build),
   while FontStretch and LineHeight stay pinned WPF-faithful drops), `XamlPackage` round-trips plain text.
 - **M5** (deferred families): mostly not started, by design — see "Deferred
   families" above. IME is a partial exception: real OS-level composition is
