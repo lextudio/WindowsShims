@@ -1,11 +1,15 @@
+using Microsoft.UI.Xaml.Automation.Peers;
+
 namespace System.Windows.Automation.Peers;
 
-public sealed class DataGridDetailsPresenterAutomationPeer : AutomationPeer
+public sealed class DataGridDetailsPresenterAutomationPeer : UIElementAutomationPeer
 {
     public DataGridDetailsPresenterAutomationPeer(Controls.Primitives.DataGridDetailsPresenter owner)
+        : base(owner)
     {
-        Owner = owner;
     }
 
-    public Controls.Primitives.DataGridDetailsPresenter Owner { get; }
+    public new Controls.Primitives.DataGridDetailsPresenter Owner => (Controls.Primitives.DataGridDetailsPresenter)base.Owner;
+
+    protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
 }

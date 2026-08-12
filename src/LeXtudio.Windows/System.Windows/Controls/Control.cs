@@ -156,7 +156,11 @@ public abstract class Control : Microsoft.UI.Xaml.Controls.Control, IInputElemen
 
     protected virtual void OnDpiChanged(DpiScale oldDpiScaleInfo, DpiScale newDpiScaleInfo) { }
 
-    protected virtual System.Windows.Automation.Peers.AutomationPeer? OnCreateAutomationPeer() => null;
+    // Bridges the WPF-shaped virtual onto Uno's own (UIElement.OnCreateAutomationPeer):
+    // the WPF peer types derive from Microsoft.UI.Xaml.Automation.Peers.AutomationPeer,
+    // so covariant overrides (C# 9) returning System.Windows.Automation.Peers.AutomationPeer
+    // are picked up by Uno's accessibility tree through this override.
+    protected override Microsoft.UI.Xaml.Automation.Peers.AutomationPeer OnCreateAutomationPeer() => null!;
 
     protected virtual void OnPropertyChanged(DependencyPropertyChangedEventArgs e) { }
 }

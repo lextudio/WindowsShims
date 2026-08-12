@@ -1,11 +1,17 @@
+using Microsoft.UI.Xaml.Automation.Peers;
+
 namespace System.Windows.Automation.Peers;
 
-public sealed class DataGridRowHeaderAutomationPeer : AutomationPeer
+public sealed class DataGridRowHeaderAutomationPeer : UIElementAutomationPeer
 {
     public DataGridRowHeaderAutomationPeer(Controls.Primitives.DataGridRowHeader owner)
+        : base(owner)
     {
-        Owner = owner;
     }
 
-    public Controls.Primitives.DataGridRowHeader Owner { get; }
+    public new Controls.Primitives.DataGridRowHeader Owner => (Controls.Primitives.DataGridRowHeader)base.Owner;
+
+    protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Header;
+
+    protected override string GetNameCore() => string.Empty;
 }

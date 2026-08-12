@@ -111,6 +111,28 @@ public sealed partial class MainPage : Page
         return (lighter + 0.05) / (darker + 0.05);
     }
 
+    static T? FindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
+    {
+        var count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            if (Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i) is { } child)
+            {
+                if (child is T match)
+                {
+                    return match;
+                }
+
+                if (FindVisualDescendant<T>(child) is { } deeper)
+                {
+                    return deeper;
+                }
+            }
+        }
+
+        return null;
+    }
+
     static string RunOnUi(Func<MainPage, string> body)
     {
         var page = _current;
@@ -249,6 +271,108 @@ public sealed partial class MainPage : Page
         grid.ApplyTemplate();
         grid.UpdateLayout();
         return Snapshot(page);
+    });
+
+    // ─── Probe: automation-events ──────────────────────────────────
+
+    // Records Uno's automation listener traffic (Uno 6.6 Skia accessibility:
+    // AutomationPeer.ListenerExists gates the linked WPF call sites, events
+    // flow through IAutomationPeerListener). The internal listener interface
+    // is reached via reflection + DispatchProxy, mirroring Uno's own
+    // TestAutomationPeerListener seam.
+    public class RecordingAutomationListener : System.Reflection.DispatchProxy
+    {
+        public static readonly List<string> Recorded = new();
+
+        protected override object? Invoke(System.Reflection.MethodInfo? targetMethod, object?[]? args)
+        {
+            switch (targetMethod!.Name)
+            {
+                case "ListenerExistsHelper":
+                    return true;
+                case "NotifyAutomationEvent":
+                case "OnAutomationEvent":
+                    Recorded.Add($"event:{args![1]}");
+                    return null;
+                case "NotifyPropertyChangedEvent":
+                    Recorded.Add($"prop:{args![1]}");
+                    return null;
+                case "NotifyNotificationEvent":
+                    Recorded.Add("notification");
+                    return null;
+                default:
+                    return null;
+            }
+        }
+    }
+
+    [DevFlowAction("datagrid.probe.automation-events", Description = "Wire the UIA listener and drive selection to capture automation events and peer surface.")]
+    public static string ProbeAutomationEvents() => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildMetadataGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+
+        var peerType = typeof(Microsoft.UI.Xaml.Automation.Peers.AutomationPeer);
+        var listenerInterface = peerType.Assembly.GetType("Microsoft.UI.Xaml.Automation.Peers.IAutomationPeerListener");
+        var listenerProperty = peerType.GetProperty("TestAutomationPeerListener",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        void SetListener(object? value) => listenerProperty.SetValue(null, value);
+
+        RecordingAutomationListener.Recorded.Clear();
+        SetListener(System.Reflection.DispatchProxy.Create(listenerInterface!, typeof(RecordingAutomationListener)));
+        try
+        {
+            var listenerExists = System.Windows.Automation.Peers.AutomationPeer.ListenerExists(System.Windows.Automation.Peers.AutomationEvents.SelectionItemPatternOnElementSelected);
+
+            var gridPeer = System.Windows.Automation.Peers.AutomationPeer.FromElement(grid) as System.Windows.Automation.Peers.DataGridAutomationPeer;
+            var gridControlType = gridPeer?.GetAutomationControlType().ToString();
+            var selectionPattern = gridPeer?.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Selection) != null;
+            var gridPattern = gridPeer?.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Grid) != null;
+
+            var selectedBefore = gridPeer is Microsoft.UI.Xaml.Automation.Provider.ISelectionProvider sp
+                ? sp.GetSelection().Length
+                : -1;
+
+            // Drive selection through the WPF surface: the linked DataGrid
+            // raises RaiseAutomationSelectionEvents from its SelectionChanged path.
+            grid.SelectedIndex = 1;
+
+            var row = grid.ItemContainerGenerator.ContainerFromIndex(1) as System.Windows.Controls.DataGridRow;
+            var rowPeer = row is null ? null : System.Windows.Automation.Peers.AutomationPeer.FromElement(row) as System.Windows.Automation.Peers.DataGridRowAutomationPeer;
+            var rowControlType = rowPeer?.GetAutomationControlType().ToString();
+            var rowSelected = rowPeer is Microsoft.UI.Xaml.Automation.Provider.ISelectionItemProvider sip && sip.IsSelected;
+            var selectionCountAfter = gridPeer is Microsoft.UI.Xaml.Automation.Provider.ISelectionProvider sp2
+                ? sp2.GetSelection().Length
+                : -1;
+
+            var cell = row?.TryGetCell(0);
+            var cellPeer = cell is null ? null : System.Windows.Automation.Peers.AutomationPeer.FromElement(cell) as System.Windows.Automation.Peers.DataGridCellAutomationPeer;
+            var cellControlType = cellPeer?.GetAutomationControlType().ToString();
+            var cellValue = cellPeer is Microsoft.UI.Xaml.Automation.Provider.IValueProvider vp ? vp.Value : null;
+            var cellName = cellPeer?.GetName();
+
+            // Manual-mode grids host their column headers as DataGridColumnHeader
+            // elements (no ColumnHeadersPresenter), so resolve the peer through
+            // the first realized header element in the visual tree.
+            var header = FindVisualDescendant<System.Windows.Controls.Primitives.DataGridColumnHeader>(grid);
+            var headerPeer = header is null ? null : System.Windows.Automation.Peers.AutomationPeer.FromElement(header) as System.Windows.Automation.Peers.DataGridColumnHeaderAutomationPeer;
+            var headerControlType = headerPeer?.GetAutomationControlType().ToString();
+            var headerInvokePattern = headerPeer?.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke) != null;
+
+            var events = string.Join(",", RecordingAutomationListener.Recorded.Select(e => Js(e)));
+            return $"{{\"hasGrid\":true,\"listenerExists\":{Jb(listenerExists)},\"gridPeerCreated\":{Jb(gridPeer is not null)},\"gridControlType\":{Js(gridControlType)},\"selectionPattern\":{Jb(selectionPattern)},\"gridPattern\":{Jb(gridPattern)},\"selectedBefore\":{selectedBefore},\"rowPeerCreated\":{Jb(rowPeer is not null)},\"rowControlType\":{Js(rowControlType)},\"rowSelected\":{Jb(rowSelected)},\"selectedAfter\":{selectionCountAfter},\"cellPeerCreated\":{Jb(cellPeer is not null)},\"cellControlType\":{Js(cellControlType)},\"cellValue\":{Js(cellValue)},\"cellName\":{Js(cellName)},\"headerPeerCreated\":{Jb(headerPeer is not null)},\"headerControlType\":{Js(headerControlType)},\"headerInvokePattern\":{Jb(headerInvokePattern)},\"events\":[{events}]}}";
+        }
+        finally
+        {
+            SetListener(null);
+            RecordingAutomationListener.Recorded.Clear();
+        }
     });
 
     // ─── Probe: create-filter-grid ──────────────────────────────────

@@ -20,5 +20,6 @@ public static class AutomationProperties
 
 public static class SelectionItemPatternIdentifiers
 {
-    public static AutomationProperty IsSelectedProperty { get; } = new();
+    public static AutomationProperty IsSelectedProperty { get; } =
+        new(Microsoft.UI.Xaml.Automation.SelectionItemPatternIdentifiers.IsSelectedProperty);
 }

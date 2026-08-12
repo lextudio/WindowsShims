@@ -1,34 +1,50 @@
 # DataGrid Port — Remaining Work
 
-Status as of session 124 (2026-08-11). All items below are **still open**
+Status as of session 126 (2026-08-12). All items below are **still open**
 unless marked otherwise. Items closed in sessions 121–123 (grouping,
 hyperlink column, frozen columns, row-details variable-height virtualization,
 VSM sort/hover, TextSearch, redundant separator cleanup, Fluent theme, test
-consolidation, grid-line rendering) are **not** listed here.
+consolidation, grid-line rendering) and session 126 (accessibility bridge)
+are **not** listed here.
 
 ---
 
-## 1. Accessibility / UI Automation
+## 1. Accessibility / UI Automation — DONE (session 126)
 
-**Status:** fully inert — largest remaining gap.  
-**Source:** session121:699-700, session122:20-22, datagrid-compare.md:99-108
+**Status:** bridged onto Uno 6.6's native Skia accessibility.
+**Source:** session126.md, todo.md prior to session 126.
 
-`AutomationPeer.FromElement` returns `null`, `ListenerExists` returns `false`.
-Real WPF peers (`DataGridAutomationPeer`, `DataGridCellAutomationPeer`,
-`DataGridRowAutomationPeer`, etc.) exist in the linked upstream source but
-are COM/UIA-based (~36 call sites using `DataGrid` internals not reachable
-through the shim bridge). No screen-reader output from the grid.
+`AutomationPeer.FromElement` returned `null`, `ListenerExists` returned
+`false`, raises were no-ops, so the linked WPF DataGrid's ~36
+`ListenerExists`-gated automation call sites never fired. Session 126
+rewired the bridge:
 
-**Options (not yet decided):**
-- (a) Bridge WPF's own `System.Windows.Automation.Peers.DataGridAutomationPeer`
-  family onto Uno's native automation peer model.
-- (b) Write fresh peer classes against this project's
-  `System.Windows.Controls.DataGrid`, using WCT v7's peers as a behavioral
-  reference.
-- (c) Defer further (current status).
+- WPF-shaped `AutomationPeer` now extends Uno's
+  `Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer` — the
+  one peer base `SkiaAccessibilityBase.TryGetPeerOwner` recognizes for native
+  event routing. WPF's own peer files stay unlinked (their base lives in
+  PresentationCore, 2600-line COM/UIA core); fresh peers were written against
+  this project's DataGrid with WCT v7 as behavioral reference.
+- `Control.OnCreateAutomationPeer` overrides Uno's virtual; C# 9 covariant
+  overrides in the linked WPF files feed Uno's tree.
+- Statics forward to Uno: `ListenerExists`/`FromElement`/
+  `CreatePeerForElement`; instance `RaiseAutomationEvent`/
+  `RaisePropertyChangedEvent` (AutomationEvents member values mirror UIA IDs
+  0..17, so the cast is exact).
+- Peers: DataGrid (Selection + Grid patterns; row/cell invoke/selection
+  raises), Row (SelectionItem), Cell (Value + SelectionItem + GridItem),
+  ColumnHeader (Invoke), ColumnHeadersPresenter/DetailsPresenter (Group),
+  RowHeader (Header). Item peers route property changes through realized
+  element peers.
+- Verified by `Uia_DataGridExposesNativePeersAndSelectionEvents`: the probe
+  wires Uno's internal `IAutomationPeerListener` via reflection +
+  DispatchProxy, drives `SelectedIndex = 1`, asserts peer creation, control
+  types, patterns, `GetSelection()`, cell Value/Name, column-header Invoke,
+  and the raised `SelectionItemPatternOnElementAddedToSelection` event.
 
-WCT v7's peers cannot be linked directly (60+ compile errors, different
-namespaces, different base types).
+Remaining (future): Table pattern (needs `RowOrColumnMajor` — not in the
+referenced Uno.UI build), IGridItem Row/ColumnSpan (fixed at 1), cell
+SetValue (needs binding write-back), header drag-reorder automation.
 
 ---
 

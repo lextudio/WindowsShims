@@ -28,6 +28,45 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Uia_DataGridExposesNativePeersAndSelectionEvents()
+    {
+        // Uno 6.6 integration: the WPF-shaped peers are real Microsoft.UI.Xaml
+        // automation peers (element-backed via FrameworkElementAutomationPeer),
+        // ListenerExists is live, and the linked WPF selection path raises
+        // events through Uno's automation listener.
+        var state = await _app.InvokeAsync("datagrid.probe.automation-events");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("listenerExists").GetBoolean(),
+            $"ListenerExists should be live with the test listener wired: {raw}");
+        Assert.True(state.GetProperty("gridPeerCreated").GetBoolean(),
+            $"DataGridAutomationPeer should resolve via FromElement: {raw}");
+        Assert.Equal("DataGrid", state.GetProperty("gridControlType").GetString());
+        Assert.True(state.GetProperty("selectionPattern").GetBoolean(), $"grid peer should expose Selection pattern: {raw}");
+        Assert.True(state.GetProperty("gridPattern").GetBoolean(), $"grid peer should expose Grid pattern: {raw}");
+        Assert.Equal(0, state.GetProperty("selectedBefore").GetInt32());
+
+        var events = state.GetProperty("events").EnumerateArray().Select(e => e.GetString()).ToList();
+        Assert.Contains("event:SelectionItemPatternOnElementAddedToSelection", events);
+        Assert.Equal(1, state.GetProperty("selectedAfter").GetInt32());
+
+        Assert.True(state.GetProperty("rowPeerCreated").GetBoolean(), $"row peer should resolve: {raw}");
+        Assert.Equal("DataItem", state.GetProperty("rowControlType").GetString());
+        Assert.True(state.GetProperty("rowSelected").GetBoolean(), $"row peer should report IsSelected after selection: {raw}");
+
+        Assert.True(state.GetProperty("cellPeerCreated").GetBoolean(), $"cell peer should resolve: {raw}");
+        Assert.Equal("DataItem", state.GetProperty("cellControlType").GetString());
+        Assert.False(string.IsNullOrEmpty(state.GetProperty("cellValue").GetString()),
+            $"cell peer should expose its text via the Value pattern: {raw}");
+        Assert.False(string.IsNullOrEmpty(state.GetProperty("cellName").GetString()),
+            $"cell peer should expose its text as the Name: {raw}");
+
+        Assert.True(state.GetProperty("headerPeerCreated").GetBoolean(), $"column header peer should resolve: {raw}");
+        Assert.Equal("Header", state.GetProperty("headerControlType").GetString());
+        Assert.True(state.GetProperty("headerInvokePattern").GetBoolean(), $"column header peer should expose Invoke: {raw}");
+    }
+
+    [Fact]
     public async Task CellContent_BindsRealTextNotJustColumnStructure()
     {
         // Regression test for a DataGridCell.BuildVisualTree() bug: the bound
