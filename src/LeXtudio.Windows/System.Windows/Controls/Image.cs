@@ -6,17 +6,24 @@ namespace System.Windows.Controls
     // Shim for WPF's System.Windows.Controls.Image used as the child of
     // InlineUIContainer/BlockUIContainer. Holds a shim BitmapSource for the
     // document model and serialization (data-URI sources, RTF \pict), and
-    // renders through the WinUI Image control: the Source is re-encoded to
-    // PNG and fed into a WinUI BitmapImage so FlowDocumentView's canvas shows
-    // the actual pixels.
-    public class Image : Microsoft.UI.Xaml.Controls.Image
+    // renders through an inner WinUI Image control: the Source is re-encoded
+    // to PNG and fed into a WinUI BitmapImage so FlowDocumentView's canvas
+    // shows the actual pixels.
+    //
+    // Composes rather than derives from Microsoft.UI.Xaml.Controls.Image
+    // because that type is sealed; Grid is the lightest non-sealed panel that
+    // can host the single inner Image and stretch to its size.
+    public class Image : Microsoft.UI.Xaml.Controls.Grid
     {
+        private readonly Microsoft.UI.Xaml.Controls.Image _inner = new();
         private System.Windows.Media.Imaging.BitmapSource? _source;
+
+        public Image() => Children.Add(_inner);
 
         // Typed as the base ImageSource (like WPF) so upstream casts such as
         // WpfPayload's (DrawingImage)image.Source keep compiling; the document
         // model and serialization only ever set shim BitmapSources.
-        public new Microsoft.UI.Xaml.Media.ImageSource? Source
+        public Microsoft.UI.Xaml.Media.ImageSource? Source
         {
             get => _source;
             set
@@ -24,14 +31,14 @@ namespace System.Windows.Controls
                 _source = value as System.Windows.Media.Imaging.BitmapSource;
                 if (value is not System.Windows.Media.Imaging.BitmapSource bitmapSource)
                 {
-                    base.Source = null;
+                    _inner.Source = null;
                     return;
                 }
 
                 var bytes = EncodeToPng(bitmapSource);
                 if (bytes is null)
                 {
-                    base.Source = null;
+                    _inner.Source = null;
                     return;
                 }
 
@@ -42,20 +49,8 @@ namespace System.Windows.Controls
                 _ = writer.StoreAsync();
                 stream.Seek(0);
                 _ = bitmap.SetSourceAsync(stream);
-                base.Source = bitmap;
+                _inner.Source = bitmap;
             }
-        }
-
-        public new double Height
-        {
-            get => base.Height;
-            set => base.Height = value;
-        }
-
-        public new double Width
-        {
-            get => base.Width;
-            set => base.Width = value;
         }
 
         public DpiScale GetDpi() => new(1.0, 1.0);
