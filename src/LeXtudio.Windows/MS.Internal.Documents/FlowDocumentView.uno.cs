@@ -99,10 +99,15 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         InvalidateArrange();
     }
 
-#if !WINDOWS_APP_SDK
+#if WINDOWS_APP_SDK
     // ISpellCheckingService is Uno's own extensibility API (Microsoft.UI.Xaml.Documents in
-    // Uno.UI.dll); on WINDOWS_APP_SDK, Microsoft.UI.Xaml.Documents resolves to the real
-    // WinAppSDK assemblies instead, which don't define it, so spell-check stays unavailable there.
+    // Uno.UI.dll); on this TFM Microsoft.UI.Xaml.Documents resolves to the real WinAppSDK
+    // assemblies instead, which don't define it, so spell-check is backed by the native
+    // Win32 spell-checking API here. Win32SpellChecker.SpellCheck mirrors
+    // ISpellCheckingService.SpellCheck's shape so RefreshSpellCheckSquiggles below needs
+    // no branching.
+    private static readonly Lazy<Win32SpellChecker?> SpellCheckingService = new(() => Win32SpellChecker.TryCreate());
+#else
     private static readonly Lazy<Microsoft.UI.Xaml.Documents.ISpellCheckingService?> SpellCheckingService = new(() =>
     {
         // The Hunspell service registers itself via a generated module initializer in the
@@ -746,7 +751,6 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     {
         int used = 0;
 
-#if !WINDOWS_APP_SDK
         if (_spellCheckEnabled && _page is not null && SpellCheckingService.Value is { } service)
         {
             foreach (var pageLine in _page.Lines)
@@ -774,7 +778,6 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
                 }
             }
         }
-#endif
 
         for (int i = used; i < _spellCheckLines.Count; i++)
             _spellCheckLines[i].Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
