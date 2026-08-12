@@ -250,6 +250,49 @@ public sealed partial class MainPage : Page
         return grid;
     }
 
+    // ─── Probe: row-heights ─────────────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.row-heights", Description = "Report realized row heights and scroll extent in manual mode.")]
+    public static string ProbeRowHeights() => RunOnUi(page =>
+    {
+        var grid = page._grid;
+        if (grid is null) return "{\"error\":\"no grid\"}";
+        var rows = grid.ItemContainerGenerator.Containers.OfType<System.Windows.Controls.DataGridRow>().ToList();
+        var heights = string.Join(",", rows.Select(r => Jn(r.Height)));
+        var actual = string.Join(",", rows.Select(r => Jn(r.ActualHeight)));
+        var rowHeight = grid.RowHeight;
+        var minRowHeight = grid.MinRowHeight;
+        var scroll = grid.GetTemplateChild("PART_ShimRowsScroll") as Microsoft.UI.Xaml.Controls.ScrollViewer;
+        var sv = grid.GetTemplateChild("PART_ShimRowsHost") as Microsoft.UI.Xaml.FrameworkElement;
+        var extent = scroll?.ExtentHeight;
+        var viewport = scroll?.ViewportHeight;
+        var scrollable = scroll?.ScrollableHeight;
+        var firstCell = rows.FirstOrDefault()?.ShimTryGetCell(0);
+        var cellHeight = firstCell?.Height ?? double.NaN;
+        var cellMinHeight = firstCell?.MinHeight ?? double.NaN;
+        var cellActualHeight = firstCell?.ActualHeight ?? double.NaN;
+        return $"{{\"rowCount\":{rows.Count},\"heights\":[{heights}],\"actualHeights\":[{actual}],\"rowHeight\":{Jn(rowHeight)},\"minRowHeight\":{Jn(minRowHeight)},\"hostHeight\":{Jn(sv?.ActualHeight ?? 0)},\"extentHeight\":{Jn(extent ?? 0)},\"viewportHeight\":{Jn(viewport ?? 0)},\"scrollableHeight\":{Jn(scrollable ?? 0)},\"cellHeight\":{Jn(cellHeight)},\"cellMinHeight\":{Jn(cellMinHeight)},\"cellActualHeight\":{Jn(cellActualHeight)}}}";    });
+
+    // ─── Probe: set-row-height ─────────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.set-row-height", Description = "Set RowHeight/MinRowHeight and report realized row heights.")]
+    public static string ProbeSetRowHeight(double rowHeight, double minRowHeight) => RunOnUi(page =>
+    {
+        var grid = page._grid;
+        if (grid is null) return "{\"error\":\"no grid\"}";
+        if (rowHeight == -1) rowHeight = double.NaN;
+        if (minRowHeight == -1) minRowHeight = double.NaN;
+        grid.RowHeight = rowHeight;
+        grid.MinRowHeight = minRowHeight;
+        grid.InvalidateMeasure();
+        grid.UpdateLayout();
+        var rows = grid.ItemContainerGenerator.Containers.OfType<System.Windows.Controls.DataGridRow>().ToList();
+        var actual = string.Join(",", rows.Select(r => Jn(r.ActualHeight)));
+        var firstCellAfter = rows.FirstOrDefault()?.ShimTryGetCell(0);
+        var allHeights = string.Join(",", rows.Select(r => Jn(r.ShimTryGetCell(0)?.Height ?? double.NaN)));
+        return $"{{\"rowCount\":{rows.Count},\"actualHeights\":[{actual}],\"rowHeight\":{Jn(grid.RowHeight)},\"minRowHeight\":{Jn(grid.MinRowHeight)},\"cellHeightAfterLayout\":{Jn(firstCellAfter?.Height ?? double.NaN)},\"cellMinAfterLayout\":{Jn(firstCellAfter?.MinHeight ?? double.NaN)},\"allCellHeights\":[{allHeights}]}}";
+    });
+
     // ─── Probe: create-grid ─────────────────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-grid", Description = "Create a DataGrid with sample metadata-style rows.")]

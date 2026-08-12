@@ -275,6 +275,15 @@ public partial class DataGridRow : Control
         {
             BuildCells();
         }
+
+        // Session 127: the manual path decorates the row before its template is
+        // applied, so ShimDecorateRow's row-height application sees no cells yet.
+        // Re-apply here, once PART_CellsHost actually exists (BuildCells ran in
+        // the else branch above, or the presenter self-populated above).
+        if (DataGridOwner is { } owner)
+        {
+            owner.ShimApplyRowHeightsToRow(this);
+        }
     }
 
     private static T? FindVisualDescendant<T>(Microsoft.UI.Xaml.DependencyObject root) where T : class
@@ -376,6 +385,21 @@ public partial class DataGridRow : Control
         foreach (var cell in EffectiveCells())
         {
             cell.NotifyPropertyChanged(dependencyObject, propertyName, args, target);
+        }
+    }
+
+    // Session 127: apply DataGrid.RowHeight / MinRowHeight onto the realized
+    // cells, mirroring WPF's coercion chain (DataGrid.RowHeight → CellsPresenter
+    // Height → cell Height). The manual path has no CellsPresenter, so this is
+    // the shim's direct equivalent. WPF semantics: RowHeight is a fixed row
+    // height when set (NaN = auto), MinRowHeight is a lower bound.
+    internal void ShimApplyRowHeights(DataGrid owner)
+    {
+        var rowHeight = owner.RowHeight;
+        var minRowHeight = owner.MinRowHeight;
+        foreach (var cell in EffectiveCells())
+        {
+            cell.ShimApplyRowHeight(rowHeight, minRowHeight);
         }
     }
 

@@ -322,6 +322,8 @@ public partial class DataGrid
     // containers, separate from the upstream PART_RowsPresenter machinery.
     internal void BuildShimVisualTree()
     {
+        ShimEnsureRowHeightHook();
+
         if (GetTemplateChild("PART_ShimRowsHost") is not Microsoft.UI.Xaml.Controls.Panel host)
         {
             return;
@@ -535,11 +537,43 @@ public partial class DataGrid
     // virtualized generation path: alternating background, separator border, style,
     // and selection highlight. PrepareRow / tracker / generator registration are done
     // by the caller (they differ between the two paths).
+    private bool _shimRowHeightHookRegistered;
+
+    // Session 127: WPF's RowHeight/MinRowHeight changes flow through the
+    // CellsPresenter notification chain (DataGrid.NotifyPropertyChanged →
+    // row.NotifyPropertyChanged → CellsPresenter). The manual path has no
+    // CellsPresenter, so re-apply the heights onto the realized rows directly.
+    private void ShimEnsureRowHeightHook()
+    {
+        if (_shimRowHeightHookRegistered)
+        {
+            return;
+        }
+
+        _shimRowHeightHookRegistered = true;
+        RegisterPropertyChangedCallback(RowHeightProperty, (_, _) => ShimApplyRowHeightsToRealizedRows());
+        RegisterPropertyChangedCallback(MinRowHeightProperty, (_, _) => ShimApplyRowHeightsToRealizedRows());
+    }
+
+    private void ShimApplyRowHeightsToRealizedRows()
+    {
+        foreach (var row in ItemContainerGenerator.Containers.OfType<DataGridRow>())
+        {
+            row.ShimApplyRowHeights(this);
+        }
+    }
+
+    internal void ShimApplyRowHeightsToRow(DataGridRow row)
+    {
+        row.ShimApplyRowHeights(this);
+    }
+
     internal void ShimDecorateRow(DataGridRow row, object item, int displayIndex)
     {
         row.ShimRowIndex = displayIndex;
         row.ApplyShimRowStyle();
         row.ApplyShimRowBackground();
+        row.ShimApplyRowHeights(this);
         // Reflect the engine's selection so the highlight follows the item even across
         // sort / filter / container recycling.
         row.IsSelected = IsRowItemSelected(item);

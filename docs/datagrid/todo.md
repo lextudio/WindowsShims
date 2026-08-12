@@ -50,40 +50,47 @@ SetValue (needs binding write-back), header drag-reorder automation.
 
 ## 2. Frozen columns — vertical scroll interaction
 
-**Status:** test unskipped since session 123; underlying row-sizing cause
-possibly still present — needs confirmation, not re-diagnosis.  
-**Source:** session121:1120-1124, 1367-1389, 1391-1398; corrected 2026-07-27
+**Status:** resolved — the manual-mode row-sizing gap that could suppress the
+vertical scroll extent is fixed (item 3, session 127); the tracked-row test
+passes in the suite (66/66, session 127).  
+**Source:** session121:1120-1124, 1367-1399; corrected 2026-07-27
 (verification pass found `FrozenColumns_TrackedRowKeepsFrozenXAcrossVerticalScroll`
-in `tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs:354` is now a
+in `tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs:394` is now a
 plain `[Fact]`, not `[Fact(Skip=...)]` as previously recorded here).
 
 The root-cause comment above the test (manual/non-virtualized
 `PART_ShimRowsScroll` StackPanel reporting `ExtentHeight == ViewportHeight`
-because rows collapse to ~1-2px actual height) is still present verbatim in
-the test file, unchanged. It is unclear whether the test now passes because
-the underlying gap was actually fixed, or because it passes incidentally
-(e.g. changed assertions, different repro path). **Needs a run + read of the
-current test body before trusting either "fixed" or "still broken."**
+because rows collapse to ~1-2px actual height) predates the session 127 row
+height fix: rows no longer collapse (content-sized ~32.5px, and exactly
+`RowHeight` when set), so the scroll extent reflects the real content height.
+Re-read the stale comment and drop it next time this file is touched.
 
-**Unblocked by:** fixing the manual-mode row-sizing gap (item 3 below), if it
-turns out to still apply.
+## 3. Manual-mode row-sizing gap — DONE (session 127)
 
----
+**Status:** fixed and tested (3 new tests, `DataGridRowHeightTests.cs`).  
+**Source:** session121:1378-1385, session126 summary
 
-## 3. Manual-mode row-sizing gap
+`DataGrid.RowHeight`/`MinRowHeight` now reach realized rows in manual
+(non-virtualized) mode. WPF flows these through the CellsPresenter coercion
+chain (`DataGrid.NotifyPropertyChanged` → row → `DataGridCellsPresenter`
+Height/MinHeight `OnCoerceHeight`/`OnCoerceMinHeight`), which the manual path
+lacks — so the shim re-applies heights directly:
 
-**Status:** diagnosed, not fixed.  
-**Source:** session121:1378-1385
+- `DataGrid.ShimEnsureRowHeightHook` (lazy): `RegisterPropertyChangedCallback`
+  on `RowHeightProperty`/`MinRowHeightProperty` → `ShimApplyRowHeightsToRealizedRows`
+  (via `ItemContainerGenerator.Containers`).
+- `DataGridRow.ShimApplyRowHeights(owner)` / `DataGridCell.ShimApplyRowHeight`:
+  cell `Height = RowHeight` when non-NaN (else auto), `MinHeight = max(32,
+  MinRowHeight)` when set.
+- `DataGridRow.OnApplyTemplate` re-applies once cells actually exist — the
+  manual path decorates the row (`ShimDecorateRow`) *before* its template is
+  applied, so the decorate-time application would otherwise see zero cells.
+  This was the debugging crux: `UpdateLayout` rebuilds rows with fresh cell
+  instances that only got heights via the re-apply-on-template hook.
 
-`DataGridRow.Height` has no effect in manual (non-virtualized) mode. WPF
-applies `RowHeight` via a default `Style` setter this shim's runtime-built
-templates don't have. Nothing currently wires `RowHeight` to
-`DataGridRow.Height`.
-
-Rows collapse to ~1-2px actual height, so `PART_ShimRowsScroll`'s StackPanel
-reports `ExtentHeight == ViewportHeight` → no vertical scroll bar appears.
-This blocks frozen-columns vertical-scroll verification (item 2) and is a
-real visual gap for non-virtualized grids with many rows.
+Verified by `DataGridRowHeightTests`: RowHeight=50 → all 21 rows actual 50;
+MinRowHeight=100 over RowHeight=50 → rows 100; reset to NaN → content-sized
+again. DataGrid suite 66/66, RichTextBox 238/238, model tests 234/234 green.
 
 ---
 

@@ -99,6 +99,27 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 
     internal FrameworkElement? EditingElement { get; set; }
 
+    // Session 127: WPF semantics for DataGrid.RowHeight / MinRowHeight as
+    // applied to a cell. RowHeight NaN (default) leaves the cell auto-sized
+    // to its content; a concrete value becomes the cell's explicit Height
+    // (rows are uniformly this tall). MinRowHeight is a lower bound that
+    // still lets taller content win (MinHeight, not Height).
+    internal void ShimApplyRowHeight(double rowHeight, double minRowHeight)
+    {
+        if (double.IsNaN(rowHeight))
+        {
+            ClearValue(HeightProperty);
+        }
+        else
+        {
+            Height = rowHeight;
+        }
+
+        MinHeight = double.IsNaN(minRowHeight) || minRowHeight <= 0
+            ? 32
+            : System.Math.Max(32, minRowHeight);
+    }
+
     // Populate the cell's content from its column, binding against the row
     // item. The generated element (e.g. a bound TextBlock for a text column)
     // is built by upstream column code (DataGridTextColumn.GenerateElement etc.)
