@@ -424,6 +424,27 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task FrozenColumns_RealCellEditCommitsUnderHeaderPresenter()
+    {
+        // Item 12: the one untested combination — editing under the header
+        // presenter + cells presenter + virtualized rows, i.e. the full
+        // presenter-hosted stack (Roma's metadata-grid mode).
+        await _app.InvokeAsync("datagrid.probe.create-frozen-edit-grid", 1, 1);
+        var state = await _app.InvokeAsync("datagrid.probe.frozen-edit-readback", 1, 5);
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("trackedRowFound").GetBoolean(), $"tracked row should be found: {raw}");
+        Assert.True(state.GetProperty("gridIsAncestor").GetBoolean(),
+            $"the routed BeginEditCommand needs the cell's visual-tree ancestry to reach the owning DataGrid: {raw}");
+        Assert.False(state.GetProperty("editingCellIsReadOnly").GetBoolean(), $"editing column should not be read-only: {raw}");
+        Assert.True(state.GetProperty("beganEdit").GetBoolean(), $"BeginEdit should succeed on an editable, presenter-hosted cell: {raw}");
+        Assert.True(state.GetProperty("isEditingAfterBegin").GetBoolean(), $"cell should report IsEditing after BeginEdit: {raw}");
+        Assert.True(state.GetProperty("committed").GetBoolean(), $"CommitEdit should succeed: {raw}");
+        Assert.False(state.GetProperty("isEditingAfterCommit").GetBoolean(), $"cell should exit edit mode after commit: {raw}");
+        Assert.Equal("EDITED", state.GetProperty("committedValue").GetString());
+    }
+
+    [Fact]
     public async Task FrozenColumns_BoundaryResizeKeepsFrozenCellTracked()
     {
         await _app.InvokeAsync("datagrid.probe.create-frozen-edit-grid", 1);

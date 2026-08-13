@@ -1965,7 +1965,7 @@ public sealed partial class MainPage : Page
     }
 
     [DevFlowAction("datagrid.probe.create-frozen-edit-grid", Description = "Create a standalone, editable, 40-row DataGrid with FrozenColumnCount under the cells presenter.")]
-    public static string ProbeCreateFrozenEditGrid(int frozenColumnCount) => RunOnUi(page =>
+    public static string ProbeCreateFrozenEditGrid(int frozenColumnCount, int headerPresenter = 0) => RunOnUi(page =>
     {
         var grid = DataGridScenarios.BuildFrozenEditGrid();
         page._root.Children.Clear();
@@ -1979,6 +1979,18 @@ public sealed partial class MainPage : Page
 
         grid.ShimSetCellsPresenterHost(true);
         grid.FrozenColumnCount = frozenColumnCount;
+        if (headerPresenter != 0)
+        {
+            // Item 12 combination: header presenter needs the virtualized rows
+            // template (ShimBuildVirtualizedHeader gates on _shimUseRowsPresenter),
+            // so enable virtualization + header presenter + cells presenter together.
+            grid.ShimSetRowVirtualization(true);
+            grid.ShimSetHeaderPresenterHost(true);
+            if (FindDescendant<System.Windows.Controls.Primitives.DataGridRowsPresenter>(grid) is { } rowsPresenter)
+            {
+                rowsPresenter.ShimForceViewport(0, 400);
+            }
+        }
         grid.UpdateLayout();
         grid.UpdateLayout();
 

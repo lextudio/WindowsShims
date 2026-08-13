@@ -209,21 +209,24 @@ drag-reorder plumbing, floating drag header). Still opt-in because:
 
 ---
 
-## 12. Cell editing under the header-presenter path (untested)
+## 12. Cell editing under the header-presenter path — DONE (session 128)
 
-**Status:** narrower than previously recorded — cells-presenter editing is
-now tested; header-presenter combination is not.  
-**Source:** session121:1125-1127; corrected 2026-07-27 (verification pass
-found `FrozenColumns_RealCellEditCommits` in
-`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs:369-383` already
-exercises real `BeginEdit`/`CommitEdit` against a grid built with
-`ShimSetCellsPresenterHost(true)` — see `MainPage.cs:1811`).
+**Status:** covered by `FrozenColumns_RealCellEditCommitsUnderHeaderPresenter`
+(DataGridIntegrationTests.cs), which builds the grid with
+`ShimSetRowVirtualization(true)` + `ShimSetHeaderPresenterHost(true)` +
+`ShimSetCellsPresenterHost(true)` — the full presenter-hosted stack (Roma's
+metadata-grid mode) — then runs real BeginEdit/CommitEdit against a tracked
+row. Suite green (67/67 DataGrid, session 128).
 
-What remains actually untested is editing with `ShimSetHeaderPresenterHost`
-(item 11) also enabled — that combination has no coverage. Roma's read-only
-metadata grids are still the only real consumer of the presenter path in an
-app, so an editable data source under the *header*-presenter combination
-specifically is what's needed next.
+Root-cause found while wiring the combination: the virtualized
+`BuildShimVisualTree` branch (host is `DataGridRowsPresenter`) never called
+`ItemContainerGenerator.ResetContainers()`, so containers registered by an
+earlier manual pass (or a different virtualized window) lingered and
+`ContainerFromItem` resolved stale row instances — cells empty, edit no-op.
+Fixed by resetting the registry in that branch (DataGrid.cs).
+
+Remaining from the earlier recording: nothing — the only untested combination
+was header-presenter + editable source; that's now covered.
 
 ---
 

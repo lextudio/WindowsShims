@@ -334,6 +334,11 @@ public partial class DataGrid
         // filtered/sorted view and let the presenter re-realize the visible rows.
         if (host is Primitives.DataGridRowsPresenter)
         {
+            // Session 128: the manual branch below resets the generator registry before
+            // rebuilding; this branch must too, or containers registered by a previous
+            // manual pass (or an earlier virtualized pass that realized a different
+            // window) linger and ContainerFromItem resolves stale row instances.
+            ItemContainerGenerator.ResetContainers();
             InternalColumns.RefreshDisplayIndexMap();
             _visibleColumns = ColumnsInDisplayOrder().Where(c => c.IsVisible).ToList();
             ShimBuildVirtualizedHeader();
