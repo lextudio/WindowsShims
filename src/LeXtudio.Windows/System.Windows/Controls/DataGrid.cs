@@ -544,6 +544,42 @@ public partial class DataGrid
     // by the caller (they differ between the two paths).
     private bool _shimRowHeightHookRegistered;
 
+    // Session 130 (item 5, first slice): narrow CoerceValue activation, same
+    // pattern as DataGridColumnHeader (session 122) — hide the base no-op for
+    // this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
+    // everything else inert. Whitelist is deliberately tiny:
+    //   FrozenColumnCount  — pure clamp to Columns.Count on column add/remove
+    //                        (upstream DataGrid.cs:263 / :7639 call CoerceValue),
+    //                        no side effects on any shimmed behavior.
+    //   AlternationCount   — upstream DataGrid.cs:619 coerces to >= 2 when
+    //                        AlternatingRowBackground is set; pure value fix.
+    // Width/frozen/style callbacks stay dormant (todo.md item 5) — those
+    // interact with the shim's parallel width/selection logic.
+    //
+    // The callbacks are invoked directly rather than looked up via
+    // property.GetMetadata: OverrideMetadata is a project-wide no-op (WinUI has
+    // no per-type metadata), so AlternationCount's coercion was never registered.
+    internal new void CoerceValue(DependencyProperty property)
+    {
+        if (property == FrozenColumnCountProperty)
+        {
+            SetCoerced(property, OnCoerceFrozenColumnCount(this, GetValue(property)));
+        }
+        else if (property == AlternationCountProperty)
+        {
+            SetCoerced(property, OnCoerceAlternationCount(this, GetValue(property)));
+        }
+    }
+
+    private void SetCoerced(DependencyProperty property, object? coerced)
+    {
+        var current = GetValue(property);
+        if (!Equals(coerced, current))
+        {
+            SetValue(property, coerced);
+        }
+    }
+
     // Session 127: WPF's RowHeight/MinRowHeight changes flow through the
     // CellsPresenter notification chain (DataGrid.NotifyPropertyChanged →
     // row.NotifyPropertyChanged → CellsPresenter). The manual path has no

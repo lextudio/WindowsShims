@@ -118,19 +118,45 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** `CoerceValue` is a universal no-op project-wide, except on
-`DataGridColumnHeader`.  
-**Source:** session106:80-90, session121:1777-1788
-
-`DataGridColumnHeader` received a narrow `CoerceValue` implementation
-(session121). The ~25 other `CoerceValueCallback` registrations across linked
+**Status:** first slice done (session 130): `FrozenColumnCount` and
+`AlternationCount` now coerce on `DataGrid`; the ~25 other
+`CoerceValueCallback` registrations across linked
 DataGrid/DataGridColumn/DataGridCell/DataGridRow files are still dormant
 because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
-`FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.
+`FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.  
+**Source:** session106:80-90, session121:1777-1788; session130.md
 
-Recommended approach: smallest-blast-radius activation, one property at a
-time. The width/frozen coerce callbacks should stay dormant until the shim's
-parallel width logic is retired.
+Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
+on `DataGrid` (hiding the base no-op), same pattern as the session 121
+`DataGridColumnHeader` one, with a whitelist of exactly two properties:
+
+- `FrozenColumnCountProperty` — clamps to `Columns.Count` via
+  `OnCoerceFrozenColumnCount`, driven from the column-collection-changed path
+  (upstream DataGrid.cs:263) and first measure (7639). The probe sets the
+  count then adds a column to trigger the coercion path.
+- `AlternationCountProperty` — promotes to `>= 2` when `AlternatingRowBackground`
+  is set, via `OnCoerceAlternationCount` (upstream DataGrid.cs:619,
+  `NotifyPropertyChanged` branch).
+
+Gotchas found along the way:
+
+- The callbacks are invoked **directly** rather than looked up through
+  `property.GetMetadata(...)`: `OverrideMetadata` is a project-wide no-op
+  (WinUI has no per-type metadata), so the `AlternationCountProperty.OverrideMetadata(...)`
+  in upstream DataGrid.cs:54 never registered anything.
+- `ItemsControl.AlternationCount` in the shim was a plain auto-property with
+  no backing store — `CoerceValue` wrote the spine-registered DP, but the
+  getter returned 0. Rewired to read/write `AlternationCountProperty`.
+- Coercion triggers on collection-change/measure/notification paths, **not** on
+  plain `SetValue` — the test probe must exercise the upstream call site.
+
+Verified by `Coercion_FrozenColumnCountClampsToColumnCount` and
+`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`
+(DataGrid suite 69/69, session 130).
+
+Recommended approach for the remaining properties: smallest-blast-radius
+activation, one property at a time. The width/frozen coerce callbacks should
+stay dormant until the shim's parallel width logic is retired.
 
 ---
 

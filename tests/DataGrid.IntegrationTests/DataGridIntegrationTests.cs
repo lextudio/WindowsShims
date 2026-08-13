@@ -465,6 +465,34 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Coercion_FrozenColumnCountClampsToColumnCount()
+    {
+        // Item 5, first slice: CoerceValue(FrozenColumnCountProperty) must
+        // clamp to Columns.Count when the count exceeds the actual columns.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.set-frozen-column-count", 99);
+
+        var raw = state.ToString();
+        var columnCount = state.GetProperty("columnCount").GetInt32();
+        Assert.True(columnCount >= 1, $"grid should have columns: {raw}");
+        Assert.Equal(columnCount, state.GetProperty("frozenColumnCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet()
+    {
+        // Item 5, first slice: WPF coerces AlternationCount to at least 2 when
+        // AlternatingRowBackground is set (upstream NotifyPropertyChanged branch).
+        await _app.InvokeAsync("datagrid.probe.create-alternating-row-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.coercion-readback");
+
+        var raw = state.ToString();
+        Assert.NotEqual("null", state.GetProperty("alternatingRowBackground").GetString());
+        Assert.True(state.GetProperty("alternationCount").GetInt32() >= 2,
+            $"AlternationCount should be coerced to >= 2 with an alternating background: {raw}");
+    }
+
+    [Fact]
     public async Task ColumnWidths_AreReasonable()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

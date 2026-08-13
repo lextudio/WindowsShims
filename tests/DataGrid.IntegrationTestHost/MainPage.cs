@@ -902,6 +902,33 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":true,\"alternatingRowBackground\":{Js(BrushHex(grid.AlternatingRowBackground))}}}";
     });
 
+    // ─── Probe: coercion-readback ─────────────────────────────────────
+
+    [DevFlowAction("datagrid.probe.coercion-readback", Description = "Report FrozenColumnCount and AlternationCount coercion outcomes.")]
+    public static string ProbeCoercionReadback() => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        grid.UpdateLayout();
+        return $"{{\"hasGrid\":true,\"frozenColumnCount\":{grid.FrozenColumnCount},\"alternationCount\":{grid.AlternationCount},\"alternatingRowBackground\":{Js(BrushHex(grid.AlternatingRowBackground))},\"rowBackground\":{Js(BrushHex(grid.RowBackground))}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.set-frozen-column-count", Description = "Set FrozenColumnCount beyond the column count, then add a column to trigger coercion via the column-collection path.")]
+    public static string ProbeSetFrozenColumnCount(int count) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        grid.FrozenColumnCount = count;
+        // Coercion runs on the column-collection changed path (upstream
+        // DataGrid.cs:263) and on first measure (7639), not on plain set.
+        grid.Columns.Add(new WpfDataGridTextColumn
+        {
+            Header = "Coerce",
+            Binding = new WpfBinding("Value"),
+            Width = new System.Windows.Controls.DataGridLength(100),
+        });
+        grid.UpdateLayout();
+        return $"{{\"frozenColumnCount\":{grid.FrozenColumnCount},\"columnCount\":{grid.Columns.Count}}}";
+    });
+
     // ─── Probe: create-large-data-grid ───────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]

@@ -154,5 +154,12 @@ public partial class ItemsControl : Microsoft.UI.Xaml.Controls.ItemsControl
 
     // ── WPF-only stub properties not in WinUI ItemsControl ───────────────────
     public string? ItemStringFormat { get; set; }
-    public int AlternationCount { get; set; }
+
+    // Backed by the spine-registered DP so CoerceValue/SetValue take effect
+    // (session 130: AlternationCount is coerced to >= 2 when AlternatingRowBackground is set).
+    public int AlternationCount
+    {
+        get => (int)GetValue(AlternationCountProperty);
+        set => SetValue(AlternationCountProperty, value);
+    }
 }
