@@ -2088,9 +2088,13 @@ public sealed partial class MainPage : Page
 
         var lastFrozenColumn = grid.Columns[Math.Max(0, frozenColumnCount - 1)];
         var firstNonFrozenColumn = grid.Columns[Math.Min(grid.Columns.Count - 1, frozenColumnCount)];
+        var frozenWidthBefore = lastFrozenColumn.Width.Value;
+        var nonFrozenWidthBefore = firstNonFrozenColumn.Width.Value;
         var resizedFrozen = grid.ShimTryResizeColumn(lastFrozenColumn, 40.0);
         var resizedNonFrozen = grid.ShimTryResizeColumn(firstNonFrozenColumn, 40.0);
         grid.UpdateLayout();
+        var frozenWidthAfter = lastFrozenColumn.Width.Value;
+        var nonFrozenWidthAfter = firstNonFrozenColumn.Width.Value;
         var frozenCellAfterResize = FreshRow()?.TryGetCell(0);
         var (frozenXAfterResize, _) = ScreenPos(frozenCellAfterResize);
 
@@ -2099,7 +2103,7 @@ public sealed partial class MainPage : Page
                $"\"editingCellIsReadOnly\":{Jb(editingCellIsReadOnly ?? false)}," +
                $"\"beganEdit\":{Jb(beganEdit)},\"isEditingAfterBegin\":{Jb(isEditingAfterBegin)}," +
                $"\"committed\":{Jb(committed)},\"isEditingAfterCommit\":{Jb(isEditingAfterCommit)},\"committedValue\":{Js(committedValue)}," +
-               $"\"resizedFrozen\":{Jb(resizedFrozen)},\"resizedNonFrozen\":{Jb(resizedNonFrozen)},\"frozenXAfterResize\":{Jn(frozenXAfterResize)}}}";
+               $"\"resizedFrozen\":{Jb(resizedFrozen)},\"resizedNonFrozen\":{Jb(resizedNonFrozen)},\"frozenWidthBefore\":{Jn(frozenWidthBefore)},\"frozenWidthAfter\":{Jn(frozenWidthAfter)},\"nonFrozenWidthBefore\":{Jn(nonFrozenWidthBefore)},\"nonFrozenWidthAfter\":{Jn(nonFrozenWidthAfter)},\"frozenXAfterResize\":{Jn(frozenXAfterResize)}}}";
     });
 }
 #else

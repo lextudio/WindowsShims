@@ -230,15 +230,17 @@ was header-presenter + editable source; that's now covered.
 
 ---
 
-## 13. Column resize at frozen/non-frozen boundary
+## 13. Column resize at frozen/non-frozen boundary — DONE (session 129)
 
-**Status:** not specifically tested.  
+**Status:** specifically verified and strengthened.  
 **Source:** session121:1128-1132
 
-Slice 2 verified resize works under the cells presenter in general, but not
-specifically for a column at or near the frozen/non-frozen boundary while
-`FrozenColumnCount > 0` — a plausible edge case given the arrange math's
-boundary-cell clip logic.
+`FrozenColumns_BoundaryResizeKeepsFrozenCellTracked` already resized the last
+frozen + first non-frozen column with `FrozenColumnCount = 1`; session 129
+added width-change assertions (frozen/nonFrozen Width must actually grow, not
+just report accepted) plus width-before/after fields on the readback probe.
+Resize at the boundary works: both columns grow 220 → 260 and the frozen
+cell's screen X stays put (1px tolerance).
 
 ---
 

@@ -447,12 +447,20 @@ public sealed class DataGridIntegrationTests
     [Fact]
     public async Task FrozenColumns_BoundaryResizeKeepsFrozenCellTracked()
     {
+        // Item 13: resize at the frozen/non-frozen boundary with
+        // FrozenColumnCount > 0 — the arrange math's boundary-cell clip logic.
+        // Verifies both the resize is accepted AND the column width actually
+        // changed (not a silent no-op), while the frozen cell stays put.
         await _app.InvokeAsync("datagrid.probe.create-frozen-edit-grid", 1);
         var state = await _app.InvokeAsync("datagrid.probe.frozen-edit-readback", 1, 5);
 
         var raw = state.ToString();
         Assert.True(state.GetProperty("resizedFrozen").GetBoolean(), $"resizing the last frozen column should be accepted: {raw}");
         Assert.True(state.GetProperty("resizedNonFrozen").GetBoolean(), $"resizing the first non-frozen column should be accepted: {raw}");
+        Assert.True(state.GetProperty("frozenWidthAfter").GetDouble() > state.GetProperty("frozenWidthBefore").GetDouble(),
+            $"frozen column width should actually grow: {raw}");
+        Assert.True(state.GetProperty("nonFrozenWidthAfter").GetDouble() > state.GetProperty("nonFrozenWidthBefore").GetDouble(),
+            $"non-frozen column width should actually grow: {raw}");
         Assert.Equal(state.GetProperty("frozenX").GetDouble(), state.GetProperty("frozenXAfterResize").GetDouble(), 1.0);
     }
 
