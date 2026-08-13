@@ -1,14 +1,15 @@
-# Session 130 — Per-property coercion activation (item 5, slices 1-4)
+# Session 130 — Per-property coercion activation (item 5, slices 1-5)
 
-Date: 2026-08-12. DataGrid suite 72/72, RichTextBox 238/238, model tests 234/234.
+Date: 2026-08-12. DataGrid suite 73/73, RichTextBox 238/238, model tests 234/234.
 
 ## Goal
 
 todo.md item 5: `CoerceValue` is a universal no-op except on
 `DataGridColumnHeader`. Activate coercion with the smallest blast radius, one
-property at a time. Slices: `FrozenColumnCount`, `AlternationCount`,
-`IsSynchronizedWithCurrentItem`, `CanUserAddRows`, `CanUserDeleteRows`, and
-`VirtualizingPanel.IsVirtualizing` on `DataGrid` — all pure value fixes with no
+property at a time. Slices: on `DataGrid` — `FrozenColumnCount`,
+`AlternationCount`, `IsSynchronizedWithCurrentItem`, `CanUserAddRows`,
+`CanUserDeleteRows`, `VirtualizingPanel.IsVirtualizing`; on `DataGridRow` —
+`VirtualizingPanel.ShouldCacheContainerSize`. All pure value fixes with no
 interaction with the shim's parallel width/selection logic.
 
 ## Changes
@@ -29,6 +30,14 @@ no-op (same pattern as DataGridColumnHeader, session 121), whitelist of six:
 `ShimCoerceBaseValue` helper: capture the first (pre-coercion) base value per
 property — see Findings 4. `ShimIsVirtualizing` readback convenience for the
 WPF-only attached DP.
+
+### `src/LeXtudio.Windows/System.Windows/Controls/DataGridRow.cs`
+
+`internal new void CoerceValue(DependencyProperty property)` — one-property
+whitelist: `VirtualizingPanel.ShouldCacheContainerSizeProperty` →
+`OnCoerceShouldCacheContainerSize` (placeholder row → false). Triggered from
+`PrepareRow` (upstream DataGridRow.cs:444, implicit receiver — binds
+correctly, no submodule patch needed). `ShimShouldCacheContainerSize` readback.
 
 ### `ext/wpf` submodule — `DataGrid.cs` `OnIsReadOnlyChanged` / `OnIsEnabledChanged`
 
@@ -62,6 +71,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 - `datagrid.probe.set-enable-row-virtualization(bool)` — toggles
   `EnableRowVirtualization`; reports the coerced `VirtualizingPanel.IsVirtualizing`
   attached DP via `ShimIsVirtualizing`.
+- `datagrid.probe.should-cache-readback` — reads `ContainerFromIndex(0)` (data
+  row) and `ContainerFromIndex(Items.Count - 1)` (placeholder row); reports
+  IsNewItem and `ShimShouldCacheContainerSize` for both.
 
 ### Tests (`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs`)
 
@@ -78,6 +90,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 - `Coercion_RowVirtualizationMirrorsEnableRowVirtualization` — `create-grid`,
   then `set-enable-row-virtualization false` (expect IsVirtualizing false),
   then `true` (expect true).
+- `Coercion_PlaceholderRowDoesNotCacheContainerSize` — `create-grid` (20 data
+  rows + placeholder); data row: IsNewItem false, ShouldCache true;
+  placeholder row: IsNewItem true, ShouldCache false.
 
 ## Findings
 
@@ -96,6 +111,8 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
    `CoerceValue(IsSynchronizedWithCurrentItemProperty)`. `IsVirtualizing`
    likewise: `OnEnableRowVirtualizationChanged` calls
    `dataGrid.CoerceValue(VirtualizingPanel.IsVirtualizingProperty)` (:8180).
+   `ShouldCacheContainerSize` runs inside `PrepareRow` (implicit receiver,
+   binds to the `DataGridRow` override).
 3. **Explicit-receiver call sites with `DependencyObject d` bind to the base
    no-op.** Slices 1-2 worked because the call sites use an implicit receiver
    (inside `DataGrid` methods) or a `DataGrid`-typed local (`dataGrid.CoerceValue`).
@@ -120,15 +137,15 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 
 - `Coercion_*` tests: green (FrozenColumnCount failed → column-add trigger;
   AlternationCount failed → auto-property; CanUser* failed → explicit-receiver
-  binding fix + base-value capture; IsVirtualizing passed on first run).
-- Full DataGrid suite: 72/72 (67 + 5 new).
+  binding fix + base-value capture; IsVirtualizing and ShouldCache passed on
+  first run).
+- Full DataGrid suite: 73/73 (67 + 6 new).
 - RichTextBox 238/238, model tests 234/234: unchanged.
 
 ## Next
 
-Slice 5 options (todo item 5): `DataGridColumn.CanUserSort`/`CanUserReorder`/
-`CanUserResize` (DataGridHelper transfer-based, needs
-`GetCoercedTransferPropertyValue` to be meaningful in the shim), or
-`DataGridCell.Clip` / `DataGridRow.ShouldCacheContainerSize`. The
-`ItemContainerStyle`/`ItemContainerStyleSelector` and width/frozen callbacks
-stay dormant until the parallel logic is retired.
+Remaining dormant registrations are the `DataGridColumn` CanUser*/DisplayIndex/
+width/frozen set and `DataGridCell.Clip` — those interact with the shim's
+parallel width/frozen/transfer-property logic and should wait until that logic
+is retired (todo.md item 5 recommendation). The DataGrid/DataGridRow coercion
+activation is otherwise complete.

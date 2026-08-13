@@ -560,6 +560,31 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Coercion_PlaceholderRowDoesNotCacheContainerSize()
+    {
+        // Item 5, fifth slice: WPF coerces VirtualizingPanel.ShouldCacheContainerSize
+        // to false on the NewItemPlaceholder row (upstream PrepareRow calls
+        // CoerceValue at DataGridRow.cs:444; OnCoerceShouldCacheContainerSize :741).
+        // Data rows keep the default (true).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.should-cache-readback");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("dataRowFound").GetBoolean(),
+            $"data row should be realized: {raw}");
+        Assert.True(state.GetProperty("placeholderRowFound").GetBoolean(),
+            $"placeholder row should be realized: {raw}");
+        Assert.True((string)state.GetProperty("dataRowIsNewItem").GetString()! == "false",
+            $"data row must not be the new-item placeholder: {raw}");
+        Assert.True((string)state.GetProperty("dataShouldCache").GetString()! == "true",
+            $"data row should cache container size by default: {raw}");
+        Assert.True((string)state.GetProperty("placeholderIsNewItem").GetString()! == "true",
+            $"last row must be the new-item placeholder: {raw}");
+        Assert.True((string)state.GetProperty("placeholderShouldCache").GetString()! == "false",
+            $"placeholder row must not cache container size: {raw}");
+    }
+
+    [Fact]
     public async Task ColumnWidths_AreReasonable()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

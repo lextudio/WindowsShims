@@ -118,18 +118,21 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** slices 1-4 done (session 130): `FrozenColumnCount`,
-`AlternationCount`, `IsSynchronizedWithCurrentItem`, `CanUserAddRows`,
-`CanUserDeleteRows`, and `VirtualizingPanel.IsVirtualizing` now coerce on
-`DataGrid`; the ~19 other `CoerceValueCallback` registrations across linked
-DataGrid/DataGridColumn/DataGridCell/DataGridRow files are still dormant
-because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
-`FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.  
+**Status:** slices 1-5 done (session 130). Six properties on `DataGrid`
+(`FrozenColumnCount`, `AlternationCount`, `IsSynchronizedWithCurrentItem`,
+`CanUserAddRows`, `CanUserDeleteRows`, `VirtualizingPanel.IsVirtualizing`) and
+one on `DataGridRow` (`VirtualizingPanel.ShouldCacheContainerSize`) now
+coerce. The ~18 remaining `CoerceValueCallback` registrations across linked
+DataGrid/DataGridColumn/DataGridCell files are still dormant because the base
+`Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/`FrameworkElement.cs` all
+declare empty `CoerceValue(DependencyProperty dp) {}` — and per the
+recommendation below, the width/frozen/style ones *should* stay dormant until
+the shim's parallel width logic is retired.  
 **Source:** session106:80-90, session121:1777-1788; session130.md
 
 Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
 on `DataGrid` (hiding the base no-op), same pattern as the session 121
-`DataGridColumnHeader` one, with a whitelist of exactly six properties:
+`DataGridColumnHeader` one, plus a one-property version on `DataGridRow`:
 
 - `FrozenColumnCountProperty` — clamps to `Columns.Count` via
   `OnCoerceFrozenColumnCount`, driven from the column-collection-changed path
@@ -151,6 +154,10 @@ on `DataGrid` (hiding the base no-op), same pattern as the session 121
   (upstream DataGrid.cs:8193; triggered from `OnEnableRowVirtualizationChanged`
   :8180). The shim's virtualized tree path does not read this attached DP, so
   no interaction with the shim's row virtualization.
+- `VirtualizingPanel.ShouldCacheContainerSizeProperty` (DataGridRow) — coerced
+  to `false` on the `NewItemPlaceholder` row via
+  `OnCoerceShouldCacheContainerSize` (upstream DataGridRow.cs:444 PrepareRow
+  calls `CoerceValue`; callback at :741).
 
 Gotchas found along the way:
 
@@ -176,16 +183,19 @@ Gotchas found along the way:
   reuses it; `ReadLocalValue` only contributes if the user explicitly set the
   property before any coercion ran.
 
-Verified by `Coercion_FrozenColumnCountClampsToColumnCount`,
+Verified by six `Coercion_*` integration tests (DataGrid suite 73/73, session
+130): `Coercion_FrozenColumnCountClampsToColumnCount`,
 `Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`,
 `Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`,
-`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly`, and
-`Coercion_RowVirtualizationMirrorsEnableRowVirtualization` (DataGrid suite
-72/72, session 130).
+`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly`,
+`Coercion_RowVirtualizationMirrorsEnableRowVirtualization`, and
+`Coercion_PlaceholderRowDoesNotCacheContainerSize`.
 
-Recommended approach for the remaining properties: smallest-blast-radius
-activation, one property at a time. The width/frozen coerce callbacks should
-stay dormant until the shim's parallel width logic is retired.
+Remaining dormant registrations, in rough descending order of value: the
+`DataGridColumn` CanUser*/DisplayIndex/width/frozen set (transfer-property and
+width logic interactions — needs the parallel width logic retired first), and
+`DataGridCell.Clip` (frozen-clip geometry). Activate each with the same
+smallest-blast-radius recipe above.
 
 ---
 

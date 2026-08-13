@@ -969,6 +969,20 @@ public sealed partial class MainPage : Page
         return $"{{\"enableRowVirtualization\":{Js(grid.EnableRowVirtualization.ToString().ToLowerInvariant())},\"isVirtualizing\":{Js(grid.ShimIsVirtualizing.ToString().ToLowerInvariant())}}}";
     });
 
+    // ─── Probe: should-cache readback (session 130 slice 5) ──────────
+
+    [DevFlowAction("datagrid.probe.should-cache-readback", Description = "Report VirtualizingPanel.ShouldCacheContainerSize for the data and placeholder rows.")]
+    public static string ProbeShouldCacheReadback() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.UpdateLayout();
+
+        var dataRow = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        var placeholderRow = grid.ItemContainerGenerator.ContainerFromIndex(grid.Items.Count - 1) as System.Windows.Controls.DataGridRow;
+        return $"{{\"hasGrid\":true,\"dataRowFound\":{(dataRow is not null).ToString().ToLowerInvariant()},\"placeholderRowFound\":{(placeholderRow is not null).ToString().ToLowerInvariant()},\"dataRowIsNewItem\":{Js(dataRow?.IsNewItem.ToString().ToLowerInvariant() ?? "null")},\"dataShouldCache\":{Js(dataRow?.ShimShouldCacheContainerSize.ToString().ToLowerInvariant() ?? "null")},\"placeholderIsNewItem\":{Js(placeholderRow?.IsNewItem.ToString().ToLowerInvariant() ?? "null")},\"placeholderShouldCache\":{Js(placeholderRow?.ShimShouldCacheContainerSize.ToString().ToLowerInvariant() ?? "null")}}}";
+    });
+
     // ─── Probe: create-large-data-grid ───────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]

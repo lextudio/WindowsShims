@@ -23,6 +23,31 @@ public partial class DataGridRow : Control
         DependencyProperty.Register(nameof(DetailsVisibility), typeof(Visibility),
             typeof(DataGridRow), new PropertyMetadata(Visibility.Collapsed));
 
+    internal bool ShimShouldCacheContainerSize => (bool)GetValue(VirtualizingPanel.ShouldCacheContainerSizeProperty);
+
+    // Session 130 (item 5, slice 5): narrow CoerceValue activation, same
+    // pattern as DataGridColumnHeader (session 122) / DataGrid (session 130
+    // slices 1-4) — hide the base no-op for this one control, run ONLY the
+    // whitelisted CoerceValueCallback:
+    //   VirtualizingPanel.ShouldCacheContainerSize — coerced to false on the
+    //     NewItemPlaceholder row (upstream DataGridRow.cs:444 PrepareRow calls
+    //     CoerceValue; OnCoerceShouldCacheContainerSize :741), pure value fix,
+    //     no interaction with the shim's row-height/virtualization logic.
+    // The callback is invoked directly rather than via GetMetadata:
+    // OverrideMetadata is a project-wide no-op (see session 130 findings).
+    internal new void CoerceValue(DependencyProperty property)
+    {
+        if (property == VirtualizingPanel.ShouldCacheContainerSizeProperty)
+        {
+            var current = GetValue(property);
+            var coerced = OnCoerceShouldCacheContainerSize(this, current);
+            if (!Equals(coerced, current))
+            {
+                SetValue(property, coerced);
+            }
+        }
+    }
+
     // ── Local-only properties ─────────────────────────────────────────────────
 
     public Visibility DetailsVisibility
