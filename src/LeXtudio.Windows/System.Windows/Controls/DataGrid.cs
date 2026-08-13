@@ -544,9 +544,9 @@ public partial class DataGrid
     // by the caller (they differ between the two paths).
     private bool _shimRowHeightHookRegistered;
 
-    // Session 130 (item 5, first+second slice): narrow CoerceValue activation,
-    // same pattern as DataGridColumnHeader (session 122) — hide the base no-op
-    // for this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
+    // Session 130 (item 5, slices 1-3): narrow CoerceValue activation, same
+    // pattern as DataGridColumnHeader (session 122) — hide the base no-op for
+    // this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
     // everything else inert. Whitelist is deliberately tiny:
     //   FrozenColumnCount           — pure clamp to Columns.Count on column
     //                                 add/remove (upstream DataGrid.cs:263 /
@@ -559,6 +559,11 @@ public partial class DataGrid
     //                                 Cell (upstream DataGrid.cs:1061, triggered
     //                                 from OnSelectionUnitChanged :4587); pure
     //                                 value fix, no side effects.
+    //   CanUserAddRows/CanUserDeleteRows — coerced to false when the grid is
+    //                                 read-only or disabled (upstream
+    //                                 DataGrid.cs:3537 OnCoerceCanUserAddOrDeleteRows;
+    //                                 triggered from OnIsReadOnlyChanged :2861 /
+    //                                 OnIsEnabledChanged :5461); pure value fix.
     // Width/frozen/style callbacks stay dormant (todo.md item 5) — those
     // interact with the shim's parallel width/selection logic.
     //
@@ -579,7 +584,36 @@ public partial class DataGrid
         {
             SetCoerced(property, OnCoerceIsSynchronizedWithCurrentItem(this, GetValue(property)));
         }
+        else if (property == CanUserAddRowsProperty)
+        {
+            SetCoerced(property, OnCoerceCanUserAddRows(this, ShimCoerceBaseValue(property, true, ref _shimCanUserAddRowsBase)));
+        }
+        else if (property == CanUserDeleteRowsProperty)
+        {
+            SetCoerced(property, OnCoerceCanUserDeleteRows(this, ShimCoerceBaseValue(property, true, ref _shimCanUserDeleteRowsBase)));
+        }
     }
+
+    // WPF passes the property's base value (local value or default) into a
+    // CoerceValueCallback, not the previously-coerced value. The Uno bridge has
+    // no current-value layer distinct from local values (SetCoerced's SetValue
+    // overwrites the local value), so the first base value seen for each
+    // property is captured here and reused; ReadLocalValue only contributes
+    // when the user explicitly set the property (before any coercion wrote it).
+    private object ShimCoerceBaseValue(DependencyProperty property, object fallback, ref object? captured)
+    {
+        if (captured != null)
+        {
+            return captured;
+        }
+
+        var local = ReadLocalValue(property);
+        captured = local == Microsoft.UI.Xaml.DependencyProperty.UnsetValue ? fallback : local;
+        return captured;
+    }
+
+    private object? _shimCanUserAddRowsBase;
+    private object? _shimCanUserDeleteRowsBase;
 
     private void SetCoerced(DependencyProperty property, object? coerced)
     {

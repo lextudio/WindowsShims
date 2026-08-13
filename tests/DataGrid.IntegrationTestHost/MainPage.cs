@@ -947,6 +947,17 @@ public sealed partial class MainPage : Page
         return $"{{\"selectionUnit\":{Js(grid.SelectionUnit.ToString())},\"isSynchronizedWithCurrentItem\":{Js(grid.IsSynchronizedWithCurrentItem?.ToString().ToLowerInvariant() ?? "null")}}}";
     });
 
+    // ─── Probe: read-only coercion (session 130 slice 3) ─────────────
+
+    [DevFlowAction("datagrid.probe.set-read-only", Description = "Toggle IsReadOnly; WPF coerces CanUserAddRows/CanUserDeleteRows to false when read-only.")]
+    public static string ProbeSetReadOnly(bool readOnly) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        grid.IsReadOnly = readOnly;
+        grid.UpdateLayout();
+        return $"{{\"isReadOnly\":{Js(grid.IsReadOnly.ToString().ToLowerInvariant())},\"canUserAddRows\":{Js(grid.CanUserAddRows.ToString().ToLowerInvariant())},\"canUserDeleteRows\":{Js(grid.CanUserDeleteRows.ToString().ToLowerInvariant())}}}";
+    });
+
     // ─── Probe: create-large-data-grid ───────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]

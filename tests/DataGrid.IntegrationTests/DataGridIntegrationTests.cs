@@ -514,6 +514,31 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly()
+    {
+        // Item 5, third slice: WPF coerces CanUserAddRows/CanUserDeleteRows to
+        // false when the grid is read-only (upstream OnIsReadOnlyChanged calls
+        // CoerceValue for both at DataGrid.cs:2861-2862).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+
+        var readOnly = await _app.InvokeAsync("datagrid.probe.set-read-only", true);
+        var raw = readOnly.ToString();
+        Assert.True((string)readOnly.GetProperty("isReadOnly").GetString()! == "true",
+            $"grid should be read-only: {raw}");
+        Assert.True((string)readOnly.GetProperty("canUserAddRows").GetString()! == "false",
+            $"CanUserAddRows must be coerced off when read-only: {raw}");
+        Assert.True((string)readOnly.GetProperty("canUserDeleteRows").GetString()! == "false",
+            $"CanUserDeleteRows must be coerced off when read-only: {raw}");
+
+        var writable = await _app.InvokeAsync("datagrid.probe.set-read-only", false);
+        raw = writable.ToString();
+        Assert.True((string)writable.GetProperty("canUserAddRows").GetString()! == "true",
+            $"CanUserAddRows must be restored when writable: {raw}");
+        Assert.True((string)writable.GetProperty("canUserDeleteRows").GetString()! == "true",
+            $"CanUserDeleteRows must be restored when writable: {raw}");
+    }
+
+    [Fact]
     public async Task ColumnWidths_AreReasonable()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

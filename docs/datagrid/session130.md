@@ -1,27 +1,39 @@
-# Session 130 — Per-property coercion activation (item 5, slices 1-2)
+# Session 130 — Per-property coercion activation (item 5, slices 1-3)
 
-Date: 2026-08-12. DataGrid suite 70/70, RichTextBox 238/238, model tests 234/234.
+Date: 2026-08-12. DataGrid suite 71/71, RichTextBox 238/238, model tests 234/234.
 
 ## Goal
 
 todo.md item 5: `CoerceValue` is a universal no-op except on
 `DataGridColumnHeader`. Activate coercion with the smallest blast radius, one
-property at a time. Slices: `FrozenColumnCount`, `AlternationCount`, and
-`IsSynchronizedWithCurrentItem` on `DataGrid` — all pure value fixes with no
-interaction with the shim's parallel width/selection logic.
+property at a time. Slices: `FrozenColumnCount`, `AlternationCount`,
+`IsSynchronizedWithCurrentItem`, `CanUserAddRows`, and `CanUserDeleteRows` on
+`DataGrid` — all pure value fixes with no interaction with the shim's parallel
+width/selection logic.
 
 ## Changes
 
 ### `src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs`
 
 `internal new void CoerceValue(DependencyProperty property)` — hides the base
-no-op (same pattern as DataGridColumnHeader, session 121), whitelist of three:
+no-op (same pattern as DataGridColumnHeader, session 121), whitelist of five:
 
 - `FrozenColumnCountProperty` → `OnCoerceFrozenColumnCount`
 - `AlternationCountProperty` → `OnCoerceAlternationCount`
 - `IsSynchronizedWithCurrentItemProperty` → `OnCoerceIsSynchronizedWithCurrentItem`
+- `CanUserAddRowsProperty` → `OnCoerceCanUserAddRows`
+- `CanUserDeleteRowsProperty` → `OnCoerceCanUserDeleteRows`
 
 `SetCoerced` helper: run the callback, `SetValue` only when changed.
+`ShimCoerceBaseValue` helper: capture the first (pre-coercion) base value per
+property — see Findings 4.
+
+### `ext/wpf` submodule — `DataGrid.cs` `OnIsReadOnlyChanged` / `OnIsEnabledChanged`
+
+Both callers invoke `d.CoerceValue(CanUserAddRowsProperty)` /
+`d.CoerceValue(CanUserDeleteRowsProperty)` where `d` is statically typed
+`DependencyObject` — that binds to the base no-op, never the `DataGrid`
+override. Patched to `((DataGrid)d).CoerceValue(...)` (see Findings 3).
 
 ### `src/LeXtudio.Windows/System.Windows/Controls/ItemsControl.cs`
 
@@ -42,6 +54,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
   = true` then `SelectionUnit` (cell/cellorrownheader/fullrow). Cell unit must
   coerce the sync flag to false (upstream OnSelectionUnitChanged :4587 calls
   `CoerceValue`).
+- `datagrid.probe.set-read-only(bool)` — toggles `IsReadOnly`; reports
+  CanUserAddRows/CanUserDeleteRows. The `OnIsReadOnlyChanged` callback coerces
+  both (upstream :2861-2862).
 
 ### Tests (`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs`)
 
@@ -52,6 +67,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 - `Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit` —
   `create-grid`, then `set-selection-unit cell` (expect false) and
   `fullrow` (expect true).
+- `Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly` — `create-grid`, then
+  `set-read-only true` (expect both false), then `set-read-only false` (expect
+  both restored to true).
 
 ## Findings
 
@@ -68,23 +86,39 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
    `CoerceValue`. `IsSynchronizedWithCurrentItem` gets its trigger for free:
    setting `SelectionUnit` fires `OnSelectionUnitChanged`, which calls
    `CoerceValue(IsSynchronizedWithCurrentItemProperty)`.
-3. **Debugging trace** (`ShimCoerceCallCount` / `ShimCoerceAlternationTrace`)
+3. **Explicit-receiver call sites with `DependencyObject d` bind to the base
+   no-op.** Slices 1-2 worked because the call sites use an implicit receiver
+   (inside `DataGrid` methods) or a `DataGrid`-typed local (`dataGrid.CoerceValue`).
+   `OnIsReadOnlyChanged`/`OnIsEnabledChanged` pass `d` typed as
+   `DependencyObject`, so the `new` override is invisible to the binder.
+   Patched the two call sites in the `ext/wpf` submodule (its HAS_UNO history
+   already includes local patches). Pending: :930/:1045 (`ItemContainerStyle` /
+   `ItemContainerStyleSelector`) still use the un-cast form — dormant anyway.
+4. **Coercion base value must be pre-coercion.** `OnCoerceCanUserAddOrDeleteRows`
+   only validates when `baseValue` is true; after a first coercion `SetValue`
+   writes the coerced value into the local layer, so the next read-back sees
+   `false` and the restore direction never recovers. WPF distinguishes base
+   value from current value; Uno has no such layer. `ShimCoerceBaseValue`
+   captures the first value seen per property and reuses it (falling back to
+   `ReadLocalValue` only if the user set the property before any coercion ran).
+5. **Debugging trace** (`ShimCoerceCallCount` / `ShimCoerceAlternationTrace`)
    showed `CoerceValue` ran, the value was coerced to 2 in the DP, yet the
    readback said 0 — the `ItemsControl.AlternationCount` auto-property was the
    culprit, not the property system.
 
 ## Verification
 
-- `Coercion_*` tests: green (first FrozenColumnCount failed → column-add
-  trigger fixed it; then AlternationCount failed → auto-property fixed;
-  IsSynchronizedWithCurrentItem passed on first run).
-- Full DataGrid suite: 70/70 (67 + 3 new).
+- `Coercion_*` tests: green (FrozenColumnCount failed → column-add trigger;
+  AlternationCount failed → auto-property; CanUser* failed → explicit-receiver
+  binding fix + base-value capture).
+- Full DataGrid suite: 71/71 (67 + 4 new).
 - RichTextBox 238/238, model tests 234/234: unchanged.
 
 ## Next
 
-Slice 3 options (todo item 5): `DataGridColumn.Width`/`DisplayIndex`
-coercion, or the CanUser* family (`OnCoerceCanUserSortColumns`,
-`OnCoerceCanUserAddRows`/`DeleteRows`) — pick one that doesn't overlap
-the shim's parallel width logic. Remaining ~22 dormant registrations stay
-no-op until the parallel logic is retired.
+Slice 4 options (todo item 5): `DataGridColumn.CanUserSort`/`CanUserReorder`/
+`CanUserResize` (DataGridHelper transfer-based, needs
+`GetCoercedTransferPropertyValue` to be meaningful in the shim), or
+`DataGridCell.Clip` / `DataGridRow.ShouldCacheContainerSize`. The
+`ItemContainerStyle`/`ItemContainerStyleSelector` and width/frozen callbacks
+stay dormant until the parallel logic is retired.

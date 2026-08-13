@@ -118,9 +118,10 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** first+second slices done (session 130): `FrozenColumnCount`,
-`AlternationCount`, and `IsSynchronizedWithCurrentItem` now coerce on
-`DataGrid`; the ~25 other `CoerceValueCallback` registrations across linked
+**Status:** first+second+third slices done (session 130): `FrozenColumnCount`,
+`AlternationCount`, `IsSynchronizedWithCurrentItem`, `CanUserAddRows`, and
+`CanUserDeleteRows` now coerce on `DataGrid`; the ~20 other
+`CoerceValueCallback` registrations across linked
 DataGrid/DataGridColumn/DataGridCell/DataGridRow files are still dormant
 because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 `FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.  
@@ -128,7 +129,7 @@ because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 
 Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
 on `DataGrid` (hiding the base no-op), same pattern as the session 121
-`DataGridColumnHeader` one, with a whitelist of exactly three properties:
+`DataGridColumnHeader` one, with a whitelist of exactly five properties:
 
 - `FrozenColumnCountProperty` — clamps to `Columns.Count` via
   `OnCoerceFrozenColumnCount`, driven from the column-collection-changed path
@@ -141,6 +142,10 @@ on `DataGrid` (hiding the base no-op), same pattern as the session 121
   `SelectionUnit` is `Cell` via `OnCoerceIsSynchronizedWithCurrentItem`
   (upstream DataGrid.cs:1061; the trigger is `OnSelectionUnitChanged` calling
   `CoerceValue(IsSynchronizedWithCurrentItemProperty)` at :4587).
+- `CanUserAddRowsProperty` / `CanUserDeleteRowsProperty` — coerced to `false`
+  when the grid is read-only or disabled, via
+  `OnCoerceCanUserAddOrDeleteRows` (upstream DataGrid.cs:3537; triggered from
+  `OnIsReadOnlyChanged` :2861-2862 and `OnIsEnabledChanged` :5461-5462).
 
 Gotchas found along the way:
 
@@ -153,11 +158,24 @@ Gotchas found along the way:
   getter returned 0. Rewired to read/write `AlternationCountProperty`.
 - Coercion triggers on collection-change/measure/notification paths, **not** on
   plain `SetValue` — the test probe must exercise the upstream call site.
+- Callers that invoke `d.CoerceValue(...)` where `d` is statically typed
+  `DependencyObject` bind to the base no-op, not the `DataGrid` override. The
+  `OnIsReadOnlyChanged`/`OnIsEnabledChanged` call sites were patched in the
+  `ext/wpf` submodule to `((DataGrid)d).CoerceValue(...)` (verified: without
+  the cast the coerced value never appears). Pending follow-ups: :930/:1045
+  (`ItemContainerStyle`/`ItemContainerStyleSelector`) still use the un-cast
+  form but stay dormant anyway.
+- The base value fed to `OnCoerceCanUserAddOrDeleteRows` must be the
+  pre-coercion value. `SetCoerced` overwrites the local value, so the shim
+  captures the first base value per property (`ShimCoerceBaseValue`) and
+  reuses it; `ReadLocalValue` only contributes if the user explicitly set the
+  property before any coercion ran.
 
 Verified by `Coercion_FrozenColumnCountClampsToColumnCount`,
-`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`, and
-`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`
-(DataGrid suite 70/70, session 130).
+`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`,
+`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`, and
+`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly` (DataGrid suite 71/71,
+session 130).
 
 Recommended approach for the remaining properties: smallest-blast-radius
 activation, one property at a time. The width/frozen coerce callbacks should
