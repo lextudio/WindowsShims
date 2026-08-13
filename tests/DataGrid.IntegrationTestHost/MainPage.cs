@@ -485,6 +485,27 @@ public sealed partial class MainPage : Page
         return $"{{\"hasGrid\":true,\"selectionMode\":{Js(grid.SelectionMode.ToString())},\"selectionUnit\":{Js(grid.SelectionUnit.ToString())}}}";
     });
 
+    // ─── Probe: row header IsRowSelected coercion (session 130 slice 10) ──
+
+    [DevFlowAction("datagrid.probe.row-header-is-selected-readback", Description = "Select a row and report the row header's coerced IsRowSelected.")]
+    public static string ProbeRowHeaderIsSelectedReadback(bool select) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildSelectionGrid();
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.Width = 800;
+        grid.Height = 400;
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        grid.SelectedIndex = select ? 1 : -1;
+        grid.UpdateLayout();
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(1) as System.Windows.Controls.DataGridRow;
+        var header = row?.RowHeader as System.Windows.Controls.Primitives.DataGridRowHeader;
+        var headerParent = header is null ? null : Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(header);
+        return $"{{\"hasGrid\":true,\"rowFound\":{Jb(row is not null)},\"rowSelected\":{Jb(row?.IsSelected ?? false)},\"headerFound\":{Jb(header is not null)},\"headerParentType\":{Js(headerParent?.GetType().Name ?? "null")},\"headerIsRowSelected\":{Jb(header?.IsRowSelected ?? false)}}}";
+    });
+
     // Exercises DataGrid.HandleShimCellClicked(cell, modifiers) directly — the toggle-select-on-
     // click path a real Ctrl-click (Windows/Linux) or Cmd-click (macOS) drives — without needing
     // real OS-level modifier-key injection. args: [rowIndex1, colIndex1, useToggleModifier1,
@@ -969,10 +990,148 @@ public sealed partial class MainPage : Page
         return $"{{\"enableRowVirtualization\":{Js(grid.EnableRowVirtualization.ToString().ToLowerInvariant())},\"isVirtualizing\":{Js(grid.ShimIsVirtualizing.ToString().ToLowerInvariant())}}}";
     });
 
+    // ─── Probe: row-style coercion (session 130 slice 6) ─────────────
+
+    [DevFlowAction("datagrid.probe.set-row-style", Description = "Set RowStyle; WPF coerces ItemContainerStyle to RowStyle.")]
+    public static string ProbeSetRowStyle() => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        var style = new Microsoft.UI.Xaml.Style(typeof(System.Windows.Controls.DataGridRow));
+        style.Setters.Add(new Microsoft.UI.Xaml.Setter(System.Windows.Controls.Control.BackgroundProperty,
+            new SolidColorBrush(global::Windows.UI.Color.FromArgb(0xFF, 0xDD, 0xEE, 0xFF))));
+        grid.RowStyle = style;
+        grid.UpdateLayout();
+        var coerced = grid.ItemContainerStyle;
+        return $"{{\"hasGrid\":true,\"rowStyleSet\":{Jb(grid.RowStyle is not null)},\"itemContainerStyleIsRowStyle\":{Jb(ReferenceEquals(coerced, style))},\"itemContainerStyleNull\":{Js(coerced is null ? "true" : "false")}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.set-row-style-selector", Description = "Set RowStyleSelector; WPF coerces ItemContainerStyleSelector to it.")]
+    public static string ProbeSetRowStyleSelector() => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        var selector = new System.Windows.Controls.StyleSelector();
+        grid.RowStyleSelector = selector;
+        grid.UpdateLayout();
+        var coerced = grid.ItemContainerStyleSelector;
+        return $"{{\"hasGrid\":true,\"rowStyleSelectorSet\":{Jb(grid.RowStyleSelector is not null)},\"itemContainerStyleSelectorIsSet\":{Jb(coerced is not null)},\"itemContainerStyleSelectorSame\":{Jb(ReferenceEquals(coerced, selector))}}}";
+    });
+
+    // ─── Probe: placeholder visibility coercion (session 130 slice 7) ─
+
+    [DevFlowAction("datagrid.probe.set-can-user-add-rows", Description = "Toggle CanUserAddRows; WPF coerces the placeholder row's Visibility to the grid's PlaceholderVisibility.")]
+    public static string ProbeSetCanUserAddRows(bool allow) => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        grid.CanUserAddRows = allow;
+        grid.UpdateLayout();
+
+        System.Windows.Controls.DataGridRow? placeholderRow = null;
+        for (var i = grid.Items.Count; i >= 0; i--)
+        {
+            if (grid.ItemContainerGenerator.ContainerFromIndex(i) is System.Windows.Controls.DataGridRow { IsNewItem: true } row)
+            {
+                placeholderRow = row;
+                break;
+            }
+        }
+
+        var dataRow = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        return $"{{\"hasGrid\":true,\"canUserAddRows\":{Js(grid.CanUserAddRows.ToString().ToLowerInvariant())},\"placeholderRowFound\":{Jb(placeholderRow is not null)},\"placeholderVisibility\":{Js(placeholderRow?.Visibility.ToString() ?? "null")},\"placeholderIsNewItem\":{Js(placeholderRow?.IsNewItem.ToString().ToLowerInvariant() ?? "null")},\"dataRowVisibility\":{Js(dataRow?.Visibility.ToString() ?? "null")}}}";
+    });
+
+        // ─── Probe: column width/IsFrozen coercion (session 130 slice 8) ─
+
+    [DevFlowAction("datagrid.probe.set-column-width", Description = "Set a column's Width unit; reports coerced ActualWidth/MaxWidth.")]
+    public static string ProbeSetColumnWidth(int index, string unit) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        var column = grid.Columns.Cast<System.Windows.Controls.DataGridColumn>().ElementAt(index);
+        column.Width = unit switch
+        {
+            "auto" => System.Windows.Controls.DataGridLength.Auto,
+            "star" => new System.Windows.Controls.DataGridLength(1, System.Windows.Controls.DataGridLengthUnitType.Star),
+            "pixel" => new System.Windows.Controls.DataGridLength(50),
+            _ => throw new ArgumentException($"unknown width unit {unit}"),
+        };
+        grid.UpdateLayout();
+        return $"{{\"hasGrid\":true,\"widthUnit\":{Js(column.Width.UnitType.ToString())},\"actualWidth\":{Jn(column.ActualWidth)},\"maxWidth\":{Jn(column.MaxWidth)},\"minWidth\":{Jn(column.MinWidth)}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.set-min-width", Description = "Set a column's MinWidth before triggering ActualWidth coercion.")]
+    public static string ProbeSetMinWidth(int index, double minWidth) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        var column = grid.Columns.Cast<System.Windows.Controls.DataGridColumn>().ElementAt(index);
+        column.MinWidth = minWidth;
+        grid.UpdateLayout();
+        return $"{{\"hasGrid\":true,\"minWidth\":{Jn(column.MinWidth)},\"actualWidth\":{Jn(column.ActualWidth)},\"widthUnit\":{Js(column.Width.UnitType.ToString())}}}";
+    });
+
+    [DevFlowAction("datagrid.probe.is-frozen-readback", Description = "Report each column's coerced IsFrozen after a frozen-count change.")]
+    public static string ProbeIsFrozenReadback() => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        var frozen = string.Join(",", grid.Columns.Cast<System.Windows.Controls.DataGridColumn>()
+            .Select(c => c.IsFrozen ? "1" : "0"));
+        return $"{{\"hasGrid\":true,\"frozenColumnCount\":{grid.FrozenColumnCount},\"isFrozen\":\"{frozen}\",\"columnCount\":{grid.Columns.Count}}}";
+    });
+
+    // ─── Probe: cell clip coercion (session 130 slice 9) ─────────────
+
+    [DevFlowAction("datagrid.probe.clip-readback", Description = "Report the Clip geometry on a realized cell under a frozen boundary, optionally after a horizontal scroll offset.")]
+    public static string ProbeClipReadback(int frozenColumnCount, double scrollX = 0) => RunOnUi(page =>
+    {
+        var grid = DataGridScenarios.BuildFrozenEditGrid();
+        grid.Width = 800;
+        grid.Height = 400;
+        page._root.Children.Clear();
+        page._grid = grid;
+        page._root.Children.Add(grid);
+        grid.ApplyTemplate();
+        grid.UpdateLayout();
+        grid.ShimSetCellsPresenterHost(true);
+        grid.FrozenColumnCount = frozenColumnCount;
+        grid.UpdateLayout();
+        grid.SetValue(System.Windows.Controls.DataGrid.HorizontalScrollOffsetProperty, scrollX);
+        grid.UpdateLayout();
+        grid.UpdateLayout();
+
+        var row = grid.ItemContainerGenerator.ContainerFromIndex(0) as System.Windows.Controls.DataGridRow;
+        var cell = row?.TryGetCell(1);
+        var clip = cell?.Clip;
+        var clipRect = clip is Microsoft.UI.Xaml.Media.RectangleGeometry rg ? $"{rg.Rect.X:F1},{rg.Rect.Y:F1},{rg.Rect.Width:F1},{rg.Rect.Height:F1}" : "null";
+        return $"{{\"hasGrid\":true,\"rowFound\":{Jb(row is not null)},\"cellFound\":{Jb(cell is not null)},\"clipFound\":{Jb(clip is not null)},\"clipType\":{Js(clip?.GetType().Name ?? "null")},\"clipRect\":{Js(clipRect)},\"frozenColumnCount\":{grid.FrozenColumnCount},\"scrollX\":{Jn(scrollX)}}}";
+    });
+
+    // ─── Probe: template-column CanUserSort coercion (session 130 slice 8) ─
+
+    [DevFlowAction("datagrid.probe.template-can-user-sort", Description = "Create a template column grid, clear SortMemberPath; reports coerced CanUserSort.")]
+    public static string ProbeTemplateCanUserSort() => RunOnUi(page =>
+    {
+        EnsureGrid(page);
+        var grid = page._grid!;
+        var templateColumn = new System.Windows.Controls.DataGridTemplateColumn
+        {
+            Header = "Tpl",
+        };
+        grid.Columns.Add(templateColumn);
+        templateColumn.SortMemberPath = "Name";
+        grid.UpdateLayout();
+        var withPath = templateColumn.CanUserSort;
+        // The upstream trigger (OnTemplateColumnSortMemberPathChanged) is
+        // registered via OverrideMetadata, a project-wide no-op under the
+        // shim — invoke the coercion directly, mirroring the upstream
+        // callback's action.
+        templateColumn.SortMemberPath = string.Empty;
+        templateColumn.CoerceValue(System.Windows.Controls.DataGridColumn.CanUserSortProperty);
+        grid.UpdateLayout();
+        return $"{{\"hasGrid\":true,\"canUserSortWithPath\":{Js(withPath.ToString().ToLowerInvariant())},\"canUserSortWithoutPath\":{Js(templateColumn.CanUserSort.ToString().ToLowerInvariant())},\"sortMemberPath\":{Js(templateColumn.SortMemberPath ?? "null")}}}";
+    });
+
     // ─── Probe: should-cache readback (session 130 slice 5) ──────────
 
-    [DevFlowAction("datagrid.probe.should-cache-readback", Description = "Report VirtualizingPanel.ShouldCacheContainerSize for the data and placeholder rows.")]
-    public static string ProbeShouldCacheReadback() => RunOnUi(page =>
+    [DevFlowAction("datagrid.probe.should-cache-readback", Description = "Report VirtualizingPanel.ShouldCacheContainerSize for the data and placeholder rows.")]    public static string ProbeShouldCacheReadback() => RunOnUi(page =>
     {
         EnsureGrid(page);
         var grid = page._grid!;

@@ -33,7 +33,11 @@ public partial class DataGridRow : Control
     //     NewItemPlaceholder row (upstream DataGridRow.cs:444 PrepareRow calls
     //     CoerceValue; OnCoerceShouldCacheContainerSize :741), pure value fix,
     //     no interaction with the shim's row-height/virtualization logic.
-    // The callback is invoked directly rather than via GetMetadata:
+    //   Visibility — the NewItemPlaceholder row mirrors the grid's
+    //     PlaceholderVisibility (upstream DataGridRow.cs:982 PrepareRow /
+    //     DataGrid.cs:3877 OnCanUserAddRowsChanged both call CoerceValue;
+    //     OnCoerceVisibility :724). Pure value fix.
+    // The callbacks are invoked directly rather than via GetMetadata:
     // OverrideMetadata is a project-wide no-op (see session 130 findings).
     internal new void CoerceValue(DependencyProperty property)
     {
@@ -41,6 +45,15 @@ public partial class DataGridRow : Control
         {
             var current = GetValue(property);
             var coerced = OnCoerceShouldCacheContainerSize(this, current);
+            if (!Equals(coerced, current))
+            {
+                SetValue(property, coerced);
+            }
+        }
+        else if (property == VisibilityProperty)
+        {
+            var current = GetValue(property);
+            var coerced = OnCoerceVisibility(this, current);
             if (!Equals(coerced, current))
             {
                 SetValue(property, coerced);
@@ -240,6 +253,14 @@ public partial class DataGridRow : Control
             var row = (DataGridRow)sender;
             bool sel = row.IsSelected;
             row.RaiseEvent(new RoutedEventArgs(sel ? SelectedEvent : UnselectedEvent, row));
+            // Upstream OnIsSelectedChanged (:1062) also forwards the change to
+            // the row header (DataGridNotificationTarget.Rows | RowHeaders),
+            // which coerces its IsRowSelected mirror; AddOwner is a no-op shim
+            // so that notification never fires. Replicate it here.
+            if (row.RowHeader is System.Windows.Controls.Primitives.DataGridRowHeader header)
+            {
+                header.CoerceValue(System.Windows.Controls.Primitives.DataGridRowHeader.IsRowSelectedProperty);
+            }
         });
         RegisterPropertyChangedCallback(IsEditingProperty, (_, __) => RefreshRowHeaderGlyph());
         PointerEntered += (_, _) =>

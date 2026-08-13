@@ -603,6 +603,19 @@ public partial class DataGrid
         {
             SetCoerced(property, OnCoerceIsVirtualizingProperty(this, GetValue(property)));
         }
+        // Session 130 slice 6 (item 5): ItemContainerStyle/ItemContainerStyleSelector —
+        // when RowStyle/RowStyleSelector is explicitly set, it wins over the
+        // ItemsControl-level style (upstream OnCoerceItemContainerStyle
+        // DataGrid.cs:936, OnCoerceItemContainerStyleSelector :1054; triggered from
+        // OnRowStyleChanged :928 / OnRowStyleSelectorChanged :1046). Pure value fix.
+        else if (property == ItemContainerStyleProperty)
+        {
+            SetCoerced(property, OnCoerceItemContainerStyle(this, GetValue(property)));
+        }
+        else if (property == ItemContainerStyleSelectorProperty)
+        {
+            SetCoerced(property, OnCoerceItemContainerStyleSelector(this, GetValue(property)));
+        }
     }
 
     // WPF passes the property's base value (local value or default) into a

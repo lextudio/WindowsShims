@@ -164,8 +164,12 @@ public sealed class DataGridIntegrationTests
     [Fact]
     public async Task ColumnResize_ChangesWidth()
     {
+        // Session 130 slice 8: OnCoerceActualWidth now forces pixel columns to
+        // their Width.DisplayValue, so the first column's ActualWidth is 50
+        // (its declared pixel width) rather than the shim's old estimated
+        // width. Resize to a larger width than the default.
         await _app.InvokeAsync("datagrid.probe.create-grid");
-        var state = await _app.InvokeAsync("datagrid.probe.resize-column", 0, 40.0);
+        var state = await _app.InvokeAsync("datagrid.probe.resize-column", 0, 100.0);
 
         var raw = state.ToString();
         Assert.False(state.TryGetProperty("error", out _), $"resize failed: {raw}");
@@ -219,8 +223,10 @@ public sealed class DataGridIntegrationTests
     [Fact]
     public async Task HeaderGripperDrag_ChangesWidth()
     {
+        // See ColumnResize_ChangesWidth: resize to a larger width than the
+        // coerced default.
         await _app.InvokeAsync("datagrid.probe.create-grid");
-        var state = await _app.InvokeAsync("datagrid.probe.gripper-resize-column", 0, 40.0);
+        var state = await _app.InvokeAsync("datagrid.probe.gripper-resize-column", 0, 100.0);
 
         var raw = state.ToString();
         Assert.False(state.TryGetProperty("error", out _), $"gripper resize failed: {raw}");
@@ -582,6 +588,214 @@ public sealed class DataGridIntegrationTests
             $"last row must be the new-item placeholder: {raw}");
         Assert.True((string)state.GetProperty("placeholderShouldCache").GetString()! == "false",
             $"placeholder row must not cache container size: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_PlaceholderRowVisibilityMirrorsCanUserAddRows()
+    {
+        // Item 5, seventh slice: WPF coerces the NewItemPlaceholder row's
+        // Visibility to the grid's PlaceholderVisibility (upstream
+        // OnCoerceVisibility DataGridRow.cs:724; triggers: PrepareRow :982 and
+        // OnCanUserAddRowsChanged → UpdateNewItemPlaceholder → :3877, whose
+        // receiver is typed DataGridRow, so it binds to the DataGridRow
+        // override — no submodule patch needed). When rows cannot be added the
+        // placeholder is removed from the collection entirely (upstream
+        // UpdateNewItemPlaceholder sets NewItemPlaceholderPosition to None).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var initial = await _app.InvokeAsync("datagrid.probe.set-can-user-add-rows", true);
+
+        var raw = initial.ToString();
+        Assert.True(initial.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True((string)initial.GetProperty("canUserAddRows").GetString()! == "true",
+            $"CanUserAddRows should be true: {raw}");
+        Assert.True(initial.GetProperty("placeholderRowFound").GetBoolean(),
+            $"placeholder row should exist when rows can be added: {raw}");
+        Assert.True((string)initial.GetProperty("placeholderVisibility").GetString()! == "Visible",
+            $"placeholder must be visible when rows can be added: {raw}");
+        Assert.True((string)initial.GetProperty("placeholderIsNewItem").GetString()! == "true",
+            $"placeholder row must be the new-item placeholder: {raw}");
+        Assert.True((string)initial.GetProperty("dataRowVisibility").GetString()! != "Collapsed",
+            $"data row must stay visible: {raw}");
+
+        var hidden = await _app.InvokeAsync("datagrid.probe.set-can-user-add-rows", false);
+        raw = hidden.ToString();
+        Assert.True((string)hidden.GetProperty("canUserAddRows").GetString()! == "false",
+            $"CanUserAddRows should be false: {raw}");
+        Assert.False(hidden.GetProperty("placeholderRowFound").GetBoolean(),
+            $"placeholder must be removed when rows cannot be added: {raw}");
+
+        var shown = await _app.InvokeAsync("datagrid.probe.set-can-user-add-rows", true);
+        raw = shown.ToString();
+        Assert.True((string)shown.GetProperty("canUserAddRows").GetString()! == "true",
+            $"CanUserAddRows should be true again: {raw}");
+        Assert.True(shown.GetProperty("placeholderRowFound").GetBoolean(),
+            $"placeholder must come back when rows can be added: {raw}");
+        Assert.True((string)shown.GetProperty("placeholderVisibility").GetString()! == "Visible",
+            $"placeholder must be visible after re-enabling: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_RowHeaderIsRowSelectedMirrorsRowSelection()
+    {
+        // Item 5, tenth slice: DataGridRowHeader.IsRowSelected is coerced to
+        // the owning row's IsSelected (upstream OnCoerceIsRowSelected
+        // DataGridRowHeader.cs:537; triggers: SyncProperties :239 and
+        // NotifyPropertyChanged :284 when the row's IsSelected changes). The
+        // header reads selection purely as a mirror of its row — the shim's
+        // own selection/visual-state logic keys off the row itself.
+        await _app.InvokeAsync("datagrid.probe.create-selection-grid");
+        var selected = await _app.InvokeAsync("datagrid.probe.row-header-is-selected-readback", true);
+
+        var raw = selected.ToString();
+        Assert.True(selected.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(selected.GetProperty("rowFound").GetBoolean(), $"row 1 should be realized: {raw}");
+        Assert.True(selected.GetProperty("rowSelected").GetBoolean(), $"row 1 should be selected: {raw}");
+        Assert.True(selected.GetProperty("headerFound").GetBoolean(), $"row header should exist: {raw}");
+        Assert.True(selected.GetProperty("headerIsRowSelected").GetBoolean(),
+            $"row header must coerce IsRowSelected to true when the row is selected: {raw}");
+
+        var cleared = await _app.InvokeAsync("datagrid.probe.row-header-is-selected-readback", false);
+        raw = cleared.ToString();
+        Assert.False(cleared.GetProperty("rowSelected").GetBoolean(), $"row 1 should be deselected: {raw}");
+        Assert.False(cleared.GetProperty("headerIsRowSelected").GetBoolean(),
+            $"row header must coerce IsRowSelected to false when the row is deselected: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_MaxWidthCappedOnStarColumn()    {
+        // Item 5, eighth slice: DataGridColumn.MaxWidth is coerced when the
+        // Width's IsStar changes (upstream OnWidthPropertyChanged :245 →
+        // OnCoerceMaxWidth :432, which caps star columns at _starMaxWidth).
+        // Before slice 8 the shim's DataGridColumn.CoerceValue was a no-op
+        // stub, so MaxWidth stayed double.PositiveInfinity.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var star = await _app.InvokeAsync("datagrid.probe.set-column-width", 0, "star");
+
+        var raw = star.ToString();
+        Assert.True(star.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True((string)star.GetProperty("widthUnit").GetString()! == "Star",
+            $"width unit should be Star: {raw}");
+        Assert.True(star.GetProperty("maxWidth").GetDouble() == 10000,
+            $"MaxWidth must be capped to 10000 on a star column: {raw}");
+
+        var pixel = await _app.InvokeAsync("datagrid.probe.set-column-width", 0, "pixel");
+        raw = pixel.ToString();
+        Assert.True((string)pixel.GetProperty("widthUnit").GetString()! == "Pixel",
+            $"width unit should be Pixel: {raw}");
+        Assert.True((string)pixel.GetProperty("maxWidth").GetString()! == "Infinity",
+            $"MaxWidth must return to infinity on a non-star column: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_ActualWidthClampedByMinWidth()
+    {
+        // Item 5, eighth slice: DataGridColumn.ActualWidth is coerced from the
+        // auto-size path (upstream OnWidthPropertyChanged :238
+        // _processingWidthChange branch → OnCoerceActualWidth :484, which
+        // clamps to MinWidth). Set MinWidth 200, switch to auto sizing, and
+        // the coerced ActualWidth must respect the floor.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var clamped = await _app.InvokeAsync("datagrid.probe.set-min-width", 0, 200.0);
+
+        var raw = clamped.ToString();
+        Assert.True(clamped.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(clamped.GetProperty("minWidth").GetDouble() == 200.0,
+            $"MinWidth should be 200: {raw}");
+
+        var auto = await _app.InvokeAsync("datagrid.probe.set-column-width", 0, "auto");
+        raw = auto.ToString();
+        // The shim's parallel auto-size logic resolves Auto to a pixel width
+        // (ShimTryAutoSizeColumn), so the unit is Pixel again — the coercion
+        // assertion is on the clamped ActualWidth floor.
+        Assert.True(auto.GetProperty("actualWidth").GetDouble() >= 200.0,
+            $"ActualWidth must be clamped to >= MinWidth 200: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_IsFrozenFollowsFrozenColumnCount()
+    {
+        // Item 5, eighth slice: DataGridColumn.IsFrozen is coerced on column
+        // insert (upstream DataGridColumnCollection.InsertItem :58 → OnCoerceIsFrozen
+        // :1274). With FrozenColumnCount 2, the first two columns must coerce
+        // to frozen; the rest stay unfrozen.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.set-frozen-column-count", 2);
+        var frozen = await _app.InvokeAsync("datagrid.probe.is-frozen-readback");
+
+        var raw = frozen.ToString();
+        Assert.True(frozen.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(frozen.GetProperty("frozenColumnCount").GetInt32() == 2,
+            $"frozen count should be 2: {raw}");
+        Assert.True(frozen.GetProperty("columnCount").GetInt32() >= 3,
+            $"grid should have at least 3 columns: {raw}");
+        var bits = (string)frozen.GetProperty("isFrozen").GetString()!;
+        var flags = bits.Split(',').Select(b => b == "1").ToArray();
+        Assert.True(flags[0] && flags[1],
+            $"first two columns must be frozen: {raw}");
+        Assert.False(flags[3],
+            $"fourth column must not be frozen: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_TemplateColumnCanUserSortForcedOffWithoutSortMemberPath()
+    {
+        // Item 5, eighth slice: DataGridTemplateColumn.CanUserSort is coerced
+        // to false when SortMemberPath is empty (upstream
+        // OnCoerceTemplateColumnCanUserSort DataGridTemplateColumn.cs:37). The
+        // upstream trigger is registered via OverrideMetadata (a project-wide
+        // no-op under the shim), so the probe invokes the coercion directly.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.template-can-user-sort");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True((string)state.GetProperty("canUserSortWithPath").GetString()! == "true",
+            $"template column with SortMemberPath should be sortable: {raw}");
+        Assert.True((string)state.GetProperty("canUserSortWithoutPath").GetString()! == "false",
+            $"template column without SortMemberPath must not be sortable: {raw}");
+        Assert.True((string)state.GetProperty("sortMemberPath").GetString()! == "",
+            $"SortMemberPath should be cleared: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_RowStyleDrivesItemContainerStyle()
+    {
+        // Item 5, sixth slice: WPF coerces ItemContainerStyle to RowStyle when
+        // RowStyle is set (upstream OnCoerceItemContainerStyle DataGrid.cs:936,
+        // triggered from OnRowStyleChanged :928). The call site passes `d`
+        // statically typed as DependencyObject, so the shim patched it to
+        // ((DataGrid)d).CoerceValue(...) — without the cast the coercion never
+        // runs and ItemContainerStyle stays null.
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.set-row-style");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(state.GetProperty("rowStyleSet").GetBoolean(),
+            $"RowStyle should be set: {raw}");
+        Assert.True(state.GetProperty("itemContainerStyleIsRowStyle").GetBoolean(),
+            $"ItemContainerStyle must coerce to the RowStyle instance: {raw}");
+        Assert.True((string)state.GetProperty("itemContainerStyleNull").GetString()! == "false",
+            $"ItemContainerStyle must not be null: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_RowStyleSelectorDrivesItemContainerStyleSelector()
+    {
+        // Item 5, sixth slice: same coercion family as RowStyle, via
+        // OnCoerceItemContainerStyleSelector (upstream DataGrid.cs:1054,
+        // triggered from OnRowStyleSelectorChanged :1046).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+        var state = await _app.InvokeAsync("datagrid.probe.set-row-style-selector");
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(state.GetProperty("rowStyleSelectorSet").GetBoolean(),
+            $"RowStyleSelector should be set: {raw}");
+        Assert.True(state.GetProperty("itemContainerStyleSelectorIsSet").GetBoolean(),
+            $"ItemContainerStyleSelector must be coerced to a value: {raw}");
+        Assert.True(state.GetProperty("itemContainerStyleSelectorSame").GetBoolean(),
+            $"ItemContainerStyleSelector must coerce to the RowStyleSelector instance: {raw}");
     }
 
     [Fact]
@@ -1203,5 +1417,52 @@ public sealed class DataGridIntegrationTests
         {
             Assert.True(w > 20, $"column [{i}] width {w} should be > 20px: {raw}");
         }
+    }
+
+    [Fact]
+    public async Task Coercion_CellClipCoercedForFrozenColumn()
+    {
+        // Item 5, ninth slice: DataGridCell.Clip is coerced via OnCoerceClip
+        // (upstream DataGridCell.cs:1054) — the frozen-column clip geometry is
+        // intersected when the cell sits under a DataGridCellsPanel. Triggers:
+        // PrepareCell :136 (implicit receiver — now bound to the DataGridCell
+        // CoerceValue override) and DataGridCellsPanel.FinishArrange
+        // :1301/:1305 (UIElement-typed receivers, patched to cast to
+        // DataGridCell). With one frozen column the first cell must end up
+        // clipped; the probe builds the grid itself so this works standalone.
+        // The clip appears on the first non-frozen cell once the viewport is
+        // scrolled horizontally so its left edge slips under the frozen column
+        // (upstream DataGridCellsPanel.ArrangeChild :1518), so the probe drives
+        // the DataGrid's own HorizontalScrollOffset property.
+        var state = await _app.InvokeAsync("datagrid.probe.clip-readback", 1, 60);
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(state.GetProperty("rowFound").GetBoolean(), $"row 0 should be realized: {raw}");
+        Assert.True(state.GetProperty("cellFound").GetBoolean(), $"cell (0,1) should be realized: {raw}");
+        Assert.True(state.GetProperty("clipFound").GetBoolean(),
+            $"cell clip must be coerced under a frozen boundary: {raw}");
+        Assert.True((string)state.GetProperty("clipType").GetString()! == "RectangleGeometry",
+            $"clip should be a RectangleGeometry: {raw}");
+        var rect = (string)state.GetProperty("clipRect").GetString()!;
+        Assert.True(rect.StartsWith("60.0,") && rect.Split(',').Length == 4,
+            $"clip rect should start at the scroll offset: {raw}");
+    }
+
+    [Fact]
+    public async Task Coercion_CellClipAbsentWithoutFrozenColumns()
+    {
+        // Same coercion trigger, no frozen columns and no scrolling: the
+        // viewport starts at the first cell, GetFrozenClipForCell
+        // (DataGridHelper.cs:297) returns null, so OnCoerceClip must leave the
+        // clip null — proving the activation is a no-op outside the frozen
+        // boundary rather than clobbering cells with stray geometry.
+        var state = await _app.InvokeAsync("datagrid.probe.clip-readback", 0, 0);
+
+        var raw = state.ToString();
+        Assert.True(state.GetProperty("hasGrid").GetBoolean(), $"DataGrid should render: {raw}");
+        Assert.True(state.GetProperty("cellFound").GetBoolean(), $"cell (0,1) should be realized: {raw}");
+        Assert.False(state.GetProperty("clipFound").GetBoolean(),
+            $"cell clip must stay null without a frozen boundary: {raw}");
     }
 }

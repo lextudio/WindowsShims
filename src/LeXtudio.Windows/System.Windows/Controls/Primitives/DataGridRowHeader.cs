@@ -8,6 +8,34 @@ public partial class DataGridRowHeader
 {
     public bool HasShimGridLine { get; private set; }
 
+    // Session 130 slice 10 (item 5): narrow CoerceValue activation, same
+    // pattern as DataGridCell — hide the base no-op for this one control, run
+    // ONLY the whitelisted CoerceValueCallback:
+    //   IsRowSelected — OnCoerceIsRowSelected mirrors the owning row's
+    //     IsSelected (upstream DataGridRowHeader.cs:537; triggers: SyncProperties
+    //     :239 when the parent row is attached, and NotifyPropertyChanged :284
+    //     when the row's IsSelected changes). Reading the row's selection is a
+    //     pure mirror — no interaction with the shim's selection/visual-state
+    //     logic, which already keys off the row itself.
+    // The callback is invoked directly rather than via GetMetadata:
+    // OverrideMetadata is a project-wide no-op (see session 130 findings).
+    internal new void CoerceValue(DependencyProperty property)
+    {
+        if (property == IsRowSelectedProperty)
+        {
+            var current = GetValue(property);
+            // Upstream OnCoerceIsRowSelected walks the TemplatedParent chain
+            // (DataGridHelper.FindParent), which the shim's manually-placed
+            // header doesn't reliably provide; EffectiveRow is the shim's
+            // ParentRow equivalent (visual parent with explicit owner fallback).
+            var coerced = EffectiveRow is { } row ? row.IsSelected : current;
+            if (!Equals(coerced, current))
+            {
+                SetValue(IsRowSelectedPropertyKey.DependencyProperty, coerced);
+            }
+        }
+    }
+
     // The upstream ParentRow walks the visual tree, which may not yet resolve to
     // the owning DataGridRow when the header is built or when grid-line/content
     // notifications fire. DataGridRow records itself here as a reliable fallback.

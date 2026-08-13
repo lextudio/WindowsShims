@@ -6,6 +6,31 @@ public partial class DataGridCell : ContentControl, IProvideDataGridColumn
 {
     internal ContainerTracking<DataGridCell> Tracker => _tracker;
 
+    // Session 130 slice 9 (item 5): narrow CoerceValue activation, same pattern
+    // as DataGrid/DataGridRow/DataGridColumnHeader — hide the base no-op for
+    // this one control, run ONLY the whitelisted CoerceValueCallback:
+    //   Clip — OnCoerceClip intersects the frozen-column clip geometry
+    //     (upstream DataGridCell.cs:1054; triggers: PrepareCell :136 implicit
+    //     receiver, and DataGridCellsPanel.FinishArrange :1301/:1305 whose
+    //     UIElement-typed receivers were cast to DataGridCell). When the cell
+    //     has no DataGridCellsPanel parent, GetFrozenClipForCell returns null
+    //     and the coercion is a no-op — pure geometry, no interaction with the
+    //     shim's width/selection logic.
+    // The callback is invoked directly rather than via GetMetadata:
+    // OverrideMetadata is a project-wide no-op (see session 130 findings).
+    internal new void CoerceValue(DependencyProperty property)
+    {
+        if (property == ClipProperty)
+        {
+            var current = GetValue(property);
+            var coerced = OnCoerceClip(this, current);
+            if (!Equals(coerced, current))
+            {
+                SetValue(property, coerced);
+            }
+        }
+    }
+
     // ── Local-only properties ─────────────────────────────────────────────────
 
     // Shim IsReadOnly as a plain settable DP so that upstream code can reference

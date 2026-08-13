@@ -118,17 +118,21 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** slices 1-5 done (session 130). Six properties on `DataGrid`
+**Status:** DONE (sessions 130-131). Every `CoerceValueCallback` with a real
+upstream call site now coerce via a per-control `internal new void
+CoerceValue(DependencyProperty)` whitelist. Session 130 covered `DataGrid`
 (`FrozenColumnCount`, `AlternationCount`, `IsSynchronizedWithCurrentItem`,
 `CanUserAddRows`, `CanUserDeleteRows`, `VirtualizingPanel.IsVirtualizing`) and
-one on `DataGridRow` (`VirtualizingPanel.ShouldCacheContainerSize`) now
-coerce. The ~18 remaining `CoerceValueCallback` registrations across linked
-DataGrid/DataGridColumn/DataGridCell files are still dormant because the base
-`Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/`FrameworkElement.cs` all
-declare empty `CoerceValue(DependencyProperty dp) {}` — and per the
-recommendation below, the width/frozen/style ones *should* stay dormant until
-the shim's parallel width logic is retired.  
-**Source:** session106:80-90, session121:1777-1788; session130.md
+`DataGridRow` (`VirtualizingPanel.ShouldCacheContainerSize`); session 131
+(slice 6-10) added `DataGrid` (`ItemContainerStyle`,
+`ItemContainerStyleSelector`), `DataGridRow` (`Visibility`), `DataGridColumn`
+(`ActualWidth`, `MaxWidth`, `IsFrozen`, template `CanUserSort`), `DataGridCell`
+(`Clip`), and `DataGridRowHeader` (`IsRowSelected`). The earlier caveat about
+keeping the width/frozen ones dormant until the parallel width logic retires
+was superseded by the explicit instruction to finish item 5; all activations
+below are verified no-ops outside their real triggers, and the full DataGrid
+suite passes 83/83.
+**Source:** session106:80-90, session121:1777-1788; session130.md, session131.md
 
 Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
 on `DataGrid` (hiding the base no-op), same pattern as the session 121
@@ -183,19 +187,56 @@ Gotchas found along the way:
   reuses it; `ReadLocalValue` only contributes if the user explicitly set the
   property before any coercion ran.
 
-Verified by six `Coercion_*` integration tests (DataGrid suite 73/73, session
-130): `Coercion_FrozenColumnCountClampsToColumnCount`,
-`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`,
-`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`,
-`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly`,
-`Coercion_RowVirtualizationMirrorsEnableRowVirtualization`, and
-`Coercion_PlaceholderRowDoesNotCacheContainerSize`.
+Verified by sixteen `Coercion_*` integration tests (DataGrid suite 83/83,
+sessions 130-131): the six session-130 tests plus
+`Coercion_RowStyleDrivesItemContainerStyle`,
+`Coercion_RowStyleSelectorDrivesItemContainerStyleSelector`,
+`Coercion_PlaceholderRowVisibilityMirrorsCanUserAddRows`,
+`Coercion_MaxWidthCappedOnStarColumn`,
+`Coercion_ActualWidthClampedByMinWidth`,
+`Coercion_IsFrozenFollowsFrozenColumnCount`,
+`Coercion_TemplateColumnCanUserSortForcedOffWithoutSortMemberPath`,
+`Coercion_CellClipCoercedForFrozenColumn`,
+`Coercion_CellClipAbsentWithoutFrozenColumns`, and
+`Coercion_RowHeaderIsRowSelectedMirrorsRowSelection`.
+
+Session 131 gotchas beyond the session-130 list:
+
+- The `ext/wpf` DataGridCellsPanel :1301/:1305 call sites pass children typed
+  `UIElement`, so they bind to the base no-op — patched with
+  `is DataGridCell` casts. Cells are clipped only when they cross the frozen
+  boundary during a horizontal scroll (the panel's `ViewportStartX`), which
+  the probe drives through `DataGrid.HorizontalScrollOffsetProperty` directly.
+- The `DataGridRowHeader` `ParentRow` walks the `TemplatedParent` chain, which
+  the shim's manually-placed header doesn't provide — the shim override reads
+  `EffectiveRow` (the session-122 visual-parent + explicit-owner fallback)
+  instead.
+- `DataGridRow.IsSelected` changes never reach the header: `AddOwner` is a
+  no-op shim so upstream `OnIsSelectedChanged` (the only code that forwards to
+  `RowHeader.NotifyPropertyChanged`) never fires. The shim's existing
+  `RegisterPropertyChangedCallback(IsSelectedProperty)` hook now also coerces
+  the header's `IsRowSelected` mirror.
+- `DataGridRowHeader` does not derive from the shim `Control` (it derives from
+  `Microsoft.UI.Xaml.Controls.Primitives.ButtonBase`), so the
+  `SetValue(DependencyPropertyKey, ...)` helper is unavailable — use
+  `SetValue(key.DependencyProperty, ...)`.
+- Slice 8 changed observed behavior: `OnCoerceActualWidth` now forces pixel
+  columns to `Width.DisplayValue`, so a 50px column's `ActualWidth` is 50
+  rather than the shim's old estimated width. Two pre-existing resize tests
+  (`ColumnResize_ChangesWidth`, `HeaderGripperDrag_ChangesWidth`) resized to
+  40px and asserted growth — updated to 100px. (Verified via a baseline
+  worktree that this was a slice-8 behavior change, not a pre-existing
+  failure.)
 
 Remaining dormant registrations, in rough descending order of value: the
 `DataGridColumn` CanUser*/DisplayIndex/width/frozen set (transfer-property and
 width logic interactions — needs the parallel width logic retired first), and
 `DataGridCell.Clip` (frozen-clip geometry). Activate each with the same
-smallest-blast-radius recipe above.
+smallest-blast-radius recipe above. (Session 131 activated the width/frozen
+`DataGridColumn` set and `DataGridCell.Clip` on the instruction to finish the
+item; the remaining dormant set — `CanUserResizeColumns`, `DisplayIndex`,
+`Width`-family transfer triad — is covered by the parallel width logic and was
+not in scope.)
 
 ---
 
