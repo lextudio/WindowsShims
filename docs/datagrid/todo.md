@@ -118,9 +118,9 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** first slice done (session 130): `FrozenColumnCount` and
-`AlternationCount` now coerce on `DataGrid`; the ~25 other
-`CoerceValueCallback` registrations across linked
+**Status:** first+second slices done (session 130): `FrozenColumnCount`,
+`AlternationCount`, and `IsSynchronizedWithCurrentItem` now coerce on
+`DataGrid`; the ~25 other `CoerceValueCallback` registrations across linked
 DataGrid/DataGridColumn/DataGridCell/DataGridRow files are still dormant
 because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 `FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.  
@@ -128,7 +128,7 @@ because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 
 Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
 on `DataGrid` (hiding the base no-op), same pattern as the session 121
-`DataGridColumnHeader` one, with a whitelist of exactly two properties:
+`DataGridColumnHeader` one, with a whitelist of exactly three properties:
 
 - `FrozenColumnCountProperty` — clamps to `Columns.Count` via
   `OnCoerceFrozenColumnCount`, driven from the column-collection-changed path
@@ -137,6 +137,10 @@ on `DataGrid` (hiding the base no-op), same pattern as the session 121
 - `AlternationCountProperty` — promotes to `>= 2` when `AlternatingRowBackground`
   is set, via `OnCoerceAlternationCount` (upstream DataGrid.cs:619,
   `NotifyPropertyChanged` branch).
+- `IsSynchronizedWithCurrentItemProperty` — coerced to `false` when
+  `SelectionUnit` is `Cell` via `OnCoerceIsSynchronizedWithCurrentItem`
+  (upstream DataGrid.cs:1061; the trigger is `OnSelectionUnitChanged` calling
+  `CoerceValue(IsSynchronizedWithCurrentItemProperty)` at :4587).
 
 Gotchas found along the way:
 
@@ -150,9 +154,10 @@ Gotchas found along the way:
 - Coercion triggers on collection-change/measure/notification paths, **not** on
   plain `SetValue` — the test probe must exercise the upstream call site.
 
-Verified by `Coercion_FrozenColumnCountClampsToColumnCount` and
-`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`
-(DataGrid suite 69/69, session 130).
+Verified by `Coercion_FrozenColumnCountClampsToColumnCount`,
+`Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`, and
+`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`
+(DataGrid suite 70/70, session 130).
 
 Recommended approach for the remaining properties: smallest-blast-radius
 activation, one property at a time. The width/frozen coerce callbacks should

@@ -493,6 +493,27 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit()
+    {
+        // Item 5, second slice: WPF coerces IsSynchronizedWithCurrentItem to
+        // false when SelectionUnit is Cell (upstream OnSelectionUnitChanged
+        // calls CoerceValue(IsSynchronizedWithCurrentItemProperty)).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+
+        var cell = await _app.InvokeAsync("datagrid.probe.set-selection-unit", "cell");
+        var raw = cell.ToString();
+        var cellSync = (string)cell.GetProperty("isSynchronizedWithCurrentItem").GetString()!;
+        Assert.True(cellSync == "false",
+            $"IsSynchronizedWithCurrentItem must be coerced off in Cell unit: {raw}");
+
+        var fullRow = await _app.InvokeAsync("datagrid.probe.set-selection-unit", "fullrow");
+        raw = fullRow.ToString();
+        var fullRowSync = (string)fullRow.GetProperty("isSynchronizedWithCurrentItem").GetString()!;
+        Assert.True(fullRowSync == "true",
+            $"IsSynchronizedWithCurrentItem must survive in FullRow unit: {raw}");
+    }
+
+    [Fact]
     public async Task ColumnWidths_AreReasonable()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

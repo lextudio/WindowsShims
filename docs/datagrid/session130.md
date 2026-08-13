@@ -1,24 +1,25 @@
-# Session 130 — Per-property coercion activation (item 5, first slice)
+# Session 130 — Per-property coercion activation (item 5, slices 1-2)
 
-Date: 2026-08-12. DataGrid suite 69/69, RichTextBox 238/238, model tests 234/234.
+Date: 2026-08-12. DataGrid suite 70/70, RichTextBox 238/238, model tests 234/234.
 
 ## Goal
 
 todo.md item 5: `CoerceValue` is a universal no-op except on
 `DataGridColumnHeader`. Activate coercion with the smallest blast radius, one
-property at a time. First slice: `FrozenColumnCount` and `AlternationCount` on
-`DataGrid` — both are pure value fixes with no interaction with the shim's
-parallel width/selection logic.
+property at a time. Slices: `FrozenColumnCount`, `AlternationCount`, and
+`IsSynchronizedWithCurrentItem` on `DataGrid` — all pure value fixes with no
+interaction with the shim's parallel width/selection logic.
 
 ## Changes
 
 ### `src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs`
 
 `internal new void CoerceValue(DependencyProperty property)` — hides the base
-no-op (same pattern as DataGridColumnHeader, session 121), whitelist of two:
+no-op (same pattern as DataGridColumnHeader, session 121), whitelist of three:
 
 - `FrozenColumnCountProperty` → `OnCoerceFrozenColumnCount`
 - `AlternationCountProperty` → `OnCoerceAlternationCount`
+- `IsSynchronizedWithCurrentItemProperty` → `OnCoerceIsSynchronizedWithCurrentItem`
 
 `SetCoerced` helper: run the callback, `SetValue` only when changed.
 
@@ -37,6 +38,10 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
   beyond the column count, **then adds a column**: coercion runs on the
   column-collection-changed path (upstream DataGrid.cs:263) and first measure
   (7639), not on plain `SetValue`. Without the column add the value stays 99.
+- `datagrid.probe.set-selection-unit(unit)` — sets `IsSynchronizedWithCurrentItem
+  = true` then `SelectionUnit` (cell/cellorrownheader/fullrow). Cell unit must
+  coerce the sync flag to false (upstream OnSelectionUnitChanged :4587 calls
+  `CoerceValue`).
 
 ### Tests (`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs`)
 
@@ -44,6 +49,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
   `Columns.Count`.
 - `Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet` —
   `create-alternating-row-grid`, expect `AlternationCount >= 2`.
+- `Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit` —
+  `create-grid`, then `set-selection-unit cell` (expect false) and
+  `fullrow` (expect true).
 
 ## Findings
 
@@ -57,7 +65,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 2. **Coercion triggers come from upstream call sites, not `SetValue`.** The
    `FrozenColumnCount` probe had to add a column to reach the
    column-collection-changed path; plain set + UpdateLayout never calls
-   `CoerceValue`.
+   `CoerceValue`. `IsSynchronizedWithCurrentItem` gets its trigger for free:
+   setting `SelectionUnit` fires `OnSelectionUnitChanged`, which calls
+   `CoerceValue(IsSynchronizedWithCurrentItemProperty)`.
 3. **Debugging trace** (`ShimCoerceCallCount` / `ShimCoerceAlternationTrace`)
    showed `CoerceValue` ran, the value was coerced to 2 in the DP, yet the
    readback said 0 — the `ItemsControl.AlternationCount` auto-property was the
@@ -66,13 +76,15 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 ## Verification
 
 - `Coercion_*` tests: green (first FrozenColumnCount failed → column-add
-  trigger fixed it; then AlternationCount failed → auto-property fixed).
-- Full DataGrid suite: 69/69 (67 + 2 new).
+  trigger fixed it; then AlternationCount failed → auto-property fixed;
+  IsSynchronizedWithCurrentItem passed on first run).
+- Full DataGrid suite: 70/70 (67 + 3 new).
 - RichTextBox 238/238, model tests 234/234: unchanged.
 
 ## Next
 
-Second slice options (todo item 5): `DataGridColumn.Width`/`DisplayIndex`
-coercion, or `DataGridCell.IsEditing`-family — pick one that doesn't overlap
-the shim's parallel width logic. Remaining ~25 dormant registrations stay
+Slice 3 options (todo item 5): `DataGridColumn.Width`/`DisplayIndex`
+coercion, or the CanUser* family (`OnCoerceCanUserSortColumns`,
+`OnCoerceCanUserAddRows`/`DeleteRows`) — pick one that doesn't overlap
+the shim's parallel width logic. Remaining ~22 dormant registrations stay
 no-op until the parallel logic is retired.

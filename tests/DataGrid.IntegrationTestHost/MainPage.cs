@@ -929,6 +929,24 @@ public sealed partial class MainPage : Page
         return $"{{\"frozenColumnCount\":{grid.FrozenColumnCount},\"columnCount\":{grid.Columns.Count}}}";
     });
 
+    // ─── Probe: selection-unit coercion (session 130 slice 2) ────────
+
+    [DevFlowAction("datagrid.probe.set-selection-unit", Description = "Set SelectionUnit; WPF coerces IsSynchronizedWithCurrentItem to false when unit is Cell.")]
+    public static string ProbeSetSelectionUnit(string unit) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        grid.IsSynchronizedWithCurrentItem = true;
+        grid.SelectionUnit = unit switch
+        {
+            "cell" => System.Windows.Controls.DataGridSelectionUnit.Cell,
+            "cellorrownheader" => System.Windows.Controls.DataGridSelectionUnit.CellOrRowHeader,
+            "fullrow" => System.Windows.Controls.DataGridSelectionUnit.FullRow,
+            _ => throw new ArgumentException($"unknown selection unit {unit}"),
+        };
+        grid.UpdateLayout();
+        return $"{{\"selectionUnit\":{Js(grid.SelectionUnit.ToString())},\"isSynchronizedWithCurrentItem\":{Js(grid.IsSynchronizedWithCurrentItem?.ToString().ToLowerInvariant() ?? "null")}}}";
+    });
+
     // ─── Probe: create-large-data-grid ───────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]

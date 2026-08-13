@@ -544,15 +544,21 @@ public partial class DataGrid
     // by the caller (they differ between the two paths).
     private bool _shimRowHeightHookRegistered;
 
-    // Session 130 (item 5, first slice): narrow CoerceValue activation, same
-    // pattern as DataGridColumnHeader (session 122) — hide the base no-op for
-    // this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
+    // Session 130 (item 5, first+second slice): narrow CoerceValue activation,
+    // same pattern as DataGridColumnHeader (session 122) — hide the base no-op
+    // for this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
     // everything else inert. Whitelist is deliberately tiny:
-    //   FrozenColumnCount  — pure clamp to Columns.Count on column add/remove
-    //                        (upstream DataGrid.cs:263 / :7639 call CoerceValue),
-    //                        no side effects on any shimmed behavior.
-    //   AlternationCount   — upstream DataGrid.cs:619 coerces to >= 2 when
-    //                        AlternatingRowBackground is set; pure value fix.
+    //   FrozenColumnCount           — pure clamp to Columns.Count on column
+    //                                 add/remove (upstream DataGrid.cs:263 /
+    //                                 :7639 call CoerceValue), no side effects
+    //                                 on any shimmed behavior.
+    //   AlternationCount            — upstream DataGrid.cs:619 coerces to >= 2
+    //                                 when AlternatingRowBackground is set;
+    //                                 pure value fix.
+    //   IsSynchronizedWithCurrentItem — coerced to false when SelectionUnit is
+    //                                 Cell (upstream DataGrid.cs:1061, triggered
+    //                                 from OnSelectionUnitChanged :4587); pure
+    //                                 value fix, no side effects.
     // Width/frozen/style callbacks stay dormant (todo.md item 5) — those
     // interact with the shim's parallel width/selection logic.
     //
@@ -568,6 +574,10 @@ public partial class DataGrid
         else if (property == AlternationCountProperty)
         {
             SetCoerced(property, OnCoerceAlternationCount(this, GetValue(property)));
+        }
+        else if (property == IsSynchronizedWithCurrentItemProperty)
+        {
+            SetCoerced(property, OnCoerceIsSynchronizedWithCurrentItem(this, GetValue(property)));
         }
     }
 
