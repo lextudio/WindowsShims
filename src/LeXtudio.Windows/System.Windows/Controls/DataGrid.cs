@@ -544,7 +544,7 @@ public partial class DataGrid
     // by the caller (they differ between the two paths).
     private bool _shimRowHeightHookRegistered;
 
-    // Session 130 (item 5, slices 1-3): narrow CoerceValue activation, same
+    // Session 130 (item 5, slices 1-4): narrow CoerceValue activation, same
     // pattern as DataGridColumnHeader (session 122) — hide the base no-op for
     // this one control, run ONLY the whitelisted CoerceValueCallbacks, leave
     // everything else inert. Whitelist is deliberately tiny:
@@ -564,6 +564,13 @@ public partial class DataGrid
     //                                 DataGrid.cs:3537 OnCoerceCanUserAddOrDeleteRows;
     //                                 triggered from OnIsReadOnlyChanged :2861 /
     //                                 OnIsEnabledChanged :5461); pure value fix.
+    //   VirtualizingPanel.IsVirtualizing — mirrors EnableRowVirtualization when
+    //                                 set (upstream DataGrid.cs:8193
+    //                                 OnCoerceIsVirtualizingProperty; triggered
+    //                                 from OnEnableRowVirtualizationChanged
+    //                                 :8180); pure value fix — the shim's
+    //                                 virtualized tree path does not read this
+    //                                 attached DP, so no interaction.
     // Width/frozen/style callbacks stay dormant (todo.md item 5) — those
     // interact with the shim's parallel width/selection logic.
     //
@@ -592,6 +599,10 @@ public partial class DataGrid
         {
             SetCoerced(property, OnCoerceCanUserDeleteRows(this, ShimCoerceBaseValue(property, true, ref _shimCanUserDeleteRowsBase)));
         }
+        else if (property == VirtualizingPanel.IsVirtualizingProperty)
+        {
+            SetCoerced(property, OnCoerceIsVirtualizingProperty(this, GetValue(property)));
+        }
     }
 
     // WPF passes the property's base value (local value or default) into a
@@ -614,6 +625,10 @@ public partial class DataGrid
 
     private object? _shimCanUserAddRowsBase;
     private object? _shimCanUserDeleteRowsBase;
+
+    // Session 130 slice 4: read back the coerced VirtualizingPanel attached DP
+    // (probe/readback convenience; the attached property itself is WPF-only).
+    internal bool ShimIsVirtualizing => (bool)GetValue(VirtualizingPanel.IsVirtualizingProperty);
 
     private void SetCoerced(DependencyProperty property, object? coerced)
     {

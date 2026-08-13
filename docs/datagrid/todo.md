@@ -118,10 +118,10 @@ the same property. Needs a design decision:
 
 ## 5. Per-property coercion activation
 
-**Status:** first+second+third slices done (session 130): `FrozenColumnCount`,
-`AlternationCount`, `IsSynchronizedWithCurrentItem`, `CanUserAddRows`, and
-`CanUserDeleteRows` now coerce on `DataGrid`; the ~20 other
-`CoerceValueCallback` registrations across linked
+**Status:** slices 1-4 done (session 130): `FrozenColumnCount`,
+`AlternationCount`, `IsSynchronizedWithCurrentItem`, `CanUserAddRows`,
+`CanUserDeleteRows`, and `VirtualizingPanel.IsVirtualizing` now coerce on
+`DataGrid`; the ~19 other `CoerceValueCallback` registrations across linked
 DataGrid/DataGridColumn/DataGridCell/DataGridRow files are still dormant
 because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 `FrameworkElement.cs` all declare empty `CoerceValue(DependencyProperty dp) {}`.  
@@ -129,7 +129,7 @@ because the base `Control.cs`/`ContentControl.cs`/`ButtonBase.cs`/
 
 Session 130 added a narrow `internal new void CoerceValue(DependencyProperty)`
 on `DataGrid` (hiding the base no-op), same pattern as the session 121
-`DataGridColumnHeader` one, with a whitelist of exactly five properties:
+`DataGridColumnHeader` one, with a whitelist of exactly six properties:
 
 - `FrozenColumnCountProperty` — clamps to `Columns.Count` via
   `OnCoerceFrozenColumnCount`, driven from the column-collection-changed path
@@ -146,6 +146,11 @@ on `DataGrid` (hiding the base no-op), same pattern as the session 121
   when the grid is read-only or disabled, via
   `OnCoerceCanUserAddOrDeleteRows` (upstream DataGrid.cs:3537; triggered from
   `OnIsReadOnlyChanged` :2861-2862 and `OnIsEnabledChanged` :5461-5462).
+- `VirtualizingPanel.IsVirtualizingProperty` — mirrors `EnableRowVirtualization`
+  when that property is explicitly set, via `OnCoerceIsVirtualizingProperty`
+  (upstream DataGrid.cs:8193; triggered from `OnEnableRowVirtualizationChanged`
+  :8180). The shim's virtualized tree path does not read this attached DP, so
+  no interaction with the shim's row virtualization.
 
 Gotchas found along the way:
 
@@ -173,9 +178,10 @@ Gotchas found along the way:
 
 Verified by `Coercion_FrozenColumnCountClampsToColumnCount`,
 `Coercion_AlternationCountPromotesToTwoWhenAlternatingBackgroundSet`,
-`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`, and
-`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly` (DataGrid suite 71/71,
-session 130).
+`Coercion_IsSynchronizedWithCurrentItemForcedOffInCellSelectionUnit`,
+`Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly`, and
+`Coercion_RowVirtualizationMirrorsEnableRowVirtualization` (DataGrid suite
+72/72, session 130).
 
 Recommended approach for the remaining properties: smallest-blast-radius
 activation, one property at a time. The width/frozen coerce callbacks should

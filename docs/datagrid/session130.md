@@ -1,32 +1,34 @@
-# Session 130 — Per-property coercion activation (item 5, slices 1-3)
+# Session 130 — Per-property coercion activation (item 5, slices 1-4)
 
-Date: 2026-08-12. DataGrid suite 71/71, RichTextBox 238/238, model tests 234/234.
+Date: 2026-08-12. DataGrid suite 72/72, RichTextBox 238/238, model tests 234/234.
 
 ## Goal
 
 todo.md item 5: `CoerceValue` is a universal no-op except on
 `DataGridColumnHeader`. Activate coercion with the smallest blast radius, one
 property at a time. Slices: `FrozenColumnCount`, `AlternationCount`,
-`IsSynchronizedWithCurrentItem`, `CanUserAddRows`, and `CanUserDeleteRows` on
-`DataGrid` — all pure value fixes with no interaction with the shim's parallel
-width/selection logic.
+`IsSynchronizedWithCurrentItem`, `CanUserAddRows`, `CanUserDeleteRows`, and
+`VirtualizingPanel.IsVirtualizing` on `DataGrid` — all pure value fixes with no
+interaction with the shim's parallel width/selection logic.
 
 ## Changes
 
 ### `src/LeXtudio.Windows/System.Windows/Controls/DataGrid.cs`
 
 `internal new void CoerceValue(DependencyProperty property)` — hides the base
-no-op (same pattern as DataGridColumnHeader, session 121), whitelist of five:
+no-op (same pattern as DataGridColumnHeader, session 121), whitelist of six:
 
 - `FrozenColumnCountProperty` → `OnCoerceFrozenColumnCount`
 - `AlternationCountProperty` → `OnCoerceAlternationCount`
 - `IsSynchronizedWithCurrentItemProperty` → `OnCoerceIsSynchronizedWithCurrentItem`
 - `CanUserAddRowsProperty` → `OnCoerceCanUserAddRows`
 - `CanUserDeleteRowsProperty` → `OnCoerceCanUserDeleteRows`
+- `VirtualizingPanel.IsVirtualizingProperty` → `OnCoerceIsVirtualizingProperty`
 
 `SetCoerced` helper: run the callback, `SetValue` only when changed.
 `ShimCoerceBaseValue` helper: capture the first (pre-coercion) base value per
-property — see Findings 4.
+property — see Findings 4. `ShimIsVirtualizing` readback convenience for the
+WPF-only attached DP.
 
 ### `ext/wpf` submodule — `DataGrid.cs` `OnIsReadOnlyChanged` / `OnIsEnabledChanged`
 
@@ -57,6 +59,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 - `datagrid.probe.set-read-only(bool)` — toggles `IsReadOnly`; reports
   CanUserAddRows/CanUserDeleteRows. The `OnIsReadOnlyChanged` callback coerces
   both (upstream :2861-2862).
+- `datagrid.probe.set-enable-row-virtualization(bool)` — toggles
+  `EnableRowVirtualization`; reports the coerced `VirtualizingPanel.IsVirtualizing`
+  attached DP via `ShimIsVirtualizing`.
 
 ### Tests (`tests/DataGrid.IntegrationTests/DataGridIntegrationTests.cs`)
 
@@ -70,6 +75,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 - `Coercion_CanUserAddDeleteRowsForcedOffWhenReadOnly` — `create-grid`, then
   `set-read-only true` (expect both false), then `set-read-only false` (expect
   both restored to true).
+- `Coercion_RowVirtualizationMirrorsEnableRowVirtualization` — `create-grid`,
+  then `set-enable-row-virtualization false` (expect IsVirtualizing false),
+  then `true` (expect true).
 
 ## Findings
 
@@ -85,7 +93,9 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
    column-collection-changed path; plain set + UpdateLayout never calls
    `CoerceValue`. `IsSynchronizedWithCurrentItem` gets its trigger for free:
    setting `SelectionUnit` fires `OnSelectionUnitChanged`, which calls
-   `CoerceValue(IsSynchronizedWithCurrentItemProperty)`.
+   `CoerceValue(IsSynchronizedWithCurrentItemProperty)`. `IsVirtualizing`
+   likewise: `OnEnableRowVirtualizationChanged` calls
+   `dataGrid.CoerceValue(VirtualizingPanel.IsVirtualizingProperty)` (:8180).
 3. **Explicit-receiver call sites with `DependencyObject d` bind to the base
    no-op.** Slices 1-2 worked because the call sites use an implicit receiver
    (inside `DataGrid` methods) or a `DataGrid`-typed local (`dataGrid.CoerceValue`).
@@ -110,13 +120,13 @@ Rewired to `GetValue`/`SetValue(AlternationCountProperty)`.
 
 - `Coercion_*` tests: green (FrozenColumnCount failed → column-add trigger;
   AlternationCount failed → auto-property; CanUser* failed → explicit-receiver
-  binding fix + base-value capture).
-- Full DataGrid suite: 71/71 (67 + 4 new).
+  binding fix + base-value capture; IsVirtualizing passed on first run).
+- Full DataGrid suite: 72/72 (67 + 5 new).
 - RichTextBox 238/238, model tests 234/234: unchanged.
 
 ## Next
 
-Slice 4 options (todo item 5): `DataGridColumn.CanUserSort`/`CanUserReorder`/
+Slice 5 options (todo item 5): `DataGridColumn.CanUserSort`/`CanUserReorder`/
 `CanUserResize` (DataGridHelper transfer-based, needs
 `GetCoercedTransferPropertyValue` to be meaningful in the shim), or
 `DataGridCell.Clip` / `DataGridRow.ShouldCacheContainerSize`. The

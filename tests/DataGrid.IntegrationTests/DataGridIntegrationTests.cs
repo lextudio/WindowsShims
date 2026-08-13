@@ -539,6 +539,27 @@ public sealed class DataGridIntegrationTests
     }
 
     [Fact]
+    public async Task Coercion_RowVirtualizationMirrorsEnableRowVirtualization()
+    {
+        // Item 5, fourth slice: WPF coerces VirtualizingPanel.IsVirtualizing to
+        // follow EnableRowVirtualization when it is explicitly set (upstream
+        // OnEnableRowVirtualizationChanged calls CoerceValue at DataGrid.cs:8180).
+        await _app.InvokeAsync("datagrid.probe.create-grid");
+
+        var off = await _app.InvokeAsync("datagrid.probe.set-enable-row-virtualization", false);
+        var raw = off.ToString();
+        Assert.True((string)off.GetProperty("enableRowVirtualization").GetString()! == "false",
+            $"grid should report virtualization disabled: {raw}");
+        Assert.True((string)off.GetProperty("isVirtualizing").GetString()! == "false",
+            $"IsVirtualizing must mirror disabled virtualization: {raw}");
+
+        var on = await _app.InvokeAsync("datagrid.probe.set-enable-row-virtualization", true);
+        raw = on.ToString();
+        Assert.True((string)on.GetProperty("isVirtualizing").GetString()! == "true",
+            $"IsVirtualizing must mirror enabled virtualization: {raw}");
+    }
+
+    [Fact]
     public async Task ColumnWidths_AreReasonable()
     {
         await _app.InvokeAsync("datagrid.probe.create-grid");

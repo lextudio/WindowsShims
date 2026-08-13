@@ -958,6 +958,17 @@ public sealed partial class MainPage : Page
         return $"{{\"isReadOnly\":{Js(grid.IsReadOnly.ToString().ToLowerInvariant())},\"canUserAddRows\":{Js(grid.CanUserAddRows.ToString().ToLowerInvariant())},\"canUserDeleteRows\":{Js(grid.CanUserDeleteRows.ToString().ToLowerInvariant())}}}";
     });
 
+    // ─── Probe: row-virtualization coercion (session 130 slice 4) ────
+
+    [DevFlowAction("datagrid.probe.set-enable-row-virtualization", Description = "Toggle EnableRowVirtualization; WPF mirrors it onto VirtualizingPanel.IsVirtualizing.")]
+    public static string ProbeSetEnableRowVirtualization(bool enabled) => RunOnUi(page =>
+    {
+        var grid = page._grid!;
+        grid.EnableRowVirtualization = enabled;
+        grid.UpdateLayout();
+        return $"{{\"enableRowVirtualization\":{Js(grid.EnableRowVirtualization.ToString().ToLowerInvariant())},\"isVirtualizing\":{Js(grid.ShimIsVirtualizing.ToString().ToLowerInvariant())}}}";
+    });
+
     // ─── Probe: create-large-data-grid ───────────────────────────────
 
     [DevFlowAction("datagrid.probe.create-large-data-grid", Description = "Create a DataGrid with 10,000 virtualized rows.")]
