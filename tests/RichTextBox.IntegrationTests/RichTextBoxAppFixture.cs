@@ -13,7 +13,7 @@ public sealed class RichTextBoxAppFixture : IAsyncLifetime
     readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
     Process? _app;
 
-    public string HostProjectPath { get; } = LocateHostProject();
+    public string HostProjectPath { get; } = HostProjectPathStatic;
 
     public async ValueTask InitializeAsync()
     {
@@ -29,22 +29,54 @@ public sealed class RichTextBoxAppFixture : IAsyncLifetime
         await Task.CompletedTask;
     }
 
+    /// <summary>
+    /// True when the host under test is the native WinUI 3 (WinAppSDK) head rather
+    /// than the Uno Skia desktop head. A few probes are Skia-only; see IsWinAppSdkHost
+    /// usages in the tests.
+    /// </summary>
+    public static bool IsWinAppSdkHost { get; } =
+        (Environment.GetEnvironmentVariable("DOTNET_HOST_TFM") ?? "net10.0-desktop")
+            .Contains("-windows", StringComparison.OrdinalIgnoreCase);
+
     async Task StartAsync()
     {
-        var psi = new ProcessStartInfo("dotnet")
+        var tfm = Environment.GetEnvironmentVariable("DOTNET_HOST_TFM") ?? "net10.0-desktop";
+        var psi = new ProcessStartInfo
         {
             WorkingDirectory = Path.GetDirectoryName(HostProjectPath)!,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
-        var tfm = Environment.GetEnvironmentVariable("DOTNET_HOST_TFM") ?? "net10.0-desktop";
-        foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", tfm, "--configuration", "Debug" })
-            psi.ArgumentList.Add(a);
+
+        if (IsWinAppSdkHost)
+        {
+            // `dotnet run` cannot build the WinUI 3 head: it transitively builds
+            // LeXtudio.Windows, a WinUI class library containing XAML, which the Uno
+            // SDK rejects under `dotnet build` (UNOB0008 — "use msbuild instead").
+            // So the WinUI head is built with msbuild beforehand and launched directly.
+            psi.FileName = LocateHostExecutable(tfm);
+        }
+        else
+        {
+            psi.FileName = "dotnet";
+            foreach (var a in new[] { "run", "--project", HostProjectPath, "-f", tfm, "--configuration", "Debug" })
+                psi.ArgumentList.Add(a);
+        }
 
         _app = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start RichTextBox.IntegrationTestHost");
-        _app.OutputDataReceived += (_, _) => { };
-        _app.ErrorDataReceived += (_, _) => { };
+
+        // Keep the host's own output: when it dies mid-suite every later test just reports
+        // "connection refused", and the reason (a runtime abort message, a stack overflow
+        // notice) is only ever printed here.
+        var hostLog = Path.Combine(Path.GetTempPath(), "rtb-host-output.log");
+        void Append(string? line)
+        {
+            if (line is null) return;
+            try { File.AppendAllText(hostLog, line + Environment.NewLine); } catch { }
+        }
+        _app.OutputDataReceived += (_, e) => Append(e.Data);
+        _app.ErrorDataReceived += (_, e) => Append(e.Data);
         _app.BeginOutputReadLine();
         _app.BeginErrorReadLine();
         await WaitForAgentAsync(TimeSpan.FromSeconds(90));
@@ -131,6 +163,35 @@ public sealed class RichTextBoxAppFixture : IAsyncLifetime
             throw new InvalidOperationException($"Probe '{action}' reported error: {probeErr.GetString()} (raw: {raw})");
         return state;
     }
+
+    // Finds the msbuild-produced host executable for a given TFM. The WinUI head is
+    // built per-platform (bin/x64/Debug/<tfm>/), so pick the most recently written
+    // match rather than assuming an architecture.
+    static string LocateHostExecutable(string tfm)
+    {
+        var hostDir = Path.GetDirectoryName(HostProjectPathStatic)!;
+        var binDir = Path.Combine(hostDir, "bin");
+        var overridePath = Environment.GetEnvironmentVariable("RICHTEXTBOX_HOST_EXE");
+        if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
+            return overridePath;
+
+        if (Directory.Exists(binDir))
+        {
+            var candidate = Directory
+                .EnumerateFiles(binDir, "RichTextBox.IntegrationTestHost.exe", SearchOption.AllDirectories)
+                .Where(p => p.Replace('\\', '/').Contains($"/{tfm}/", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+            if (candidate is not null)
+                return candidate;
+        }
+
+        throw new FileNotFoundException(
+            $"No built host for '{tfm}' under {binDir}. The WinUI 3 head must be built with msbuild first, e.g.: " +
+            $"msbuild {HostProjectPathStatic} -p:TargetFramework={tfm} -p:Platform=x64 -p:Configuration=Debug");
+    }
+
+    static readonly string HostProjectPathStatic = LocateHostProject();
 
     static string LocateHostProject()
     {

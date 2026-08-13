@@ -15,14 +15,21 @@ namespace WinRT
 namespace System.Windows.Media.Imaging
 {
 
-	public class BitmapSource : Microsoft.UI.Xaml.Media.ImageSource
+	// WinAppSDK does not allow subclassing Microsoft.UI.Xaml.Media.ImageSource from managed
+	// code: its constructor needs a WinRT composable instance, and passing null throws inside
+	// the base constructor. So on that target BitmapSource stands alone, and
+	// System.Windows.Controls.Image converts it to a real BitmapImage for rendering. Uno does
+	// permit the subclassing, so it is kept there for upstream code that assigns a
+	// BitmapSource straight into a WinUI Source property.
+	public class BitmapSource
+#if !WINDOWS_APP_SDK
+		: Microsoft.UI.Xaml.Media.ImageSource
+#endif
 	{
 		private byte[] _pixels = [];
 
 		public BitmapSource()
-#if WINDOWS_APP_SDK
-			: base((WinRT.IObjectReference)null)
-#else
+#if !WINDOWS_APP_SDK
 			: base("")
 #endif
 		{ }
@@ -217,12 +224,14 @@ namespace System.Windows.Media.Imaging
 namespace System.Windows.Media
 {
 	// DrawingImage is a WPF type representing an image backed by a Drawing.
-	public class DrawingImage : Microsoft.UI.Xaml.Media.ImageSource
+	// Standalone on WinAppSDK for the same reason as BitmapSource above.
+	public class DrawingImage
+#if !WINDOWS_APP_SDK
+		: Microsoft.UI.Xaml.Media.ImageSource
+#endif
 	{
 		public DrawingImage()
-#if WINDOWS_APP_SDK
-			: base((WinRT.IObjectReference)null)
-#else
+#if !WINDOWS_APP_SDK
 			: base("")
 #endif
 		{ }

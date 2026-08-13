@@ -96,7 +96,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         if (_spellCheckEnabled == enabled)
             return;
         _spellCheckEnabled = enabled;
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
 #if WINDOWS_APP_SDK
@@ -238,7 +238,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         _selectionDirty = true;
         _textView?.OnLayoutInvalidated();
         InvalidateMeasure();
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
     // ── Measure / Arrange ───────────────────────────────────────────────────
@@ -268,15 +268,36 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             ? _page.Lines[^1].Y + _page.Lines[^1].Height
             : 0;
 
+        // Build the visual children here rather than in ArrangeOverride. These passes add and
+        // remove Children, which WinUI forbids during arrange — and because the violation
+        // surfaces inside the XAML ABI it terminates the process instead of raising an
+        // observable error. Uno tolerates it, which is why this only bit on WinAppSDK. Measure
+        // is the layout phase where mutating the tree is legal, so ArrangeOverride positions
+        // what already exists and nothing more.
+        BuildVisualChildren(new Windows.Foundation.Size(w, h));
+
         return new Windows.Foundation.Size(
             Math.Min(w, double.IsInfinity(availableSize.Width) ? w : availableSize.Width),
             Math.Min(totalH, double.IsInfinity(availableSize.Height) ? totalH : availableSize.Height));
     }
 
-    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
+    // WinAppSDK's Windows.Foundation.Rect rejects a negative width or height with
+    // ArgumentOutOfRangeException; Uno's tolerates it. Degenerate boxes arise legitimately
+    // (reversed or zero-width selection fragments, borders thicker than the box they inset,
+    // rounding), so clamp rather than let the platform difference decide.
+    private static Windows.Foundation.Rect ArrangeRect(double x, double y, double width, double height)
+        => new(Finite(x), Finite(y), Math.Max(0, Finite(width)), Math.Max(0, Finite(height)));
+
+    // Text layout can yield NaN or infinity for degenerate boxes. Uno arranges them without
+    // complaint, but WinAppSDK rejects such a Rect outright, so normalise before arranging.
+    private static double Finite(double value) => double.IsFinite(value) ? value : 0;
+
+    // Creates/updates the visual children for the current page. Called from MeasureOverride;
+    // see the note there for why this must not run during arrange.
+    private void BuildVisualChildren(Windows.Foundation.Size availableSize)
     {
         if (_page == null)
-            return finalSize;
+            return;
 
         if (!ReferenceEquals(_page, _arrangedPage))
         {
@@ -292,9 +313,29 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         RefreshImeCompositionUnderline();
         RefreshSpellCheckSquiggles();
 
+#if WINDOWS_APP_SDK
+        // These children are produced by the passes above rather than by a normal measure
+        // walk, so nothing has measured them. WinUI refuses to arrange an unmeasured element
+        // (Uno allows it), and measuring must happen here: doing it from ArrangeOverride
+        // measures during arrange, which destabilises the layout pass.
+        var constraint = new Windows.Foundation.Size(
+            double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width,
+            double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height);
+        foreach (var child in Children)
+        {
+            child.Measure(constraint);
+        }
+#endif
+    }
+
+    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
+    {
+        if (_page == null)
+            return finalSize;
+
         var lines = _page.Lines;
         for (int i = 0; i < _lineBlocks.Count && i < lines.Count; i++)
-            _lineBlocks[i].Arrange(new Windows.Foundation.Rect(0, lines[i].Y, finalSize.Width, lines[i].Height));
+            _lineBlocks[i].Arrange(ArrangeRect(0, lines[i].Y, finalSize.Width, lines[i].Height));
 
         var paragraphBorders = _page.ParagraphBorders;
         int borderRectIndex = 0;
@@ -306,13 +347,13 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             double bw = paragraphBorder.Width;
             double bh = paragraphBorder.Height;
             if (t.Top > 0)
-                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by, bw, t.Top));
+                _borderRects[borderRectIndex++].Arrange(ArrangeRect(bx, by, bw, t.Top));
             if (t.Bottom > 0)
-                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by + bh - t.Bottom, bw, t.Bottom));
+                _borderRects[borderRectIndex++].Arrange(ArrangeRect(bx, by + bh - t.Bottom, bw, t.Bottom));
             if (t.Left > 0)
-                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx, by, t.Left, bh));
+                _borderRects[borderRectIndex++].Arrange(ArrangeRect(bx, by, t.Left, bh));
             if (t.Right > 0)
-                _borderRects[borderRectIndex++].Arrange(new Windows.Foundation.Rect(bx + bw - t.Right, by, t.Right, bh));
+                _borderRects[borderRectIndex++].Arrange(ArrangeRect(bx + bw - t.Right, by, t.Right, bh));
         }
 
         var cellBoxes = _page.CellBoxes;
@@ -320,46 +361,46 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         foreach (var cellBox in cellBoxes)
         {
             if (cellBox.Background is not null)
-                _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, cellBox.Width, cellBox.Height));
+                _cellRects[cellRectIndex++].Arrange(ArrangeRect(cellBox.X, cellBox.Y, cellBox.Width, cellBox.Height));
             var ct = cellBox.BorderThickness;
             if (cellBox.BorderBrush is not null)
             {
                 if (ct.Top > 0)
-                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, cellBox.Width, ct.Top));
+                    _cellRects[cellRectIndex++].Arrange(ArrangeRect(cellBox.X, cellBox.Y, cellBox.Width, ct.Top));
                 if (ct.Bottom > 0)
-                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y + cellBox.Height - ct.Bottom, cellBox.Width, ct.Bottom));
+                    _cellRects[cellRectIndex++].Arrange(ArrangeRect(cellBox.X, cellBox.Y + cellBox.Height - ct.Bottom, cellBox.Width, ct.Bottom));
                 if (ct.Left > 0)
-                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X, cellBox.Y, ct.Left, cellBox.Height));
+                    _cellRects[cellRectIndex++].Arrange(ArrangeRect(cellBox.X, cellBox.Y, ct.Left, cellBox.Height));
                 if (ct.Right > 0)
-                    _cellRects[cellRectIndex++].Arrange(new Windows.Foundation.Rect(cellBox.X + cellBox.Width - ct.Right, cellBox.Y, ct.Right, cellBox.Height));
+                    _cellRects[cellRectIndex++].Arrange(ArrangeRect(cellBox.X + cellBox.Width - ct.Right, cellBox.Y, ct.Right, cellBox.Height));
             }
         }
 
         var fillBoxes = _page.FillBoxes;
         for (int i = 0; i < fillBoxes.Count && i < _fillRects.Count; i++)
-            _fillRects[i].Arrange(new Windows.Foundation.Rect(fillBoxes[i].X, fillBoxes[i].Y, fillBoxes[i].Width, fillBoxes[i].Height));
+            _fillRects[i].Arrange(ArrangeRect(fillBoxes[i].X, fillBoxes[i].Y, fillBoxes[i].Width, fillBoxes[i].Height));
 
         foreach (var (adorner, _) in _adorners)
         {
-            adorner.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width, finalSize.Height));
+            adorner.Arrange(ArrangeRect(0, 0, finalSize.Width, finalSize.Height));
         }
 
         foreach (var rect in _selectionRects)
         {
             if (rect.Tag is Rect selectionRect)
             {
-                rect.Arrange(new Windows.Foundation.Rect(selectionRect.X, selectionRect.Y, selectionRect.Width, selectionRect.Height));
+                rect.Arrange(ArrangeRect(selectionRect.X, selectionRect.Y, selectionRect.Width, selectionRect.Height));
             }
         }
 
         if (!_caretRect.IsEmpty)
         {
             double h = _caretRect.Height > 0 ? _caretRect.Height : 14;
-            _caret.Arrange(new Windows.Foundation.Rect(_caretRect.X, _caretRect.Y, 1, h));
+            _caret.Arrange(ArrangeRect(_caretRect.X, _caretRect.Y, 1, h));
         }
         else
         {
-            _caret.Arrange(new Windows.Foundation.Rect(-2, 0, 1, 0));
+            _caret.Arrange(ArrangeRect(-2, 0, 1, 0));
         }
 
         return finalSize;
@@ -403,7 +444,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
 
         _blinkTimer?.Start();
-        InvalidateArrange();
+        InvalidateMeasure();
         StartBringIntoView();
     }
 
@@ -417,14 +458,14 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
             return;
 
         _dropCaret.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
-        _dropCaret.Arrange(new Windows.Foundation.Rect(rect.X, rect.Y, 2, rect.Height > 0 ? rect.Height : 14));
-        InvalidateArrange();
+        _dropCaret.Arrange(ArrangeRect(rect.X, rect.Y, 2, rect.Height > 0 ? rect.Height : 14));
+        InvalidateMeasure();
     }
 
     internal void ClearDropCaret()
     {
         _dropCaret.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
     internal void RefreshSelection()
@@ -524,7 +565,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
 
         _selectionDirty = true;
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
@@ -747,6 +788,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
     // correction ranges are mapped to pixels via the same TextBlock-measured widths
     // the caret/hit-testing use, so squiggles line up with the rendered glyphs.
 
+
     private void RefreshSpellCheckSquiggles()
     {
         int used = 0;
@@ -929,7 +971,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
                 // Parent the embedded UIElement directly into the canvas
                 var ee = run.EmbeddedElement;
                 ee.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-                ee.Arrange(new Windows.Foundation.Rect(0, 0, ee.DesiredSize.Width, ee.DesiredSize.Height));
+                ee.Arrange(ArrangeRect(0, 0, ee.DesiredSize.Width, ee.DesiredSize.Height));
                 canvas.Children.Add(ee);
                 Microsoft.UI.Xaml.Controls.Canvas.SetLeft(ee, run.X);
                 Microsoft.UI.Xaml.Controls.Canvas.SetTop(ee, 0);
@@ -1070,7 +1112,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         }
 
         _selectionDirty = true;
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
     void IUnoAdornerLayerHost.RemoveAdorner(Adorner adorner)
@@ -1084,7 +1126,7 @@ internal class FlowDocumentView : Microsoft.UI.Xaml.Controls.Panel, IServiceProv
         _adorners.RemoveAt(index);
         Children.Remove(adorner);
         _selectionDirty = true;
-        InvalidateArrange();
+        InvalidateMeasure();
     }
 
     void IUnoAdornerLayerHost.SetAdornerZOrder(Adorner adorner, int zOrder)

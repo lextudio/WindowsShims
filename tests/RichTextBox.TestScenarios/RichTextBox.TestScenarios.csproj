@@ -1,16 +1,34 @@
 <Project Sdk="Uno.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-desktop</TargetFramework>
+    <!-- Multi-targeted alongside the integration host so the same scenarios feed
+         both the Skia desktop head and the native WinUI 3 head. -->
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <UnoSingleProject>true</UnoSingleProject>
-    <UnoFeatures>SkiaRenderer;</UnoFeatures>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <UseWinUI>true</UseWinUI>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+    <WindowsPackageType>None</WindowsPackageType>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\LeXtudio.Windows\LeXtudio.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
 
 </Project>

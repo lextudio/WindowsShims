@@ -1,7 +1,12 @@
 <Project Sdk="Uno.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-desktop</TargetFramework>
+    <!-- Skia desktop head (Uno). On Windows we additionally build a native WinUI 3
+         head so the same integration suite can run against WinAppSDK: the tests
+         drive the host purely through [DevFlowAction] probes, and the DevFlow agent
+         is UI-agnostic reflection, so both heads serve the identical endpoints. -->
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+    <TargetFrameworks Condition="'$(OS)' == 'Windows_NT'">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UnoSingleProject>true</UnoSingleProject>
     <ApplicationTitle>RichTextBox.IntegrationTestHost</ApplicationTitle>
@@ -9,10 +14,23 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationPublisher>LeXtudio</ApplicationPublisher>
-    <UnoFeatures>SkiaRenderer;</UnoFeatures>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <UseWinUI>true</UseWinUI>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DefineConstants>$(DefineConstants);WINDOWS_APP_SDK</DefineConstants>
+    <WindowsSdkPackageVersion>10.0.19041.57</WindowsSdkPackageVersion>
+    <!-- Unpackaged so the fixture can launch it straight from bin/ like the Skia head. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,11 +38,21 @@
     <ProjectReference Include="..\RichTextBox.TestScenarios\RichTextBox.TestScenarios.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-desktop'">
     <PackageReference Include="Tmds.DBus.Protocol" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(Configuration)'=='Debug'">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <!-- The WinAppSDK XAML compiler emits its own Program.Main; ours is Skia-only. -->
+    <Compile Remove="Program.cs" />
+  </ItemGroup>
+
+  <!-- Unconditional on purpose: a PackageReference conditioned on $(Configuration) makes the
+       restore result configuration-dependent, so a Release restore silently drops the agent
+       and the next Debug build fails to resolve [DevFlowAction]. This is a test host, so the
+       agent belongs in every configuration anyway. -->
+  <ItemGroup>
     <PackageReference Include="LeXtudio.DevFlow.Agent.Uno" />
   </ItemGroup>
 

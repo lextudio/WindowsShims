@@ -95,7 +95,7 @@ internal sealed class Win32SpellChecker
         Delete = 3,
     }
 
-    [ComImport, Guid("B6FD0B71-E2BC-4653-8D05-9FE4DDDE5B76"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [ComImport, Guid("8E018A9D-2415-4677-BF08-794EA61F94BB"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface ISpellCheckerFactory
     {
         // get_SupportedLanguages — slot 0, unused; kept only to preserve vtable order.
@@ -109,7 +109,7 @@ internal sealed class Win32SpellChecker
         ISpellChecker CreateSpellChecker([MarshalAs(UnmanagedType.LPWStr)] string languageTag);
     }
 
-    [ComImport, Guid("B6FD0B69-9DDD-4955-A825-260058BEB35F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [ComImport, Guid("B6FD0B71-E2BC-4653-8D05-F197E412770B"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface ISpellChecker
     {
         // get_LanguageTag — slot 0, unused; kept only to preserve vtable order.
@@ -123,8 +123,9 @@ internal sealed class Win32SpellChecker
     [ComImport, Guid("803E3BD4-2828-4410-8290-418D1D73C762"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IEnumSpellingError
     {
-        // Next returns a non-zero (failure) HRESULT once enumeration is
-        // exhausted; PreserveSig surfaces that raw code instead of throwing.
+        // Next yields S_FALSE (1) once the enumeration is exhausted, which is a
+        // success code the default marshaller would swallow; PreserveSig keeps the
+        // raw HRESULT so the caller can stop on anything other than S_OK.
         [PreserveSig]
         int Next([MarshalAs(UnmanagedType.Interface)] out ISpellingError? value);
     }

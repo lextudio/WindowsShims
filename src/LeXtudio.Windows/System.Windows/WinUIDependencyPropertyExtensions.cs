@@ -108,8 +108,66 @@ public static class WinUIDependencyPropertyExtensions
     {
         if (PropertyNames.TryGetValue(dp, out var tracked)) return tracked;
         if (_dpNameField != null && _dpNameField.GetValue(dp) is string name) return name;
+#if WINDOWS_APP_SDK
+        // Only the WPF-shaped Register overloads above run TrackName; the WPF sources mostly
+        // call the 4-argument overload, which binds directly to WinUI's own static method and
+        // cannot be intercepted. Uno papers over that with a private _name field, but
+        // WinAppSDK's DependencyProperty exposes no name at all — so every such property fell
+        // through to ToString() and serialized as the literal text
+        // "Microsoft.UI.Xaml.DependencyProperty", producing duplicate XAML attribute names.
+        // Recover the real name from the static member that declares it (FooProperty -> Foo).
+        if (ReflectedPropertyNames.Value.TryGetValue(dp, out var reflected)) return reflected;
+#endif
         return dp.ToString();
     }
+
+#if WINDOWS_APP_SDK
+    private static readonly Lazy<Dictionary<Microsoft.UI.Xaml.DependencyProperty, string>> ReflectedPropertyNames =
+        new(BuildReflectedPropertyNames, System.Threading.LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static Dictionary<Microsoft.UI.Xaml.DependencyProperty, string> BuildReflectedPropertyNames()
+    {
+        const System.Reflection.BindingFlags AnyStatic =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var map = new Dictionary<Microsoft.UI.Xaml.DependencyProperty, string>(ReferenceEqualityComparer.Instance);
+
+        // The shim declares the WPF properties; WinUI declares its own (as static properties
+        // rather than fields, hence both are scanned).
+        foreach (var assembly in new[] { typeof(WinUIDependencyPropertyExtensions).Assembly, typeof(Microsoft.UI.Xaml.DependencyObject).Assembly })
+        {
+            Type[] types;
+            try { types = assembly.GetTypes(); } catch { continue; }
+
+            foreach (var type in types)
+            {
+                try
+                {
+                    foreach (var field in type.GetFields(AnyStatic))
+                    {
+                        if (field.FieldType != typeof(Microsoft.UI.Xaml.DependencyProperty)) continue;
+                        if (field.GetValue(null) is Microsoft.UI.Xaml.DependencyProperty value)
+                            map.TryAdd(value, TrimPropertySuffix(field.Name));
+                    }
+
+                    foreach (var property in type.GetProperties(AnyStatic))
+                    {
+                        if (property.PropertyType != typeof(Microsoft.UI.Xaml.DependencyProperty)) continue;
+                        if (property.GetValue(null) is Microsoft.UI.Xaml.DependencyProperty value)
+                            map.TryAdd(value, TrimPropertySuffix(property.Name));
+                    }
+                }
+                catch { }
+            }
+        }
+
+        return map;
+    }
+
+    private static string TrimPropertySuffix(string memberName)
+        => memberName.EndsWith("Property", StringComparison.Ordinal) && memberName.Length > "Property".Length
+            ? memberName[..^"Property".Length]
+            : memberName;
+#endif
 
     // GlobalIndex: WPF assigns each DP a unique int. Shim returns a hash of the property name.
     extension(Microsoft.UI.Xaml.DependencyProperty property)

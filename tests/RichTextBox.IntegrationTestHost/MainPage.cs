@@ -16,7 +16,13 @@ using WpfTextCompositionEventArgs = System.Windows.Input.TextCompositionEventArg
 using WpfTextElement = System.Windows.Documents.TextElement;
 using WpfRichTextBox = System.Windows.Controls.RichTextBox;
 using WpfTextRange = System.Windows.Documents.TextRange;
+#if WINDOWS_APP_SDK
+// WinAppSDK provides the CoreText types natively as WinRT; the Skia head uses the
+// LeXtudio.UI.Text.Core package that mirrors the same API (see the shim's GlobalUsings).
+using Windows.UI.Text.Core;
+#else
 using LeXtudio.UI.Text.Core;
+#endif
 #endif
 
 namespace RichTextBox.IntegrationTestHost;
@@ -39,6 +45,14 @@ public sealed partial class MainPage : Page
         s is null ? "null" : $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t")}\"";
 
     static string Jb(bool b) => b ? "true" : "false";
+
+    // Thickness.ToString() is platform-dependent: the Uno/shim type renders
+    // "[Thickness: 1-1-1-1]" while WinAppSDK's renders "1,1,1,1". Format it here so a probe
+    // reports the same string on both heads and the assertions stay platform-neutral.
+    static string? FormatThickness(Microsoft.UI.Xaml.Thickness? thickness)
+        => thickness is { } t
+            ? $"[Thickness: {t.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)}-{t.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)}-{t.Right.ToString(System.Globalization.CultureInfo.InvariantCulture)}-{t.Bottom.ToString(System.Globalization.CultureInfo.InvariantCulture)}]"
+            : null;
 
     static string? FormatFontWeight(object? value)
     {
@@ -276,11 +290,11 @@ public sealed partial class MainPage : Page
         var firstTableCellBackground = firstTableCell is null
             ? null
             : FormatBrush(firstTableCell.GetValue(System.Windows.Documents.TableCell.BackgroundProperty));
-        var firstTableCellBorderThickness = firstTableCell?.BorderThickness.ToString();
+        var firstTableCellBorderThickness = FormatThickness(firstTableCell?.BorderThickness);
         var firstTableCellBorderBrush = firstTableCell is null
             ? null
             : FormatBrush(firstTableCell.GetValue(System.Windows.Documents.TableCell.BorderBrushProperty));
-        var firstTableCellPadding = firstTableCell?.Padding.ToString();
+        var firstTableCellPadding = FormatThickness(firstTableCell?.Padding);
         var firstTableCellRowSpan = firstTableCell?.RowSpan;
         var firstTableCellColumnSpan = firstTableCell?.ColumnSpan;
         var firstTableCellHasNestedTable = firstTableCell?.Blocks.OfType<System.Windows.Documents.Table>().Any() == true;
@@ -291,9 +305,9 @@ public sealed partial class MainPage : Page
         var firstParagraphFontSize = firstParagraph is null
             ? null
             : firstParagraph.GetValue(WpfTextElement.FontSizeProperty)?.ToString();
-        var firstParagraphMargin = firstParagraph?.Margin.ToString();
+        var firstParagraphMargin = FormatThickness(firstParagraph?.Margin);
         var firstParagraphTextIndent = firstParagraph?.TextIndent.ToString();
-        var firstParagraphBorderThickness = firstParagraph?.BorderThickness.ToString();
+        var firstParagraphBorderThickness = FormatThickness(firstParagraph?.BorderThickness);
         var firstParagraphBorderBrush = firstParagraph is null
             ? null
             : FormatBrush(firstParagraph.GetValue(System.Windows.Documents.Block.BorderBrushProperty));
@@ -325,9 +339,17 @@ public sealed partial class MainPage : Page
         var firstInlineVariants = firstInline is null
             ? null
             : firstInline.GetValue(System.Windows.Documents.Typography.VariantsProperty)?.ToString();
+#if WINDOWS_APP_SDK
+        // TextSchema substitutes the document-side attached property on this target, so read
+        // the same one the document actually carries.
+        var firstInlineLanguage = firstInline is null
+            ? null
+            : firstInline.GetValue(System.Windows.Documents.TextElement.LanguageProperty) as string;
+#else
         var firstInlineLanguage = firstInline is null
             ? null
             : firstInline.GetValue(Microsoft.UI.Xaml.FrameworkElement.LanguageProperty)?.ToString();
+#endif
         var firstInlineHasUnderline = firstInline is not null
             && HasUnderline(firstInline.GetValue(WpfInline.TextDecorationsProperty));
         var firstRunFontWeight = firstRun is null
@@ -398,8 +420,17 @@ public sealed partial class MainPage : Page
     {
         while (inline is not null)
         {
-            if (inline is System.Windows.Documents.InlineUIContainer { Child: Microsoft.UI.Xaml.Controls.Image image })
+            if (inline is System.Windows.Documents.InlineUIContainer { Child: System.Windows.Controls.Image shimImage })
+            {
+#if WINDOWS_APP_SDK
+                // WinAppSDK seals Microsoft.UI.Xaml.Controls.Image, so the shim hosts one
+                // instead of deriving from it and exposes it as PresentedImage.
+                Microsoft.UI.Xaml.Controls.Image image = shimImage.PresentedImage;
+#else
+                Microsoft.UI.Xaml.Controls.Image image = shimImage;
+#endif
                 return image.GetValue(Microsoft.UI.Xaml.Controls.Image.SourceProperty) is Microsoft.UI.Xaml.Media.Imaging.BitmapImage;
+            }
             if (inline is WpfSpan span && FindFirstRenderedImageSource(span.Inlines.FirstInline))
                 return true;
             inline = inline.NextInline;
@@ -530,6 +561,36 @@ public sealed partial class MainPage : Page
         global::Windows.System.VirtualKey key,
         global::Windows.System.VirtualKeyModifiers modifiers)
     {
+#if WINDOWS_APP_SDK
+        // WinAppSDK's KeyRoutedEventArgs is a sealed WinRT type with no constructor to
+        // synthesize (Uno exposes an internal one, which the path below uses). Drive the
+        // extracted logic instead — it is the exact code OnKeyDown/OnKeyUp run.
+        if (methodName is "OnKeyDown" or "OnKeyUp")
+        {
+            var shimMethod = typeof(WpfRichTextBox).GetMethod(
+                methodName == "OnKeyDown" ? "ShimHandleKeyDown" : "ShimHandleKeyUp",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                binder: null,
+                types: [typeof(global::Windows.System.VirtualKey), typeof(bool)],
+                modifiers: null)
+                ?? throw new InvalidOperationException($"RichTextBox.ShimHandleKey* not found for {methodName}.");
+
+            var modsProperty = typeof(System.Windows.Input.Keyboard).GetProperty(
+                "ModifiersOverride",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var previous = modsProperty?.GetValue(null);
+            try
+            {
+                modsProperty?.SetValue(null, ToWpfModifiers(modifiers));
+                shimMethod.Invoke(box, [key, false]);
+            }
+            finally
+            {
+                modsProperty?.SetValue(null, previous);
+            }
+            return;
+        }
+#endif
         var ctor = typeof(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs).GetConstructor(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
             binder: null,
@@ -1113,7 +1174,7 @@ public sealed partial class MainPage : Page
             var prop = rs.GetType().GetProperty("ReadOnly", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
             if (prop is not null)
                 prop.SetValue(rs, value);
-            rs.GetType().GetMethod("InvalidateArrange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(rs, null);
+            rs.GetType().GetMethod("InvalidateMeasure", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(rs, null);
         }
         return Snapshot(page);
     });
@@ -1168,6 +1229,26 @@ public sealed partial class MainPage : Page
             throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain or richtextbox.probe.set-document first.");
 
         page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+#if WINDOWS_APP_SDK
+        // WinAppSDK's CharacterReceivedRoutedEventArgs is a sealed WinRT type with no
+        // constructor to synthesize (Uno exposes an internal one, used below). Drive the
+        // extracted logic instead — the same code OnCharacterReceived runs.
+        {
+            var shimMethod = typeof(WpfRichTextBox).GetMethod(
+                "ShimHandleCharacterReceived",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                binder: null,
+                types: [typeof(char)],
+                modifiers: null)
+                ?? throw new InvalidOperationException("RichTextBox.ShimHandleCharacterReceived not found.");
+            foreach (var ch in text)
+            {
+                shimMethod.Invoke(page._box, [ch]);
+            }
+            page._box.UpdateLayout();
+            return Snapshot(page);
+        }
+#else
         var ctor = typeof(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs).GetConstructor(
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic,
             binder: null,
@@ -1189,6 +1270,7 @@ public sealed partial class MainPage : Page
         }
         page._box.UpdateLayout();
         return Snapshot(page);
+#endif
     });
 
     [DevFlowAction("richtextbox.probe.create-plain", Description = "Create a RichTextBox and append plain text.")]
@@ -1202,6 +1284,212 @@ public sealed partial class MainPage : Page
         box.UpdateLayout();
         return Snapshot(page);
     });
+
+#if WINDOWS_APP_SDK
+    // Diagnostic for the WinAppSDK port: reading some property off a TableColumn during XAML
+    // serialization access-violates (0xC0000005), which cannot be caught. Print each property
+    // name to stderr *before* reading it, so the last line in the host log names the culprit.
+    [DevFlowAction("richtextbox.probe.tablecolumn-dp-scan", Description = "Read every noninheritable TableColumn property, logging each name first; the last logged name is the one that crashes.")]
+    public static string ProbeTableColumnDpScan() => RunOnUi(page =>
+    {
+        const System.Reflection.BindingFlags AnyStatic =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var asm = typeof(WpfRichTextBox).Assembly;
+
+        var nameByDp = new Dictionary<object, string>(ReferenceEqualityComparer.Instance);
+        foreach (var a in new[] { asm, typeof(Microsoft.UI.Xaml.DependencyObject).Assembly })
+        {
+            Type[] types;
+            try { types = a.GetTypes(); } catch { continue; }
+            foreach (var t in types)
+            {
+                try
+                {
+                    foreach (var fi in t.GetFields(AnyStatic))
+                        if (fi.FieldType == typeof(Microsoft.UI.Xaml.DependencyProperty) && fi.GetValue(null) is { } fv)
+                            nameByDp.TryAdd(fv, $"{t.Name}.{fi.Name}");
+                    foreach (var pi in t.GetProperties(AnyStatic))
+                        if (pi.PropertyType == typeof(Microsoft.UI.Xaml.DependencyProperty) && pi.GetValue(null) is { } pv)
+                            nameByDp.TryAdd(pv, $"{t.Name}.{pi.Name}");
+                }
+                catch { }
+            }
+        }
+
+        var schema = asm.GetType("System.Windows.Documents.TextSchema")!;
+        var props = (Array)schema.GetMethod("GetNoninheritableProperties", AnyStatic)!
+            .Invoke(null, [typeof(System.Windows.Documents.TableColumn)])!;
+        // A freshly-created column reads fine (everything is UnsetValue and nothing has to be
+        // marshalled back). Assign the same values the failing document uses so ReadLocalValue
+        // has to return a real boxed value.
+        var column = new System.Windows.Documents.TableColumn { Width = new Microsoft.UI.Xaml.GridLength(100) };
+
+        var scanned = new List<string>();
+        foreach (Microsoft.UI.Xaml.DependencyProperty dp in props)
+        {
+            var name = nameByDp.TryGetValue(dp, out var n) ? n : "?";
+            Console.Error.WriteLine($"[dpscan] reading {name} (with value set)");
+            Console.Error.Flush();
+            var v = column.ReadLocalValue(dp);
+            Console.Error.WriteLine($"[dpscan]   -> {v?.GetType().FullName ?? "null"}");
+            Console.Error.Flush();
+            scanned.Add(name);
+        }
+        return $"{{\"count\":{props.Length},\"scanned\":\"{string.Join("|", scanned)}\"}}";
+    });
+
+    // Diagnostic for the WinAppSDK port: runs ProbeTextInputEvent's steps one at a time
+    // so the last step that returns identifies the one that hard-crashes the process
+    // (the crash produces no managed exception, so it cannot be caught).
+    [DevFlowAction("richtextbox.probe.text-input-steps", Description = "Run text-input steps up to maxStep; the last step that returns is the last safe one.")]
+    public static string ProbeTextInputSteps(int maxStep) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created.");
+
+        if (maxStep >= 1) page._box.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+
+        WpfTextCompositionEventArgs? args = null;
+        if (maxStep >= 2) args = new WpfTextCompositionEventArgs("x");
+        if (maxStep >= 3) args!.OriginalSource = page._box;
+        if (maxStep >= 4) InvokeTextEditorTyping("OnTextInput", page._box, args);
+        if (maxStep >= 5) page._box.UpdateLayout();
+        if (maxStep >= 6) return Snapshot(page);
+
+        return $"{{\"reachedStep\":{maxStep}}}";
+    });
+
+    // Diagnostic for the WinAppSDK port: reports, per DependencyProperty, whether
+    // GetValue succeeds on a shim Run and on a shim FlowDocument, including the HRESULT
+    // when it fails. Pinpoints which property types WinUI's ABI rejects.
+    [DevFlowAction("richtextbox.probe.dp-diagnostics", Description = "Per-property GetValue results for shim DependencyProperties under WinAppSDK.")]
+    public static string ProbeDpDiagnostics() => RunOnUi(page =>
+    {
+        static string Attempt(Func<object?> f)
+        {
+            try { var v = f(); return "ok=" + (v?.ToString() ?? "null"); }
+            catch (Exception ex) { return $"{ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}"; }
+        }
+
+        const System.Reflection.BindingFlags AnyStatic =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+        var asm = typeof(WpfRichTextBox).Assembly;
+
+        // Map DependencyProperty instances back to "Type.Field" so failures are nameable.
+        var nameByDp = new Dictionary<object, string>(ReferenceEqualityComparer.Instance);
+        var scanTypes = new List<Type>();
+        foreach (var a in new[] { asm, typeof(Microsoft.UI.Xaml.DependencyObject).Assembly })
+        {
+            try { scanTypes.AddRange(a.GetTypes()); } catch { }
+        }
+        foreach (var t in scanTypes)
+        {
+            System.Reflection.FieldInfo[] fields;
+            try { fields = t.GetFields(AnyStatic); } catch { continue; }
+            foreach (var f in fields)
+            {
+                if (f.FieldType != typeof(Microsoft.UI.Xaml.DependencyProperty)) continue;
+                try
+                {
+                    if (f.GetValue(null) is { } v && !nameByDp.ContainsKey(v))
+                        nameByDp[v] = $"{t.Name}.{f.Name}";
+                }
+                catch { }
+            }
+
+            // WinUI projects its DependencyProperties as static properties, not fields.
+            System.Reflection.PropertyInfo[] props;
+            try { props = t.GetProperties(AnyStatic); } catch { continue; }
+            foreach (var p in props)
+            {
+                if (p.PropertyType != typeof(Microsoft.UI.Xaml.DependencyProperty)) continue;
+                try
+                {
+                    if (p.GetValue(null) is { } v && !nameByDp.ContainsKey(v))
+                        nameByDp[v] = $"{t.Name}.{p.Name}";
+                }
+                catch { }
+            }
+        }
+
+        var schema = asm.GetType("System.Windows.Documents.TextSchema")!;
+        var inherited = (Array)schema.GetMethod("GetInheritableProperties", AnyStatic)!
+            .Invoke(null, [typeof(System.Windows.Documents.FlowDocument)])!;
+        var behavioral = (Array)schema.GetProperty("BehavioralProperties", AnyStatic)!.GetValue(null)!;
+
+        var doc = new System.Windows.Documents.FlowDocument();
+        var sb = new System.Text.StringBuilder();
+        int total = 0, failed = 0;
+
+        void Scan(string bucket, Array dps)
+        {
+            foreach (Microsoft.UI.Xaml.DependencyProperty dp in dps)
+            {
+                total++;
+                // 'doc' is the transfer target; 'page' stands in for the control side
+                // (RichTextBox itself), which the same WPF code also reads from.
+                var onDoc = Attempt(() => doc.GetValue(dp));
+                var onCtl = Attempt(() => page.GetValue(dp));
+                if (onDoc.StartsWith("ok=", StringComparison.Ordinal) && onCtl.StartsWith("ok=", StringComparison.Ordinal))
+                    continue;
+                failed++;
+                if (sb.Length > 0) sb.Append(',');
+                sb.Append(Js($"{bucket}:{(nameByDp.TryGetValue(dp, out var n) ? n : "?")}"))
+                  .Append(":{\"doc\":").Append(Js(onDoc)).Append(",\"ctl\":").Append(Js(onCtl)).Append('}');
+            }
+        }
+
+        Scan("inherited", inherited);
+        Scan("behavioral", behavioral);
+
+        // SpringloadCurrentFormatting walks these two sets; a null entry there would explain
+        // the NullReferenceException seen on WinAppSDK.
+        var inlineInherited = (Array)schema.GetMethod("GetInheritableProperties", AnyStatic)!
+            .Invoke(null, [typeof(System.Windows.Documents.Inline)])!;
+        var spanNoninherited = (Array)schema.GetMethod("GetNoninheritableProperties", AnyStatic)!
+            .Invoke(null, [typeof(System.Windows.Documents.Span)])!;
+
+        static int CountNulls(Array dps)
+        {
+            int nulls = 0;
+            foreach (var dp in dps) if (dp is null) nulls++;
+            return nulls;
+        }
+
+        // SpringloadCurrentFormatting stores values in a custom DependencyObject subclass.
+        // Verify it can be constructed and read from at all under WinAppSDK.
+        var fdoType = asm.GetType("System.Windows.Documents.FormattingDependencyObject");
+        string fdoResult = Attempt(() =>
+        {
+            var fdo = Activator.CreateInstance(fdoType!, nonPublic: true) as Microsoft.UI.Xaml.DependencyObject;
+            if (fdo is null) return "ctor returned null";
+            var probeDp = (Microsoft.UI.Xaml.DependencyProperty)inherited.GetValue(0)!;
+            var local = fdo.ReadLocalValue(probeDp);
+            bool isUnset = ReferenceEquals(local, Microsoft.UI.Xaml.DependencyProperty.UnsetValue);
+
+            // TextSelection.SpringloadCurrentFormatting calls ReadLocalValue for every
+            // Inline-inheritable property on this object; find which ones it cannot handle.
+            var inlineProps = (Array)schema.GetMethod("GetInheritableProperties", AnyStatic)!
+                .Invoke(null, [typeof(System.Windows.Documents.Inline)])!;
+            var broken = new List<string>();
+            foreach (Microsoft.UI.Xaml.DependencyProperty dp in inlineProps)
+            {
+                try { _ = fdo.ReadLocalValue(dp); }
+                catch (Exception ex)
+                {
+                    broken.Add($"{(nameByDp.TryGetValue(dp, out var n) ? n : "?")}={ex.GetType().Name}");
+                }
+            }
+            return $"refEqUnset={isUnset} brokenCount={broken.Count} broken=[{string.Join("|", broken)}]";
+        });
+
+        return $"{{\"formattingDependencyObject\":{Js(fdoResult)}," +
+               $"\"total\":{total},\"failed\":{failed}," +
+               $"\"inlineInheritedCount\":{inlineInherited.Length},\"inlineInheritedNulls\":{CountNulls(inlineInherited)}," +
+               $"\"spanNoninheritedCount\":{spanNoninherited.Length},\"spanNoninheritedNulls\":{CountNulls(spanNoninherited)}," +
+               $"\"failures\":{{{sb}}}}}";
+    });
+#endif
 
     static CoreTextEditContext RequireImeContext(WpfRichTextBox box)
     {
@@ -1221,6 +1509,37 @@ public sealed partial class MainPage : Page
         return $"{{\"hasImeContext\":{Jb(context is not null)}}}";
     });
 
+#if WINDOWS_APP_SDK
+    // WinRT's CoreTextTextUpdatingEventArgs is sealed with read-only properties and exposes no
+    // Raise* entry point, so the composition cannot be synthesized here the way the Skia head
+    // does below. Drive the extracted shim hook instead — the same code the real IME callback
+    // runs — so this scenario is covered on both heads.
+    [DevFlowAction("richtextbox.probe.simulate-ime-text-updating", Description = "Apply an IME text update over the given range for the current RichTextBox.")]
+    public static string ProbeSimulateImeTextUpdating(string newText, int rangeStart, int rangeEnd) => RunOnUi(page =>
+    {
+        if (page._box is null)
+            throw new InvalidOperationException("RichTextBox not created. Call richtextbox.probe.create-plain first.");
+
+        var method = typeof(WpfRichTextBox).GetMethod(
+            "ShimHandleImeTextUpdating",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(int), typeof(int), typeof(string)],
+            modifiers: null)
+            ?? throw new InvalidOperationException("RichTextBox.ShimHandleImeTextUpdating not found.");
+        method.Invoke(page._box, [rangeStart, rangeEnd, newText]);
+        page._box.UpdateLayout();
+        return Snapshot(page);
+    });
+#endif
+
+#if !WINDOWS_APP_SDK
+    // The next two probes synthesize CoreText event args and raise them directly.
+    // That is only possible against the LeXtudio.UI.Text.Core mirror package used by
+    // the Skia head: WinRT's CoreTextTextUpdatingEventArgs is sealed with read-only
+    // properties and exposes no Raise* entry point, and CoreTextCommandReceivedEventArgs
+    // (an AppKit doCommandBySelector: concept) has no WinRT counterpart at all. On the
+    // WinUI 3 head the real IME drives these paths, so the matching tests skip.
     [DevFlowAction("richtextbox.probe.simulate-ime-text-updating", Description = "Directly raise CoreTextEditContext.TextUpdating (simulating the platform IME committing composed text) for the current RichTextBox's whole-document range.")]
     public static string ProbeSimulateImeTextUpdating(string newText, int rangeStart, int rangeEnd) => RunOnUi(page =>
     {
@@ -1252,6 +1571,7 @@ public sealed partial class MainPage : Page
         page._box.UpdateLayout();
         return $"{{\"handled\":{Jb(eventArgs.Handled)},\"snapshot\":{Snapshot(page)}}}";
     });
+#endif
 
     [DevFlowAction("richtextbox.probe.set-ime-composition-range", Description = "Set the IME composition range on the FlowDocumentView and trigger visual update.")]
     public static string ProbeSetImeCompositionRange(int start, int length) => RunOnUi(page =>
@@ -1264,7 +1584,7 @@ public sealed partial class MainPage : Page
         var setRangeMethod = view.GetType().GetMethod("SetImeCompositionRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
             ?? throw new InvalidOperationException("FlowDocumentView.SetImeCompositionRange not found.");
         setRangeMethod.Invoke(view, [start, length]);
-        view.GetType().GetMethod("InvalidateArrange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(view, null);
+        view.GetType().GetMethod("InvalidateMeasure", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)?.Invoke(view, null);
         return Snapshot(page);
     });
 

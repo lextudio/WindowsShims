@@ -37,8 +37,12 @@ public abstract partial class TextElement : System.Windows.Input.IInputElement
         DependencyProperty.Register(nameof(KeyTipPlacementMode), typeof(Microsoft.UI.Xaml.Input.KeyTipPlacementMode), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(Microsoft.UI.Xaml.Input.KeyTipPlacementMode.Auto));
     public static readonly DependencyProperty KeyTipVerticalOffsetProperty =
         DependencyProperty.Register(nameof(KeyTipVerticalOffset), typeof(double), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(0d));
+    // Registered attached rather than owned: this is the document-side stand-in for
+    // FrameworkElement.LanguageProperty (see TextSchema), and it has to be readable from every
+    // document object — Inline, Block, TableColumn and FlowDocument alike — none of which share
+    // a common owner type. An attached property is usable on any DependencyObject.
     public static readonly DependencyProperty LanguageProperty =
-        DependencyProperty.Register(nameof(Language), typeof(string), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(string.Empty));
+        DependencyProperty.RegisterAttached(nameof(Language), typeof(string), typeof(TextElement), new Microsoft.UI.Xaml.PropertyMetadata(string.Empty));
 
     // ───── WinUI-specific CLR wrappers ─────
 

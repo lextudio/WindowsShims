@@ -274,10 +274,48 @@ public partial class RichTextBox
         }
     }
 
+    /// <summary>
+    /// The subset of a key event the key-down logic actually consumes. Everything else it
+    /// needs comes from <see cref="System.Windows.Input.Keyboard.Modifiers"/>.
+    /// </summary>
+    internal sealed class ShimKeyArgs
+    {
+        internal global::Windows.System.VirtualKey Key;
+        internal bool IsRepeat;
+        internal bool Handled;
+        internal uint KeyCode => (uint)Key;
+    }
+
     protected override void OnKeyDown(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         base.OnKeyDown(e);
 
+        if (ShimHandleKeyDown(e.Key, e.KeyStatus.RepeatCount > 1))
+        {
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// Runs the key-down logic without a platform event object, and reports whether the key
+    /// was handled.
+    /// </summary>
+    /// <remarks>
+    /// Extracted so a probe can drive the exact same path <see cref="OnKeyDown"/> uses without
+    /// constructing a <c>KeyRoutedEventArgs</c>. Uno exposes an internal constructor for that
+    /// type, but under WinAppSDK it is a sealed WinRT class with no way to synthesize one — so
+    /// the tests could otherwise only cover keyboard behaviour on the Skia head. This mirrors
+    /// DataGrid.ShimHandleKeyboardShortcut.
+    /// </remarks>
+    internal bool ShimHandleKeyDown(global::Windows.System.VirtualKey key, bool isRepeat)
+    {
+        var e = new ShimKeyArgs { Key = key, IsRepeat = isRepeat };
+        ShimHandleKeyDownCore(e);
+        return e.Handled;
+    }
+
+    private void ShimHandleKeyDownCore(ShimKeyArgs e)
+    {
         var te = TextEditor;
         if (te == null) return;
 
@@ -406,7 +444,7 @@ public partial class RichTextBox
         {
             Key = wpfKey,
             OriginalSource = this,
-            IsRepeat = e.KeyStatus.RepeatCount > 1,
+            IsRepeat = e.IsRepeat,
         };
         TextEditorTyping.OnKeyDown(this, args);
 
@@ -435,7 +473,25 @@ public partial class RichTextBox
     protected override void OnKeyUp(Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         base.OnKeyUp(e);
+        if (ShimHandleKeyUp(e.Key, e.KeyStatus.RepeatCount > 1))
+        {
+            e.Handled = true;
+        }
+    }
 
+    /// <summary>
+    /// Key-up counterpart of <see cref="ShimHandleKeyDown"/>, for the same reason: WinAppSDK's
+    /// KeyRoutedEventArgs cannot be synthesized by a probe.
+    /// </summary>
+    internal bool ShimHandleKeyUp(global::Windows.System.VirtualKey key, bool isRepeat)
+    {
+        var e = new ShimKeyArgs { Key = key, IsRepeat = isRepeat };
+        ShimHandleKeyUpCore(e);
+        return e.Handled;
+    }
+
+    private void ShimHandleKeyUpCore(ShimKeyArgs e)
+    {
         var te = TextEditor;
         if (te == null) return;
 
@@ -448,7 +504,7 @@ public partial class RichTextBox
         {
             Key = wpfKey,
             OriginalSource = this,
-            IsRepeat = e.KeyStatus.RepeatCount > 1,
+            IsRepeat = e.IsRepeat,
         };
         TextEditorTyping.OnKeyUp(this, args);
 
@@ -462,7 +518,32 @@ public partial class RichTextBox
     protected override void OnCharacterReceived(Microsoft.UI.Xaml.Input.CharacterReceivedRoutedEventArgs e)
     {
         base.OnCharacterReceived(e);
+        if (ShimHandleCharacterReceived(e.Character)) e.Handled = true;
+    }
 
+    /// <summary>
+    /// Runs the character-input logic without a platform event object.
+    /// </summary>
+    /// <remarks>
+    /// Companion to <see cref="ShimHandleKeyDown"/>: WinAppSDK's
+    /// CharacterReceivedRoutedEventArgs is a sealed WinRT type that cannot be synthesized, so
+    /// probes drive this instead of constructing one.
+    /// </remarks>
+    internal bool ShimHandleCharacterReceived(char character)
+    {
+        var e = new ShimCharacterArgs { Character = character };
+        ShimHandleCharacterReceivedCore(e);
+        return e.Handled;
+    }
+
+    internal sealed class ShimCharacterArgs
+    {
+        internal char Character;
+        internal bool Handled;
+    }
+
+    private void ShimHandleCharacterReceivedCore(ShimCharacterArgs e)
+    {
         var te = TextEditor;
         if (te == null) return;
 

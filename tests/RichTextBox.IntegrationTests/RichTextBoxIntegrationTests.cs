@@ -13,8 +13,15 @@ public sealed class RichTextBoxIntegrationTests
     static bool HasRichTextBox(JsonElement state) => state.GetProperty("hasRichTextBox").GetBoolean();
     static bool HasDocument(JsonElement state) => state.GetProperty("hasDocument").GetBoolean();
     static int BlockCount(JsonElement state) => state.GetProperty("blockCount").GetInt32();
-    static string Text(JsonElement state) => state.GetProperty("text").GetString() ?? "";
-    static string SelectionText(JsonElement state) => state.GetProperty("selectionText").GetString() ?? "";
+    // WPF's TextRangeBase appends Environment.NewLine at paragraph boundaries, and the shim
+    // keeps that behaviour — so document text is "\r\n"-separated on Windows and
+    // "\n"-separated elsewhere. The expectations below describe document structure, not the
+    // host OS's line ending, so normalise before comparing. Without this every text assertion
+    // passes only on Linux/macOS.
+    static string NormalizeNewLines(string? value) => value?.Replace("\r\n", "\n") ?? "";
+
+    static string Text(JsonElement state) => NormalizeNewLines(state.GetProperty("text").GetString());
+    static string SelectionText(JsonElement state) => NormalizeNewLines(state.GetProperty("selectionText").GetString());
     static string SelectionTextTrimmed(JsonElement state) => SelectionText(state).TrimEnd('\n', '\r');
     static int? SelectionStartRunOffset(JsonElement state) =>
         state.GetProperty("selectionStartRunOffset").ValueKind == JsonValueKind.Null
@@ -24,7 +31,7 @@ public sealed class RichTextBoxIntegrationTests
         state.GetProperty("selectionEndRunOffset").ValueKind == JsonValueKind.Null
             ? null
             : state.GetProperty("selectionEndRunOffset").GetInt32();
-    static string ClipboardText(JsonElement state) => state.GetProperty("clipboardText").GetString() ?? "";
+    static string ClipboardText(JsonElement state) => NormalizeNewLines(state.GetProperty("clipboardText").GetString());
     static string? FirstParagraphTextAlignment(JsonElement state) => state.GetProperty("firstParagraphTextAlignment").GetString();
     static string? FirstParagraphLineHeight(JsonElement state) => state.GetProperty("firstParagraphLineHeight").GetString();
     static string? FirstParagraphLineStackingStrategy(JsonElement state) => state.GetProperty("firstParagraphLineStackingStrategy").GetString();
@@ -78,7 +85,7 @@ public sealed class RichTextBoxIntegrationTests
         state.GetProperty("firstListItemCount").ValueKind == JsonValueKind.Null
             ? null
             : state.GetProperty("firstListItemCount").GetInt32();
-    static string? FirstListItemText(JsonElement state) => state.GetProperty("firstListItemText").GetString();
+    static string? FirstListItemText(JsonElement state) => state.GetProperty("firstListItemText").GetString() is { } s ? NormalizeNewLines(s) : null;
     static string? FirstListItemBlockTypes(JsonElement state) => state.GetProperty("firstListItemBlockTypes").GetString();
     static string? NestedListMarkerStyle(JsonElement state) => state.GetProperty("nestedListMarkerStyle").GetString();
     static string? FirstTableCellBackground(JsonElement state) => state.GetProperty("firstTableCellBackground").GetString();
@@ -2327,10 +2334,22 @@ public sealed class RichTextBoxIntegrationTests
         Assert.True(pages.EnumerateArray().All(p => p.GetProperty("cellBoxes").GetArrayLength() >= 1), result.ToString());
 
         // Boxes crossing a page boundary are split; total heights are preserved.
-        double totalHeight = pages.EnumerateArray()
+        var boxHeights = pages.EnumerateArray()
             .SelectMany(p => p.GetProperty("cellBoxes").EnumerateArray())
-            .Sum(b => double.Parse(b.GetString()!.Split(':')[2], System.Globalization.CultureInfo.InvariantCulture));
-        Assert.True(Math.Abs(totalHeight - 30 * 22.0) < 2, result.ToString());
+            .Select(b => double.Parse(b.GetString()!.Split(':')[2], System.Globalization.CultureInfo.InvariantCulture))
+            .ToList();
+        double totalHeight = boxHeights.Sum();
+
+        // Row height follows platform text metrics (Skia and WinUI measure line height
+        // slightly differently), so derive it from the un-split rows rather than hardcoding
+        // it. The property under test is that splitting preserves the total: any row divided
+        // across a page boundary must contribute its full height between the two pages.
+        double rowHeight = boxHeights
+            .GroupBy(h => Math.Round(h))
+            .OrderByDescending(g => g.Count())
+            .First().Key;
+        Assert.True(Math.Abs(totalHeight - 30 * rowHeight) < 2,
+            $"expected ~{30 * rowHeight} for 30 rows of {rowHeight}, got {totalHeight}. {result}");
     }
 
     [Fact]
@@ -2993,6 +3012,8 @@ public sealed class RichTextBoxIntegrationTests
     [InlineData("moveLeft:")]
     public async Task SimulateImeCommand_MapsToEditingCommandAndReportsHandled(string command)
     {
+        Assert.SkipWhen(RichTextBoxAppFixture.IsWinAppSdkHost,
+            "Probe synthesizes CoreText event args; WinRT's sealed types forbid that, so the real IME drives this path on the WinUI 3 head.");
         await _app.InvokeAsync("richtextbox.probe.create-plain", "abc");
         await _app.InvokeAsync("richtextbox.probe.set-caret-run-offset", 3);
 
@@ -3188,7 +3209,9 @@ public sealed class RichTextBoxIntegrationTests
 
         var state = await _app.InvokeAsync("richtextbox.probe.execute-command", "SelectAll");
 
-        Assert.Equal("select all text", state.GetProperty("selectionText").GetString().TrimEnd('\n'));
+        // TrimEnd('\n') alone leaves the '\r' of a Windows paragraph break behind; the shared
+        // helper trims both, so this describes the selection rather than the host's newline.
+        Assert.Equal("select all text", SelectionTextTrimmed(state));
     }
 
     [Fact]

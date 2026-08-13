@@ -145,6 +145,17 @@ public partial class RichTextBox
     }
 
     private void OnImeTextUpdating(CoreTextEditContext sender, CoreTextTextUpdatingEventArgs e)
+        => ShimHandleImeTextUpdating(e.Range.StartCaretPosition, e.Range.EndCaretPosition, ImeTextOf(e) ?? string.Empty);
+
+    /// <summary>
+    /// Applies an IME text update without a platform event object.
+    /// </summary>
+    /// <remarks>
+    /// Companion to <see cref="ShimHandleKeyDown"/>: under WinAppSDK the CoreText event args
+    /// are sealed WinRT types with read-only properties and no way to raise them, so a probe
+    /// cannot synthesize a composition. This is the same code the real IME callback runs.
+    /// </remarks>
+    internal void ShimHandleImeTextUpdating(int rangeStart, int rangeEnd, string newText)
     {
         var te = TextEditor;
         var document = Document;
@@ -153,9 +164,8 @@ public partial class RichTextBox
 
         try
         {
-            var start = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition);
-            var end = GetPositionAtPlainTextOffset(document, e.Range.EndCaretPosition);
-            string newText = ImeTextOf(e) ?? string.Empty;
+            var start = GetPositionAtPlainTextOffset(document, rangeStart);
+            var end = GetPositionAtPlainTextOffset(document, rangeEnd);
             // Do not use TextRange.Text here: TextRange construction clamps
             // positions inside a table cell to the containing cell's boundaries,
             // so composing inside a cell would insert at the wrong place.
@@ -168,21 +178,21 @@ public partial class RichTextBox
                 start.InsertTextInRun(newText);
             }
 
-            var newCaret = GetPositionAtPlainTextOffset(document, e.Range.StartCaretPosition + newText.Length);
+            var newCaret = GetPositionAtPlainTextOffset(document, rangeStart + newText.Length);
             if (te.Selection is { } selection)
             {
                 selection.Select(newCaret, newCaret);
                 UpdateCaretFromSelection();
             }
 
-            _imeCompositionStart = e.Range.StartCaretPosition;
-            _imeCompositionLength = ImeTextOf(e)?.Length ?? 0;
-            Log($"Ime: TextUpdating range=[{e.Range.StartCaretPosition},{e.Range.EndCaretPosition}) text='{ImeTextOf(e)}'");
+            _imeCompositionStart = rangeStart;
+            _imeCompositionLength = newText.Length;
+            Log($"Ime: TextUpdating range=[{rangeStart},{rangeEnd}) text='{newText}'");
             NotifyImeCompositionRangeToView();
         }
         catch (Exception ex)
         {
-            Log($"Ime: OnImeTextUpdating THREW {ex.GetType().Name}: {ex.Message}");
+            Log($"Ime: ShimHandleImeTextUpdating THREW {ex.GetType().Name}: {ex.Message}");
         }
     }
 

@@ -236,7 +236,12 @@ public static class XamlReader
                 case "xml:lang":
                 case "lang":
                     if (!string.IsNullOrWhiteSpace(reader.Value))
+#if WINDOWS_APP_SDK
+                        // The document-side attached property TextSchema substitutes on this target.
+                        para.SetValue(System.Windows.Documents.TextElement.LanguageProperty, reader.Value);
+#else
                         para.SetValue(Microsoft.UI.Xaml.FrameworkElement.LanguageProperty, reader.Value);
+#endif
                     break;
             }
         }
@@ -442,7 +447,11 @@ public static class XamlReader
                 // save/load as \langN (XmlReader.LocalName already dropped the
                 // "xml:" prefix, hence the extra "lang" arm).
                 if (!string.IsNullOrWhiteSpace(value))
+#if WINDOWS_APP_SDK
+                    element.SetValue(System.Windows.Documents.TextElement.LanguageProperty, value);
+#else
                     element.SetValue(Microsoft.UI.Xaml.FrameworkElement.LanguageProperty, value);
+#endif
                 break;
         }
     }
