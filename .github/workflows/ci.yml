@@ -38,9 +38,11 @@ jobs:
         run: dotnet build -c Release ${{ matrix.solution }}
       - name: Run unit tests (desktop)
         run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-desktop --no-build -- --parallel none
+      # The WinUI head builds under bin/x64/... (WinUI needs a concrete platform), so
+      # --no-build has to be told Platform=x64 or it looks in the AnyCPU output path.
       - name: Run unit tests (WinUI)
         if: runner.os == 'Windows'
-        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -- --parallel none
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -p:Platform=x64 -- --parallel none
       - name: Run RichTextBox integration tests (desktop)
         if: runner.os != 'Linux'
         run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 --no-build -- --parallel none
