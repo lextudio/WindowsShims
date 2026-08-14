@@ -37,13 +37,13 @@ jobs:
         if: runner.os != 'Windows'
         run: dotnet build -c Release ${{ matrix.solution }}
       - name: Run unit tests (desktop)
-        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-desktop -- --parallel none
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-desktop --no-build -- --parallel none
       - name: Run unit tests (WinUI)
         if: runner.os == 'Windows'
-        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -- --parallel none
+        run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -- --parallel none
       - name: Run RichTextBox integration tests (desktop)
         if: runner.os != 'Linux'
-        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+        run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 --no-build -- --parallel none
       # Running the suite against that head is not enabled yet: the shim cannot build a
       # RichTextBox on WinAppSDK. WinUI binds a DependencyProperty to its registering
       # owner type, so GetValue with the WPF-shim DPs fails with E_INVALIDARG where WPF
@@ -56,7 +56,7 @@ jobs:
       #     DOTNET_HOST_TFM: net10.0-windows10.0.19041.0
       - name: Run DataGrid integration tests (desktop)
         if: runner.os != 'Linux'
-        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
+        run: dotnet run --project tests/DataGrid.IntegrationTests/DataGrid.IntegrationTests.csproj -c Release -f net10.0 --no-build -- --parallel none
       # DataGrid's host is still Skia-only (net10.0-desktop), so DOTNET_HOST_TFM had no
       # WinUI head to launch and this step could never have worked. Left disabled until
       # that host gains a WinUI 3 head the way RichTextBox's did.
