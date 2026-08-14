@@ -27,6 +27,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.x'
+      # `msbuild` is not on PATH on windows-latest, and `dotnet msbuild` is the Core
+      # engine, which is what UNOB0008 rejects. This puts the full-framework MSBuild
+      # on PATH for build.windows.bat and the WinUI test-head build below.
+      - name: Setup MSBuild
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
       - name: Guard budget check
         if: runner.os != 'Windows'
         run: python3 scripts/count-guards.py --gate
@@ -38,8 +44,16 @@ jobs:
         run: dotnet build -c Release ${{ matrix.solution }}
       - name: Run unit tests (desktop)
         run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-desktop --no-build -- --parallel none
-      # The WinUI head builds under bin/x64/... (WinUI needs a concrete platform), so
-      # --no-build has to be told Platform=x64 or it looks in the AnyCPU output path.
+      # The solution build picks the WinUI platform from the host (arm64 on an arm64
+      # dev box, and nothing usable on the CI runner), so the WinUI test head cannot be
+      # relied on to exist after `build.windows.bat`. Build it explicitly at x64 here -
+      # `dotnet build` can't (UNOB0008: LeXtudio.Windows is a WinUI class library with
+      # XAML), hence msbuild. x64 also clears the WIN2D0001 AnyCPU warning.
+      - name: Build unit tests (WinUI)
+        if: runner.os == 'Windows'
+        run: |
+          msbuild src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -t:Restore -p:TargetFramework=net10.0-windows10.0.19041.0 -p:Platform=x64 -p:Configuration=Release
+          msbuild src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -p:TargetFramework=net10.0-windows10.0.19041.0 -p:Platform=x64 -p:Configuration=Release
       - name: Run unit tests (WinUI)
         if: runner.os == 'Windows'
         run: dotnet run --project src/LeXtudio.Windows.Tests/LeXtudio.Windows.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -p:Platform=x64 -- --parallel none
