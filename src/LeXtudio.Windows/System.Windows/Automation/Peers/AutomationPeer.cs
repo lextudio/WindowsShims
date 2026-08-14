@@ -51,7 +51,12 @@ namespace System.Windows.Automation.Peers
     /// </summary>
     public class AutomationPeer : Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer
     {
+        // Uno's FrameworkElementAutomationPeer exposes an owner-less ctor; WinAppSDK's
+        // only takes an owner, so the item-peer path chains through it with no owner.
         public AutomationPeer()
+#if WINDOWS_APP_SDK
+            : base((Microsoft.UI.Xaml.FrameworkElement)null)
+#endif
         {
         }
 
@@ -60,17 +65,35 @@ namespace System.Windows.Automation.Peers
         {
         }
 
-        public static bool ListenerExists(AutomationEvents events) =>
-            Microsoft.UI.Xaml.Automation.Peers.AutomationPeer.ListenerExists(
-                (Microsoft.UI.Xaml.Automation.Peers.AutomationEvents)events);
+        // WinAppSDK's UIA statics fail with an HRESULT when no Xaml/UIA context is up
+        // (e.g. off the UI thread). WPF call sites treat this as a cheap "is anyone
+        // listening" probe, so no context means no listener rather than a throw.
+        public static bool ListenerExists(AutomationEvents events)
+        {
+            try
+            {
+                return Microsoft.UI.Xaml.Automation.Peers.AutomationPeer.ListenerExists(
+                    (Microsoft.UI.Xaml.Automation.Peers.AutomationEvents)events);
+            }
+            catch (Runtime.InteropServices.COMException)
+            {
+                return false;
+            }
+        }
 
+        // WPF answers "no peer" for a null element; WinAppSDK's projections reject it
+        // with E_INVALIDARG, so the null case is handled before crossing the boundary.
         public static new AutomationPeer? FromElement(UIElement element) =>
-            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
-                as AutomationPeer;
+            element is null
+                ? null
+                : Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(element)
+                    as AutomationPeer;
 
         public static new AutomationPeer? CreatePeerForElement(UIElement element) =>
-            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(element)
-                as AutomationPeer;
+            element is null
+                ? null
+                : Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(element)
+                    as AutomationPeer;
 
         public void RaiseAutomationEvent(AutomationEvents events) =>
             base.RaiseAutomationEvent(
