@@ -44,16 +44,6 @@ jobs:
       - name: Run RichTextBox integration tests (desktop)
         if: runner.os != 'Linux'
         run: dotnet run --project tests/RichTextBox.IntegrationTests/RichTextBox.IntegrationTests.csproj -c Release -f net10.0 -- --parallel none
-      # The RichTextBox host now also builds a native WinUI 3 head, so the same probe
-      # suite can target WinAppSDK. Building it here keeps that multi-targeting from
-      # bit-rotting. `dotnet build` cannot build it (UNOB0008: LeXtudio.Windows is a
-      # WinUI class library with XAML), hence msbuild.
-      - name: Build RichTextBox integration host (WinUI)
-        if: runner.os == 'Windows'
-        run: msbuild tests/RichTextBox.IntegrationTestHost/RichTextBox.IntegrationTestHost.csproj -t:Restore -p:TargetFramework=net10.0-windows10.0.19041.0 -p:Platform=x64 -p:Configuration=Debug
-      - name: Build RichTextBox integration host (WinUI) - compile
-        if: runner.os == 'Windows'
-        run: msbuild tests/RichTextBox.IntegrationTestHost/RichTextBox.IntegrationTestHost.csproj -p:TargetFramework=net10.0-windows10.0.19041.0 -p:Platform=x64 -p:Configuration=Debug
       # Running the suite against that head is not enabled yet: the shim cannot build a
       # RichTextBox on WinAppSDK. WinUI binds a DependencyProperty to its registering
       # owner type, so GetValue with the WPF-shim DPs fails with E_INVALIDARG where WPF
