@@ -18,9 +18,8 @@ namespace System.Windows
         public Type TargetType { get; }
     }
 
-    public abstract class ContentPosition
-    {
-    }
+    // ContentPosition now comes from upstream PresentationCore
+    // (System.Windows.Documents.ContentPosition); this stub lived in the wrong namespace.
 
     public sealed class LocalValueEnumerator
     {
@@ -327,13 +326,6 @@ namespace MS.Win32
             [System.Runtime.InteropServices.PreserveSig]
             int GetXML([System.Runtime.InteropServices.Out, System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.BStr)] out string desc);
         }
-    }
-}
-
-namespace System.Windows.Media
-{
-    public class GlyphRun
-    {
     }
 }
 

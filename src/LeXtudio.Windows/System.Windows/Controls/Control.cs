@@ -202,6 +202,9 @@ public readonly struct DpiScale
     public double DpiScaleX { get; }
     public double DpiScaleY { get; }
     public DpiScale(double x, double y) { DpiScaleX = x; DpiScaleY = y; }
+
+    /// <summary>WPF's PixelsPerDip — the vertical scale factor, used by text formatting.</summary>
+    public double PixelsPerDip => DpiScaleY;
 }
 
 /// <summary>WPF event-route stub — HAS_UNO never calls AddToEventRouteCore.</summary>

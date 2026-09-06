@@ -1348,7 +1348,9 @@ namespace MS.Internal.Documents
             if (_pages == null || pageNumber < 0 || pageNumber >= _pages.Count)
                 return System.Windows.Documents.DocumentPage.Missing;
             var fp = _pages[pageNumber];
-            return new System.Windows.Documents.DocumentPage(null, new Size((double)fp.PageSize.Width, (double)fp.PageSize.Height));
+            var pageSize = new Size((double)fp.PageSize.Width, (double)fp.PageSize.Height);
+            var pageBox = new Rect(new Point(), pageSize);
+            return new System.Windows.Documents.DocumentPage(null, pageSize, pageBox, pageBox);
         }
 
         void EnsurePages()

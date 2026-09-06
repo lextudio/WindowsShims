@@ -128,4 +128,77 @@ public static class WinUIFrameworkElementExtensions
                 self.SetValue(dp, res);
         }
     }
+
+    extension(Microsoft.UI.Xaml.UIElement self)
+    {
+        /// <summary>
+        /// WPF's UIElement.BringIntoView. WinUI's equivalent is StartBringIntoView,
+        /// which scrolls the nearest scrolling host asynchronously.
+        /// </summary>
+        public void BringIntoView() => self.StartBringIntoView();
+
+        /// <summary>WPF's UIElement.BringIntoView(Rect) — scrolls a sub-rect into view.</summary>
+        public void BringIntoView(global::Windows.Foundation.Rect targetRectangle)
+            => self.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions
+            {
+                TargetRect = targetRectangle,
+            });
+
+        /// <summary>
+        /// WPF's VisualTreeHelper.GetDpi(visual), reached unqualified from FrameworkElement
+        /// members. Reads the element's XamlRoot rasterization scale; 1.0 before the
+        /// element is in a tree.
+        /// </summary>
+        public Controls.DpiScale GetDpi()
+        {
+            var scale = self.XamlRoot?.RasterizationScale ?? 1.0;
+            return new Controls.DpiScale(scale, scale);
+        }
+    }
+
+    extension(Microsoft.UI.Xaml.FrameworkElement self)
+    {
+        /// <summary>
+        /// WPF's FrameworkElement.IsInitialized. WPF sets it after the parser finishes the
+        /// element; the closest WinUI signal is IsLoaded, which is true once the element has
+        /// entered the live tree.
+        /// </summary>
+        public bool IsInitialized => self.IsLoaded;
+
+        /// <summary>
+        /// WPF's FrameworkElement.InheritanceBehavior, which controls how far property-value
+        /// and resource inheritance walks. WinUI has no equivalent, so the value is stored on
+        /// an attached property and read back; it does not change lookup behavior.
+        /// </summary>
+        public InheritanceBehavior InheritanceBehavior
+        {
+            get => (InheritanceBehavior)self.GetValue(InheritanceBehaviorHost.InheritanceBehaviorProperty);
+            set => self.SetValue(InheritanceBehaviorHost.InheritanceBehaviorProperty, value);
+        }
+    }
+}
+
+/// <summary>
+/// WPF's FrameworkElement.InheritanceBehavior values. Recorded but not acted on:
+/// WinUI's property system has no inheritance-boundary concept to hook.
+/// </summary>
+public enum InheritanceBehavior
+{
+    Default = 0,
+    SkipToAppNow,
+    SkipToAppNext,
+    SkipToThemeNow,
+    SkipToThemeNext,
+    SkipAllNow,
+    SkipAllNext,
+}
+
+internal static class InheritanceBehaviorHost
+{
+    public static readonly DependencyProperty InheritanceBehaviorProperty =
+        DependencyProperty.RegisterAttached(
+            "InheritanceBehavior",
+            typeof(InheritanceBehavior),
+            typeof(InheritanceBehaviorHost),
+            new Microsoft.UI.Xaml.PropertyMetadata(InheritanceBehavior.Default));
 }

@@ -43,15 +43,6 @@ namespace System.Windows.Controls
     }
 }
 
-namespace System.Windows.Media
-{
-    // Symbol-font detection only; full glyph table not modeled.
-    public sealed class GlyphTypeface
-    {
-        public bool Symbol => false;
-    }
-}
-
 namespace MS.Internal
 {
     // Metafile→image conversion is a niche WMF path; stubbed as no-op.

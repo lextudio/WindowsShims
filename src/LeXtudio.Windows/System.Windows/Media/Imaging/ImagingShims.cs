@@ -262,6 +262,7 @@ namespace System.IO.Packaging
 		private static readonly Dictionary<Uri, Package> _packages = new();
 		internal static void AddPackage(Uri uri, Package package) => _packages[uri] = package;
 		internal static void RemovePackage(Uri uri) => _packages.Remove(uri);
+		internal static Package? GetPackage(Uri uri) => _packages.TryGetValue(uri, out var package) ? package : null;
 	}
 }
 

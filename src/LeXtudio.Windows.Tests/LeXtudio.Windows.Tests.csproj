@@ -36,6 +36,10 @@
     <Compile Include="WpfStyleFactoryTests.cs" />
     <Compile Include="WpfResourceFactoryTests.cs" />
     <Compile Include="WpfXamlResourceTranslatorTests.cs" />
+    <Compile Include="FixedDocumentSpineTests.cs" />
+    <Compile Include="AppModelShimTests.cs" />
+    <Compile Include="GlyphTypefaceTests.cs" />
+    <Compile Include="RectAndTransformExtensionsTests.cs" />
     <Compile Include="DataGridBoundColumnTests.cs" />
     <Compile Include="DataGridExtensionsShimTests.cs" />
     <Compile Include="DataGridRomaMetadataSurfaceTests.cs" />

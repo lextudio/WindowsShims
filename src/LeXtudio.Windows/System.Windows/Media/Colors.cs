@@ -40,5 +40,7 @@ namespace System.Windows.Media
         public static Color LightGreen => Color.FromArgb(255, 144, 238, 144);
         public static Color LightPink => Color.FromArgb(255, 255, 182, 193);
         public static Color LightBlue => Color.FromArgb(255, 173, 216, 230);
+        public static Color DarkViolet    => Color.FromArgb(255, 148, 0, 211);
+        public static Color CadetBlue     => Color.FromArgb(255, 95, 158, 160);
     }
 }

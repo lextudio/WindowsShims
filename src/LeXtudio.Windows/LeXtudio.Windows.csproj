@@ -744,10 +744,6 @@
 
   <ItemGroup>
     <!-- Early-batch scope: exclude optional/non-core RichText subsystems until core editing stabilizes. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Fixed*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentSequence*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContent*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XPSS0ValidatingLoader.cs" />
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Speller*.cs" />
     <!-- TextMapOffsetErrorLogger.cs is a nested class of Speller (partial);
@@ -783,7 +779,6 @@
 
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextStore.cs" />
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ImmComposition.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
     <!-- TextRangeSerialization.cs: WPF enabled (Session 20). -->
     <!-- TextMapOffsetErrorLogger.cs: WPF enabled (Session 24); gated #if !HAS_UNO (Speller partial). -->
 
@@ -803,11 +798,6 @@
     <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\TextFlow.cs" />
     <!-- Typography + TypographyProperties migrated to upstream -->
     <!-- TextRangeEditTables.cs: WPF enabled (Session 24); column-resize section gated #if !HAS_UNO. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReferenceCollection.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Glyphs.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
 
     <!-- Table*.cs glob — keep shim-replaced types blocked; TableColumn/TableColumnCollection are used by undo units so enabled separately -->
     <!-- Table.cs: WPF enabled (Session 23). -->
@@ -838,8 +828,6 @@
     <!-- NullTextNavigator.cs: WPF enabled (Session 22). -->
     <!-- NullTextContainer.cs: WPF enabled (Session 22). -->
 
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowPosition.cs" />
     <!-- FrameworkTextComposition.cs: WPF enabled (Session 21). -->
     <!-- FrameworkRichTextComposition.cs: WPF enabled (Session 21). -->
     <!-- SelectionWordBreaker migrated to upstream -->
@@ -889,4 +877,98 @@
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\ToolBarOverflowPanel.cs"
              Link="System.Windows.Controls.Primitives\ToolBarOverflowPanel.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- HighlightVisual and RubberbandSelector derive from DrawingVisual / ContainerVisual,
+         which have no WinUI equivalent; they stay out of the fixed-document migration. -->
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fixed-document (XPS) family support types (FixedDocument migration). -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\NamedElement.cs"
+             Link="System.Windows.Documents.DocumentStructures\NamedElement.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\SemanticBasicElement.cs"
+             Link="System.Windows.Documents.DocumentStructures\SemanticBasicElement.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\StoryFragments.cs"
+             Link="System.Windows.Documents.DocumentStructures\StoryFragments.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentPaginator.cs"
+             Link="MS.Internal.Documents\FixedDocumentPaginator.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentSequencePaginator.cs"
+             Link="MS.Internal.Documents\FixedDocumentSequencePaginator.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TextViewBase.cs"
+             Link="MS.Internal.Documents\TextViewBase.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fixed-document (XPS) support types from WindowsBase/PresentationCore/Shared. -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\MS\Utility\BindUriHelper.cs"
+             Link="MS.Internal.Utility\BindUriHelper.Shared.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\MS\Internal\ReflectionUtils.cs"
+             Link="MS.Internal\ReflectionUtils.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\DocumentsTrace.cs"
+             Link="MS.Internal.Documents\DocumentsTrace.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Navigation\FragmentNavigationEventArgs.cs"
+             Link="System.Windows.Navigation\FragmentNavigationEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\MS\internal\IO\Packaging\PreloadedPackages.cs"
+             Link="MS.Internal.IO.Packaging\PreloadedPackages.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\WindowsBase\MS\Internal\IO\Packaging\PackagingExtensions.cs"
+             Link="MS.Internal.IO.Packaging\PackagingExtensions.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\WindowsBase\MS\Internal\ContentType.cs"
+             Link="MS.Internal\ContentType.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\System\Windows\Markup\XmlWrappingReader.cs"
+             Link="System.Windows.Markup\XmlWrappingReader.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\Utility\BindUriHelper.cs"
+             Link="MS.Internal.Utility\BindUriHelper.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\DocumentPage.cs"
+             Link="System.Windows.Documents\DocumentPage.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\DocumentPaginator.cs"
+             Link="System.Windows.Documents\DocumentPaginator.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\GetPageCompletedEventArgs.cs"
+             Link="System.Windows.Documents\GetPageCompletedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\PagesChangedEventArgs.cs"
+             Link="System.Windows.Documents\PagesChangedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\IDocumentPaginatorSource.cs"
+             Link="System.Windows.Documents\IDocumentPaginatorSource.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\ContentPosition.cs"
+             Link="System.Windows.Documents\ContentPosition.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\GetPageNumberCompletedEventArgs.cs"
+             Link="System.Windows.Documents\GetPageNumberCompletedEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\PaginationProgressEventArgs.cs"
+             Link="System.Windows.Documents\PaginationProgressEventArgs.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationCore\System\Windows\Documents\DynamicDocumentPaginator.cs"
+             Link="System.Windows.Documents\DynamicDocumentPaginator.cs" />
+  </ItemGroup>
+
+  <!-- Set FixedDocumentRung=all to un-gate the whole fixed-document family and measure the
+       remaining compile surface: dotnet build -f net10.0-desktop -p:FixedDocumentRung=all -->
+  <ItemGroup Condition="'$(FixedDocumentRung)' == 'all'">
+    <!-- Upstream FixedPage.cs supplies NavigateUriProperty/GetLinkUri once un-gated. -->
+    <Compile Remove="System.Windows\Documents\FixedPageHyperlinkShim.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(FixedDocumentRung)' != 'all'">
+    <!-- FixedDocument (XPS) migration, rung 1: the paginator/content-type spine is linked
+         upstream (see the ItemGroups below). The document object model itself still needs a
+         GlyphRun/FormattedText surface that WinUI does not provide, plus Rect/Transform/Brushes
+         helpers; tracked in docs/fixeddocument/. Keep these gated until those rungs land. -->
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Fixed*.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContent*.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentSequence*.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReferenceCollection.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Glyphs.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowPosition.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XPSS0ValidatingLoader.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\NamedElement.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\SemanticBasicElement.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\StoryFragments.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentPaginator.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentSequencePaginator.cs" />
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TextViewBase.cs" />
+  </ItemGroup>
+
 </Project>

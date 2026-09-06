@@ -159,6 +159,13 @@ namespace System.Windows.Markup
         }
 
         public override string ToString() => IetfLanguageTag;
+
+        /// <summary>
+        /// WinUI types FrameworkElement.Language as a string where WPF types it as
+        /// XmlLanguage; upstream code passes the property straight through.
+        /// </summary>
+        public static implicit operator XmlLanguage(string ietfLanguageTag)
+            => GetLanguage(ietfLanguageTag);
     }
 }
 
