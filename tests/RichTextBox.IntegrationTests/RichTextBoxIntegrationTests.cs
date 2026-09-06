@@ -3449,4 +3449,37 @@ public sealed class RichTextBoxIntegrationTests
         var view = "todo";
         Assert.True(true); // placeholder — visual tree check needs a probe
     }
+
+    // FixedDocument (XPS) object model, rung 6: FixedDocument/PageContent/FixedPage are
+    // linked upstream and un-gated. These build a document entirely in memory
+    // (PageContent.Child rather than a Source uri) and drive the real
+    // DynamicDocumentPaginator returned by IDocumentPaginatorSource.DocumentPaginator —
+    // proof this is live behaviour, not just a compiling shape. Model tests can't cover
+    // this: constructing a FixedPage (a WinUI Panel) needs a live DispatcherQueue, which
+    // only this app host provides.
+
+    [Fact]
+    public async Task FixedDocument_WithThreePages_PaginatesToTheRealFixedPageInstances()
+    {
+        var result = await _app.InvokeAsync("fixeddocument.probe.build-and-paginate", 3);
+        var raw = result.ToString();
+
+        Assert.Equal(3, result.GetProperty("pageCount").GetInt32());
+        Assert.True(result.GetProperty("isPageCountValid").GetBoolean(), raw);
+        Assert.True(result.GetProperty("visualMatchesForEachPage").GetBoolean(), raw);
+        Assert.True(result.GetProperty("childCountsMatch").GetBoolean(), raw);
+        Assert.True(result.GetProperty("beyondLastIsMissing").GetBoolean(), raw);
+        Assert.True(result.GetProperty("negativeThrew").GetBoolean(), raw);
+    }
+
+    [Fact]
+    public async Task FixedDocument_WithOnePage_PaginatesCorrectly()
+    {
+        var result = await _app.InvokeAsync("fixeddocument.probe.build-and-paginate", 1);
+        var raw = result.ToString();
+
+        Assert.Equal(1, result.GetProperty("pageCount").GetInt32());
+        Assert.True(result.GetProperty("visualMatchesForEachPage").GetBoolean(), raw);
+        Assert.True(result.GetProperty("beyondLastIsMissing").GetBoolean(), raw);
+    }
 }

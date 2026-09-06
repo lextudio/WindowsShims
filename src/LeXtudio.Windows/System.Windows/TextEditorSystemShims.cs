@@ -166,6 +166,13 @@ namespace System.Windows.Markup
         /// </summary>
         public static implicit operator XmlLanguage(string ietfLanguageTag)
             => GetLanguage(ietfLanguageTag);
+
+        /// <summary>
+        /// The registered culture for this tag, or the one for the longest leading run of
+        /// subtags that is registered, falling back to the invariant culture — as upstream does.
+        /// </summary>
+        public System.Globalization.CultureInfo GetCompatibleCulture()
+            => XmlLanguageExtensions.Resolve(IetfLanguageTag);
     }
 }
 
@@ -261,3 +268,40 @@ namespace MS.Internal.PtsHost
 }
 
 // ColumnResizeAdorner stub removed in Session 25; upstream ColumnResizeAdorner.cs is now active.
+
+namespace System.Windows.Markup
+{
+    /// <summary>
+    /// WinUI types FrameworkElement.Language as a string where WPF types it as XmlLanguage,
+    /// so upstream's <c>element.Language.GetCompatibleCulture()</c> has a string receiver here.
+    /// </summary>
+    public static class XmlLanguageExtensions
+    {
+        extension(string? ietfLanguageTag)
+        {
+            public System.Globalization.CultureInfo GetCompatibleCulture()
+                => XmlLanguageExtensions.Resolve(ietfLanguageTag);
+        }
+
+        internal static System.Globalization.CultureInfo Resolve(string? ietfLanguageTag)
+        {
+            var tag = ietfLanguageTag;
+
+            while (!string.IsNullOrEmpty(tag))
+            {
+                try
+                {
+                    return System.Globalization.CultureInfo.GetCultureInfo(tag);
+                }
+                catch (System.Globalization.CultureNotFoundException)
+                {
+                    // Drop the trailing subtag and try the shorter tag, as upstream's Shorten does.
+                    var lastDash = tag.LastIndexOf('-');
+                    tag = lastDash < 0 ? null : tag.Substring(0, lastDash);
+                }
+            }
+
+            return System.Globalization.CultureInfo.InvariantCulture;
+        }
+    }
+}

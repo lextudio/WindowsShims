@@ -901,6 +901,10 @@
 
   <ItemGroup>
     <!-- Fixed-document (XPS) support types from WindowsBase/PresentationCore/Shared. -->
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Controls\Primitives\IScrollInfo.cs"
+             Link="System.Windows.Controls.Primitives\IScrollInfo.cs" />
+    <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\System\Windows\Markup\XmlCompatibilityReader.cs"
+             Link="System.Windows.Markup\XmlCompatibilityReader.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\MS\Utility\BindUriHelper.cs"
              Link="MS.Internal.Utility\BindUriHelper.Shared.cs" />
     <Compile Include="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\Shared\MS\Internal\ReflectionUtils.cs"
@@ -939,36 +943,25 @@
              Link="System.Windows.Documents\DynamicDocumentPaginator.cs" />
   </ItemGroup>
 
-  <!-- Set FixedDocumentRung=all to un-gate the whole fixed-document family and measure the
-       remaining compile surface: dotnet build -f net10.0-desktop -p:FixedDocumentRung=all -->
-  <ItemGroup Condition="'$(FixedDocumentRung)' == 'all'">
-    <!-- Upstream FixedPage.cs supplies NavigateUriProperty/GetLinkUri once un-gated. -->
-    <Compile Remove="System.Windows\Documents\FixedPageHyperlinkShim.cs" />
+  <!-- FixedDocument (XPS) object model: linked upstream (rungs 1-6). Only the
+       RubberbandSelector's bitmap-snapshot rendering (and its DocumentGrid/HighlightVisual
+       dependencies) remains gated, tracked as R8 in docs/fixeddocument/ — it needs the
+       retained-mode visual layer (ContainerVisual/DrawingVisual), which WinUI does not expose.
+       Set FixedDocumentR8=all to also un-gate it and measure that remaining surface:
+       dotnet build -f net10.0-desktop -p:FixedDocumentR8=all -->
+  <ItemGroup Condition="'$(FixedDocumentR8)' != 'all'">
+    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(FixedDocumentRung)' != 'all'">
-    <!-- FixedDocument (XPS) migration, rung 1: the paginator/content-type spine is linked
-         upstream (see the ItemGroups below). The document object model itself still needs a
-         GlyphRun/FormattedText surface that WinUI does not provide, plus Rect/Transform/Brushes
-         helpers; tracked in docs/fixeddocument/. Keep these gated until those rungs land. -->
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Fixed*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\PageContent*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentSequence*.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReference.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentReferenceCollection.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\ChildDocumentBlock.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\Glyphs.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\HighlightVisual.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\RubberbandSelector.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowNode.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\FlowPosition.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\XPSS0ValidatingLoader.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\NamedElement.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\SemanticBasicElement.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\System\Windows\Documents\DocumentStructures\StoryFragments.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentPaginator.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\FixedDocumentSequencePaginator.cs" />
-    <Compile Remove="..\..\ext\wpf\src\Microsoft.DotNet.Wpf\src\PresentationFramework\MS\Internal\documents\TextViewBase.cs" />
+  <ItemGroup Condition="'$(FixedDocumentR8)' == 'all'">
+    <!-- Upstream RubberbandSelector.cs (included above) supplies the real type. -->
+    <Compile Remove="System.Windows\Documents\RubberbandSelectorStub.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Upstream FixedPage.cs (linked above) supplies NavigateUriProperty/GetLinkUri and the
+         real base class; the local pre-R6 stand-in is superseded. -->
+    <Compile Remove="System.Windows\Documents\FixedPageHyperlinkShim.cs" />
   </ItemGroup>
 
 </Project>

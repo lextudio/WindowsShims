@@ -122,14 +122,53 @@ public sealed class Dispatcher
     public void BeginInvoke(DispatcherPriority priority, Delegate method) =>
         ShimUiDispatcher.Post(method);
 
-    public void BeginInvoke(DispatcherPriority priority, Delegate method, object? arg) =>
-        ShimUiDispatcher.Post(method, new[] { arg });
+    // Returns a DispatcherOperation, as WPF does, so callers can wait on the queued work.
+    public System.Windows.Threading.DispatcherOperation BeginInvoke(
+        DispatcherPriority priority, Delegate method, object? arg)
+    {
+        var completion = new System.Threading.Tasks.TaskCompletionSource();
+        ShimUiDispatcher.Post(
+            new Action(() =>
+            {
+                try
+                {
+                    method.DynamicInvoke(arg);
+                    completion.TrySetResult();
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+            }),
+            null);
+        return new System.Windows.Threading.DispatcherOperation(completion.Task);
+    }
 
     public void BeginInvoke(DispatcherPriority priority, System.Threading.SendOrPostCallback callback, object? arg) =>
         ShimUiDispatcher.Post(callback, new[] { arg });
 
-    public void BeginInvoke(DispatcherPriority priority, System.Windows.Threading.DispatcherOperationCallback callback, object? arg) =>
-        ShimUiDispatcher.Post(callback, new[] { arg });
+    public System.Windows.Threading.DispatcherOperation BeginInvoke(
+        DispatcherPriority priority, System.Windows.Threading.DispatcherOperationCallback callback, object? arg)
+    {
+        var completion = new System.Threading.Tasks.TaskCompletionSource();
+        ShimUiDispatcher.Post(
+            new System.Windows.Threading.DispatcherOperationCallback(a =>
+            {
+                try
+                {
+                    var result = callback(a);
+                    completion.TrySetResult();
+                    return result;
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                    throw;
+                }
+            }),
+            new[] { arg });
+        return new System.Windows.Threading.DispatcherOperation(completion.Task);
+    }
 
     public event EventHandler ShutdownFinished;
     public event EventHandler ShutdownStarted;

@@ -34,3 +34,13 @@ namespace MS.Utility
         }
     }
 }
+
+namespace System.Windows.Markup
+{
+    /// <summary>WPF's XamlReader parse-mode enum. XPSS0ValidatingLoader is the only caller.</summary>
+    public enum XamlParseMode
+    {
+        Synchronous,
+        Asynchronous,
+    }
+}

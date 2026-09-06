@@ -79,6 +79,43 @@ public partial class FrameworkContentElement : DependencyObject
 
     public bool IsInitialized => true;
 
+    /// <summary>
+    /// WPF raises this once the parser has finished the element. Nothing in Uno's XAML
+    /// loader has an equivalent hook, and <see cref="IsInitialized"/> is already true, so
+    /// callers take the already-initialized path and this never needs to fire.
+    /// </summary>
+    public event EventHandler? Initialized;
+
+    /// <summary>Raises <see cref="Initialized"/>. Nothing in the shim calls it today.</summary>
+    protected void RaiseInitialized() => Initialized?.Invoke(this, EventArgs.Empty);
+
+    public static readonly DependencyProperty FocusableProperty =
+        DependencyProperty.RegisterAttached(
+            "Focusable",
+            typeof(bool),
+            typeof(FrameworkContentElement),
+            new Microsoft.UI.Xaml.PropertyMetadata(false));
+
+    public bool Focusable
+    {
+        get => (bool)GetValue(FocusableProperty);
+        set => SetValue(FocusableProperty, value);
+    }
+
+    /// <summary>
+    /// WPF types this as XmlLanguage; WinUI types FrameworkElement.Language as a string.
+    /// The string form is used here so both sides of the port read the same shape.
+    /// </summary>
+    public string Language { get; set; } = string.Empty;
+
+    /// <summary>
+    /// WPF logical-tree parenting. The shim tracks Parent on FrameworkContentElement only,
+    /// which is what TextElement.Parent walks depend on.
+    /// </summary>
+    public void AddLogicalChild(object child) => LogicalTreeHelper.AddLogicalChild(this, child);
+
+    public void RemoveLogicalChild(object child) => LogicalTreeHelper.RemoveLogicalChild(this, child);
+
     // Called by the WPF tree machinery when an element gets a new logical parent.
     // TableRow, TableCell, and TableRowGroup override this to wire up parent references.
     // The base implementation updates _parent so overrides that call base.OnNewParent()

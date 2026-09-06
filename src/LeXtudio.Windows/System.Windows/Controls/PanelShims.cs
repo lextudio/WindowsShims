@@ -69,6 +69,52 @@ public class ScrollContentPresenter : FrameworkElement
     // AdornerLayer property used by AdornerLayer.GetAdornerLayer visual-tree walk.
     public System.Windows.Documents.AdornerLayer AdornerLayer => null;
 
+    /// <summary>
+    /// WPF's ScrollContentPresenter.ComputeScrollOffsetWithMinimalScroll, ported from
+    /// upstream: the scroll offset that brings a child rect into a viewport with the least
+    /// possible motion, aligning only the nearer edge when the child does not fully fit.
+    /// </summary>
+    internal static double ComputeScrollOffsetWithMinimalScroll(
+        double topView, double bottomView, double topChild, double bottomChild)
+    {
+        bool alignTop = false;
+        bool alignBottom = false;
+        return ComputeScrollOffsetWithMinimalScroll(topView, bottomView, topChild, bottomChild, ref alignTop, ref alignBottom);
+    }
+
+    internal static double ComputeScrollOffsetWithMinimalScroll(
+        double topView, double bottomView, double topChild, double bottomChild,
+        ref bool alignTop, ref bool alignBottom)
+    {
+        // # CHILD POSITION       CHILD SIZE      SCROLL      REMEDY
+        // 1 Above viewport       <= viewport     Down        Align top edge of child & viewport
+        // 2 Above viewport       > viewport      Down        Align bottom edge of child & viewport
+        // 3 Below viewport       <= viewport     Up          Align bottom edge of child & viewport
+        // 4 Below viewport       > viewport      Up          Align top edge of child & viewport
+        // 5 Entirely within viewport             NA          No scroll.
+        // 6 Spanning viewport                    NA          No scroll.
+        bool above = topChild < topView && bottomChild < bottomView;
+        bool below = topChild > topView && bottomChild > bottomView;
+        bool larger = (bottomChild - topChild) > (bottomView - topView);
+
+        if ((above && !larger) || (below && larger))
+        {
+            alignTop = true;
+            alignBottom = false;
+            return topChild;
+        }
+
+        if (above || below)
+        {
+            alignTop = false;
+            alignBottom = true;
+            return bottomChild - (bottomView - topView);
+        }
+
+        // Entirely within, or spanning, the viewport: no scroll needed.
+        return topView;
+    }
+
     // WPF attached property that enables logical (item-based) scrolling.
     public static readonly DependencyProperty CanContentScrollProperty =
         DependencyProperty.RegisterAttached("CanContentScroll", typeof(bool),

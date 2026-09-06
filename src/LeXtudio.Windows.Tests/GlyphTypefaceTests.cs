@@ -119,11 +119,21 @@ public sealed class GlyphTypefaceTests
     }
 
     [Fact]
-    public void AnUnresolvableFontUriFallsBackToTheDefaultFace()
+    public void AMissingFontFileFallsBackToTheDefaultFace()
     {
-        var typeface = new GlyphTypeface(new Uri("pack://application:,,,/fonts/nosuchfont.ttf"));
+        var typeface = new GlyphTypeface(new Uri("file:///nonexistent/nosuchfont.ttf"));
 
         Assert.True(typeface.DesignEmHeight > 0);
+        Assert.True(typeface.FamilyNames.TryGetValue(CultureInfo.InvariantCulture, out var name));
+        Assert.False(string.IsNullOrEmpty(name));
+    }
+
+    [Fact]
+    public void AFontUriFragmentIsTreatedAsAFamilyName()
+    {
+        // WPF font uris carry the face name in the fragment: …/GlobalUserInterface.CompositeFont#Arial
+        var typeface = new GlyphTypeface(new Uri("file:///nonexistent/fonts.ttf#Arial"));
+
         Assert.True(typeface.FamilyNames.TryGetValue(CultureInfo.InvariantCulture, out var name));
         Assert.False(string.IsNullOrEmpty(name));
     }

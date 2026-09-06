@@ -1,28 +1,10 @@
 #if WINUI_BRIDGE
 namespace System.Windows.Controls
 {
-    // IScrollInfo is used by TextEditorSelection for horizontal-offset queries.
-    public interface IScrollInfo
-    {
-        double HorizontalOffset { get; }
-        double VerticalOffset { get; }
-        double ViewportWidth { get; }
-        double ViewportHeight { get; }
-        double ExtentWidth { get; }
-        double ExtentHeight { get; }
-        void LineUp();
-        void LineDown();
-        void LineLeft();
-        void LineRight();
-        void PageUp();
-        void PageDown();
-        void PageLeft();
-        void PageRight();
-        void MouseWheelUp();
-        void MouseWheelDown();
-        void MouseWheelLeft();
-        void MouseWheelRight();
-    }
+    // IScrollInfo is System.Windows.Controls.Primitives.IScrollInfo, linked from upstream
+    // now that the fixed-document rung needs the real interface (with MakeVisible,
+    // SetHorizontalOffset, CanVerticallyScroll and friends). TextEditorSelection's
+    // `textview as IScrollInfo` casts resolve to it via `using System.Windows.Controls.Primitives;`.
 
     // ScrollBar.PageDownCommand / PageUpCommand used by TextEditorSelection page-key handling.
     public static class ScrollBar

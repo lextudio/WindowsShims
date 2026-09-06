@@ -95,7 +95,9 @@ public class FrameworkPropertyMetadata : Microsoft.UI.Xaml.PropertyMetadata
     public new object? DefaultValue { get; }
     public FrameworkPropertyMetadataOptions Options { get; }
     public PropertyChangedCallback? PropertyChangedCallback { get; }
-    public CoerceValueCallback? CoerceValueCallback { get; }
+    // `init` rather than get-only: upstream FixedPage builds its metadata with an object
+    // initializer (`new FrameworkPropertyMetadata(...) { CoerceValueCallback = ... }`).
+    public CoerceValueCallback? CoerceValueCallback { get; init; }
 
     // WPF PropertyChangedCallback signature uses (DependencyObject d, DependencyPropertyChangedEventArgs e)
     // where DependencyObject is Microsoft.UI.Xaml.DependencyObject. WinUI fires its own

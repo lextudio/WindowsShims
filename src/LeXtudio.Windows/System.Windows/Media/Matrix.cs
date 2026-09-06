@@ -29,5 +29,33 @@ namespace System.Windows.Media
         };
 
         public static Matrix operator *(Matrix left, Matrix right) => Multiply(left, right);
+
+        public readonly double Determinant => (M11 * M22) - (M12 * M21);
+
+        public readonly bool HasInverse => Determinant != 0;
+
+        /// <summary>Inverts this matrix in place, as WPF's Matrix.Invert does.</summary>
+        public void Invert()
+        {
+            var determinant = Determinant;
+            if (determinant == 0)
+            {
+                throw new InvalidOperationException("The matrix is not invertible.");
+            }
+
+            var m11 = M22 / determinant;
+            var m12 = -M12 / determinant;
+            var m21 = -M21 / determinant;
+            var m22 = M11 / determinant;
+            var offsetX = ((M21 * OffsetY) - (M22 * OffsetX)) / determinant;
+            var offsetY = ((M12 * OffsetX) - (M11 * OffsetY)) / determinant;
+
+            M11 = m11;
+            M12 = m12;
+            M21 = m21;
+            M22 = m22;
+            OffsetX = offsetX;
+            OffsetY = offsetY;
+        }
     }
 }

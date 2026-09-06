@@ -23,6 +23,21 @@ public static class XamlReader
 
     public static object? Load(XmlReader reader, bool useRestrictiveXamlXmlReader) => Parse(reader);
 
+    /// <summary>
+    /// WPF's full XamlReader.Load overload — parser context, parse mode (sync/async),
+    /// restrictive-reader flag and a safe-type allowlist. XPSS0ValidatingLoader is the only
+    /// caller; parserContext, parseMode and safeTypes are all part of WPF's XAML security
+    /// infrastructure (BAML permission sets, async parsing) that this port does not model,
+    /// so they are accepted and ignored — the reader is parsed the same way Load(reader) is.
+    /// </summary>
+    public static object? Load(
+        XmlReader reader,
+        ParserContext? parserContext,
+        XamlParseMode parseMode,
+        bool useRestrictiveXamlXmlReader,
+        System.Collections.Generic.IList<Type>? safeTypes)
+        => Parse(reader);
+
     public static object? Load(string xaml)
     {
         // Pre-process: WPF WriteXaml with useFlowDocumentAsRoot=true emits namespace

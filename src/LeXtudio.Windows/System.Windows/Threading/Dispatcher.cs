@@ -11,6 +11,25 @@ public sealed class DispatcherOperation
 
     // WPF DispatcherOperation is awaitable; upstream ILSpy awaits InvokeAsync(...) directly.
     public System.Runtime.CompilerServices.TaskAwaiter GetAwaiter() => Task.GetAwaiter();
+
+    /// <summary>
+    /// WPF's DispatcherOperation.Wait — blocks until the operation completes. Callers are
+    /// expected to be off the dispatcher thread; waiting on it from the dispatcher thread
+    /// would deadlock, exactly as in WPF.
+    /// </summary>
+    public DispatcherOperationStatus Wait()
+    {
+        Task.GetAwaiter().GetResult();
+        return DispatcherOperationStatus.Completed;
+    }
+}
+
+public enum DispatcherOperationStatus
+{
+    Pending,
+    Aborted,
+    Completed,
+    Executing,
 }
 
 public sealed class DispatcherOperation<T>

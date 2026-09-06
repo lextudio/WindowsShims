@@ -2927,6 +2927,65 @@ public sealed partial class MainPage : Page
         page._box.UpdateLayout();
         return Snapshot(page);
     });
+
+    [DevFlowAction("fixeddocument.probe.build-and-paginate", Description = "Build a FixedDocument with N in-memory FixedPage/PageContent pages (rung 6 verification: not from a Source uri) and report the paginator's page count, whether the returned DocumentPage.Visual is the real FixedPage instance, out-of-range behavior, and whether the page's Panel Children collection is the live WinUI panel.")]
+    public static string ProbeFixedDocumentBuildAndPaginate(int pageCount) => RunOnUi(page =>
+    {
+        var document = new System.Windows.Documents.FixedDocument();
+        var pages = new System.Windows.Documents.FixedPage[pageCount];
+
+        for (int i = 0; i < pageCount; i++)
+        {
+            var fixedPage = new System.Windows.Documents.FixedPage { Width = 816, Height = 1056 };
+            var marker = new Microsoft.UI.Xaml.Controls.Grid { Name = $"page{i}" };
+            fixedPage.Children.Add(marker);
+            pages[i] = fixedPage;
+
+            document.Pages.Add(new System.Windows.Documents.PageContent { Child = fixedPage });
+        }
+
+        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)document).DocumentPaginator;
+
+        var visualMatchesForEachPage = true;
+        var childCountsMatch = true;
+        for (int i = 0; i < pageCount; i++)
+        {
+            var documentPage = paginator.GetPage(i);
+            if (!ReferenceEquals(documentPage.Visual, pages[i]))
+            {
+                visualMatchesForEachPage = false;
+            }
+
+            if (pages[i].Children.Count != 1)
+            {
+                childCountsMatch = false;
+            }
+        }
+
+        var beyondLastIsMissing = ReferenceEquals(
+            paginator.GetPage(pageCount),
+            System.Windows.Documents.DocumentPage.Missing);
+
+        bool negativeThrew;
+        try
+        {
+            paginator.GetPage(-1);
+            negativeThrew = false;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            negativeThrew = true;
+        }
+
+        return "{"
+            + $"\"pageCount\":{paginator.PageCount},"
+            + $"\"isPageCountValid\":{Jb(paginator.IsPageCountValid)},"
+            + $"\"visualMatchesForEachPage\":{Jb(visualMatchesForEachPage)},"
+            + $"\"childCountsMatch\":{Jb(childCountsMatch)},"
+            + $"\"beyondLastIsMissing\":{Jb(beyondLastIsMissing)},"
+            + $"\"negativeThrew\":{Jb(negativeThrew)}"
+            + "}";
+    });
 }
 #else
 public sealed partial class MainPage : Microsoft.UI.Xaml.Controls.Page

@@ -106,6 +106,50 @@ public static class WinUIFrameworkElementExtensions
 
         public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
             => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));
+
+        /// <summary>
+        /// WPF's Visual.VisualContentBounds — the bounds of what the element itself draws,
+        /// excluding children. WinUI does not separate the two, so the element's own render
+        /// size is reported.
+        /// </summary>
+        public global::Windows.Foundation.Rect VisualContentBounds
+            => new(0, 0, self.ActualWidth, self.ActualHeight);
+
+        /// <summary>
+        /// WPF's FrameworkElement.ChangeLogicalParent. A no-op, like AddLogicalChild above:
+        /// the shim only tracks logical parents for FrameworkContentElement, and a WinUI
+        /// FrameworkElement's parenting is owned by Uno's visual tree.
+        /// </summary>
+        public void ChangeLogicalParent(DependencyObject? newParent) { }
+    }
+
+    extension(Microsoft.UI.Xaml.UIElement self)
+    {
+        /// <summary>
+        /// WPF's UIElement.InvalidateVisual — schedules OnRender. WinUI has no OnRender;
+        /// invalidating arrange is the nearest request for the element to be redrawn.
+        /// </summary>
+        public void InvalidateVisual() => self.InvalidateArrange();
+
+        public System.Windows.Media.GeneralTransform TransformToDescendant(Microsoft.UI.Xaml.UIElement descendant)
+            => new System.Windows.Media.WinUIGeneralTransform(self.TransformToVisual(descendant));
+    }
+
+    extension(Microsoft.UI.Xaml.DependencyObject self)
+    {
+        /// <summary>
+        /// WPF's DependencyObject.InheritanceParent — the object property inheritance flows
+        /// from. Uno has no inheritance-context pointer to read, so the visual parent, which
+        /// is what inheritance follows in practice, is reported.
+        /// </summary>
+        public DependencyObject? InheritanceParent
+            => self is FrameworkContentElement contentElement
+                ? contentElement.Parent
+                : Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(self);
+
+        /// <summary>WPF's DependencyObject.DependencyObjectType.</summary>
+        public DependencyObjectType DependencyObjectType
+            => DependencyObjectType.FromSystemTypeInternal(self.GetType());
     }
 
     // WPF Visual-tree management APIs that FrameworkElement exposes (via UIElement/Visual).
@@ -159,11 +203,12 @@ public static class WinUIFrameworkElementExtensions
     extension(Microsoft.UI.Xaml.FrameworkElement self)
     {
         /// <summary>
-        /// WPF's FrameworkElement.IsInitialized. WPF sets it after the parser finishes the
-        /// element; the closest WinUI signal is IsLoaded, which is true once the element has
-        /// entered the live tree.
+        /// WPF's FrameworkElement.IsInitialized, set once the parser has finished the
+        /// element. Always true here: an element handed back by XamlReader.Load is fully
+        /// parsed, and Uno's loader has no Initialized event to wait on — reporting false
+        /// would send the fixed-document page loader down a path that never completes.
         /// </summary>
-        public bool IsInitialized => self.IsLoaded;
+        public bool IsInitialized => true;
 
         /// <summary>
         /// WPF's FrameworkElement.InheritanceBehavior, which controls how far property-value

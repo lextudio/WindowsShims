@@ -1,5 +1,14 @@
 # FixedDocument (XPS) Port
 
+**Status: migrated.** `FixedDocument`, `FixedPage`, `PageContent`,
+`FixedDocumentSequence`, `DocumentReference`, the `FixedSOM*` semantic object
+model, `Glyphs`, `FixedTextView`/`FixedTextBuilder`, and the paginator/
+app-model support layers are linked from upstream WPF and compiled into
+`LeXtudio.Windows` by default — no build property needed. See "Where the
+migration stands" at the end of `session6.md` for what remains out of scope
+(tracked as R8: `RubberbandSelector`, `HighlightVisual`, full visual-fidelity
+rendering) and why.
+
 This folder tracks the `System.Windows.Documents` fixed-document family —
 `FixedDocument`, `FixedPage`, `PageContent`, `FixedDocumentSequence`, the
 `FixedSOM*` semantic object model, and the paginator surface they sit on.
@@ -14,10 +23,10 @@ Every other ported control (ToolBar, RichTextBox, DataGrid) rebases WPF logic
 onto WinUI's layout model. The fixed-document family additionally depends on
 WPF's **retained-mode drawing layer**, which WinUI does not expose at all:
 
-- `GlyphRun` — `BaselineOrigin`, `ComputeAlignmentBox`, `Characters`,
-  `ClusterMap`, `AdvanceWidths`, `BidiLevel`, `GetDistanceFromCaretCharacterHit`.
-  `Glyphs`, `FixedSOMTextRun`, `FixedTextView` and `FixedPageStructure` are
-  written directly against it.
+- `GlyphRun` and `GlyphTypeface` — solved in rung 5 by reimplementing over
+  SkiaSharp rather than linking. Two known gaps remain: `AdvanceHeights` reports
+  the line height for every glyph because Skia exposes no `vmtx` table, and
+  `FamilyNames` answers one name for every culture.
 - `DrawingContext` / `OnRender` / `DrawingVisual` / `ContainerVisual` /
   `StreamGeometry` / `CapacityStreamGeometryContext`.
 - `FormattedText`'s 7-argument constructor and `BuildHighlightGeometry`.
@@ -33,20 +42,24 @@ dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj -f net10.0-desktop
 Build succeeded: 0 errors
 ```
 
-Tests: 286/286 model (`LeXtudio.Windows.Tests`), 238/238 RichTextBox
-integration, 83/83 DataGrid integration.
+Tests: 318/318 model (`LeXtudio.Windows.Tests`), 240/240 RichTextBox
+integration (was 238; +2 for fixed-document object-model probes), 83/83
+DataGrid integration.
 
-The whole family can be un-gated for measurement without editing the project file:
+The object model is included by default. `RubberbandSelector.cs` (R8) is the
+one file still gated; un-gate it for measurement without editing the project
+file:
 
 ```bash
 dotnet build src/LeXtudio.Windows/LeXtudio.Windows.csproj \
-  -f net10.0-desktop -p:FixedDocumentRung=all
+  -f net10.0-desktop -p:FixedDocumentR8=all
 ```
 
-Un-gated error count: **195** — 164 excluding `RubberbandSelector.cs`, which stays
-gated until R8. It was 585 before session 2.
+R8 error count: **21**, entirely within `RubberbandSelector.cs`. The
+whole-family count was 602 at session 1, 585 at the start of session 2, and 0
+in the default build as of session 6.
 
-### Landed (rungs 1-5)
+### Landed (rungs 1-7; R6 completes the migration)
 
 Linked from upstream, replacing hand-written local shims:
 
@@ -99,6 +112,19 @@ the first fixed-document support file off the gate list. `BaseUriHelper`,
 local, in `System.Windows/Navigation/AppModelShims.cs`, because upstream drags in
 the pack:// deployment stack. Details in `session4.md`.
 
+Rung 7 replaced the `GlyphTypeface` and `GlyphRun` stubs with real implementations
+in `System.Windows/Media/`. `GlyphTypeface` is backed by SkiaSharp; `GlyphRun`'s
+caret arithmetic is ported from upstream line for line. Guarding WPF's
+`DrawDebugVisual` code behind `#if DEBUG && !HAS_UNO` cleared a third of what
+looked like a GlyphRun problem before any shim was written. Details in `session5.md`.
+
+Rung 6 cleared the remaining ~72-error tail and un-gated the whole object model
+in the default build — the gating flag inverted from "add the object model on
+top of a gated default" to "add back only `RubberbandSelector.cs` (now `R8`)
+on top of an un-gated default". Verified with two new integration tests that
+build a `FixedDocument` in memory and paginate it through a real app host, not
+just by compiling. Details in `session6.md`.
+
 ### Gated off
 
 The whole object model is still excluded in the project file, with the block
@@ -132,16 +158,22 @@ Each rung must leave the library building and all three suites green.
   in `TextViewBase`, `TransformToAncestor` returning WinUI's `GeneralTransform`
   where the shim type is expected, and `IFrameworkInputElement`.
 - **R5 — app-model loading.** Done, session 4.
-- **R6 — the object model.** `FixedDocument`, `PageContent`, `DocumentSequence`,
-  `DocumentReference`, `FixedTextContainer`, `FixedTextPointer`. Compile-only;
-  no rendering yet.
-- **R7 — GlyphRun surface.** The real blocker, and after session 4 nearly all of
-  what remains: about 100 of the 164 object-model errors. Everything else on the
-  list is now small. Either a Uno/Skia-backed
+- **R6 — the object model.** Done, session 6. `FixedDocument`, `PageContent`,
+  `DocumentSequence`, `DocumentReference`, `FixedTextContainer`,
+  `FixedTextPointer` and everything else are un-gated in the default build.
+  Verified live (pagination, page identity, hyperlink plumbing) via a RichTextBox
+  integration-host probe, not compile-only as originally scoped — rendering
+  fidelity is still R8's job, not R6's.
+- **R7 — GlyphRun surface.** Done, session 5, over SkiaSharp. Taken before R6
+  because it was the gate on everything else. Either a Uno/Skia-backed
   `GlyphRun` shim or a rewrite of `Glyphs`/`FixedSOMTextRun` onto Uno's text
   stack. Decide before starting R6, because `FixedTextView` straddles both.
-- **R8 — rendering and hit-testing.** `HighlightVisual`, `RubberbandSelector`'s
-  bitmap snapshot, `FixedPage.OnRender`, the `GeometryWalker` fast path.
+- **R8 — rendering and hit-testing (remaining scope).** `RubberbandSelector`
+  (rubber-band selection, its bitmap-clipboard snapshot, and its `DocumentGrid`
+  dependency), `HighlightVisual` (the `DrawingVisual`-based highlight layer),
+  `FixedPage.OnRender`, the `GeometryWalker` fast path, and full pixel-fidelity
+  rendering of fixed-page content. All need the retained-mode visual layer
+  (`ContainerVisual`/`DrawingVisual`) that WinUI does not expose.
 
 ## Working Rules
 

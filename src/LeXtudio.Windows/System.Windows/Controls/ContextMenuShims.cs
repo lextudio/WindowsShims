@@ -106,7 +106,7 @@ namespace System.Windows.Controls
         {
             public static System.Windows.RoutedEvent ScrollChangedEvent => s_scrollChangedEvent;
             public static double _scrollLineDelta => 16.0;
-            public IScrollInfo ScrollInfo => null;
+            public System.Windows.Controls.Primitives.IScrollInfo? ScrollInfo => null;
             public bool HandlesMouseWheelScrolling { get => true; set { } }
             public bool CanContentScroll { get => true; set { } }
             public void LineUp()   => sv.ChangeView(null, sv.VerticalOffset - 16, null);

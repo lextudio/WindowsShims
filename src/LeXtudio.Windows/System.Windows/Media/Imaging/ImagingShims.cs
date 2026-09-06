@@ -102,6 +102,18 @@ namespace System.Windows.Media.Imaging
 			DependencyProperty.Register("UriSource", typeof(Uri), typeof(BitmapImage), null);
 		public static readonly DependencyProperty CacheOptionProperty =
 			DependencyProperty.Register("CacheOption", typeof(object), typeof(BitmapImage), null);
+
+		public BitmapImage() { }
+
+		/// <summary>WPF's BitmapImage(Uri) — records the source uri; no decode happens here.</summary>
+		public BitmapImage(Uri uriSource) => UriSource = uriSource;
+
+		/// <summary>Where the image was loaded from, when it was loaded by uri.</summary>
+		public Uri? UriSource
+		{
+			get => (Uri?)GetValue(UriSourceProperty);
+			set => SetValue(UriSourceProperty, value);
+		}
 	}
 
 	// Cross-platform BitmapEncoder hierarchy backed by SkiaSharp.
